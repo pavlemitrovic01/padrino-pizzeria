@@ -2,7 +2,7 @@ import { HashRouter, Routes, Route } from "react-router-dom";
 
 import AdminOrders from "./components/AdminOrders";
 import AdminLogin from "./pages/admin/AdminLogin";
-import RequireAdmin from "./auth/RequireAdmin";
+import RequireAdmin from "./components/RequireAdmin";
 
 import Navbar from "./components/Navbar";
 import Hero from "./sections/Hero";

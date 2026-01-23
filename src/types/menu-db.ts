@@ -7,6 +7,6 @@ export interface MenuItemDB {
   name: string;
   description: string;
   price: number;       // int4
-  image: string;       // path iz baze
+  image_url: string;       // path iz baze
   category: MenuCategory;
 }

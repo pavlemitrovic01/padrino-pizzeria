@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../lib/supabaseClient";
 import { useCart } from "../context/useCart";
 import type { MenuItem } from "../types/menu";
 

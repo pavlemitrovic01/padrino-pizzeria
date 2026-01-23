@@ -19,30 +19,25 @@ export default function RequireAdmin({ children }: Props) {
     if (user && user.email === ADMIN_EMAIL) {
       setAuthorized(true);
     }
-
     setLoading(false);
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAdmin();
   }, []);
 
   if (loading) {
-    return <p className="p-6">Provera admin pristupa...</p>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
   }
 
   if (!authorized) {
     return (
-      <div className="p-6">
-        <p className="text-red-600 font-semibold">
-          Nemate pristup admin panelu.
-        </p>
-        <p>
-          <a href="/#/admin/login" className="underline">
-            Idi na admin login
-          </a>
-        </p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-white">Unauthorized</div>
       </div>
     );
   }

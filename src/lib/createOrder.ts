@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase } from "./supabaseClient";
 import type { CartItem } from "../types/menu";
 
 interface CreateOrderInput {
