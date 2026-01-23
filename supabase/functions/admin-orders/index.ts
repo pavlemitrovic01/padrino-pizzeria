@@ -1,103 +1,73 @@
-// @ts-expect-error Deno import
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-// @ts-expect-error ESM import
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// @ts-expect-error Deno global
-declare const Deno: { env: { get: (key: string) => string | undefined } };
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_SERVICE_ROLE_KEY =
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-serve(async (req: Request) => {
-  const sb = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY,
+  {
+    auth: { persistSession: false },
+  }
+);
 
-  const method = req.method;
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
-  // ======================
-  // GET – list all orders
-  // ======================
+Deno.serve({ verifyJwt: false }, async (req) => {
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const method = req.method.toUpperCase();
+
   if (method === "GET") {
-    const { data, error } = await sb
+    const { data, error } = await supabase
       .from("orders")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (error) {
-      return new Response(
-        JSON.stringify({ success: false, error: error.message }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: corsHeaders,
+      });
     }
 
-    return new Response(
-      JSON.stringify(data),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
-  // ======================
-  // PATCH – update status
-  // ======================
   if (method === "PATCH") {
-    let body: { id: string; status: string };
+    const { id, status } = await req.json();
 
-    try {
-      body = await req.json();
-    } catch {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid JSON body" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const { id, status } = body;
-
-    if (!id || typeof id !== "string") {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid or missing id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!status || typeof status !== "string") {
-      return new Response(
-        JSON.stringify({ success: false, error: "Invalid or missing status" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const { data, error } = await sb
+    const { error } = await supabase
       .from("orders")
       .update({ status })
-      .eq("id", id)
-      .select("*");
+      .eq("id", id);
 
     if (error) {
-      return new Response(
-        JSON.stringify({ success: false, error: error.message }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+        headers: corsHeaders,
+      });
     }
 
-    if (!data || data.length === 0) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Order not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
-  // ======================
-  // METHOD NOT ALLOWED
-  // ======================
-  return new Response(
-    JSON.stringify({ success: false, error: "Method not allowed" }),
-    { status: 405, headers: { "Content-Type": "application/json" } }
-  );
+  return new Response("Method not allowed", {
+    status: 405,
+    headers: corsHeaders,
+  });
 });

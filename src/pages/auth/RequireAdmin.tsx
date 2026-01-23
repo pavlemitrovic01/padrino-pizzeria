@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
+
 
 const ADMIN_EMAIL = "pavlemitrovic01@gmail.com";
 
@@ -34,18 +35,12 @@ export default function RequireAdmin({ children }: Props) {
 
   if (!authorized) {
     return (
-      <div className="p-6">
-        <p className="text-red-600 font-semibold">
-          Nemate pristup admin panelu.
-        </p>
-        <p>
-          <a href="/#/admin/login" className="underline">
-            Idi na admin login
-          </a>
-        </p>
+      <div className="p-6 text-red-600">
+        Nemate pristup admin panelu.
       </div>
     );
   }
 
   return <>{children}</>;
 }
+
