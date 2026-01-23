@@ -1,17 +1,16 @@
-import { useEffect, useState } from "react";
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/useCart";
 
 export default function Navbar() {
   const { totalItems, openCart } = useCart();
-  const [pulse, setPulse] = useState(false);
+  // const [pulse, setPulse] = useState(false);
 
-  useEffect(() => {
-    if (totalItems > 0) {
-      setPulse(true);
-      const t = setTimeout(() => setPulse(false), 300);
-      return () => clearTimeout(t);
-    }
-  }, [totalItems]);
+  // useEffect(() => {
+  //   if (totalItems > 0) {
+  //     setPulse(true);
+  //     const t = setTimeout(() => setPulse(false), 300);
+  //     return () => clearTimeout(t);
+  //   }
+  // }, [totalItems]);
 
   return (
     <header className="fixed top-0 left-0 w-full z-40 bg-black/80 backdrop-blur-md">
@@ -41,15 +40,14 @@ export default function Navbar() {
 
           {totalItems > 0 && (
             <span
-              className={`
+              className="
                 absolute -top-2 -right-2
                 w-6 h-6
                 text-xs
                 bg-black text-white
                 flex items-center justify-center
                 rounded-full
-                ${pulse ? "badge-pulse" : ""}
-              `}
+              "
             >
               {totalItems}
             </span>

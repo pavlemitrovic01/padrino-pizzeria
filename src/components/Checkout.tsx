@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/useCart";
 import { createOrder } from "../lib/createOrder";
 
 interface Props {
-  onSuccess: () => void;
+  onSuccess?: () => void;
 }
 
 export default function Checkout({ onSuccess }: Props) {
@@ -32,7 +32,7 @@ export default function Checkout({ onSuccess }: Props) {
       });
 
       resetCart();
-      onSuccess();
+      onSuccess?.();
     } catch {
       setError("Greška prilikom slanja porudžbine.");
     } finally {

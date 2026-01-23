@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "../auth/useAuth";
 
 export default function Login() {
   const { login } = useAuth();
@@ -11,8 +11,8 @@ export default function Login() {
     try {
       await login(email, password);
       location.href = "/admin";
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError((e as Error).message);
     }
   };
 

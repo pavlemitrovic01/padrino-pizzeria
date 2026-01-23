@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/useCart";
+import type { CartItem } from "../types/menu";
 import Checkout from "./Checkout";
 
 export default function CartDrawer() {
@@ -36,7 +37,7 @@ export default function CartDrawer() {
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {items.map(item => (
+                  {items.map((item: CartItem) => (
                     <div
                       key={item.id}
                       className="flex justify-between items-center border-b pb-3"

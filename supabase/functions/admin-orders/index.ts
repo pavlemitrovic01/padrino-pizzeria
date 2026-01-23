@@ -1,9 +1,10 @@
-// @ts-ignore
+// @ts-expect-error Deno import
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-// @ts-ignore
+// @ts-expect-error ESM import
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-declare const Deno: any;
+// @ts-expect-error Deno global
+declare const Deno: { env: { get: (key: string) => string | undefined } };
 
 serve(async (req: Request) => {
   const sb = createClient(
@@ -39,7 +40,7 @@ serve(async (req: Request) => {
   // PATCH – update status
   // ======================
   if (method === "PATCH") {
-    let body: any;
+    let body: { id: string; status: string };
 
     try {
       body = await req.json();

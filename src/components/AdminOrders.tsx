@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 
+interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
+
 interface Order {
   id: string;
   created_at: string;
   customer_name: string;
   customer_phone: string;
   customer_address: string;
-  items: any[];
+  items: OrderItem[];
   total_price: number;
   status: string;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/useCart";
+import type { CartItem } from "../types/menu";
 import Checkout from "./Checkout";
 
 export default function Cart() {
@@ -61,7 +62,7 @@ export default function Cart() {
           <>
             {/* ITEMS */}
             <div className="space-y-4">
-              {items.map((item) => (
+              {items.map((item: CartItem) => (
                 <div
                   key={item.id}
                   className="

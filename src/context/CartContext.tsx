@@ -1,6 +1,6 @@
 // src/context/CartContext.tsx
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useState } from "react";
 import type { CartItem, MenuItem } from "../types/menu";
 
 interface CartContextType {
@@ -18,6 +18,8 @@ interface CartContextType {
 }
 
 const CartContext = createContext<CartContextType | null>(null);
+
+export { CartContext };
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -82,14 +84,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       {children}
     </CartContext.Provider>
   );
-}
-
-export function useCart() {
-  const ctx = useContext(CartContext);
-  if (!ctx) {
-    throw new Error("useCart must be used inside CartProvider");
-  }
-  return ctx;
 }
 
 

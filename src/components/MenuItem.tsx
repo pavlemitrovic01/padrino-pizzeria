@@ -1,5 +1,5 @@
 import { MenuItem as MenuItemType } from "../types/menu";
-import { useCart } from "../context/CartContext";
+import { useCart } from "../context/useCart";
 
 type Props = {
   item: MenuItemType;
@@ -11,7 +11,7 @@ export default function MenuItem({ item }: Props) {
   return (
     <div className="bg-zinc-900 rounded-xl p-6 flex gap-6">
       <img
-        src={item.image}
+        src={item.image_url}
         alt={item.name}
         className="w-28 h-28 object-cover rounded-lg"
       />
