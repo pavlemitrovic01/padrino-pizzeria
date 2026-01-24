@@ -1,36 +1,68 @@
+import { motion } from "framer-motion";
 import { useCart } from "../context/useCart";
 
-export default function Navbar() {
-  const { totalItems, openCart } = useCart();
+type MenuItemProps = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+  category: string;
+};
+
+export default function MenuItem({
+  id,
+  name,
+  description,
+  price,
+  image,
+  category,
+}: MenuItemProps) {
+  const { addToCart } = useCart();
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 bg-black/80 backdrop-blur text-white">
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <a href="/" className="text-xl font-bold tracking-wide">
-          Padrino
-        </a>
+    <motion.div
+      whileHover={{ scale: 1.02 }}
+      className="flex gap-4 bg-[#1b1b1b] rounded-xl p-4"
+    >
+      <img
+        src={image}
+        alt={name}
+        className="w-24 h-24 object-cover rounded-lg"
+      />
 
-        <nav className="flex items-center gap-6">
-          <a
-            href="#menu"
-            className="hover:text-yellow-400 transition"
-          >
-            Izbornik
-          </a>
+      <div className="flex-1">
+        <h4 className="text-lg font-semibold text-white">
+          {name}
+        </h4>
+
+        <p className="text-sm text-gray-400 mt-1">
+          {description}
+        </p>
+
+        <div className="flex items-center justify-between mt-4">
+          <span className="text-yellow-400 font-bold">
+            {price} RSD
+          </span>
 
           <button
-            onClick={openCart}
-            className="relative flex items-center gap-2 bg-yellow-500 text-black px-4 py-2 rounded-full font-semibold hover:bg-yellow-400 transition"
+            onClick={() =>
+              addToCart({
+                id,
+                name,
+                description,
+                price,
+                image,
+                category,
+                quantity: 1,
+              })
+            }
+            className="px-4 py-1.5 rounded-full bg-yellow-500 text-black text-sm font-semibold hover:bg-yellow-400"
           >
-            🛒 Korpa
-            {totalItems > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                {totalItems}
-              </span>
-            )}
+            Dodaj
           </button>
-        </nav>
+        </div>
       </div>
-    </header>
+    </motion.div>
   );
 }
