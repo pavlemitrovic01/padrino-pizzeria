@@ -50,13 +50,13 @@ function About() {
 
           <p className="mt-6 text-zinc-300 leading-relaxed">
             Padrino je nastao u porodičnoj kuhinji, iz želje da se autentični
-            italijanski ukusi podele sa komšilukom. Prve pice su pravljene ručno,
-            sa istom pažnjom kao za najbliže.
+            italijanski ukusi podijele sa komšilukom. Prve pizze su pravljene
+            ručno, sa istom pažnjom kao za najbliže.
           </p>
 
           <p className="mt-4 text-zinc-400 leading-relaxed">
-            Danas, i dalje negujemo iste vrednosti – kvalitet, tradiciju i brzu
-            dostavu. Svaka porudžbina nosi deo naše porodične priče.
+            Danas i dalje njegujemo iste vrijednosti – kvalitet, tradiciju i
+            brzu dostavu. Svaka porudžbina nosi dio naše porodične priče.
           </p>
 
           {/* STATS */}
@@ -72,10 +72,10 @@ function About() {
 
             <div>
               <span className="block text-4xl font-serif text-amber-500">
-                30min
+                30 min
               </span>
               <span className="text-sm text-zinc-400">
-                Prosečna dostava
+                Prosječna dostava
               </span>
             </div>
           </div>

@@ -16,7 +16,7 @@ function Delivery() {
           </h2>
 
           <p className="mt-6 max-w-2xl mx-auto text-zinc-400">
-            Svaka porudžbina se priprema sveže i stiže na vaša vrata
+            Svaka narudžba se priprema svježe i stiže na vaša vrata
             u rekordnom roku – jer kvalitet ne trpi čekanje.
           </p>
         </div>
@@ -51,12 +51,12 @@ function Delivery() {
             </div>
 
             <h3 className="text-xl font-serif mb-3">
-              Sveže pripremljeno
+              Svježe pripremljeno
             </h3>
 
             <p className="text-zinc-400 text-sm">
-              Testo se mesi svakodnevno, a sastojci su pažljivo
-              birani kako bi svaki zalogaj bio savršen.
+              Tijesto se mijesi svakodnevno, a sastojci se pažljivo
+              biraju kako bi svaki zalogaj bio savršen.
             </p>
           </div>
 
@@ -92,7 +92,7 @@ function Delivery() {
             </h3>
 
             <p className="text-zinc-400 text-sm">
-              Prosečno vreme dostave je oko 30 minuta – brzo,
+              Prosječno vrijeme dostave je oko 30 minuta – brzo,
               efikasno i bez kompromisa.
             </p>
           </div>
@@ -129,8 +129,8 @@ function Delivery() {
             </h3>
 
             <p className="text-zinc-400 text-sm">
-              Naši dostavljači znaju grad i uvek stižu sa osmehom
-              – toplo i bezbedno.
+              Naši dostavljači poznaju grad i uvijek stižu s osmijehom
+              – toplo i sigurno.
             </p>
           </div>
         </div>

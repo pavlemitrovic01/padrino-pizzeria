@@ -29,7 +29,7 @@ export default function Checkout() {
       clearCart();
       setSuccess(true);
     } catch (err) {
-      setError("Greška pri slanju porudžbine.");
+      setError("Greška pri slanju narudžbe.");
     } finally {
       setLoading(false);
     }
@@ -39,9 +39,9 @@ export default function Checkout() {
     return (
       <div className="p-6 text-center">
         <h2 className="text-2xl font-bold mb-2">
-          Porudžbina poslata 🎉
+          Narudžba je poslana 🎉
         </h2>
-        <p>Hvala! Kontaktiraćemo Vas uskoro.</p>
+        <p>Hvala! Kontaktirat ćemo vas uskoro.</p>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export default function Checkout() {
   return (
     <div className="p-6 max-w-md mx-auto">
       <h2 className="text-2xl font-bold mb-4">
-        Završetak porudžbine
+        Završetak narudžbe
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -85,7 +85,7 @@ export default function Checkout() {
           disabled={loading}
           className="w-full bg-black text-white py-2 rounded disabled:opacity-50"
         >
-          {loading ? "Slanje..." : "Pošalji porudžbinu"}
+          {loading ? "Slanje…" : "Pošalji narudžbu"}
         </button>
 
         {error && <p className="text-red-600">{error}</p>}
@@ -93,7 +93,6 @@ export default function Checkout() {
     </div>
   );
 }
-
 
 
 

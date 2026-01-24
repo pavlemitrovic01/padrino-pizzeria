@@ -1,39 +1,36 @@
-import { MenuItem as MenuItemType } from "../types/menu";
 import { useCart } from "../context/useCart";
 
-type Props = {
-  item: MenuItemType;
-};
-
-export default function MenuItem({ item }: Props) {
-  const { addToCart } = useCart();
+export default function Navbar() {
+  const { totalItems, openCart } = useCart();
 
   return (
-    <div className="bg-zinc-900 rounded-xl p-6 flex gap-6">
-      <img
-        src={item.image_url}
-        alt={item.name}
-        className="w-28 h-28 object-cover rounded-lg"
-      />
+    <header className="fixed top-0 left-0 right-0 z-40 bg-black/80 backdrop-blur text-white">
+      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <a href="/" className="text-xl font-bold tracking-wide">
+          Padrino
+        </a>
 
-      <div className="flex-1">
-        <div className="flex justify-between">
-          <h3 className="font-serif text-xl">{item.name}</h3>
-          <span className="text-amber-500">{item.price} RSD</span>
-        </div>
+        <nav className="flex items-center gap-6">
+          <a
+            href="#menu"
+            className="hover:text-yellow-400 transition"
+          >
+            Izbornik
+          </a>
 
-        <p className="text-zinc-400 text-sm mt-2">
-          {item.description}
-        </p>
-
-        <button
-          onClick={() => addToCart(item)}
-          className="mt-4 text-amber-500 text-xs uppercase"
-        >
-          Dodaj u korpu →
-        </button>
+          <button
+            onClick={openCart}
+            className="relative flex items-center gap-2 bg-yellow-500 text-black px-4 py-2 rounded-full font-semibold hover:bg-yellow-400 transition"
+          >
+            🛒 Korpa
+            {totalItems > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                {totalItems}
+              </span>
+            )}
+          </button>
+        </nav>
       </div>
-    </div>
+    </header>
   );
 }
-

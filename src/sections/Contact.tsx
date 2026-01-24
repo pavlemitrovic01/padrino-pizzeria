@@ -17,8 +17,8 @@ function Contact() {
           </h2>
 
           <p className="mt-6 text-zinc-400 max-w-md">
-            Imate pitanje, sugestiju ili želite saradnju?
-            Pišite nam – odgovaramo brzo.
+            Imate li pitanje, sugestiju ili želite suradnju?
+            Pišite nam – brzo odgovaramo.
           </p>
 
           <div className="mt-10 space-y-6 text-zinc-300">
@@ -31,7 +31,7 @@ function Contact() {
 
             <div>
               <p className="text-sm uppercase tracking-widest text-zinc-500">
-                Email
+                E-mail
               </p>
               <p className="text-lg">info@padrino.bobilend</p>
             </div>
@@ -79,11 +79,11 @@ function Contact() {
 
           <div>
             <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-2">
-              Email
+              E-mail
             </label>
             <input
               type="email"
-              placeholder="Vaš email"
+              placeholder="Vaš e-mail"
               className="
                 w-full
                 bg-transparent
@@ -134,7 +134,7 @@ function Contact() {
               transition
             "
           >
-            Pošalji poruku
+            Pošaljite poruku
           </button>
         </form>
       </div>

@@ -22,7 +22,7 @@ function Hero() {
 
         <p className="text-xl md:text-2xl text-zinc-400 max-w-xl mb-12">
           Porodična pizzeria nastala u kućnoj kuhinji, danas
-          sinonim za kvalitet i brzu dostavu.
+          je sinonim za kvalitet i brzu dostavu.
         </p>
 
         <div className="flex gap-6">
@@ -30,7 +30,7 @@ function Hero() {
             href="#menu"
             className="bg-white text-black px-12 py-4 rounded-full font-bold uppercase tracking-widest text-sm hover:bg-zinc-200 transition-all shadow-xl"
           >
-            Pogledaj meni
+            Pogledajte meni
           </a>
 
           <a
@@ -46,4 +46,3 @@ function Hero() {
 }
 
 export default Hero;
-
