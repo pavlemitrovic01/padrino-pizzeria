@@ -23,47 +23,98 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<Set<string>>(new Set());
 
   async function loadOrders() {
-    setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase.functions.invoke<Order[]>(
+    const { data, error } = await supabase.functions.invoke(
       "admin-orders",
       {
+        method: "GET",
         headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          Authorization: `Bearer ${
+            (await supabase.auth.getSession()).data.session?.access_token
+          }`,
         },
       }
     );
 
+
     if (error) {
       console.error(error);
-      setError("Ne mogu da učitam porudžbine.");
+      if (error.status === 401) {
+        setError("Niste autorizovani za pristup admin panelu.");
+      } else if (error.status === 429) {
+        setError("Previše zahteva. Pokušajte ponovo za minut.");
+      } else if (error.status === 500) {
+        setError("Greška na serveru. Pokušajte kasnije.");
+      } else {
+        setError("Ne mogu da učitam porudžbine.");
+      }
       setLoading(false);
       return;
     }
 
-    setOrders(data ?? []);
+    try {
+      // 🔴 KLJUČNA NORMALIZACIJA
+      const parsed =
+        typeof data === "string" ? JSON.parse(data) : data;
+
+      if (Array.isArray(parsed)) {
+        setOrders(parsed as Order[]);
+      } else {
+        console.error("Neočekivan format podataka:", parsed);
+        setOrders([]);
+      }
+    } catch (e) {
+      console.error("Greška pri parsiranju podataka:", e);
+      setOrders([]);
+    }
+
     setLoading(false);
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadOrders();
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadOrders();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   async function markAsDone(orderId: string) {
+    setUpdating((prev) => new Set(prev).add(orderId));
+
     const { error } = await supabase.functions.invoke("admin-orders", {
       method: "PATCH",
       body: { id: orderId, status: "done" },
       headers: {
-        Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        Authorization: `Bearer ${
+          (await supabase.auth.getSession()).data.session?.access_token
+        }`,
       },
     });
 
+
     if (error) {
-      alert("Greška pri promeni statusa.");
+      let msg = "Greška pri promeni statusa.";
+      if (error.status === 401) {
+        msg = "Niste autorizovani za ovu akciju.";
+      } else if (error.status === 429) {
+        msg = "Previše zahteva. Pokušajte ponovo za minut.";
+      } else if (error.status === 500) {
+        msg = "Greška na serveru. Pokušajte kasnije.";
+      }
+      setError(msg);
+      setUpdating((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(orderId);
+        return newSet;
+      });
       return;
     }
 
@@ -72,6 +123,12 @@ export default function AdminOrders() {
         o.id === orderId ? { ...o, status: "done" } : o
       )
     );
+
+    setUpdating((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(orderId);
+      return newSet;
+    });
   }
 
   if (loading) {
@@ -93,7 +150,11 @@ export default function AdminOrders() {
       {orders.map((order) => (
         <div
           key={order.id}
-          className="border rounded-lg p-4 space-y-3"
+          className={`border rounded-lg p-4 space-y-3 ${
+            order.status === "pending"
+              ? "border-l-4 border-orange-500 bg-orange-50"
+              : ""
+          }`}
         >
           <div className="flex justify-between items-center">
             <h2 className="font-semibold">
@@ -102,7 +163,7 @@ export default function AdminOrders() {
             <span
               className={
                 order.status === "pending"
-                  ? "text-orange-600"
+                  ? "text-orange-600 font-semibold"
                   : "text-green-600"
               }
             >
@@ -135,9 +196,10 @@ export default function AdminOrders() {
             {order.status === "pending" && (
               <button
                 onClick={() => markAsDone(order.id)}
-                className="px-4 py-2 bg-green-600 text-white rounded"
+                disabled={updating.has(order.id)}
+                className="px-4 py-2 bg-green-600 text-white rounded disabled:bg-gray-400"
               >
-                Završi
+                {updating.has(order.id) ? "Završeno" : "Završi"}
               </button>
             )}
           </div>
@@ -146,4 +208,7 @@ export default function AdminOrders() {
     </div>
   );
 }
+
+
+
 

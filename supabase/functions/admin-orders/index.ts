@@ -1,8 +1,8 @@
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY =
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(
   SUPABASE_URL,
@@ -12,16 +12,74 @@ const supabase = createClient(
   }
 );
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "https://padrino.rs"
+];
 
-Deno.serve({ verifyJwt: false }, async (req) => {
+function getCorsHeaders(origin: string | null) {
+  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin)
+    ? origin
+    : "";
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+}
+
+const ADMIN_EMAIL = "pavlemitrovic01@gmail.com";
+
+// Basic in-memory rate limit: 60 req/min per IP
+const rateLimitMap = new Map<string, { count: number; ts: number }>();
+const RATE_LIMIT = 60;
+const RATE_WINDOW = 60 * 1000; // 1 min
+
+async function validateAdmin(req: Request): Promise<boolean> {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return false;
+  }
+  const token = authHeader.split(" ")[1];
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user || user.email !== ADMIN_EMAIL) {
+    return false;
+  }
+  return true;
+}
+
+Deno.serve(async (req) => {
+  const origin = req.headers.get("origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  // Basic rate limit by IP
+  const ip = req.headers.get("x-forwarded-for") || "unknown";
+  const now = Date.now();
+  const rl = rateLimitMap.get(ip);
+  if (!rl || now - rl.ts > RATE_WINDOW) {
+    rateLimitMap.set(ip, { count: 1, ts: now });
+  } else {
+    if (rl.count >= RATE_LIMIT) {
+      return new Response(JSON.stringify({ error: "Too many requests" }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    rl.count++;
+    rateLimitMap.set(ip, rl);
+  }
+
+  // Validate admin access
+  const isAdmin = await validateAdmin(req);
+  if (!isAdmin) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const method = req.method.toUpperCase();
@@ -35,13 +93,13 @@ Deno.serve({ verifyJwt: false }, async (req) => {
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify(data), {
       status: 200,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -56,18 +114,18 @@ Deno.serve({ verifyJwt: false }, async (req) => {
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   return new Response("Method not allowed", {
     status: 405,
-    headers: corsHeaders,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

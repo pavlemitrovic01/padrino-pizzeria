@@ -1,28 +1,33 @@
 import { supabase } from "./supabaseClient";
-import type { CartItem } from "../types/menu";
 
-interface CreateOrderInput {
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  items: CartItem[];
-  totalPrice: number;
-}
+export type CreateOrderPayload = {
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  items: any[];
+  total_price: number;
+};
 
-export async function createOrder(data: CreateOrderInput) {
-  const { error } = await supabase.from("orders").insert([
-    {
-      customer_name: data.customerName,
-      customer_phone: data.customerPhone,
-      customer_address: data.customerAddress,
-      items: data.items,
-      total_price: data.totalPrice,
-      status: "pending"
-    }
-  ]);
+export async function createOrder(payload: CreateOrderPayload) {
+  const { data, error } = await supabase
+    .from("orders")
+    .insert([
+      {
+        customer_name: payload.customer_name,
+        customer_phone: payload.customer_phone,
+        customer_address: payload.customer_address,
+        items: payload.items,
+        total_price: payload.total_price,
+        status: "pending",
+      },
+    ])
+    .select()
+    .single();
 
   if (error) {
-    console.error("Create order error:", error);
-    throw new Error("Failed to create order");
+    throw error;
   }
+
+  return data;
 }
+
