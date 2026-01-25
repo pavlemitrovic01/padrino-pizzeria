@@ -1,28 +1,19 @@
-import Navbar from "./components/Navbar";
-import CartDrawer from "./components/CartDrawer";
-
-import Hero from "./sections/Hero";
 import Menu from "./sections/Menu";
-import About from "./sections/About";
-import Delivery from "./sections/Delivery";
-import Contact from "./sections/Contact";
-import Footer from "./sections/Footer";
+import Checkout from "./components/Checkout";
+import CartDrawer from "./components/CartDrawer";
+import Navbar from "./components/Navbar";
 
 export default function App() {
   return (
     <>
       <Navbar />
-      <CartDrawer />
 
-      <main>
-        <Hero />
+      <main className="bg-black">
         <Menu />
-        <About />
-        <Delivery />
-        <Contact />
+        <Checkout />
       </main>
 
-      <Footer />
+      <CartDrawer />
     </>
   );
 }
