@@ -55,7 +55,9 @@ export default function CartDrawer() {
 
   const isEmpty = items.length === 0;
 
-  const [addonsCatalog, setAddonsCatalog] = useState<Omit<CartAddon, "quantity">[]>([]);
+  const [addonsCatalog, setAddonsCatalog] = useState<
+    Omit<CartAddon, "quantity">[]
+  >([]);
   const [addonsLoading, setAddonsLoading] = useState(false);
 
   const [saucePicker, setSaucePicker] = useState<SaucePickerState>(null);
@@ -109,7 +111,9 @@ export default function CartDrawer() {
 
     const next = item.variants?.[size];
     if (!next) {
-      window.alert("Ne možemo promijeniti veličinu jer nijesu dostupne cijene za tu varijantu.");
+      window.alert(
+        "Ne možemo promijeniti veličinu jer nijesu dostupne cijene za tu varijantu."
+      );
       return;
     }
 
@@ -211,7 +215,7 @@ export default function CartDrawer() {
                   </div>
 
                   <p className="text-[11px] text-gray-500 mt-3">
-                    Ako želiš više istih sosova, samo izaberi isti sos više puta.
+                    Ako želiš više istih sosova, izaberi isti sos više puta ili mu povećaj količinu u korpi.
                   </p>
                 </motion.div>
               </motion.div>
@@ -366,16 +370,25 @@ export default function CartDrawer() {
                                     ) : (
                                       <div className="mt-2 space-y-2">
                                         {selectedAddons.map((a) => (
-                                          <div key={a.id} className="flex items-center justify-between text-sm">
+                                          <div
+                                            key={a.id}
+                                            className="flex items-center justify-between gap-3"
+                                          >
+                                            {/* Lijevo: naziv */}
                                             <div className="flex items-center gap-2 min-w-0">
                                               <span className="text-gray-400">⭐</span>
-                                              <span className="text-gray-200 truncate">
-                                                {a.name} ×{a.quantity}
+                                              <span className="text-gray-200 text-sm truncate">
+                                                {a.name}
                                               </span>
                                             </div>
 
+                                            {/* Desno: količina + cijena + kontrole */}
                                             <div className="flex items-center gap-2 flex-shrink-0">
-                                              <span className="text-gray-300 text-xs font-semibold">
+                                              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white/5 text-gray-200 border border-white/10">
+                                                ×{a.quantity}
+                                              </span>
+
+                                              <span className="min-w-[62px] text-right text-xs font-semibold text-gray-300">
                                                 {a.price * a.quantity} RSD
                                               </span>
 

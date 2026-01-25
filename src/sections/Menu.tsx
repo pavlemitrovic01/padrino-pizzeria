@@ -11,18 +11,6 @@ type MenuItemData = {
   category: string;
 };
 
-type MenuSection = {
-  key: "pizza33" | "dodaci" | "pica";
-  title: string;
-  emptyText: string;
-};
-
-const MENU_SECTIONS: MenuSection[] = [
-  { key: "pizza33", title: "Pizza 33 cm", emptyText: "Trenutno nema pizza 33 cm u ponudi." },
-  { key: "dodaci", title: "Dodaci", emptyText: "Trenutno nema dodataka u ponudi." },
-  { key: "pica", title: "Pića", emptyText: "Trenutno nema pića u ponudi." },
-];
-
 function normalizeCategory(value: string) {
   return value
     .toLowerCase()
@@ -40,12 +28,9 @@ function isPizzaSize(name: string, size: 33 | 50) {
   return re.test(safe);
 }
 
-function stripSizeFromName(name: string) {
-  return name
-    .replace(/33\s*cm/gi, "")
-    .replace(/50\s*cm/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
+function isPiroska(name: string) {
+  const n = name.toLowerCase();
+  return n.includes("piroska") || n.includes("piroška");
 }
 
 export default function Menu() {
@@ -69,88 +54,43 @@ export default function Menu() {
       });
   }, []);
 
-  /**
-   * Pizza varijante (33/50) i dalje držimo u memoriji,
-   * iako 50 cm NE prikazujemo kao posebnu sekciju.
-   * (Treba za promjenu veličine u korpi.)
-   */
-  const pizzaVariants = useMemo(() => {
-    const map = new Map<
-      string,
-      Partial<Record<"33" | "50", { id: string; price: number; category: string }>>
-    >();
+  const pizza33Items = useMemo(() => {
+    const list = items.filter(
+      (i) => normalizeCategory(i.category) === "pizza" && isPizzaSize(i.name, 33)
+    );
 
-    for (const item of items) {
-      const isPizza = normalizeCategory(item.category) === "pizza";
-      if (!isPizza) continue;
-
-      const size: "33" | "50" | null = isPizzaSize(item.name, 33)
-        ? "33"
-        : isPizzaSize(item.name, 50)
-        ? "50"
-        : null;
-
-      if (!size) continue;
-
-      const baseKey = stripSizeFromName(item.name);
-      const prev = map.get(baseKey) ?? {};
-      map.set(baseKey, {
-        ...prev,
-        [size]: { id: item.id, price: item.price, category: item.category },
-      });
-    }
-
-    return map;
+    // Piroška ide na kraj
+    return [...list].sort((a, b) => {
+      const ap = isPiroska(a.name) ? 1 : 0;
+      const bp = isPiroska(b.name) ? 1 : 0;
+      if (ap !== bp) return ap - bp;
+      return a.name.localeCompare(b.name);
+    });
   }, [items]);
 
-  const renderSection = (section: MenuSection, data: MenuItemData[]) => {
-    const isPizza33 = section.key === "pizza33";
+  const picaItems = useMemo(() => {
+    return items.filter((i) => normalizeCategory(i.category) === "pica");
+  }, [items]);
+
+  const renderPizza33 = (data: MenuItemData[]) => {
+    if (data.length === 0) {
+      return <p className="text-sm text-gray-500">Trenutno nema pizza 33 cm u ponudi.</p>;
+    }
+
+    const isOdd = data.length % 2 === 1;
 
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-2xl font-bold text-white">{section.title}</h3>
-        </div>
+      <div className="grid gap-5 sm:grid-cols-2">
+        {data.map((item, idx) => {
+          const isLast = idx === data.length - 1;
 
-        <div className="h-px bg-gradient-to-r from-white/10 via-white/20 to-white/10" />
+          // Ako je neparan broj — posljednja kartica zauzima oba mjesta u redu
+          const wrapperClass =
+            isOdd && isLast ? "sm:col-span-2 sm:max-w-[520px] sm:mx-auto" : "";
 
-        {data.length === 0 ? (
-          <p className="text-sm text-gray-500">{section.emptyText}</p>
-        ) : isPizza33 ? (
-          // Pizza 33 cm: raspored u 2 kolone (da vizuelno zauzme “dva reda” i izgleda punije)
-          <div className="grid gap-5 sm:grid-cols-2">
-            {data.map((item) => {
-              const baseKey = stripSizeFromName(item.name);
-              const variants = pizzaVariants.get(baseKey);
-
-              const size: "33" | "50" | null = isPizzaSize(item.name, 33)
-                ? "33"
-                : isPizzaSize(item.name, 50)
-                ? "50"
-                : null;
-
-              return (
-                <MenuItem
-                  key={item.id}
-                  id={item.id}
-                  name={item.name}
-                  description={item.description}
-                  price={item.price}
-                  image={item.image}
-                  category={item.category}
-                  pizzaSize={size}
-                  baseKey={baseKey}
-                  variants={variants}
-                />
-              );
-            })}
-          </div>
-        ) : (
-          // Dodaci / Pića: ostaje vertikalni raspored
-          <div className="space-y-5">
-            {data.map((item) => (
+          return (
+            <div key={item.id} className={wrapperClass}>
               <MenuItem
-                key={item.id}
                 id={item.id}
                 name={item.name}
                 description={item.description}
@@ -158,22 +98,79 @@ export default function Menu() {
                 image={item.image}
                 category={item.category}
               />
-            ))}
-          </div>
-        )}
+            </div>
+          );
+        })}
       </div>
     );
   };
 
-  const getSectionItems = (key: MenuSection["key"]) => {
-    if (key === "pizza33") {
-      return items.filter(
-        (i) => normalizeCategory(i.category) === "pizza" && isPizzaSize(i.name, 33)
-      );
+  const renderPica = (data: MenuItemData[]) => {
+    if (data.length === 0) {
+      return <p className="text-sm text-gray-500">Trenutno nema pića u ponudi.</p>;
     }
 
-    return items.filter((i) => normalizeCategory(i.category) === key);
+    return (
+      <div className="space-y-5">
+        {data.map((item) => (
+          <MenuItem
+            key={item.id}
+            id={item.id}
+            name={item.name}
+            description={item.description}
+            price={item.price}
+            image={item.image}
+            category={item.category}
+          />
+        ))}
+      </div>
+    );
   };
+
+  const PromoCard = () => (
+    <div className="mt-8">
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#121212] shadow-2xl">
+        {/* slika */}
+        <div className="absolute inset-0">
+          <img
+            src="/menu-hero.jpg"
+            alt="Padrino promo"
+            className="w-full h-full object-cover opacity-35"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-black/85" />
+        </div>
+
+        {/* sadržaj */}
+        <div className="relative z-10 p-6 md:p-7">
+          <p className="text-xs text-yellow-400 font-bold tracking-wide">
+            VAŽNO
+          </p>
+
+          <h4 className="text-2xl md:text-3xl font-extrabold text-white mt-2">
+            Dodatke i veličinu biraš u korpi
+          </h4>
+
+          <p className="text-gray-300 mt-3 max-w-xl leading-relaxed">
+            Izaberi pizzu iz menija, a onda u korpi odaberi veličinu (33 / 50 cm),
+            soseve i ostale dodatke. Brzo, jasno i bezbjedno.
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-200 border border-white/10">
+              ✔ Veličina u korpi
+            </span>
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-200 border border-white/10">
+              ✔ Dodaci u korpi
+            </span>
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-200 border border-white/10">
+              ✔ Napomena za sos
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <section id="menu" className="relative bg-black">
@@ -189,45 +186,57 @@ export default function Menu() {
       <div className="relative z-10 px-6 py-28">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-4xl md:text-5xl font-extrabold text-white">Naš meni</h2>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-white">
+              Naš meni
+            </h2>
             <p className="text-gray-400 mt-4 max-w-2xl mx-auto">
-              Autentične pizze, ukusni dodaci i osvježavajuća pića — sve na jednom mjestu.
+              Autentične pizze i osvježavajuća pića — dodatke biraš u korpi.
             </p>
           </div>
 
           <div className="rounded-[28px] border border-white/5 bg-gradient-to-b from-[#0f0f0f] to-[#070707] shadow-2xl">
             <div className="p-6 md:p-10">
               {loading ? (
-                <div className="py-24 text-center text-gray-400">Učitavanje menija…</div>
+                <div className="py-24 text-center text-gray-400">
+                  Učitavanje menija…
+                </div>
               ) : (
-                <div className="grid gap-10 lg:grid-cols-3">
-                  {MENU_SECTIONS.map((section) => {
-                    const sectionItems = getSectionItems(section.key);
-                    const isPizza33 = section.key === "pizza33";
+                <div className="grid gap-10 lg:grid-cols-12">
+                  {/* Pizza 33 cm */}
+                  <div className="lg:col-span-8 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-2xl font-bold text-white">Pizza 33 cm</h3>
+                    </div>
+                    <div className="h-px bg-gradient-to-r from-white/10 via-white/20 to-white/10" />
 
-                    return (
-                      <div key={section.key} className={isPizza33 ? "lg:col-span-2" : ""}>
-                        {renderSection(section, sectionItems)}
-                      </div>
-                    );
-                  })}
+                    {renderPizza33(pizza33Items)}
+
+                    {/* ✅ Pokriva “prazan dio” ispod pizza */}
+                    <PromoCard />
+                  </div>
+
+                  {/* Pića */}
+                  <div className="lg:col-span-4 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-2xl font-bold text-white">Pića</h3>
+                    </div>
+                    <div className="h-px bg-gradient-to-r from-white/10 via-white/20 to-white/10" />
+
+                    {renderPica(picaItems)}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
           <p className="text-center text-xs text-gray-600 mt-10">
-            * Veličine pizza (33 cm / 50 cm) postoje u bazi i koriste se za promjenu veličine u korpi.
+            * Veličinu pizze i dodatke biraš u korpi prije poručivanja.
           </p>
         </div>
       </div>
     </section>
   );
 }
-
-
-
-
 
 
 
