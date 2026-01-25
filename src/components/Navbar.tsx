@@ -11,13 +11,6 @@ export default function Navbar() {
         </a>
 
         <nav className="flex items-center gap-6">
-          <a
-            href="#menu"
-            className="hover:text-yellow-400 transition"
-          >
-            Izbornik
-          </a>
-
           <button
             onClick={openCart}
             className="relative flex items-center gap-2 bg-yellow-500 text-black px-4 py-2 rounded-full font-semibold hover:bg-yellow-400 transition"
@@ -34,11 +27,6 @@ export default function Navbar() {
     </header>
   );
 }
-
-
-
-
-
 
 
 
