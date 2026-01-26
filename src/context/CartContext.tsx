@@ -2,6 +2,12 @@ import { createContext } from "react";
 
 export type PizzaSize = "33" | "50";
 
+export const PIZZA_SIZES: PizzaSize[] = ["33", "50"];
+
+export function isPizzaSize(value: unknown): value is PizzaSize {
+  return value === "33" || value === "50";
+}
+
 export type PizzaVariant = {
   menuItemId: string;
   price: number;
@@ -64,16 +70,6 @@ export type CartContextType = {
 };
 
 export const CartContext = createContext<CartContextType | null>(null);
-
-
-
-
-
-
-
-
-
-
 
 
 

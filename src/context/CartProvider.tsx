@@ -5,6 +5,7 @@ import {
   CartItem,
   PizzaSize,
   PizzaVariant,
+  isPizzaSize,
 } from "./CartContext";
 
 function parsePizzaSizeFromText(text: string): PizzaSize | null {
@@ -36,6 +37,31 @@ function calcAddonsTotal(addons?: CartAddon[]) {
   return addons.reduce((sum, a) => sum + a.price * a.quantity, 0);
 }
 
+function pickBestSize(
+  variants?: Partial<Record<PizzaSize, PizzaVariant>>
+): PizzaSize | null {
+  // stabilno: uvijek prvo 33, pa 50 (ako postoji)
+  if (variants?.["33"]) return "33";
+  if (variants?.["50"]) return "50";
+  return null;
+}
+
+/**
+ * Base price mora uvijek biti "osnovna cijena" BEZ dodataka.
+ * Ako basePrice fali, izračunaj ga iz price - addonsTotal (sa guard-om).
+ */
+function getBasePrice(item: CartItem): number {
+  if (typeof item.basePrice === "number" && Number.isFinite(item.basePrice)) {
+    return item.basePrice;
+  }
+
+  const addonsTotal = calcAddonsTotal(item.addons);
+  const derived = (item.price ?? 0) - addonsTotal;
+
+  if (Number.isFinite(derived)) return derived;
+  return item.price ?? 0;
+}
+
 function normalizeIncomingItem(item: CartItem): CartItem {
   const looksLikePizza = isPizzaLike(item.category, item.name);
 
@@ -52,7 +78,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
 
     return {
       ...item,
-      size: item.size ?? null,
+      size: null,
       baseKey: item.baseKey ?? item.name,
       menuItemId: item.menuItemId ?? item.id,
       variants: item.variants ?? undefined,
@@ -63,25 +89,44 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     };
   }
 
-  const detectedSize = (item.size ?? parsePizzaSizeFromText(item.name)) as
-    | PizzaSize
-    | null;
+  // Pizza: canonical baseKey + stabilan id
   const baseKey = item.baseKey ?? stripSizeFromName(item.name);
-  const menuItemId = item.menuItemId ?? item.id;
 
+  // detekcija veličine (ako dolazi)
+  const detected = item.size ?? parsePizzaSizeFromText(item.name);
+  const detectedSize: PizzaSize | null = isPizzaSize(detected) ? detected : null;
+
+  const incomingMenuItemId = item.menuItemId ?? item.id;
+
+  const incomingBasePrice = item.basePrice ?? item.price;
+
+  // merge variants (ako postoje)
   const variants: Partial<Record<PizzaSize, PizzaVariant>> = {
     ...(item.variants ?? {}),
   };
 
-  const basePrice = item.basePrice ?? item.price;
-
   if (detectedSize) {
     variants[detectedSize] = {
-      menuItemId,
-      price: basePrice,
+      menuItemId: incomingMenuItemId,
+      price: incomingBasePrice,
       category: item.category,
     };
   }
+
+  // odredi final size (single source of truth)
+  const finalSize = detectedSize ?? pickBestSize(variants);
+
+  // odredi final variant (ako postoji)
+  const chosenVariant = finalSize ? variants[finalSize] : undefined;
+
+  // basePrice mora biti cijena iz izabrane varijante (kad je imamo)
+  const basePrice = chosenVariant?.price ?? incomingBasePrice;
+
+  // menuItemId mora pratiti izabranu varijantu (kad je imamo)
+  const menuItemId = chosenVariant?.menuItemId ?? incomingMenuItemId;
+
+  // category iz varijante (da UI/checkout bude konzistentan)
+  const category = chosenVariant?.category ?? item.category;
 
   const finalPrice = basePrice + calcAddonsTotal(normalizedAddons);
 
@@ -90,12 +135,13 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     id: baseKey,
     name: baseKey,
     baseKey,
-    size: detectedSize,
+    size: finalSize,
     menuItemId,
     variants,
     basePrice,
     addons: normalizedAddons,
     price: finalPrice,
+    category,
     note: item.note ?? "",
   };
 }
@@ -112,24 +158,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     setItems((prev) => {
       const existing = prev.find((i) => i.id === item.id);
+
       if (existing) {
         return prev.map((i) => {
           if (i.id !== item.id) return i;
 
-          const mergedVariants = {
+          const mergedVariants: Partial<Record<PizzaSize, PizzaVariant>> = {
             ...(i.variants ?? {}),
             ...(item.variants ?? {}),
           };
 
+          // zadržavamo dodatke i napomenu na postojećem item-u
           const addons = i.addons ?? [];
-          const nextBasePrice = i.basePrice ?? item.basePrice ?? i.price;
+
+          // ako imamo size (ili možemo da ga odredimo), osiguraj basePrice/menuItemId iz varijante
+          const candidateSize: PizzaSize | null =
+            (isPizzaLike(i.category, i.name) ? (i.size ?? null) : null) ?? null;
+
+          const bestSize: PizzaSize | null =
+            (candidateSize && isPizzaSize(candidateSize) ? candidateSize : null) ??
+            pickBestSize(mergedVariants);
+
+          const chosenVariant = bestSize ? mergedVariants[bestSize] : undefined;
+
+          const nextBasePrice =
+            chosenVariant?.price ?? i.basePrice ?? item.basePrice ?? getBasePrice(i);
+
+          const nextMenuItemId =
+            chosenVariant?.menuItemId ?? i.menuItemId ?? item.menuItemId ?? i.id;
+
+          const nextCategory = chosenVariant?.category ?? i.category;
+
           const finalPrice = nextBasePrice + calcAddonsTotal(addons);
 
           return {
             ...i,
             quantity: i.quantity + 1,
             variants: Object.keys(mergedVariants).length ? mergedVariants : i.variants,
+            size: isPizzaLike(i.category, i.name) ? bestSize : null,
             basePrice: nextBasePrice,
+            menuItemId: nextMenuItemId,
+            category: nextCategory,
             addons,
             price: finalPrice,
             note: i.note ?? "",
@@ -168,14 +237,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       const baseKey = current.baseKey ?? current.name;
       const addons = current.addons ?? [];
+
+      const mergedVariants: Partial<Record<PizzaSize, PizzaVariant>> = {
+        ...(current.variants ?? {}),
+        [size]: next,
+      };
+
       const basePrice = next.price;
       const finalPrice = basePrice + calcAddonsTotal(addons);
 
       return prev.map((i) => {
         if (i.id !== id) return i;
-
-        const existingVariants = i.variants ?? {};
-        const mergedVariants = { ...existingVariants, [size]: next };
 
         return {
           ...i,
@@ -213,7 +285,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           nextAddons = [...existing, { ...addon, quantity: 1 }];
         }
 
-        const basePrice = i.basePrice ?? i.price;
+        const basePrice = getBasePrice(i);
         const finalPrice = basePrice + calcAddonsTotal(nextAddons);
 
         return {
@@ -237,7 +309,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           a.id === addonId ? { ...a, quantity: a.quantity + 1 } : a
         );
 
-        const basePrice = i.basePrice ?? i.price;
+        const basePrice = getBasePrice(i);
         const finalPrice = basePrice + calcAddonsTotal(nextAddons);
 
         return { ...i, addons: nextAddons, basePrice, price: finalPrice };
@@ -252,12 +324,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
         const existing = i.addons ?? [];
         const nextAddons = existing
-          .map((a) =>
-            a.id === addonId ? { ...a, quantity: a.quantity - 1 } : a
-          )
+          .map((a) => (a.id === addonId ? { ...a, quantity: a.quantity - 1 } : a))
           .filter((a) => a.quantity > 0);
 
-        const basePrice = i.basePrice ?? i.price;
+        const basePrice = getBasePrice(i);
         const finalPrice = basePrice + calcAddonsTotal(nextAddons);
 
         return { ...i, addons: nextAddons, basePrice, price: finalPrice };
@@ -274,7 +344,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const existing = i.addons ?? [];
         const nextAddons = existing.filter((a) => a.id !== addonId);
 
-        const basePrice = i.basePrice ?? i.price;
+        const basePrice = getBasePrice(i);
         const finalPrice = basePrice + calcAddonsTotal(nextAddons);
 
         return {

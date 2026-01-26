@@ -13,12 +13,12 @@ export default function AdminLogin() {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: window.location.origin + "/#/admin",
+        emailRedirectTo: window.location.origin + "/admin",
       },
     });
 
     if (error) {
-      setError("Greška pri slanju magic linka.");
+      setError("Greška pri slanju magičnog linka.");
       return;
     }
 
@@ -28,21 +28,21 @@ export default function AdminLogin() {
   if (sent) {
     return (
       <div className="p-6">
-        <h1 className="text-xl font-bold">Proveri email 📩</h1>
-        <p>Poslali smo magic link. Klikni link iz emaila.</p>
+        <h1 className="text-xl font-bold">Provjeri e-mail 📩</h1>
+        <p>Poslali smo magični link. Klikni link iz e-maila.</p>
       </div>
     );
   }
 
   return (
     <div className="p-6 max-w-sm mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Admin Login</h1>
+      <h1 className="text-2xl font-bold mb-4">Admin prijava</h1>
 
       <form onSubmit={handleLogin} className="space-y-4">
         <input
           type="email"
           required
-          placeholder="Admin email"
+          placeholder="Admin e-mail"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full border px-3 py-2 rounded"
@@ -52,7 +52,7 @@ export default function AdminLogin() {
           type="submit"
           className="w-full bg-black text-white py-2 rounded"
         >
-          Pošalji magic link
+          Pošalji magični link
         </button>
 
         {error && <p className="text-red-600">{error}</p>}
@@ -60,4 +60,3 @@ export default function AdminLogin() {
     </div>
   );
 }
-

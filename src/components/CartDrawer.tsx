@@ -34,6 +34,11 @@ function isSauceAddonName(name: string) {
 
 const SAUCE_OPTIONS = ["Bijeli luk", "BBQ", "Ljuti", "Paradajz", "Slatko-ljuti"];
 
+function formatAddonChip(a: CartAddon) {
+  const qty = Number(a.quantity ?? 1);
+  return qty > 1 ? `${a.name} ×${qty}` : a.name;
+}
+
 export default function CartDrawer() {
   const {
     items,
@@ -55,20 +60,25 @@ export default function CartDrawer() {
 
   const isEmpty = items.length === 0;
 
-  const [addonsCatalog, setAddonsCatalog] = useState<
-    Omit<CartAddon, "quantity">[]
-  >([]);
+  const [addonsCatalog, setAddonsCatalog] = useState<Omit<CartAddon, "quantity">[]>([]);
   const [addonsLoading, setAddonsLoading] = useState(false);
 
   const [saucePicker, setSaucePicker] = useState<SaucePickerState>(null);
 
   useEffect(() => {
-    setAddonsLoading(true);
-    supabase
-      .from("menu_items")
-      .select("id,name,price,category")
-      .order("name", { ascending: true })
-      .then(({ data, error }) => {
+    let mounted = true;
+
+    async function loadAddons() {
+      setAddonsLoading(true);
+
+      try {
+        const { data, error } = await supabase
+          .from("menu_items")
+          .select("id,name,price,category")
+          .order("name", { ascending: true });
+
+        if (!mounted) return;
+
         if (error) {
           console.error("Greška pri učitavanju dodataka:", error);
           setAddonsCatalog([]);
@@ -83,10 +93,23 @@ export default function CartDrawer() {
 
         setAddonsCatalog(onlyAddons);
         setAddonsLoading(false);
-      });
+      } catch (err: unknown) {
+        if (!mounted) return;
+        console.error("Greška pri učitavanju dodataka:", err);
+        setAddonsCatalog([]);
+        setAddonsLoading(false);
+      }
+    }
+
+    void loadAddons();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const handleGoToMenu = () => {
+    setSaucePicker(null);
     closeCart();
     const el = document.getElementById("menu");
     if (el) el.scrollIntoView({ behavior: "smooth" });
@@ -94,16 +117,23 @@ export default function CartDrawer() {
 
   const handleGoToCheckout = () => {
     if (isEmpty) return;
+    setSaucePicker(null);
     closeCart();
     const el = document.getElementById("checkout");
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
-  const isPizzaItem = (category: string, name: string) =>
-    category === "Pizza 33 cm" ||
-    category === "Pizza 50 cm" ||
-    /pizza/i.test(category) ||
-    /33\s*cm|50\s*cm/i.test(name);
+  const isPizzaItem = (category: string, name: string, hasVariants: boolean) => {
+    if (hasVariants) return true;
+
+    const c = normalizeCategory(category);
+    return (
+      c.includes("pizza") ||
+      /33\s*cm|50\s*cm/i.test(name) ||
+      category === "Pizza 33 cm" ||
+      category === "Pizza 50 cm"
+    );
+  };
 
   const handleSizeChange = (id: string, size: PizzaSize) => {
     const item = items.find((i) => i.id === id);
@@ -111,9 +141,7 @@ export default function CartDrawer() {
 
     const next = item.variants?.[size];
     if (!next) {
-      window.alert(
-        "Ne možemo promijeniti veličinu jer nijesu dostupne cijene za tu varijantu."
-      );
+      window.alert("Ne možemo promijeniti veličinu jer nijesu dostupne cijene za tu varijantu.");
       return;
     }
 
@@ -139,6 +167,9 @@ export default function CartDrawer() {
 
     addAddonToItem(cartItemId, sauceAddon);
   };
+
+  const getPerItemAddonsTotal = (selectedAddons: CartAddon[]) =>
+    selectedAddons.reduce((sum, a) => sum + a.price * a.quantity, 0);
 
   return (
     <AnimatePresence>
@@ -284,11 +315,16 @@ export default function CartDrawer() {
                     className="space-y-4"
                   >
                     {items.map((item) => {
-                      const pizza = isPizzaItem(item.category, item.name);
-                      const currentSize = (item.size ?? null) as PizzaSize | null;
                       const has33 = !!item.variants?.["33"];
                       const has50 = !!item.variants?.["50"];
+                      const pizza = isPizzaItem(item.category, item.name, has33 || has50);
+
+                      const currentSize: PizzaSize | null =
+                        (item.size as PizzaSize | null) ?? (has33 ? "33" : has50 ? "50" : null);
+
                       const selectedAddons = item.addons ?? [];
+                      const perItemAddonsTotal = getPerItemAddonsTotal(selectedAddons);
+                      const itemTotal = (item.price + perItemAddonsTotal) * item.quantity;
 
                       return (
                         <motion.div
@@ -352,7 +388,50 @@ export default function CartDrawer() {
                                   </div>
                                 )}
 
-                                <p className="text-sm text-gray-400 mt-2">{item.price} RSD</p>
+                                <div className="mt-2 space-y-1">
+                                  <p className="text-[12px] text-gray-400">
+                                    Osnovna cijena:{" "}
+                                    <span className="text-gray-200 font-semibold">{item.price} RSD</span>
+                                  </p>
+
+                                  {perItemAddonsTotal > 0 && (
+                                    <p className="text-[12px] text-gray-400">
+                                      Dodaci (po stavci):{" "}
+                                      <span className="text-gray-200 font-semibold">
+                                        {perItemAddonsTotal} RSD
+                                      </span>
+                                    </p>
+                                  )}
+
+                                  <p className="text-sm text-gray-200 font-semibold">
+                                    Ukupno za stavku: {itemTotal} RSD
+                                  </p>
+                                </div>
+
+{pizza && selectedAddons.length > 0 && (
+  <div className="mt-3">
+    <div className="flex items-center justify-between">
+      <p className="text-xs text-gray-400">Izabrani dodaci:</p>
+      <p className="text-[11px] text-gray-600">Klikni na dodatak da ga ukloniš</p>
+    </div>
+
+    <div className="mt-2 flex flex-wrap gap-2">
+      {selectedAddons.map((a) => (
+        <button
+          key={`chip-${a.id}`}
+          type="button"
+          onClick={() => removeAddonFromItem(item.id, a.id)}
+          className="group inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/5 text-gray-200 border border-white/10 hover:border-red-500/30 hover:text-red-200 transition"
+          title={`Klikni da ukloniš: ${a.name}`}
+        >
+          <span className="truncate">{formatAddonChip(a)}</span>
+          <span className="text-gray-500 group-hover:text-red-300 transition">✕</span>
+        </button>
+      ))}
+    </div>
+  </div>
+)}
+
 
                                 {pizza && (
                                   <div className="mt-3">
@@ -372,70 +451,71 @@ export default function CartDrawer() {
                                         {selectedAddons.map((a) => (
                                           <div
                                             key={a.id}
-                                            className="flex items-center justify-between gap-3"
+                                            className="rounded-xl border border-white/5 bg-[#161616] px-3 py-2"
                                           >
-                                            {/* Lijevo: naziv */}
-                                            <div className="flex items-center gap-2 min-w-0">
-                                              <span className="text-gray-400">⭐</span>
-                                              <span className="text-gray-200 text-sm truncate">
-                                                {a.name}
-                                              </span>
-                                            </div>
+                                            {/* ✅ bolji raspored: naziv ne “puca”, subtotal se vidi */}
+                                            <div className="flex items-start justify-between gap-3">
+                                              <div className="min-w-0 flex-1">
+                                                <p className="text-sm text-gray-200 font-semibold leading-snug break-words">
+                                                  ⭐ {a.name}
+                                                </p>
+                                                <p className="text-[11px] text-gray-500 mt-1">
+                                                  {a.price} RSD × {a.quantity} ={" "}
+                                                  <span className="text-gray-300 font-semibold">
+                                                    {a.price * a.quantity} RSD
+                                                  </span>
+                                                </p>
+                                              </div>
 
-                                            {/* Desno: količina + cijena + kontrole */}
-                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-white/5 text-gray-200 border border-white/10">
-                                                ×{a.quantity}
-                                              </span>
+                                              <div className="flex items-center gap-2 flex-shrink-0">
+                                                <motion.button
+                                                  whileTap={{ scale: 0.9 }}
+                                                  onClick={() => decreaseAddonQuantity(item.id, a.id)}
+                                                  className="w-8 h-8 rounded-full bg-gray-700/80 text-white hover:bg-gray-700 transition"
+                                                  aria-label="Smanji dodatak"
+                                                  type="button"
+                                                >
+                                                  −
+                                                </motion.button>
 
-                                              <span className="min-w-[62px] text-right text-xs font-semibold text-gray-300">
-                                                {a.price * a.quantity} RSD
-                                              </span>
+                                                <span className="min-w-[34px] text-center text-xs font-bold text-gray-200">
+                                                  {a.quantity}
+                                                </span>
 
-                                              <motion.button
-                                                whileTap={{ scale: 0.9 }}
-                                                onClick={() => decreaseAddonQuantity(item.id, a.id)}
-                                                className="w-7 h-7 rounded-full bg-gray-700/80 text-white hover:bg-gray-700 transition"
-                                                aria-label="Smanji dodatak"
-                                                type="button"
-                                              >
-                                                −
-                                              </motion.button>
+                                                <motion.button
+                                                  whileTap={{ scale: 0.9 }}
+                                                  onClick={() => increaseAddonQuantity(item.id, a.id)}
+                                                  className="w-8 h-8 rounded-full bg-gray-700/80 text-white hover:bg-gray-700 transition"
+                                                  aria-label="Povećaj dodatak"
+                                                  type="button"
+                                                >
+                                                  +
+                                                </motion.button>
 
-                                              <motion.button
-                                                whileTap={{ scale: 0.9 }}
-                                                onClick={() => increaseAddonQuantity(item.id, a.id)}
-                                                className="w-7 h-7 rounded-full bg-gray-700/80 text-white hover:bg-gray-700 transition"
-                                                aria-label="Povećaj dodatak"
-                                                type="button"
-                                              >
-                                                +
-                                              </motion.button>
-
-                                              <motion.button
-                                                whileTap={{ scale: 0.9 }}
-                                                onClick={() => removeAddonFromItem(item.id, a.id)}
-                                                className="text-gray-500 hover:text-red-400 transition"
-                                                aria-label="Ukloni dodatak"
-                                                type="button"
-                                              >
-                                                ✕
-                                              </motion.button>
+                                                <motion.button
+                                                  whileTap={{ scale: 0.9 }}
+                                                  onClick={() => removeAddonFromItem(item.id, a.id)}
+                                                  className="w-8 h-8 rounded-full bg-transparent border border-white/10 text-gray-300 hover:text-red-300 hover:border-red-500/30 transition"
+                                                  aria-label="Ukloni dodatak"
+                                                  type="button"
+                                                >
+                                                  ✕
+                                                </motion.button>
+                                              </div>
                                             </div>
                                           </div>
                                         ))}
                                       </div>
                                     )}
 
-                                    {/* 📝 Napomena */}
                                     <div className="mt-3">
                                       <label className="block text-[11px] text-gray-400 mb-1">
-                                        Napomena (npr. koji sos želiš)
+                                        Napomena (npr. bez pečuraka, bez luka, bez maslina…)
                                       </label>
                                       <textarea
                                         value={item.note ?? ""}
                                         onChange={(e) => setItemNote(item.id, e.target.value)}
-                                        placeholder="Bijeli luk sos, malo ljutog…"
+                                        placeholder="Npr. bez pečuraka, bez luka, bez maslina, jače pečeno…"
                                         rows={2}
                                         className="w-full resize-none rounded-lg bg-[#121212] border border-white/10 px-3 py-2 text-xs text-gray-200 placeholder:text-gray-500 focus:outline-none focus:border-yellow-500/60"
                                       />
@@ -450,10 +530,12 @@ export default function CartDrawer() {
                                             const isSauceBase = isSauceAddonName(a.name);
 
                                             return (
-                                              <div key={a.id} className="flex items-center justify-between">
-                                                <span className="text-xs text-gray-300 truncate">{a.name}</span>
+                                              <div key={a.id} className="flex items-center justify-between gap-3">
+                                                <span className="text-xs text-gray-300 break-words">
+                                                  {a.name}
+                                                </span>
 
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-shrink-0">
                                                   <span className="text-[11px] text-gray-400">{a.price} RSD</span>
 
                                                   <motion.button
@@ -477,9 +559,7 @@ export default function CartDrawer() {
                                         </div>
 
                                         {addonsCatalog.length > 8 && (
-                                          <p className="text-[11px] text-gray-600 mt-2">
-                                            Ima još dodataka u meniju.
-                                          </p>
+                                          <p className="text-[11px] text-gray-600 mt-2">Ima još dodataka u meniju.</p>
                                         )}
                                       </div>
                                     )}
@@ -531,9 +611,7 @@ export default function CartDrawer() {
                                 </motion.button>
                               </div>
 
-                              <p className="text-sm text-gray-200 font-semibold">
-                                {item.price * item.quantity} RSD
-                              </p>
+                              <p className="text-sm text-gray-200 font-semibold">{itemTotal} RSD</p>
                             </div>
                           </div>
                         </motion.div>

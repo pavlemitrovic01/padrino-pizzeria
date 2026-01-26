@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { supabase } from "../lib/supabaseClient";
 import { useCart } from "../context/useCart";
 import CheckoutSuccess from "./CheckoutSuccess";
+import { createOrder } from "../lib/createOrder";
 
 type FieldErrors = {
   fullName?: string;
@@ -14,6 +14,22 @@ function formatPizzaSize(size: unknown) {
   if (size === "33") return "33 cm";
   if (size === "50") return "50 cm";
   return null;
+}
+
+function getErrorMessage(err: any) {
+  const msg =
+    err?.message ||
+    err?.error_description ||
+    err?.details ||
+    (typeof err === "string" ? err : null);
+
+  if (msg && typeof msg === "string") return msg;
+
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "Došlo je do greške pri slanju porudžbine.";
+  }
 }
 
 export default function Checkout() {
@@ -43,9 +59,9 @@ export default function Checkout() {
   const validate = () => {
     const next: FieldErrors = {};
 
-    if (fullName.trim().length < 2) next.fullName = "Unesi ime i prezime.";
-    if (phone.trim().length < 6) next.phone = "Unesi ispravan broj telefona.";
-    if (address.trim().length < 5) next.address = "Unesi adresu za dostavu.";
+    if (fullName.trim().length < 2) next.fullName = "Unesite ime i prezime.";
+    if (phone.trim().length < 6) next.phone = "Unesite ispravan broj telefona.";
+    if (address.trim().length < 5) next.address = "Unesite adresu za dostavu.";
 
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -55,65 +71,48 @@ export default function Checkout() {
     e.preventDefault();
     setSubmitError(null);
 
-    if (isEmpty) return;
+    if (isEmpty) {
+      setSubmitError("Korpa je prazna. Dodajte stavke pa pokušajte ponovo.");
+      return;
+    }
 
-    const ok = validate();
-    if (!ok) return;
+    if (!validate()) return;
 
     setSubmitting(true);
 
     try {
-      const orderNote = note.trim();
-
-      const orderItems = items.map((i) => ({
-        cart_id: i.id,
-        menu_item_id: i.menuItemId ?? null,
-        name: i.name,
-        size: i.size ?? null,
-        quantity: i.quantity,
-
-        base_price: i.basePrice ?? null,
-        price_per_item: i.price,
-
-        addons: (i.addons ?? []).map((a) => ({
-          id: a.id,
-          name: a.name,
-          price: a.price,
-          quantity: a.quantity,
+      await createOrder({
+        customer_name: fullName,
+        customer_phone: phone,
+        customer_address: address,
+        total_price: totalPrice,
+        total_items: totalItems,
+        note: note.trim() || null,
+        items: items.map((i) => ({
+          cart_id: i.id,
+          menu_item_id: i.menuItemId ?? null,
+          name: i.name,
+          size: i.size ?? null,
+          quantity: i.quantity,
+          base_price: i.basePrice ?? null,
+          price_per_item: i.price,
+          addons: (i.addons ?? []).map((a) => ({
+            id: a.id,
+            name: a.name,
+            price: a.price,
+            quantity: a.quantity,
+          })),
+          note: (i.note ?? "").trim() || null,
+          image: i.image,
+          category: i.category,
         })),
-
-        note: (i.note ?? "").trim() || null,
-        order_note: orderNote || null,
-
-        image: i.image,
-        category: i.category,
-      }));
-
-      const { error } = await supabase.from("orders").insert([
-        {
-          customer_name: fullName.trim(),
-          customer_phone: phone.trim(),
-          customer_address: address.trim(),
-          total_price: totalPrice,
-          total_items: totalItems,
-          items: orderItems,
-        },
-      ]);
-
-      if (error) {
-        console.error("Greška pri slanju porudžbine:", error);
-        setSubmitError(
-          "Došlo je do greške pri slanju porudžbine. Pokušaj ponovo za koji trenutak."
-        );
-        setSubmitting(false);
-        return;
-      }
+      });
 
       resetCart();
       setShowSuccess(true);
-    } catch (err) {
-      console.error("Neočekivana greška pri slanju porudžbine:", err);
-      setSubmitError("Došlo je do neočekivane greške. Pokušaj ponovo.");
+    } catch (err: any) {
+      console.error("Greška pri slanju porudžbine:", err);
+      setSubmitError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -140,7 +139,7 @@ export default function Checkout() {
               Poručivanje
             </h2>
             <p className="text-gray-400 mt-4 max-w-2xl mx-auto">
-              Završimo porudžbinu brzo i bezbjedno. Provjeri stavke i unesi podatke
+              Završimo porudžbinu brzo i bezbjedno. Provjerite stavke i unesite podatke
               za dostavu.
             </p>
           </div>
@@ -164,206 +163,165 @@ export default function Checkout() {
                   <div className="space-y-4">
                     {items.map((item) => {
                       const sizeLabel = formatPizzaSize(item.size);
-                      const addons = item.addons ?? [];
-                      const hasAddons = addons.length > 0;
-                      const hasItemNote = (item.note ?? "").trim().length > 0;
 
                       return (
                         <div
                           key={item.id}
-                          className="flex gap-4 bg-[#1b1b1b] rounded-2xl p-4 border border-white/5"
+                          className="rounded-2xl border border-white/10 bg-black/40 p-4"
                         >
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-16 h-16 rounded-xl object-cover"
-                          />
+                          <div className="flex gap-4">
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="h-16 w-16 rounded-xl object-cover"
+                              loading="lazy"
+                            />
 
-                          <div className="flex-1">
-                            <div className="flex justify-between">
-                              <div className="min-w-0">
-                                <p className="text-white font-semibold truncate">
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between">
+                                <p className="text-white font-semibold">
                                   {item.name}
+                                  {sizeLabel && (
+                                    <span className="text-gray-400 font-normal">
+                                      {" "}
+                                      • {sizeLabel}
+                                    </span>
+                                  )}
                                 </p>
 
-                                {sizeLabel && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Veličina:{" "}
-                                    <span className="text-gray-300">{sizeLabel}</span>
-                                  </p>
-                                )}
-
-                                <p className="text-sm text-gray-400 mt-1">
-                                  {item.price} RSD
-                                </p>
-
-                                {hasAddons && (
-                                  <div className="mt-2 space-y-1">
-                                    <p className="text-[11px] text-gray-500">Dodaci:</p>
-                                    {addons.map((a) => (
-                                      <div
-                                        key={a.id}
-                                        className="flex items-center justify-between text-xs"
-                                      >
-                                        <span className="text-gray-300 truncate">
-                                          ⭐ {a.name} ×{a.quantity}
-                                        </span>
-                                        <span className="text-gray-400 font-semibold">
-                                          {a.price * a.quantity} RSD
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {hasItemNote && (
-                                  <div className="mt-2">
-                                    <p className="text-[11px] text-gray-500">Napomena:</p>
-                                    <p className="text-xs text-gray-300 whitespace-pre-wrap">
-                                      {item.note}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-
-                              <button
-                                onClick={() => removeFromCart(item.id)}
-                                className="text-gray-500 hover:text-red-400"
-                                aria-label="Ukloni stavku"
-                                type="button"
-                              >
-                                ✕
-                              </button>
-                            </div>
-
-                            <div className="flex justify-between items-center mt-3">
-                              <div className="flex items-center gap-2">
                                 <button
-                                  onClick={() => decrease(item.id)}
-                                  className="w-8 h-8 rounded-full bg-gray-700 text-white"
-                                  aria-label="Smanji količinu"
                                   type="button"
+                                  onClick={() => removeFromCart(item.id)}
+                                  className="text-sm text-red-400"
                                 >
-                                  −
-                                </button>
-                                <span className="text-white font-semibold">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  onClick={() => increase(item.id)}
-                                  className="w-8 h-8 rounded-full bg-gray-700 text-white"
-                                  aria-label="Povećaj količinu"
-                                  type="button"
-                                >
-                                  +
+                                  Ukloni
                                 </button>
                               </div>
 
-                              <p className="text-white font-semibold">
-                                {item.price * item.quantity} RSD
-                              </p>
+                              <div className="mt-4 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => decrease(item.id)}
+                                    className="h-9 w-9 rounded-full border border-white/10 text-white"
+                                  >
+                                    –
+                                  </button>
+
+                                  <span className="text-white w-8 text-center">
+                                    {item.quantity}
+                                  </span>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => increase(item.id)}
+                                    className="h-9 w-9 rounded-full border border-white/10 text-white"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+
+                                <p className="text-white font-bold">
+                                  {item.price * item.quantity} RSD
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </div>
                       );
                     })}
-
-                    <div className="flex justify-between pt-4 border-t border-gray-800 text-white font-bold">
-                      <span>Ukupno</span>
-                      <span>{formattedTotal}</span>
-                    </div>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Desno: forma */}
-            <form
-              onSubmit={handleSubmit}
-              className="rounded-3xl border border-white/5 bg-[#121212] shadow-xl px-6 py-6 space-y-4"
-            >
-              <h3 className="text-xl font-bold text-white">Podaci za dostavu</h3>
+            <div className="rounded-3xl border border-white/5 bg-[#121212] shadow-xl">
+              <div className="px-6 py-5 border-b border-gray-800">
+                <h3 className="text-xl font-bold text-white">Podaci za dostavu</h3>
+                <p className="text-sm text-gray-400 mt-1">
+                  Ukupno:{" "}
+                  <span className="text-white font-semibold">{formattedTotal}</span>
+                </p>
+              </div>
 
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Ime i prezime"
-                className="w-full rounded-2xl bg-[#1b1b1b] border border-white/5 px-4 py-3 text-white"
-              />
-              {errors.fullName && (
-                <p className="text-sm text-red-400">{errors.fullName}</p>
-              )}
+              <form onSubmit={handleSubmit} className="px-6 py-6 space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">
+                    Ime i prezime
+                  </label>
+                  <input
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
+                    placeholder="npr. Pavle Mitrović"
+                  />
+                  {errors.fullName && (
+                    <p className="text-sm text-red-400 mt-1">{errors.fullName}</p>
+                  )}
+                </div>
 
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Telefon"
-                className="w-full rounded-2xl bg-[#1b1b1b] border border-white/5 px-4 py-3 text-white"
-              />
-              {errors.phone && (
-                <p className="text-sm text-red-400">{errors.phone}</p>
-              )}
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Telefon</label>
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
+                    placeholder="npr. 06x xxx xxx"
+                  />
+                  {errors.phone && (
+                    <p className="text-sm text-red-400 mt-1">{errors.phone}</p>
+                  )}
+                </div>
 
-              <input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Adresa"
-                className="w-full rounded-2xl bg-[#1b1b1b] border border-white/5 px-4 py-3 text-white"
-              />
-              {errors.address && (
-                <p className="text-sm text-red-400">{errors.address}</p>
-              )}
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Adresa</label>
+                  <input
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
+                    placeholder="Ulica i broj, sprat, stan..."
+                  />
+                  {errors.address && (
+                    <p className="text-sm text-red-400 mt-1">{errors.address}</p>
+                  )}
+                </div>
 
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Napomena (opciono) — npr. interfon, sprat, ulaz…"
-                className="w-full min-h-[100px] rounded-2xl bg-[#1b1b1b] border border-white/5 px-4 py-3 text-white"
-              />
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">
+                    Napomena (opciono)
+                  </label>
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full min-h-[110px] rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
+                    placeholder="npr. pozvati kad stignete, bez luka..."
+                  />
+                </div>
 
-              {submitError && (
-                <p className="text-sm text-red-400">{submitError}</p>
-              )}
+                {submitError && <p className="text-sm text-red-400">{submitError}</p>}
 
-              <motion.button
-                whileTap={!submitting ? { scale: 0.97 } : undefined}
-                disabled={isEmpty || submitting}
-                className={`w-full py-3 rounded-full font-semibold transition ${
-                  isEmpty || submitting
-                    ? "bg-gray-600 text-gray-300 cursor-not-allowed opacity-80"
-                    : "bg-yellow-500 text-black hover:bg-yellow-400"
-                }`}
-              >
-                {submitting ? "Šaljem porudžbinu…" : "Potvrdi porudžbinu"}
-              </motion.button>
+                <button
+                  type="submit"
+                  disabled={submitting || isEmpty}
+                  className="w-full rounded-2xl bg-white text-black font-bold py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Šaljem…" : "Pošalji porudžbinu"}
+                </button>
 
-              <p className="text-xs text-gray-600">
-                Klikom na “Potvrdi porudžbinu” porudžbina se šalje restoranu.
-              </p>
-            </form>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-xs text-gray-500 text-center"
+                >
+                  Porudžbina se šalje bezbjedno preko sistema.
+                </motion.p>
+              </form>
+            </div>
           </div>
         </div>
       </div>
     </section>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

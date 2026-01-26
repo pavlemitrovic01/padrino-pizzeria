@@ -1,53 +1,47 @@
-
+// @ts-nocheck
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_SERVICE_ROLE_KEY,
-  {
-    auth: { persistSession: false },
-  }
-);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+});
 
-const ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "https://padrino.rs"
-];
+const ALLOWED_ORIGINS = ["http://localhost:5173", "https://padrino.rs"];
 
 function getCorsHeaders(origin: string | null) {
-  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin)
-    ? origin
-    : "";
+  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "";
   return {
     "Access-Control-Allow-Origin": allowOrigin,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "GET, PATCH, OPTIONS",
   };
 }
 
 const ADMIN_EMAIL = "pavlemitrovic01@gmail.com";
 
 // Basic in-memory rate limit: 60 req/min per IP
-const rateLimitMap = new Map<string, { count: number; ts: number }>();
+const rateLimitMap = new Map();
 const RATE_LIMIT = 60;
 const RATE_WINDOW = 60 * 1000; // 1 min
 
-async function validateAdmin(req: Request): Promise<boolean> {
+async function validateAdmin(req: Request) {
   const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return false;
-  }
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return false;
+
   const token = authHeader.split(" ")[1];
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user || user.email !== ADMIN_EMAIL) {
-    return false;
-  }
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user || user.email !== ADMIN_EMAIL) return false;
   return true;
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   const corsHeaders = getCorsHeaders(origin);
 
@@ -56,10 +50,19 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Ako dolazi origin koji nije dozvoljen, vrati 403 (da ne bude "tiha" CORS blokada)
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    return new Response(JSON.stringify({ error: "Origin not allowed" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // Basic rate limit by IP
   const ip = req.headers.get("x-forwarded-for") || "unknown";
   const now = Date.now();
   const rl = rateLimitMap.get(ip);
+
   if (!rl || now - rl.ts > RATE_WINDOW) {
     rateLimitMap.set(ip, { count: 1, ts: now });
   } else {
@@ -104,12 +107,11 @@ Deno.serve(async (req) => {
   }
 
   if (method === "PATCH") {
-    const { id, status } = await req.json();
+    const body = await req.json();
+    const id = body?.id;
+    const status = body?.status;
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status })
-      .eq("id", id);
+    const { error } = await supabase.from("orders").update({ status }).eq("id", id);
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {

@@ -3,9 +3,10 @@ import {
   useContext,
   useEffect,
   useState,
-  ReactNode,
+  type ReactNode,
 } from "react";
 import { supabase } from "../lib/supabaseClient";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 type User = {
   id: string;
@@ -40,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: session.user.id,
           email: session.user.email ?? "",
         });
+      } else {
+        setUser(null);
       }
 
       setLoading(false);
@@ -47,26 +50,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initSession();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
+    const { data } = supabase.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted) return;
 
-      if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email ?? "",
-        });
-      } else {
-        setUser(null);
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email ?? "",
+          });
+        } else {
+          setUser(null);
+        }
+
+        setLoading(false);
       }
-
-      setLoading(false);
-    });
+    );
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      data.subscription.unsubscribe();
     };
   }, []);
 
@@ -94,9 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error("useAuth must be used within AuthProvider");
+    throw new Error("useAuth mora biti korišćen unutar AuthProvider-a.");
   }
   return ctx;
 }
-
-
