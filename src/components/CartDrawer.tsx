@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabaseclient";
 import { useCart } from "../context/useCart";
 import type { CartAddon, PizzaSize } from "../context/CartContext";
 
