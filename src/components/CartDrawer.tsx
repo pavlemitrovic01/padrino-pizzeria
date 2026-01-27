@@ -148,11 +148,7 @@ export default function CartDrawer() {
     changeSize(id, size, next);
   };
 
-  const addonsById = useMemo(() => {
-    const map = new Map<string, Omit<CartAddon, "quantity">>();
-    for (const a of addonsCatalog) map.set(a.id, a);
-    return map;
-  }, [addonsCatalog]);
+
 
   const addSauceToItem = (
     cartItemId: string,
@@ -169,7 +165,10 @@ export default function CartDrawer() {
   };
 
   const getPerItemAddonsTotal = (selectedAddons: CartAddon[]) =>
-    selectedAddons.reduce((sum, a) => sum + a.price * a.quantity, 0);
+    selectedAddons.reduce((sum, a) => {
+      const qty = Number(a.quantity ?? 1);
+      return sum + a.price * qty;
+    }, 0);
 
   return (
     <AnimatePresence>
@@ -324,7 +323,16 @@ export default function CartDrawer() {
 
                       const selectedAddons = item.addons ?? [];
                       const perItemAddonsTotal = getPerItemAddonsTotal(selectedAddons);
-                      const itemTotal = (item.price + perItemAddonsTotal) * item.quantity;
+                      // Calculate base price for display
+                      const basePriceForDisplay =
+                        Math.max(
+                          0,
+                          typeof item.basePrice === "number"
+                            ? item.basePrice
+                            : item.price - perItemAddonsTotal
+                        );
+                      // Correct item total: (base + addons) * quantity = item.price * item.quantity
+                      const itemTotal = item.price * item.quantity;
 
                       return (
                         <motion.div
@@ -390,13 +398,13 @@ export default function CartDrawer() {
 
                                 <div className="mt-2 space-y-1">
                                   <p className="text-[12px] text-gray-400">
-                                    Osnovna cijena:{" "}
-                                    <span className="text-gray-200 font-semibold">{item.price} RSD</span>
+                                    Osnovna cijena: {" "}
+                                    <span className="text-gray-200 font-semibold">{basePriceForDisplay} RSD</span>
                                   </p>
 
                                   {perItemAddonsTotal > 0 && (
                                     <p className="text-[12px] text-gray-400">
-                                      Dodaci (po stavci):{" "}
+                                      Dodaci (po stavci): {" "}
                                       <span className="text-gray-200 font-semibold">
                                         {perItemAddonsTotal} RSD
                                       </span>
@@ -407,30 +415,6 @@ export default function CartDrawer() {
                                     Ukupno za stavku: {itemTotal} RSD
                                   </p>
                                 </div>
-
-{pizza && selectedAddons.length > 0 && (
-  <div className="mt-3">
-    <div className="flex items-center justify-between">
-      <p className="text-xs text-gray-400">Izabrani dodaci:</p>
-      <p className="text-[11px] text-gray-600">Klikni na dodatak da ga ukloniš</p>
-    </div>
-
-    <div className="mt-2 flex flex-wrap gap-2">
-      {selectedAddons.map((a) => (
-        <button
-          key={`chip-${a.id}`}
-          type="button"
-          onClick={() => removeAddonFromItem(item.id, a.id)}
-          className="group inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/5 text-gray-200 border border-white/10 hover:border-red-500/30 hover:text-red-200 transition"
-          title={`Klikni da ukloniš: ${a.name}`}
-        >
-          <span className="truncate">{formatAddonChip(a)}</span>
-          <span className="text-gray-500 group-hover:text-red-300 transition">✕</span>
-        </button>
-      ))}
-    </div>
-  </div>
-)}
 
 
                                 {pizza && (

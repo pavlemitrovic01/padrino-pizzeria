@@ -14,6 +14,7 @@ type MenuItemProps = {
   image: string;
   category: string;
 
+  // novo (dolazi iz Menu.tsx)
   pizzaSize?: PizzaSize | null;
   baseKey?: string;
   variants?: PizzaVariantsProp;
@@ -41,8 +42,10 @@ export default function MenuItem({
       image,
       category,
       quantity: 1,
+
+      // novo (CartProvider normalizuje ovo i pamti varijante)
       size: pizzaSize ?? null,
-      baseKey,
+      baseKey: baseKey,
       menuItemId: id,
       variants: variants
         ? {
@@ -69,11 +72,9 @@ export default function MenuItem({
     });
   };
 
-  const has33 = variants?.["33"];
-  const has50 = variants?.["50"];
-
   return (
     <motion.div
+      initial={false}
       whileHover={{ y: -2 }}
       transition={{ duration: 0.18 }}
       className="group flex gap-4 rounded-2xl p-4 bg-[#1b1b1b] shadow-md hover:shadow-xl border border-white/5 hover:border-yellow-500/30 transition-colors"
@@ -83,6 +84,7 @@ export default function MenuItem({
           src={image}
           alt={name}
           className="w-full h-full object-cover"
+          initial={false}
           whileHover={{ scale: 1.06 }}
           transition={{ duration: 0.22 }}
           loading="lazy"
@@ -96,25 +98,14 @@ export default function MenuItem({
         </div>
 
         <div className="flex items-center justify-between mt-4">
-          {/* Cijena */}
-          <div className="text-yellow-400 font-bold text-sm leading-tight">
-            {has33 || has50 ? (
-              <div className="flex flex-col">
-                {has33 && <span>33 cm: {has33.price} RSD</span>}
-                {has50 && <span>50 cm: {has50.price} RSD</span>}
-              </div>
-            ) : (
-              <span>{price} RSD</span>
-            )}
-          </div>
+          <span className="text-yellow-400 font-bold">{price} RSD</span>
 
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.92 }}
             onClick={handleAddToCart}
-            className="px-4 py-1.5 rounded-full bg-yellow-500 text-black text-sm font-semibold hover:bg-yellow-400 transition shadow-sm"
+            className="px-4 py-1.5 rounded-full bg-yellow-500 text-black text-sm font-semibold hover:bg-yellow-400 transition shadow-sm group-hover:shadow"
             aria-label={`Dodaj ${name} u korpu`}
-            type="button"
           >
             Dodaj
           </motion.button>
