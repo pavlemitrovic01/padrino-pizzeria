@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseclient";
+import { supabase } from "./supabaseClient";
 
 export type OrderItemAddonPayload = {
   id: string;

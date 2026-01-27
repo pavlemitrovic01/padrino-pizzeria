@@ -1,6 +1,6 @@
 // Putanja: src/sections/Menu.tsx
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseclient";
+import { supabase } from "../lib/supabaseClient";
 import MenuItem from "../components/MenuItem";
 import type { PizzaSize } from "../context/CartContext";
 

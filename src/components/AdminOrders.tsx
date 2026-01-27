@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseclient";
+import { supabase } from "../lib/supabaseClient";
 
 type AddonDTO = {
   id: string;
