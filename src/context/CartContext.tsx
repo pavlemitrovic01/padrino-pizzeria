@@ -4,6 +4,7 @@ export type PizzaSize = "33" | "50";
 
 export const PIZZA_SIZES: PizzaSize[] = ["33", "50"];
 
+// Guard za PizzaSize
 export function isPizzaSize(value: unknown): value is PizzaSize {
   return value === "33" || value === "50";
 }
@@ -70,6 +71,14 @@ export type CartContextType = {
 };
 
 export const CartContext = createContext<CartContextType | null>(null);
+
+// Provider implementacija (pseudo, za aliasing clearCart/resetCart):
+//
+// function clearCart() { ... }
+// // Alias za kompatibilnost, planira se deprecacija resetCart u budućnosti
+// const resetCart = clearCart;
+//
+// value={{ ..., clearCart, resetCart }}
 
 
 
