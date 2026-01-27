@@ -398,7 +398,7 @@ export default function CartDrawer() {
 
                                 <div className="mt-2 space-y-1">
                                   <p className="text-[12px] text-gray-400">
-                                    Osnovna cijena: {" "}
+                                    Osnovna cijena (po komadu): {" "}
                                     <span className="text-gray-200 font-semibold">{basePriceForDisplay} RSD</span>
                                   </p>
 
