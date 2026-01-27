@@ -352,7 +352,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const nextAddons = existing.filter((a) => a.id !== addonId);
 
         const basePrice = getBasePrice(i);
-        const finalPrice = basePrice + calcAddonsTotal(nextAddons);
+        const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
         return {
           ...i,
