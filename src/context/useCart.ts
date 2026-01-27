@@ -1,12 +1,10 @@
 import { useContext } from "react";
-import { CartContext } from "./CartContext";
+import { CartContextType, CartContext } from "./CartContext";
 
-export function useCart() {
+export function useCart(): CartContextType {
   const context = useContext(CartContext);
-
   if (!context) {
-    throw new Error("useCart mora biti korišten unutar CartProvider-a.");
+    throw new Error("useCart mora biti korišćen unutar CartProvider-a");
   }
-
   return context;
 }
