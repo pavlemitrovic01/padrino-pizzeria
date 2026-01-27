@@ -43,7 +43,7 @@ export default function Checkout() {
     resetCart,
   } = useCart();
 
-  const isEmpty = items.length === 0;
+  const isEmpty = !Array.isArray(items) || items.length === 0;
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -58,17 +58,29 @@ export default function Checkout() {
 
   const validate = () => {
     const next: FieldErrors = {};
-
-    if (fullName.trim().length < 2) next.fullName = "Unesite ime i prezime.";
-    if (phone.trim().length < 6) next.phone = "Unesite ispravan broj telefona.";
-    if (address.trim().length < 5) next.address = "Unesite adresu za dostavu.";
-
+    const trimmedName = fullName.trim();
+    if (trimmedName.split(/\s+/).length < 2) next.fullName = "Unesite ime i prezime (minimum dvije riječi).";
+    const phoneDigits = phone.replace(/[^\d]/g, "");
+    if (phoneDigits.length < 6) next.phone = "Unesite ispravan broj telefona (minimum 6 cifara).";
+    if (address.trim().length < 5) next.address = "Unesite adresu za dostavu (minimum 5 karaktera).";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
 
+  const isFormValid = useMemo(() => {
+    const trimmedName = fullName.trim();
+    const phoneDigits = phone.replace(/[^\d]/g, "");
+    return (
+      trimmedName.split(/\s+/).length >= 2 &&
+      phoneDigits.length >= 6 &&
+      address.trim().length >= 5 &&
+      !isEmpty
+    );
+  }, [fullName, phone, address, isEmpty]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setSubmitError(null);
 
     if (isEmpty) {
@@ -82,28 +94,28 @@ export default function Checkout() {
 
     try {
       await createOrder({
-        customer_name: fullName,
-        customer_phone: phone,
-        customer_address: address,
-        total_price: totalPrice,
-        total_items: totalItems,
-        note: note.trim() || null,
+        customer_name: fullName.trim(),
+        customer_phone: phone.trim(),
+        customer_address: address.trim(),
+        total_price: Number.isFinite(totalPrice) ? totalPrice : 0,
+        total_items: Number.isFinite(totalItems) ? totalItems : 0,
+        note: note.trim() ? note.trim() : null,
         items: items.map((i) => ({
           cart_id: i.id,
           menu_item_id: i.menuItemId ?? null,
           name: i.name,
           size: i.size ?? null,
-          quantity: i.quantity,
-          base_price: i.basePrice ?? null,
-          price_per_item: i.price,
+          quantity: typeof i.quantity === "number" && i.quantity >= 1 ? i.quantity : 1,
+          base_price: typeof i.basePrice === "number" ? i.basePrice : null,
+          price_per_item: typeof i.price === "number" ? i.price : 0,
           addons: (i.addons ?? []).map((a) => ({
             id: a.id,
             name: a.name,
-            price: a.price,
-            quantity: a.quantity,
+            price: typeof a.price === "number" ? a.price : 0,
+            quantity: typeof a.quantity === "number" && a.quantity >= 1 ? a.quantity : 1,
           })),
           note: (i.note ?? "").trim() || null,
-          image: i.image,
+          image: typeof i.image === "string" ? i.image : "",
           category: i.category,
         })),
       });
@@ -111,7 +123,6 @@ export default function Checkout() {
       resetCart();
       setShowSuccess(true);
     } catch (err: any) {
-      console.error("Greška pri slanju porudžbine:", err);
       setSubmitError(getErrorMessage(err));
     } finally {
       setSubmitting(false);
@@ -163,7 +174,9 @@ export default function Checkout() {
                   <div className="space-y-4">
                     {items.map((item) => {
                       const sizeLabel = formatPizzaSize(item.size);
-
+                      const safeImage = typeof item.image === "string" ? item.image : "";
+                      const safeQuantity = typeof item.quantity === "number" && item.quantity >= 1 ? item.quantity : 1;
+                      const safePrice = typeof item.price === "number" ? item.price : 0;
                       return (
                         <div
                           key={item.id}
@@ -171,8 +184,8 @@ export default function Checkout() {
                         >
                           <div className="flex gap-4">
                             <img
-                              src={item.image}
-                              alt={item.name}
+                              src={safeImage}
+                              alt={item.name || "Stavka"}
                               className="h-16 w-16 rounded-xl object-cover"
                               loading="lazy"
                             />
@@ -209,7 +222,7 @@ export default function Checkout() {
                                   </button>
 
                                   <span className="text-white w-8 text-center">
-                                    {item.quantity}
+                                    {safeQuantity}
                                   </span>
 
                                   <button
@@ -222,7 +235,7 @@ export default function Checkout() {
                                 </div>
 
                                 <p className="text-white font-bold">
-                                  {item.price * item.quantity} RSD
+                                  {safePrice * safeQuantity} RSD
                                 </p>
                               </div>
                             </div>
@@ -255,9 +268,13 @@ export default function Checkout() {
                     onChange={(e) => setFullName(e.target.value)}
                     className="w-full rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
                     placeholder="npr. Pavle Mitrović"
+                    autoComplete="name"
+                    aria-invalid={!!errors.fullName}
+                    aria-describedby={errors.fullName ? "fullName-error" : undefined}
+                    disabled={submitting}
                   />
                   {errors.fullName && (
-                    <p className="text-sm text-red-400 mt-1">{errors.fullName}</p>
+                    <p id="fullName-error" className="text-sm text-red-400 mt-1">{errors.fullName}</p>
                   )}
                 </div>
 
@@ -268,9 +285,14 @@ export default function Checkout() {
                     onChange={(e) => setPhone(e.target.value)}
                     className="w-full rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
                     placeholder="npr. 06x xxx xxx"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    aria-invalid={!!errors.phone}
+                    aria-describedby={errors.phone ? "phone-error" : undefined}
+                    disabled={submitting}
                   />
                   {errors.phone && (
-                    <p className="text-sm text-red-400 mt-1">{errors.phone}</p>
+                    <p id="phone-error" className="text-sm text-red-400 mt-1">{errors.phone}</p>
                   )}
                 </div>
 
@@ -281,9 +303,13 @@ export default function Checkout() {
                     onChange={(e) => setAddress(e.target.value)}
                     className="w-full rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
                     placeholder="Ulica i broj, sprat, stan..."
+                    autoComplete="street-address"
+                    aria-invalid={!!errors.address}
+                    aria-describedby={errors.address ? "address-error" : undefined}
+                    disabled={submitting}
                   />
                   {errors.address && (
-                    <p className="text-sm text-red-400 mt-1">{errors.address}</p>
+                    <p id="address-error" className="text-sm text-red-400 mt-1">{errors.address}</p>
                   )}
                 </div>
 
@@ -296,6 +322,7 @@ export default function Checkout() {
                     onChange={(e) => setNote(e.target.value)}
                     className="w-full min-h-[110px] rounded-xl bg-black/40 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/25"
                     placeholder="npr. pozvati kad stignete, bez luka..."
+                    disabled={submitting}
                   />
                 </div>
 
@@ -303,7 +330,7 @@ export default function Checkout() {
 
                 <button
                   type="submit"
-                  disabled={submitting || isEmpty}
+                  disabled={submitting || isEmpty || !isFormValid}
                   className="w-full rounded-2xl bg-white text-black font-bold py-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {submitting ? "Šaljem…" : "Pošalji porudžbinu"}
