@@ -187,13 +187,42 @@ export default function Menu() {
       return <p className="text-sm text-gray-500">Trenutno nema pića u ponudi.</p>;
     }
 
+    // Standardizuj količine pića u nazivu
+    function standardizeDrinkName(name: string): string {
+      // Coca-Cola, Fanta, Sprite → 0.33 l
+      if (/^(coca[- ]?cola|coke|fanta|sprite)/i.test(name)) {
+        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.33 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.33 l").replace(/([\d.,]+)(\s?l)/gi, "0.33 l");
+      }
+      // Bravo sokovi → 0.25 l
+      if (/^bravo/i.test(name)) {
+        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.25 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l").replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
+      }
+      // Nikšićko pivo → 0.5 l
+      if (/niksicko|nikšićko/i.test(name)) {
+        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.5 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l").replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
+      }
+      // Rosa voda → 0.5 l
+      if (/rosa/i.test(name)) {
+        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.5 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l").replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
+      }
+      // Knjaz Miloš → 0.5 l
+      if (/knjaz/i.test(name)) {
+        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.5 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l").replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
+      }
+      // Heineken → 0.25 l
+      if (/heineken/i.test(name)) {
+        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.25 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l").replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
+      }
+      return name;
+    }
+
     return (
       <div className="space-y-5">
         {data.map((item) => (
           <MenuItem
             key={item.id}
             id={item.id}
-            name={item.name}
+            name={standardizeDrinkName(item.name)}
             description={item.description}
             price={item.price}
             image={item.image}
