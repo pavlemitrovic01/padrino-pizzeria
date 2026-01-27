@@ -9,9 +9,10 @@ import {
 } from "./CartContext";
 
 function parsePizzaSizeFromText(text: string): PizzaSize | null {
-  const t = text.toLowerCase();
-  if (t.includes("50 cm")) return "50";
-  if (t.includes("33 cm")) return "33";
+  const t = String(text ?? "").toLowerCase();
+  // hvata: 33cm, 33 cm, 33 CM, 33 cm., pizza 50cm, 50 cm,
+  if (/\b50\s*cm\b|pizza\s*50\s*cm[.,]?/i.test(t)) return "50";
+  if (/\b33\s*cm\b|pizza\s*33\s*cm[.,]?/i.test(t)) return "33";
   return null;
 }
 
@@ -32,9 +33,14 @@ function isPizzaLike(category: string, name: string) {
   );
 }
 
-function calcAddonsTotal(addons?: CartAddon[]) {
+function computeAddonsTotal(addons?: CartAddon[]): number {
   if (!addons || addons.length === 0) return 0;
-  return addons.reduce((sum, a) => sum + a.price * a.quantity, 0);
+  return addons.reduce((sum, a) => {
+    const qtyRaw = Number((a as CartAddon).quantity ?? 1);
+    const qty = Number.isFinite(qtyRaw) && qtyRaw >= 1 ? Math.floor(qtyRaw) : 1;
+    const next = sum + a.price * qty;
+    return Number.isFinite(next) ? next : sum;
+  }, 0);
 }
 
 function pickBestSize(
@@ -55,7 +61,7 @@ function getBasePrice(item: CartItem): number {
     return item.basePrice;
   }
 
-  const addonsTotal = calcAddonsTotal(item.addons);
+  const addonsTotal = computeAddonsTotal(item.addons);
   const derived = (item.price ?? 0) - addonsTotal;
 
   if (Number.isFinite(derived)) return derived;
@@ -73,8 +79,9 @@ function normalizeIncomingItem(item: CartItem): CartItem {
   }));
 
   if (!looksLikePizza) {
-    const basePrice = item.basePrice ?? item.price;
-    const finalPrice = basePrice + calcAddonsTotal(normalizedAddons);
+    // Harden: izračunaj basePrice kroz getBasePrice da nikad ne dupliramo dodatke
+    const basePrice = getBasePrice({ ...item, addons: normalizedAddons } as CartItem);
+    const finalPrice = basePrice + computeAddonsTotal(normalizedAddons);
 
     return {
       ...item,
@@ -128,7 +135,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
   // category iz varijante (da UI/checkout bude konzistentan)
   const category = chosenVariant?.category ?? item.category;
 
-  const finalPrice = basePrice + calcAddonsTotal(normalizedAddons);
+  const finalPrice = basePrice + computeAddonsTotal(normalizedAddons);
 
   return {
     ...item,
@@ -189,7 +196,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
           const nextCategory = chosenVariant?.category ?? i.category;
 
-          const finalPrice = nextBasePrice + calcAddonsTotal(addons);
+          const finalPrice = nextBasePrice + computeAddonsTotal(addons);
 
           return {
             ...i,
@@ -244,7 +251,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       };
 
       const basePrice = next.price;
-      const finalPrice = basePrice + calcAddonsTotal(addons);
+      const finalPrice = basePrice + computeAddonsTotal(addons);
 
       return prev.map((i) => {
         if (i.id !== id) return i;
@@ -286,7 +293,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
 
         const basePrice = getBasePrice(i);
-        const finalPrice = basePrice + calcAddonsTotal(nextAddons);
+        const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
         return {
           ...i,
@@ -310,7 +317,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
 
         const basePrice = getBasePrice(i);
-        const finalPrice = basePrice + calcAddonsTotal(nextAddons);
+        const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
         return { ...i, addons: nextAddons, basePrice, price: finalPrice };
       })
@@ -328,7 +335,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           .filter((a) => a.quantity > 0);
 
         const basePrice = getBasePrice(i);
-        const finalPrice = basePrice + calcAddonsTotal(nextAddons);
+        const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
         return { ...i, addons: nextAddons, basePrice, price: finalPrice };
       })
