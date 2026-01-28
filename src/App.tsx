@@ -4,29 +4,13 @@ import CartDrawer from "./components/CartDrawer";
 import Navbar from "./components/Navbar";
 import AdminOrders from "./components/AdminOrders";
 import AdminLogin from "./pages/admin/AdminLogin";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
-function getEffectivePath(): string {
-  if (typeof window === "undefined") return "";
-
-  // Standard path-based
-  const path = window.location.pathname || "";
-
-  // Some auth flows / misconfig / extensions can leave hash-based paths like "#/admin"
-  const hash = window.location.hash || "";
-  if (hash.startsWith("#/")) {
-    return hash.slice(1); // => "/admin" or "/admin/login"
-  }
-
-  // Default to normal pathname
-  return path;
-}
-
 export default function App() {
-  const pathname = useMemo(() => getEffectivePath(), []);
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
 
   const isAdminLoginRoute =
     pathname === "/admin/login" || pathname.startsWith("/admin/login/");
@@ -59,21 +43,19 @@ export default function App() {
 
     void checkSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted) return;
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
 
-        if (!session || !session.user) {
-          setGuardState("unauthenticated");
-          setChecking(false);
-          return;
-        }
-
-        const role = session.user.user_metadata?.role;
-        setGuardState(role === "admin" ? "admin" : "not-admin");
+      if (!session || !session.user) {
+        setGuardState("unauthenticated");
         setChecking(false);
+        return;
       }
-    );
+
+      const role = session.user.user_metadata?.role;
+      setGuardState(role === "admin" ? "admin" : "not-admin");
+      setChecking(false);
+    });
 
     return () => {
       mounted = false;
@@ -85,7 +67,7 @@ export default function App() {
     return (
       <>
         <Navbar />
-        <main className="bg-black min-h-screen flex items-center justify-center">
+        <main className="bg-black min-h-screen pt-20 flex items-center justify-center">
           <AdminLogin />
         </main>
       </>
@@ -97,7 +79,7 @@ export default function App() {
       return (
         <>
           <Navbar />
-          <main className="bg-black min-h-screen flex items-center justify-center">
+          <main className="bg-black min-h-screen pt-20 flex items-center justify-center">
             <p className="text-white text-lg">Provjeravam pristup…</p>
           </main>
         </>
@@ -108,7 +90,7 @@ export default function App() {
       return (
         <>
           <Navbar />
-          <main className="bg-black min-h-screen flex flex-col items-center justify-center">
+          <main className="bg-black min-h-screen pt-20 flex flex-col items-center justify-center">
             <p className="text-white text-lg mb-6">Prijavite se kao admin.</p>
             <button
               className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
@@ -127,7 +109,7 @@ export default function App() {
       return (
         <>
           <Navbar />
-          <main className="bg-black min-h-screen flex flex-col items-center justify-center">
+          <main className="bg-black min-h-screen pt-20 flex flex-col items-center justify-center">
             <p className="text-white text-lg mb-6">Nemate pristup.</p>
             <button
               className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
@@ -145,7 +127,7 @@ export default function App() {
     return (
       <>
         <Navbar />
-        <main className="bg-black min-h-screen">
+        <main className="bg-black min-h-screen pt-20">
           <AdminOrders />
         </main>
       </>

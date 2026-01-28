@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient.ts";
 
 type AdminRoleState = "checking" | "none" | "admin" | "not-admin";
 
