@@ -79,17 +79,13 @@ function parseItems(items: unknown[] | null): ItemLine[] {
       const r = raw as Record<string, unknown>;
 
       const name =
-        safeString(r.name) ||
-        safeString(r.title) ||
-        safeString(r.product_name) ||
-        "Stavka";
+        safeString(r.name) || safeString(r.title) || safeString(r.product_name) || "Stavka";
 
       const quantity = Math.max(1, safeNumber(r.quantity, 1));
       const price = safeNumber(r.price, 0);
 
       const category = typeof r.category === "string" ? r.category : undefined;
-      const size =
-        typeof r.size === "string" || typeof r.size === "number" ? r.size : null;
+      const size = typeof r.size === "string" || typeof r.size === "number" ? r.size : null;
 
       const addonsRaw = r.addons;
       const addons = Array.isArray(addonsRaw)
@@ -160,9 +156,7 @@ export default function AdminOrders() {
   const [error, setError] = useState<string | null>(null);
 
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [updateErrorById, setUpdateErrorById] = useState<Record<string, string | undefined>>(
-    {}
-  );
+  const [updateErrorById, setUpdateErrorById] = useState<Record<string, string | undefined>>({});
 
   // UX: pretraga + filter + sortiranje
   const [query, setQuery] = useState("");
@@ -227,8 +221,6 @@ export default function AdminOrders() {
   const ensureSoundLoaded = async (): Promise<string | null> => {
     if (soundBlobLoadedRef.current && soundUrlRef.current) return soundUrlRef.current;
 
-    // Always force a fresh fetch in dev to avoid stale range behavior.
-    // In prod it’s still fine and cached by the browser.
     try {
       const res = await fetch(SOUND_PATH, { cache: "no-store" });
       if (!res.ok) {
@@ -243,7 +235,6 @@ export default function AdminOrders() {
         return null;
       }
 
-      // Replace old URL if any
       clearSoundObjectUrl();
 
       const url = URL.createObjectURL(blob);
@@ -281,7 +272,6 @@ export default function AdminOrders() {
       soundErrorRef.current = null;
       return true;
     } catch {
-      // If browser blocks or something weird happens, keep message clear
       soundErrorRef.current =
         "Zvuk je blokiran (browser) ili ne može da se pusti. Klikni Sound: ON da aktiviraš.";
       return false;
@@ -318,15 +308,20 @@ export default function AdminOrders() {
     highlightTimeoutsRef.current.set(orderId, timeoutId);
   };
 
+  // NOTE (hardening): Na grešci ne brišemo poslednje uspešno stanje.
+  // Zadržavamo listu porudžbina i prikazujemo error banner + retry.
   const loadOrders = async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
 
     if (!silent) {
       setLoading(true);
-      setError(null);
     } else {
       setRefreshing(true);
     }
+
+    // Ne resetujemo error za silent refresh da ne “treperi” UI.
+    // Za manual/initial load ga resetujemo.
+    if (!silent) setError(null);
 
     try {
       const { data, error } = await supabase
@@ -338,7 +333,6 @@ export default function AdminOrders() {
 
       if (error) {
         setError("Greška pri učitavanju porudžbina.");
-        setOrders([]);
         setLoading(false);
         setRefreshing(false);
         return;
@@ -376,12 +370,12 @@ export default function AdminOrders() {
       knownIdsRef.current = new Set(rows.map((r) => r.id));
 
       setOrders(rows);
+      setError(null);
       setLastUpdatedAt(new Date().toISOString());
       setLoading(false);
       setRefreshing(false);
     } catch {
       setError("Greška pri povezivanju sa bazom.");
-      setOrders([]);
       setLoading(false);
       setRefreshing(false);
     }
@@ -462,13 +456,7 @@ export default function AdminOrders() {
 
     if (q.length > 0) {
       next = next.filter((o) => {
-        const hay = [
-          o.customer_name,
-          o.customer_phone,
-          o.customer_address,
-          o.total_price,
-          o.created_at,
-        ]
+        const hay = [o.customer_name, o.customer_phone, o.customer_address, o.total_price, o.created_at]
           .map(normalizeText)
           .join(" ");
         return hay.includes(q);
@@ -562,7 +550,6 @@ export default function AdminOrders() {
 
   // klik na Sound: OFF → ON mora da proba play u istom handleru (user gesture)
   const enableSound = async () => {
-    // Reset any previous load so we retry fresh
     clearSoundObjectUrl();
 
     const ok = await playSound({ force: true });
@@ -619,12 +606,35 @@ export default function AdminOrders() {
     </button>
   );
 
-  if (loading) {
+  // Hardening: ako već imamo porudžbine, ne prekidamo UI zbog error-a.
+  if (loading && orders.length === 0) {
     return <div className="p-8 text-gray-400">Učitavanje porudžbina…</div>;
   }
 
-  if (error) {
-    return <div className="p-8 text-red-400">{error}</div>;
+  const hasOrders = orders.length > 0;
+
+  // Ako nema ništa i postoji error — prikaži retry ekran.
+  if (!hasOrders && error) {
+    return (
+      <div className="p-8">
+        <div className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] p-6">
+          <p className="text-white font-extrabold text-lg">Ne mogu da učitam porudžbine</p>
+          <p className="text-sm text-red-200 mt-2">{error}</p>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => void loadOrders()}
+              className="rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black"
+            >
+              Pokušaj ponovo
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
+            Ako se problem ponavlja, proveri konekciju i Supabase status.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -635,9 +645,29 @@ export default function AdminOrders() {
           <div className="rounded-2xl border border-white/10 bg-black/80 backdrop-blur px-4 py-3 shadow-lg">
             <p className="text-sm font-extrabold text-white">{toastText}</p>
             <p className="text-xs text-gray-400 mt-0.5">Automatsko osvježavanje je aktivno</p>
-            {soundErrorRef.current && (
-              <p className="text-xs text-yellow-300 mt-1">{soundErrorRef.current}</p>
-            )}
+            {soundErrorRef.current && <p className="text-xs text-yellow-300 mt-1">{soundErrorRef.current}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* ERROR BANNER (non-blocking) */}
+      {error && hasOrders && (
+        <div className="mb-4 rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-extrabold text-red-200">Problem sa učitavanjem</p>
+              <p className="text-xs text-red-200/80 mt-0.5">{error}</p>
+            </div>
+            <div className="shrink-0 flex gap-2">
+              <button
+                type="button"
+                onClick={() => void loadOrders()}
+                className="rounded-2xl bg-white px-4 py-2 text-xs font-extrabold text-black"
+                title="Pokušaj ponovo"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -682,21 +712,13 @@ export default function AdminOrders() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <FilterPill
-              active={statusFilter === "all"}
-              label="Sve"
-              onClick={() => setStatusFilter("all")}
-            />
+            <FilterPill active={statusFilter === "all"} label="Sve" onClick={() => setStatusFilter("all")} />
             <FilterPill
               active={statusFilter === "pending"}
               label="Na čekanju"
               onClick={() => setStatusFilter("pending")}
             />
-            <FilterPill
-              active={statusFilter === "done"}
-              label="Završeno"
-              onClick={() => setStatusFilter("done")}
-            />
+            <FilterPill active={statusFilter === "done"} label="Završeno" onClick={() => setStatusFilter("done")} />
             <FilterPill
               active={statusFilter === "cancelled"}
               label="Otkazano"
@@ -734,8 +756,7 @@ export default function AdminOrders() {
           </div>
 
           <p className="text-xs text-gray-500">
-            Prikazujem:{" "}
-            <span className="text-gray-300 font-semibold">{filteredSorted.length}</span>
+            Prikazujem: <span className="text-gray-300 font-semibold">{filteredSorted.length}</span>
           </p>
         </div>
       </div>
@@ -751,12 +772,8 @@ export default function AdminOrders() {
           >
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm font-extrabold text-yellow-200">
-                  Nove porudžbine: {newPendingInView}
-                </p>
-                <p className="text-xs text-yellow-200/70 mt-0.5">
-                  Klikni da skroluješ na prvu novu porudžbinu
-                </p>
+                <p className="text-sm font-extrabold text-yellow-200">Nove porudžbine: {newPendingInView}</p>
+                <p className="text-xs text-yellow-200/70 mt-0.5">Klikni da skroluješ na prvu novu porudžbinu</p>
               </div>
               <span className="shrink-0 px-3 py-1 rounded-full text-xs font-extrabold bg-yellow-500 text-black">
                 PRIKAŽI
@@ -789,9 +806,7 @@ export default function AdminOrders() {
                 ? "border-yellow-500/25 ring-2 ring-yellow-500/10 bg-yellow-500/[0.03]"
                 : "border-white/10";
 
-            const cardClass = isNew
-              ? "border-yellow-400/40 ring-2 ring-yellow-500/20"
-              : agingCardClass;
+            const cardClass = isNew ? "border-yellow-400/40 ring-2 ring-yellow-500/20" : agingCardClass;
 
             const agePill =
               st === "pending" && aging !== "none" ? (
@@ -860,12 +875,7 @@ export default function AdminOrders() {
                     </div>
 
                     <div className="mt-3 flex items-center gap-3">
-                      <span
-                        className={[
-                          "px-3 py-1 rounded-full text-xs font-bold text-white",
-                          statusColor(st),
-                        ].join(" ")}
-                      >
+                      <span className={["px-3 py-1 rounded-full text-xs font-bold text-white", statusColor(st)].join(" ")}>
                         {statusLabel(st)}
                       </span>
 
@@ -931,9 +941,7 @@ export default function AdminOrders() {
                   </button>
                 </div>
 
-                {updateErrorById[o.id] && (
-                  <p className="text-xs text-red-400 mt-2">{updateErrorById[o.id]}</p>
-                )}
+                {updateErrorById[o.id] && <p className="text-xs text-red-400 mt-2">{updateErrorById[o.id]}</p>}
 
                 {isOpen && (
                   <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-4">
@@ -959,9 +967,7 @@ export default function AdminOrders() {
                                     {it.size !== null && it.size !== undefined && it.size !== "" ? (
                                       <>
                                         {" · "}Veličina:{" "}
-                                        <span className="text-gray-200 font-semibold">
-                                          {String(it.size)}
-                                        </span>
+                                        <span className="text-gray-200 font-semibold">{String(it.size)}</span>
                                       </>
                                     ) : null}
                                   </p>
@@ -987,9 +993,7 @@ export default function AdminOrders() {
                                             : ""}
                                         </span>
                                         <span className="text-gray-400">
-                                          {typeof a.price === "number" && a.price > 0
-                                            ? String(a.price) + " RSD"
-                                            : ""}
+                                          {typeof a.price === "number" && a.price > 0 ? String(a.price) + " RSD" : ""}
                                         </span>
                                       </div>
                                     ))}
