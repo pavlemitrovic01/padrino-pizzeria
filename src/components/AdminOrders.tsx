@@ -49,6 +49,28 @@ function normalizeStatus(value: unknown): OrderStatus {
   return "pending";
 }
 
+/**
+ * Status transition guard (stabilno, bez improvizacije)
+ * Pravila:
+ * - pending -> done | cancelled
+ * - cancelled -> pending (samo)
+ * - done -> (nema promena)
+ */
+function transitionError(from: OrderStatus, to: OrderStatus): string | null {
+  if (from === to) return "Status je već postavljen.";
+  if (from === "done") return "Završene porudžbine ne mogu menjati status.";
+  if (from === "pending" && (to === "done" || to === "cancelled")) return null;
+  if (from === "cancelled" && to === "pending") return null;
+  if (from === "cancelled" && (to === "done" || to === "cancelled")) {
+    return "Otkazana porudžbina se može vratiti samo na čekanje.";
+  }
+  return "Ova promena statusa nije dozvoljena.";
+}
+
+function canTransition(from: OrderStatus, to: OrderStatus): boolean {
+  return transitionError(from, to) === null;
+}
+
 function normalizeText(value: unknown) {
   return String(value ?? "")
     .toLowerCase()
@@ -514,12 +536,19 @@ export default function AdminOrders() {
     if (updatingId) return;
     if (currentStatus === next) return;
 
+    // GUARD: blokiraj nedozvoljene tranzicije
+    const guardMsg = transitionError(currentStatus, next);
+    if (guardMsg) {
+      setUpdateErrorById((prev) => ({ ...prev, [orderId]: guardMsg }));
+      return;
+    }
+
     const msg =
       next === "done"
         ? "Da li ste sigurni da želite da označite porudžbinu kao završenu?"
         : next === "cancelled"
         ? "Da li ste sigurni da želite da otkažete porudžbinu?"
-        : "Da li ste sigurni da želite da vratite porudžbinu na čekanje?";
+        : "Da li ste sigurni da želite da vratite otkazanu porudžbinu na čekanje?";
 
     if (!window.confirm(msg)) return;
 
@@ -875,7 +904,9 @@ export default function AdminOrders() {
                     </div>
 
                     <div className="mt-3 flex items-center gap-3">
-                      <span className={["px-3 py-1 rounded-full text-xs font-bold text-white", statusColor(st)].join(" ")}>
+                      <span
+                        className={["px-3 py-1 rounded-full text-xs font-bold text-white", statusColor(st)].join(" ")}
+                      >
                         {statusLabel(st)}
                       </span>
 
@@ -916,7 +947,7 @@ export default function AdminOrders() {
                   <button
                     type="button"
                     className="px-4 py-2 rounded bg-green-600 text-white font-semibold disabled:opacity-60"
-                    disabled={isUpdatingThis || st === "done"}
+                    disabled={isUpdatingThis || !canTransition(st, "done")}
                     onClick={() => void updateStatus(o.id, "done")}
                   >
                     Označi kao završeno
@@ -925,7 +956,7 @@ export default function AdminOrders() {
                   <button
                     type="button"
                     className="px-4 py-2 rounded bg-red-600 text-white font-semibold disabled:opacity-60"
-                    disabled={isUpdatingThis || st === "cancelled"}
+                    disabled={isUpdatingThis || !canTransition(st, "cancelled")}
                     onClick={() => void updateStatus(o.id, "cancelled")}
                   >
                     Otkaži
@@ -934,7 +965,7 @@ export default function AdminOrders() {
                   <button
                     type="button"
                     className="px-4 py-2 rounded bg-orange-600 text-white font-semibold disabled:opacity-60"
-                    disabled={isUpdatingThis || st === "pending"}
+                    disabled={isUpdatingThis || !canTransition(st, "pending")}
                     onClick={() => void updateStatus(o.id, "pending")}
                   >
                     Vrati na čekanje

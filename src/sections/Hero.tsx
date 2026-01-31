@@ -4,7 +4,7 @@ function Hero() {
       {/* Background image */}
       <div className="absolute inset-0">
         <img
-          src="https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&q=80&w=2000"
+          src="git add"
           alt="Padrino pizza"
           className="w-full h-full object-cover scale-105 opacity-40"
         />
