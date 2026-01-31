@@ -13,6 +13,54 @@ type MenuItemData = {
   category: string;
 };
 
+function pickFallbackImage(category: string) {
+  // Stabilno: imamo garantovane fajlove u /public/menu (nema slika za svako piće/pizzu u DB-u).
+  // Cilj: bez 404 spam-a u produkciji.
+  const c = normalizeCategory(category);
+  if (c === "pica") return "/menu/about.png";
+  // default za sve ostalo (pizza, dodaci, itd.)
+  return "/menu/margherita.png";
+}
+
+function resolveMenuImage(raw: unknown, category: string, name: string) {
+  const fallback = pickFallbackImage(category);
+
+  if (typeof raw !== "string") return fallback;
+
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+
+  // Full URL (Supabase storage ili eksterni CDN) – ostavi kako jeste
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+
+  // Apsolutna putanja iz /public
+  if (trimmed.startsWith("/")) {
+    // legacy value u kodu
+    if (trimmed === "/menu-hero.jpg") return "/menu/margherita.png";
+    return trimmed;
+  }
+
+  // Ako iz baze dolazi samo ime fajla (npr "margherita.png" ili "capricciosa.jpg"),
+  // pokušaj da ga mapiramo na postojeće /public/menu/*.png.
+  const file = trimmed.toLowerCase();
+  const byName = name.toLowerCase();
+
+  const mapTo = (slug: string) => `/menu/${slug}.png`;
+
+  // Najčešći fallback-ovi (ako se ikad pojave u bazi)
+  if (file.includes("margherita") || byName.includes("margherita")) return mapTo("margherita");
+  if (file.includes("capricciosa") || byName.includes("capricciosa")) return mapTo("capricciosa");
+  if (file.includes("diavola") || byName.includes("diavolo") || byName.includes("diavola"))
+    return mapTo("diavola");
+  if (file.includes("pesto") || byName.includes("pesto")) return mapTo("pesto");
+  if (file.includes("vegetariana") || byName.includes("vegetariana")) return mapTo("vegetariana");
+  if (file.includes("quattro") || byName.includes("quattro")) return mapTo("quattro-formaggi");
+
+  // Ako baš imamo PNG, pokušaj iz /menu (ali samo za poznate slučajeve gore).
+  // U suprotnom – stabilan fallback.
+  return fallback;
+}
+
 function normalizeCategory(value: string) {
   return value
     .toLowerCase()
@@ -68,7 +116,12 @@ export default function Menu() {
           console.error("Greška pri učitavanju menija:", error);
           setItems([]);
         } else {
-          setItems((data ?? []) as MenuItemData[]);
+          setItems(
+            ((data ?? []) as MenuItemData[]).map((row) => ({
+              ...row,
+              image: resolveMenuImage(row.image, row.category, row.name),
+            }))
+          );
         }
         setLoading(false);
       });
@@ -191,38 +244,98 @@ export default function Menu() {
     function standardizeDrinkName(name: string): string {
       // Coca-Cola, Fanta, Sprite → 0.33 l
       if (/^(coca[- ]?cola|coke|fanta|sprite)/i.test(name)) {
-        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.33 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.33 l").replace(/([\d.,]+)(\s?l)/gi, "0.33 l");
+        return name
+          .replace(
+            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
+            "0.33 l"
+          )
+          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.33 l")
+          .replace(/([\d.,]+)(\s?l)/gi, "0.33 l");
       }
       // Bravo sokovi → 0.25 l
       if (/^bravo/i.test(name)) {
-        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.25 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l").replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
+        return name
+          .replace(
+            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
+            "0.25 l"
+          )
+          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l")
+          .replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
       }
       // Nikšićko pivo → 0.5 l
       if (/niksicko|nikšićko/i.test(name)) {
-        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.5 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l").replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
+        return name
+          .replace(
+            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
+            "0.5 l"
+          )
+          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l")
+          .replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
       }
       // Rosa voda → 0.5 l
       if (/rosa/i.test(name)) {
-        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.5 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l").replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
+        return name
+          .replace(
+            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
+            "0.5 l"
+          )
+          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l")
+          .replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
       }
       // Knjaz Miloš → 0.5 l
       if (/knjaz/i.test(name)) {
-        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.5 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l").replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
+        return name
+          .replace(
+            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
+            "0.5 l"
+          )
+          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l")
+          .replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
       }
       // Heineken → 0.25 l
       if (/heineken/i.test(name)) {
-        return name.replace(/(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi, "0.25 l").replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l").replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
+        return name
+          .replace(
+            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
+            "0.25 l"
+          )
+          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l")
+          .replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
       }
       return name;
     }
 
     return (
       <div className="space-y-5">
+        <div className="grid gap-5 sm:grid-cols-2">
+          {data.map((item) => (
+            <MenuItem
+              key={item.id}
+              id={item.id}
+              name={standardizeDrinkName(item.name)}
+              description={item.description}
+              price={item.price}
+              image={item.image}
+              category={item.category}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDodaci = (data: MenuItemData[]) => {
+    if (data.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="grid gap-5 sm:grid-cols-2">
         {data.map((item) => (
           <MenuItem
             key={item.id}
             id={item.id}
-            name={standardizeDrinkName(item.name)}
+            name={item.name}
             description={item.description}
             price={item.price}
             image={item.image}
@@ -233,148 +346,80 @@ export default function Menu() {
     );
   };
 
-  const renderDodaci = (data: MenuItemData[]) => {
-    if (data.length === 0) {
-      return <p className="text-sm text-gray-500">Trenutno nema dodataka u ponudi.</p>;
-    }
-
+  if (loading) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-black/40 p-5">
-        <p className="text-sm text-gray-300 leading-relaxed">
-          Dodaci se biraju <span className="text-white font-semibold">u korpi</span> uz izabranu
-          stavku. Ovo je spisak dostupnih dodataka i cijena:
-        </p>
-
-        <div className="mt-4 space-y-2">
-          {data.map((d) => (
-            <div
-              key={d.id}
-              className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/30 px-4 py-3"
-            >
-              <div>
-                <p className="text-white font-semibold">{d.name}</p>
-                {d.description ? (
-                  <p className="text-xs text-gray-400 mt-1">{d.description}</p>
-                ) : null}
-              </div>
-              <p className="text-white font-bold">{d.price} RSD</p>
-            </div>
-          ))}
+      <section id="menu" className="bg-black text-white py-20">
+        <div className="max-w-5xl mx-auto px-4">
+          <h2 className="text-4xl font-extrabold mb-6">Naš meni</h2>
+          <p className="text-gray-400">Učitavam meni…</p>
         </div>
-
-        <p className="text-xs text-gray-500 mt-4">
-          * Dodaci se računaju po komadu (množe se sa količinom stavke u korpi).
-        </p>
-      </div>
+      </section>
     );
-  };
-
-  const PromoCard = () => (
-    <div className="mt-8">
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#121212] shadow-2xl">
-        <div className="absolute inset-0">
-          <img
-            src="/menu-hero.jpg"
-            alt="Padrino promo"
-            className="w-full h-full object-cover opacity-35"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/65 to-black/85" />
-        </div>
-
-        <div className="relative z-10 p-6 md:p-7">
-          <p className="text-xs text-yellow-400 font-bold tracking-wide">VAŽNO</p>
-
-          <h4 className="text-2xl md:text-3xl font-extrabold text-white mt-2">
-            Veličinu i dodatke biraš u korpi
-          </h4>
-
-          <p className="text-gray-300 mt-3 max-w-xl leading-relaxed">
-            Izaberi pizzu iz menija, a onda u korpi odaberi veličinu (33 / 50 cm),
-            soseve i ostale dodatke. Brzo, jasno i bezbjedno.
-          </p>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-200 border border-white/10">
-              ✔ Pizza 33 cm / 50 cm
-            </span>
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-200 border border-white/10">
-              ✔ Dodaci u korpi
-            </span>
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-gray-200 border border-white/10">
-              ✔ Napomena uz stavku
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  }
 
   return (
-    <section id="menu" className="relative bg-black">
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/85 to-black" />
-        <img
-          src="/menu-hero.jpg"
-          alt="Pozadina pizzerije"
-          className="w-full h-full object-cover opacity-35"
-        />
-      </div>
+    <section id="menu" className="bg-black text-white py-20">
+      <div className="max-w-5xl mx-auto px-4">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#111]">
+          <div className="absolute inset-0">
+            <img
+              src="/menu/margherita.png"
+              alt="Menu"
+              className="h-full w-full object-cover opacity-25"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-black" />
+          </div>
 
-      <div className="relative z-10 px-6 py-28">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-4xl md:text-5xl font-extrabold text-white">Naš meni</h2>
-            <p className="text-gray-400 mt-4 max-w-2xl mx-auto">
-              Autentične pizze i osvježavajuća pića — veličinu biraš u korpi.
+          <div className="relative p-8 md:p-10">
+            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">Naš meni</h2>
+            <p className="text-gray-300 mt-3 max-w-2xl">
+              Autentične pице i osvježavajuća pića — veličinu biraš u korpi.
             </p>
           </div>
+        </div>
 
-          <div className="rounded-[28px] border border-white/5 bg-gradient-to-b from-[#0f0f0f] to-[#070707] shadow-2xl">
-            <div className="p-6 md:p-10">
-              {loading ? (
-                <div className="py-24 text-center text-gray-400">Učitavanje menija…</div>
-              ) : (
-                <div className="grid gap-10 lg:grid-cols-12">
-                  {/* PIZZA + DODACI */}
-                  <div className="lg:col-span-8 space-y-10">
-                    {/* Pizza */}
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-2xl font-bold text-white">Pizza</h3>
-                      </div>
-                      <div className="h-px bg-gradient-to-r from-white/10 via-white/20 to-white/10" />
-                      {renderPizzaGrid(pizzaMenuList)}
-                    </div>
-
-                    {/* Dodaci */}
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-2xl font-bold text-white">Dodaci</h3>
-                      </div>
-                      <div className="h-px bg-gradient-to-r from-white/10 via-white/20 to-white/10" />
-                      {renderDodaci(dodaciItems)}
-                    </div>
-
-                    <PromoCard />
-                  </div>
-
-                  {/* Pića */}
-                  <div className="lg:col-span-4 space-y-6">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-2xl font-bold text-white">Pića</h3>
-                    </div>
-                    <div className="h-px bg-gradient-to-r from-white/10 via-white/20 to-white/10" />
-                    {renderPica(picaItems)}
-                  </div>
-                </div>
-              )}
-            </div>
+        <div className="mt-10 space-y-14">
+          {/* PIZZA */}
+          <div>
+            <h3 className="text-2xl font-extrabold mb-4">Pizza</h3>
+            {renderPizzaGrid(pizzaMenuList)}
           </div>
 
-          <p className="text-center text-xs text-gray-600 mt-10">
-            * Veličinu pizze i dodatke biraš u korpi prije poručivanja.
-          </p>
+          {/* PIĆA */}
+          <div>
+            <h3 className="text-2xl font-extrabold mb-4">Pića</h3>
+            {renderPica(picaItems)}
+          </div>
+
+          {/* DODACI */}
+          {dodaciItems.length > 0 ? (
+            <div>
+              <h3 className="text-2xl font-extrabold mb-4">Dodaci</h3>
+              {renderDodaci(dodaciItems)}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-14 relative overflow-hidden rounded-3xl border border-white/10 bg-[#111]">
+          <div className="absolute inset-0">
+            <img
+              src="/menu/margherita.png"
+              alt="Menu"
+              className="h-full w-full object-cover opacity-25"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-black" />
+          </div>
+
+          <div className="relative p-8 md:p-10">
+            <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              Poruči brzo i jednostavno
+            </h3>
+            <p className="text-gray-300 mt-3 max-w-2xl">
+              Dodaj omiljene stavke u korpu, izaberi veličinu pице i završi porudžbinu za minut.
+            </p>
+          </div>
         </div>
       </div>
     </section>
