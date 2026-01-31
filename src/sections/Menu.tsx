@@ -1,4 +1,3 @@
-// Putanja: src/sections/Menu.tsx
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import MenuItem from "../components/MenuItem";
@@ -13,67 +12,81 @@ type MenuItemData = {
   category: string;
 };
 
-function pickFallbackImage(category: string) {
-  // Stabilno: imamo garantovane fajlove u /public/menu (nema slika za svako piće/pizzu u DB-u).
-  // Cilj: bez 404 spam-a u produkciji.
-  const c = normalizeCategory(category);
-  if (c === "pica") return "/menu/about.png";
-  // default za sve ostalo (pizza, dodaci, itd.)
-  return "/menu/margherita.png";
-}
+type PizzaVariantsProp = Partial<
+  Record<"33" | "50", { id: string; price: number; category: string }>
+>;
 
-function resolveMenuImage(raw: unknown, category: string, name: string) {
-  const fallback = pickFallbackImage(category);
+type PizzaDisplayItem = {
+  id: string;
+  baseKey: string;
+  name: string;
+  description: string;
+  category: string;
+  image: string;
+  variants: PizzaVariantsProp;
+  defaultSize: PizzaSize;
+  defaultPrice: number;
+};
 
-  if (typeof raw !== "string") return fallback;
-
-  const trimmed = raw.trim();
-  if (!trimmed) return fallback;
-
-  // Full URL (Supabase storage ili eksterni CDN) – ostavi kako jeste
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-
-  // Apsolutna putanja iz /public
-  if (trimmed.startsWith("/")) {
-    // legacy value u kodu
-    if (trimmed === "/menu-hero.jpg") return "/menu/margherita.png";
-    return trimmed;
-  }
-
-  // Ako iz baze dolazi samo ime fajla (npr "margherita.png" ili "capricciosa.jpg"),
-  // pokušaj da ga mapiramo na postojeće /public/menu/*.png.
-  const file = trimmed.toLowerCase();
-  const byName = name.toLowerCase();
-
-  const mapTo = (slug: string) => `/menu/${slug}.png`;
-
-  // Najčešći fallback-ovi (ako se ikad pojave u bazi)
-  if (file.includes("margherita") || byName.includes("margherita")) return mapTo("margherita");
-  if (file.includes("capricciosa") || byName.includes("capricciosa")) return mapTo("capricciosa");
-  if (file.includes("diavola") || byName.includes("diavolo") || byName.includes("diavola"))
-    return mapTo("diavola");
-  if (file.includes("pesto") || byName.includes("pesto")) return mapTo("pesto");
-  if (file.includes("vegetariana") || byName.includes("vegetariana")) return mapTo("vegetariana");
-  if (file.includes("quattro") || byName.includes("quattro")) return mapTo("quattro-formaggi");
-
-  // Ako baš imamo PNG, pokušaj iz /menu (ali samo za poznate slučajeve gore).
-  // U suprotnom – stabilan fallback.
-  return fallback;
-}
-
-function normalizeCategory(value: string) {
-  return value
+function normalize(value: string) {
+  return (value ?? "")
     .toLowerCase()
     .replaceAll("č", "c")
     .replaceAll("ć", "c")
     .replaceAll("š", "s")
-    .replaceAll("ž", "z")
     .replaceAll("đ", "dj")
+    .replaceAll("ž", "z")
     .trim();
 }
 
+function stripExt(filename: string) {
+  return filename.replace(/\.(png|jpg|jpeg|webp)$/i, "");
+}
+
+function lastSegment(path: string) {
+  const clean = path.split("?")[0].split("#")[0];
+  const parts = clean.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : "";
+}
+
+/**
+ * Fix za Vercel 404:
+ * - Baza ima legacy putanje /pizza/*.jpg i /drinks/*.jpg
+ * - U repo-u realno postoji public/menu/*.png
+ *
+ * Pravilo:
+ * - full URL => koristi
+ * - /menu/* => koristi
+ * - /pizza/* ili golo ime => mapiraj na /menu/<name>.png
+ * - pića (pica) => placeholder (/menu/about.png) dok ne ubaciš drink slike
+ */
+function resolveMenuImage(item: MenuItemData): string {
+  const raw = (item.image ?? "").trim();
+  const cat = normalize(item.category);
+
+  // Pića trenutno nemaju fajlove u public/ => da ne spamuje 404, držimo placeholder
+  if (cat === "pica" || cat === "pica" || cat === "pica") {
+    return "/menu/about.png";
+  }
+
+  if (!raw) return "/menu/about.png";
+
+  // Full URL (Supabase Storage/CDN)
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  // Ako je već pravilno iz public/menu
+  if (raw.startsWith("/menu/")) return raw;
+
+  // Legacy putanje ("/pizza/x.jpg", "/drinks/x.jpg") ili "x.jpg"
+  const base = stripExt(lastSegment(raw));
+  if (!base) return "/menu/about.png";
+
+  // Mapiramo na postojeći folder i ekstenziju (.png)
+  return `/menu/${base}.png`;
+}
+
 function isPizzaSize(name: string, size: 33 | 50) {
-  const safe = name.toLowerCase();
+  const safe = name ?? "";
   const re = new RegExp(`\\b${size}\\s*cm\\b`, "i");
   return re.test(safe);
 }
@@ -82,345 +95,200 @@ function stripSizeFromName(name: string) {
   return name
     .replace(/33\s*cm/gi, "")
     .replace(/50\s*cm/gi, "")
-    .replace(/\s+/g, " ")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }
 
-function isPiroska(name: string) {
-  const n = name.toLowerCase();
-  return n.includes("piroska") || n.includes("piroška");
+function slugify(input: string) {
+  return (input ?? "")
+    .toLowerCase()
+    .replaceAll("č", "c")
+    .replaceAll("ć", "c")
+    .replaceAll("š", "s")
+    .replaceAll("đ", "dj")
+    .replaceAll("ž", "z")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
-
-type PizzaVariantsProp = Partial<
-  Record<"33" | "50", { id: string; price: number; category: string }>
->;
-
-type PizzaDisplayItem = {
-  baseKey: string;
-  base: MenuItemData; // reprezentativni item (opis/slika)
-  variants: PizzaVariantsProp;
-};
 
 export default function Menu() {
   const [items, setItems] = useState<MenuItemData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     supabase
       .from("menu_items")
       .select("*")
       .order("category", { ascending: true })
       .order("name", { ascending: true })
       .then(({ data, error }) => {
+        if (!mounted) return;
+
         if (error) {
+          // eslint-disable-next-line no-console
           console.error("Greška pri učitavanju menija:", error);
           setItems([]);
         } else {
-          setItems(
-            ((data ?? []) as MenuItemData[]).map((row) => ({
-              ...row,
-              image: resolveMenuImage(row.image, row.category, row.name),
-            }))
-          );
+          setItems((data ?? []) as MenuItemData[]);
         }
         setLoading(false);
       });
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // ----- PIZZA: grupišemo 33/50 po istom baseKey -----
   const pizzaGrouped = useMemo(() => {
-    const pizzaRows = items.filter((i) => normalizeCategory(i.category) === "pizza");
+    const pizzaRows = items.filter((i) => normalize(i.category) === "pizza");
     const map = new Map<string, PizzaDisplayItem>();
 
     for (const row of pizzaRows) {
       const size: PizzaSize | null = isPizzaSize(row.name, 50)
         ? "50"
         : isPizzaSize(row.name, 33)
-        ? "33"
-        : null;
+          ? "33"
+          : null;
 
-      // Ako nije prepoznata veličina, tretiramo kao “33”
-      const safeSize: PizzaSize = size ?? "33";
-      const baseKey = stripSizeFromName(row.name);
+      const baseName = stripSizeFromName(row.name);
+      const baseKey = slugify(baseName || row.id);
 
       const existing = map.get(baseKey);
 
-      const nextVariants: PizzaVariantsProp = {
-        ...(existing?.variants ?? {}),
-        [safeSize]: {
+      if (!existing) {
+        const defaultSize: PizzaSize = size ?? "33";
+        const variants: PizzaVariantsProp = {};
+
+        if (size === "33") variants["33"] = { id: row.id, price: row.price, category: row.category };
+        if (size === "50") variants["50"] = { id: row.id, price: row.price, category: row.category };
+        if (!size) variants["33"] = { id: row.id, price: row.price, category: row.category };
+
+        map.set(baseKey, {
           id: row.id,
-          price: row.price,
+          baseKey,
+          name: baseName || row.name,
+          description: row.description,
           category: row.category,
-        },
-      };
+          image: resolveMenuImage(row),
+          variants,
+          defaultSize,
+          defaultPrice: row.price,
+        });
+      } else {
+        if (size === "33") existing.variants["33"] = { id: row.id, price: row.price, category: row.category };
+        else if (size === "50") existing.variants["50"] = { id: row.id, price: row.price, category: row.category };
+        else existing.variants["33"] = { id: row.id, price: row.price, category: row.category };
 
-      // base: preferiramo 33 kao reprezentativnu (opis/slika)
-      const shouldReplaceBase =
-        !existing ||
-        (safeSize === "33" && (!existing.base || isPizzaSize(existing.base.name, 50)));
+        // držimo image stabilno kroz resolver
+        existing.image = resolveMenuImage(row);
 
-      map.set(baseKey, {
-        baseKey,
-        base: shouldReplaceBase ? row : (existing?.base ?? row),
-        variants: nextVariants,
+        if (existing.defaultSize === "50" && !existing.variants["50"] && existing.variants["33"]) {
+          existing.defaultSize = "33";
+          existing.defaultPrice = existing.variants["33"].price;
+        }
+        if (existing.defaultSize === "33" && !existing.variants["33"] && existing.variants["50"]) {
+          existing.defaultSize = "50";
+          existing.defaultPrice = existing.variants["50"].price;
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  }, [items]);
+
+  const nonPizzaByCategory = useMemo(() => {
+    const out = new Map<string, MenuItemData[]>();
+
+    for (const row of items) {
+      if (normalize(row.category) === "pizza") continue;
+
+      const key = row.category || "Ostalo";
+      if (!out.has(key)) out.set(key, []);
+      out.get(key)!.push({
+        ...row,
+        image: resolveMenuImage(row),
       });
     }
 
-    // sortiranje: piroška na kraj, ostalo po imenu
-    return [...map.values()].sort((a, b) => {
-      const ap = isPiroska(a.baseKey) ? 1 : 0;
-      const bp = isPiroska(b.baseKey) ? 1 : 0;
-      if (ap !== bp) return ap - bp;
-      return a.baseKey.localeCompare(b.baseKey);
-    });
+    return out;
   }, [items]);
 
-  // ✅ OPCIJA A: u meniju prikazujemo jednu “Pizza” listu
-  // cijenu i default veličinu uzimamo: 33 ako postoji, inače 50
-  const pizzaMenuList = useMemo(() => {
-    return pizzaGrouped.filter((p) => Boolean(p.variants["33"] || p.variants["50"]));
-  }, [pizzaGrouped]);
-
-  const picaItems = useMemo(() => {
-    return items.filter((i) => normalizeCategory(i.category) === "pica");
-  }, [items]);
-
-  const dodaciItems = useMemo(() => {
-    return items
-      .filter((i) => normalizeCategory(i.category) === "dodaci")
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [items]);
-
-  const renderPizzaGrid = (data: PizzaDisplayItem[]) => {
-    if (data.length === 0) {
-      return <p className="text-sm text-gray-500">Trenutno nema pizza u ponudi.</p>;
-    }
-
-    const isOdd = data.length % 2 === 1;
-
-    return (
-      <div className="grid gap-5 sm:grid-cols-2">
-        {data.map((p, idx) => {
-          const isLast = idx === data.length - 1;
-          const wrapperClass =
-            isOdd && isLast ? "sm:col-span-2 sm:max-w-[520px] sm:mx-auto" : "";
-
-          const v33 = p.variants["33"];
-          const v50 = p.variants["50"];
-
-          const defaultSize: PizzaSize = v33 ? "33" : "50";
-          const v = defaultSize === "33" ? v33 : v50;
-
-          if (!v) return null;
-
-          return (
-            <div key={p.baseKey} className={wrapperClass}>
-              <MenuItem
-                id={v.id}
-                name={p.baseKey}
-                description={p.base.description}
-                price={v.price}
-                image={p.base.image}
-                category={v.category}
-                // bitno: u korpi se poslije bira 33/50
-                pizzaSize={defaultSize}
-                baseKey={p.baseKey}
-                variants={p.variants}
-              />
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderPica = (data: MenuItemData[]) => {
-    if (data.length === 0) {
-      return <p className="text-sm text-gray-500">Trenutno nema pića u ponudi.</p>;
-    }
-
-    // Standardizuj količine pića u nazivu
-    function standardizeDrinkName(name: string): string {
-      // Coca-Cola, Fanta, Sprite → 0.33 l
-      if (/^(coca[- ]?cola|coke|fanta|sprite)/i.test(name)) {
-        return name
-          .replace(
-            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
-            "0.33 l"
-          )
-          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.33 l")
-          .replace(/([\d.,]+)(\s?l)/gi, "0.33 l");
-      }
-      // Bravo sokovi → 0.25 l
-      if (/^bravo/i.test(name)) {
-        return name
-          .replace(
-            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
-            "0.25 l"
-          )
-          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l")
-          .replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
-      }
-      // Nikšićko pivo → 0.5 l
-      if (/niksicko|nikšićko/i.test(name)) {
-        return name
-          .replace(
-            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
-            "0.5 l"
-          )
-          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l")
-          .replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
-      }
-      // Rosa voda → 0.5 l
-      if (/rosa/i.test(name)) {
-        return name
-          .replace(
-            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
-            "0.5 l"
-          )
-          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l")
-          .replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
-      }
-      // Knjaz Miloš → 0.5 l
-      if (/knjaz/i.test(name)) {
-        return name
-          .replace(
-            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
-            "0.5 l"
-          )
-          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.5 l")
-          .replace(/([\d.,]+)(\s?l)/gi, "0.5 l");
-      }
-      // Heineken → 0.25 l
-      if (/heineken/i.test(name)) {
-        return name
-          .replace(
-            /(0[.,]?\s?\d{2,3}\s?(l|L|ml)?|0[.,]?\d{2,3})/gi,
-            "0.25 l"
-          )
-          .replace(/([\d.,]+\s?(l|L|ml))/gi, "0.25 l")
-          .replace(/([\d.,]+)(\s?l)/gi, "0.25 l");
-      }
-      return name;
-    }
-
-    return (
-      <div className="space-y-5">
-        <div className="grid gap-5 sm:grid-cols-2">
-          {data.map((item) => (
-            <MenuItem
-              key={item.id}
-              id={item.id}
-              name={standardizeDrinkName(item.name)}
-              description={item.description}
-              price={item.price}
-              image={item.image}
-              category={item.category}
-            />
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderDodaci = (data: MenuItemData[]) => {
-    if (data.length === 0) {
-      return null;
-    }
-
-    return (
-      <div className="grid gap-5 sm:grid-cols-2">
-        {data.map((item) => (
-          <MenuItem
-            key={item.id}
-            id={item.id}
-            name={item.name}
-            description={item.description}
-            price={item.price}
-            image={item.image}
-            category={item.category}
-          />
-        ))}
-      </div>
-    );
-  };
+  // Hero slika: trenutno koristi fajl koji sigurno postoji u public/menu/
+  const heroImage = useMemo(() => "/menu/about.png", []);
 
   if (loading) {
     return (
-      <section id="menu" className="bg-black text-white py-20">
-        <div className="max-w-5xl mx-auto px-4">
-          <h2 className="text-4xl font-extrabold mb-6">Naš meni</h2>
-          <p className="text-gray-400">Učitavam meni…</p>
+      <section className="bg-black text-white py-16">
+        <div className="mx-auto max-w-5xl px-4">
+          <p className="text-white/70">Učitavam meni…</p>
         </div>
       </section>
     );
   }
 
   return (
-    <section id="menu" className="bg-black text-white py-20">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#111]">
-          <div className="absolute inset-0">
-            <img
-              src="/menu/margherita.png"
-              alt="Menu"
-              className="h-full w-full object-cover opacity-25"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-black" />
-          </div>
-
-          <div className="relative p-8 md:p-10">
-            <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight">Naš meni</h2>
-            <p className="text-gray-300 mt-3 max-w-2xl">
-              Autentične pице i osvježavajuća pića — veličinu biraš u korpi.
+    <section className="bg-black text-white">
+      <div className="relative mx-auto max-w-5xl px-4 pt-16">
+        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#121212]">
+          <img
+            src={heroImage}
+            alt="Padrino meni"
+            className="h-56 w-full object-cover opacity-60"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-6">
+            <h2 className="text-4xl font-extrabold">Naš meni</h2>
+            <p className="mt-2 text-white/70">
+              Autentične pice i osvježavajuća pića — veličinu biraš u korpi.
             </p>
           </div>
         </div>
 
-        <div className="mt-10 space-y-14">
-          {/* PIZZA */}
+        <div className="mt-10 space-y-10">
           <div>
-            <h3 className="text-2xl font-extrabold mb-4">Pizza</h3>
-            {renderPizzaGrid(pizzaMenuList)}
-          </div>
-
-          {/* PIĆA */}
-          <div>
-            <h3 className="text-2xl font-extrabold mb-4">Pića</h3>
-            {renderPica(picaItems)}
-          </div>
-
-          {/* DODACI */}
-          {dodaciItems.length > 0 ? (
-            <div>
-              <h3 className="text-2xl font-extrabold mb-4">Dodaci</h3>
-              {renderDodaci(dodaciItems)}
+            <h3 className="text-2xl font-extrabold">Pizza</h3>
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+              {pizzaGrouped.map((p) => (
+                <MenuItem
+                  key={p.baseKey}
+                  id={p.variants[p.defaultSize]?.id ?? p.id}
+                  name={p.name}
+                  description={p.description}
+                  price={p.variants[p.defaultSize]?.price ?? p.defaultPrice}
+                  image={p.image}
+                  category={p.category}
+                  pizzaSize={p.defaultSize}
+                  baseKey={p.baseKey}
+                  variants={p.variants}
+                />
+              ))}
             </div>
-          ) : null}
-        </div>
-
-        <div className="mt-14 relative overflow-hidden rounded-3xl border border-white/10 bg-[#111]">
-          <div className="absolute inset-0">
-            <img
-              src="/menu/margherita.png"
-              alt="Menu"
-              className="h-full w-full object-cover opacity-25"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/70 to-black" />
           </div>
 
-          <div className="relative p-8 md:p-10">
-            <h3 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-              Poruči brzo i jednostavno
-            </h3>
-            <p className="text-gray-300 mt-3 max-w-2xl">
-              Dodaj omiljene stavke u korpu, izaberi veličinu pице i završi porudžbinu za minut.
-            </p>
-          </div>
+          {Array.from(nonPizzaByCategory.entries()).map(([cat, rows]) => (
+            <div key={cat}>
+              <h3 className="text-2xl font-extrabold">{cat}</h3>
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                {rows.map((r) => (
+                  <MenuItem
+                    key={r.id}
+                    id={r.id}
+                    name={r.name}
+                    description={r.description}
+                    price={r.price}
+                    image={r.image}
+                    category={r.category}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+
+        <div className="h-12" />
       </div>
     </section>
   );

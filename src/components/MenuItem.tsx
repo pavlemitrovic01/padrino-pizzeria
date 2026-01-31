@@ -15,7 +15,7 @@ type MenuItemProps = {
   category: string;
 
   // novo (dolazi iz Menu.tsx)
-  pizzaSize?: PizzaSize | null;
+  pizzaSize?: PizzaSize;
   baseKey?: string;
   variants?: PizzaVariantsProp;
 };
@@ -27,7 +27,7 @@ export default function MenuItem({
   price,
   image,
   category,
-  pizzaSize = null,
+  pizzaSize,
   baseKey,
   variants,
 }: MenuItemProps) {
