@@ -5,6 +5,7 @@ import App from "./App";
 import { CartProvider } from "./context/CartProvider";
 import { AuthProvider } from "./auth/AuthProvider";
 import "./index.css";
+import { initClientMonitoring, logError } from "./lib/logger";
 
 // Minimal ErrorBoundary: bez novih biblioteka, TS strict-safe.
 // Cilj: spreči "white screen" na runtime greškama i da admin/kupac dobije recovery UI.
@@ -20,7 +21,15 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(err: unknown, info: unknown) {
-    // Namerno samo console u produkciji — bez novih servisa.
+    // Centralizovano logovanje (console + localStorage ring buffer)
+    logError("ErrorBoundary.componentDidCatch", err, {
+      reactComponentStack:
+        typeof info === "object" && info !== null && "componentStack" in (info as any)
+          ? (info as any).componentStack
+          : undefined,
+    });
+
+    // Namerno ostavljamo i console za brz debug
     // eslint-disable-next-line no-console
     console.error("Unhandled UI error:", err, info);
   }
@@ -74,6 +83,14 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return this.props.children;
   }
 }
+
+// Monitoring inicijalizujemo TAČNO JEDNOM, pre render-a.
+// Ne vezujemo ga za komponente/providere da se ne bi duplirao u StrictMode re-renderima.
+initClientMonitoring({
+  appTag: "padrino-web",
+  // Opcionalno: možeš kasnije da ubaciš build tag (npr. git sha) ako ga budeš imao.
+  version: "unknown",
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

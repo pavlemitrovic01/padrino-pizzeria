@@ -4,6 +4,7 @@ import CartDrawer from "./components/CartDrawer";
 import Navbar from "./components/Navbar";
 import AdminOrders from "./components/AdminOrders";
 import AdminLogin from "./pages/admin/AdminLogin";
+import AdminLogs from "./pages/admin/AdminLogs";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 
@@ -13,7 +14,11 @@ export default function App() {
   const pathname = typeof window !== "undefined" ? window.location.pathname : "";
 
   const isAdminLoginRoute = pathname === "/admin/login" || pathname.startsWith("/admin/login/");
+  const isAdminLogsRoute = pathname === "/admin/logs" || pathname === "/admin/logs/";
   const isAdminRoute = pathname === "/admin" || pathname === "/admin/";
+
+  // Guard treba da radi za sve admin rute koje renderujemo ovdje (bez novog routera)
+  const needsAdminGuard = isAdminRoute || isAdminLogsRoute;
 
   const [guardState, setGuardState] = useState<GuardState>("loading");
   const [checking, setChecking] = useState(true);
@@ -66,7 +71,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isAdminRoute) return;
+    if (!needsAdminGuard) return;
     let mounted = true;
 
     async function checkSession() {
@@ -107,7 +112,7 @@ export default function App() {
       mounted = false;
       listener?.subscription.unsubscribe();
     };
-  }, [isAdminRoute]);
+  }, [needsAdminGuard]);
 
   if (isAdminLoginRoute) {
     return (
@@ -121,7 +126,8 @@ export default function App() {
     );
   }
 
-  if (isAdminRoute) {
+  // Svi admin ekrani (orders / logs) idu kroz isti guard
+  if (needsAdminGuard) {
     if (guardState === "loading" || checking) {
       return (
         <>
@@ -174,6 +180,20 @@ export default function App() {
       );
     }
 
+    // Admin je OK — biramo ekran po path-u (bez novih routera)
+    if (isAdminLogsRoute) {
+      return (
+        <>
+          {onlineBanner}
+          <Navbar />
+          <main className="bg-black min-h-screen pt-20">
+            <AdminLogs />
+          </main>
+        </>
+      );
+    }
+
+    // Default admin ekran: orders
     return (
       <>
         {onlineBanner}
@@ -185,6 +205,7 @@ export default function App() {
     );
   }
 
+  // Public app
   return (
     <>
       {onlineBanner}
