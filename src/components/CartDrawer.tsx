@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient.ts";
 import { useCart } from "../context/useCart";
 import type { CartAddon } from "../context/CartContext";
@@ -93,7 +93,6 @@ export default function CartDrawer() {
     increase,
     decrease,
     removeFromCart,
-    totalPrice,
     totalItems,
     addAddonToItem,
   } = useCart();
@@ -136,20 +135,14 @@ export default function CartDrawer() {
 
         const nextSauces = saucesSource.map((r) => ({ id: r.id, name: r.name, price: r.price }));
 
-        // Kontrola "Sosevi" treba da postoji ako:
-        // - postoji placeholder "Sosevi" (tvoj trenutni slučaj)
-        // - ili postoji bar 1 sos u katalogu
         const shouldShowSaucesControl = hasPlaceholder || nextSauces.length > 0;
 
-        // 6) Addons grid: svi dodaci, ali:
-        // - izbaci placeholder "Sosevi" iz grid-a (da se ne dodaje direktno)
-        // - izbaci i sos stavke iz grid-a ako ih prikazujemo kroz "Sosevi" picker (da ne budu duplirane)
+        // 6) Addons grid: svi dodaci, ali bez placeholdera i (ako treba) bez sos stavki
         const nextAddons = dodaciRows
           .filter((r) => {
             if (isSaucesPlaceholder(r.name)) return false;
 
             if (nextSauces.length > 0) {
-              // ako je sos iz "dodaci" prepoznat po imenu, skloni ga iz grid-a
               if (saucesSource === sauceFromDodaciRows && isSauceItemName(r.name)) return false;
             }
 
@@ -191,6 +184,32 @@ export default function CartDrawer() {
       return sum + a.price * qty;
     }, 0);
 
+  /**
+   * KRITIČNO: u CartProvider-u item.price je već (basePrice + addonsTotal).
+   * Zato ovde NIKAD ne smemo raditi (item.price + addonsTotal), jer bi bilo 2x.
+   *
+   * Pravilno:
+   * lineTotal = (basePrice + addonsTotal) * quantity
+   *
+   * basePrice uzimamo iz item.basePrice (source-of-truth u CartProvider-u).
+   * Ako basePrice nekad izostane, fallback je item.price - addonsTotal.
+   */
+  const derivedTotalPrice = useMemo(() => {
+    return items.reduce((sum, item) => {
+      const hideAddons = isDrinkCategory(item.category ?? "");
+      const selectedAddons = item.addons ?? [];
+      const addonsTotal = hideAddons ? 0 : getPerItemAddonsTotal(selectedAddons);
+
+      const base =
+        typeof item.basePrice === "number" && Number.isFinite(item.basePrice)
+          ? item.basePrice
+          : Math.max(0, (item.price ?? 0) - addonsTotal);
+
+      const lineTotal = (base + addonsTotal) * item.quantity;
+      return sum + lineTotal;
+    }, 0);
+  }, [items]);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -228,8 +247,14 @@ export default function CartDrawer() {
                 {items.map((item) => {
                   const hideAddons = isDrinkCategory(item.category ?? "");
                   const selectedAddons = item.addons ?? [];
-                  const perItemAddonsTotal = hideAddons ? 0 : getPerItemAddonsTotal(selectedAddons);
-                  const lineTotal = (item.price + perItemAddonsTotal) * item.quantity;
+                  const addonsTotal = hideAddons ? 0 : getPerItemAddonsTotal(selectedAddons);
+
+                  const base =
+                    typeof item.basePrice === "number" && Number.isFinite(item.basePrice)
+                      ? item.basePrice
+                      : Math.max(0, (item.price ?? 0) - addonsTotal);
+
+                  const lineTotal = (base + addonsTotal) * item.quantity;
 
                   return (
                     <div
@@ -250,21 +275,20 @@ export default function CartDrawer() {
                         <div className="mt-4">
                           <p className="text-sm text-gray-300 mb-2">Dodaci</p>
 
-                          {/* SOSEVI: poseban sektor koji se otvara klikom (kao pre) */}
                           {hasSaucesControl && (
                             <div className="mb-2">
                               <button
                                 type="button"
                                 onClick={() =>
-                                  setOpenSaucesForItemId((prev) => (prev === item.id ? null : item.id))
+                                  setOpenSaucesForItemId((prev) =>
+                                    prev === item.id ? null : item.id
+                                  )
                                 }
                                 className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left"
                                 title="Izaberi sos"
                               >
                                 <p className="text-xs text-white truncate">Sosevi</p>
-                                <p className="text-[11px] text-gray-400">
-                                  Klikni da izabereš sos
-                                </p>
+                                <p className="text-[11px] text-gray-400">Klikni da izabereš sos</p>
                               </button>
 
                               {openSaucesForItemId === item.id && (
@@ -303,7 +327,6 @@ export default function CartDrawer() {
                             </div>
                           )}
 
-                          {/* OSTALI DODACI */}
                           <div className="grid grid-cols-2 gap-2">
                             {addonsCatalog.map((a) => (
                               <button
@@ -347,7 +370,9 @@ export default function CartDrawer() {
               <div className="px-6 py-5 border-t border-white/10">
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-sm">Ukupno</span>
-                  <span className="text-white font-extrabold text-lg">{totalPrice} RSD</span>
+                  <span className="text-white font-extrabold text-lg">
+                    {derivedTotalPrice} RSD
+                  </span>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3">

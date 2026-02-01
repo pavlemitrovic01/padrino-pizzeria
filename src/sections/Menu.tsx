@@ -111,6 +111,26 @@ function slugify(input: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+function isSaucesCategory(category: string): boolean {
+  const c = normalize(category);
+  return c === "sosevi" || c === "sosovi" || c === "sos" || c === "sauce" || c === "sauces";
+}
+
+function isAddonsCategory(category: string): boolean {
+  const c = normalize(category);
+  return c === "dodaci" || c === "dodatci" || c === "extras" || c === "addons";
+}
+
+function displayCategoryLabel(category: string): string {
+  const c = normalize(category);
+
+  // Supabase "Pića" često izađe kao "pica" zbog normalizacije dijakritike
+  if (c === "pica" || c === "pice" || c === "napici" || c === "napitci") return "Piće";
+
+  // Default: vrati original kako je u bazi (da ne lomimo ostale kategorije)
+  return category || "Ostalo";
+}
+
 export default function Menu() {
   const [items, setItems] = useState<MenuItemData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,7 +201,6 @@ export default function Menu() {
         else if (size === "50") existing.variants["50"] = { id: row.id, price: row.price, category: row.category };
         else existing.variants["33"] = { id: row.id, price: row.price, category: row.category };
 
-        // držimo image stabilno kroz resolver
         existing.image = resolveMenuImage(row);
 
         if (existing.defaultSize === "50" && !existing.variants["50"] && existing.variants["33"]) {
@@ -204,6 +223,12 @@ export default function Menu() {
     for (const row of items) {
       if (normalize(row.category) === "pizza") continue;
 
+      // dodaci biranje samo u korpi -> ne prikazujemo u meniju
+      if (isAddonsCategory(row.category)) continue;
+
+      // sosevi (ako postoje kao posebna kategorija) takođe ne prikazujemo u meniju
+      if (isSaucesCategory(row.category)) continue;
+
       const key = row.category || "Ostalo";
       if (!out.has(key)) out.set(key, []);
       out.get(key)!.push({
@@ -215,7 +240,6 @@ export default function Menu() {
     return out;
   }, [items]);
 
-  // Hero slika: trenutno koristi fajl koji sigurno postoji u public/menu/
   const heroImage = useMemo(() => "/menu/about.png", []);
 
   if (loading) {
@@ -242,7 +266,7 @@ export default function Menu() {
           <div className="absolute bottom-0 left-0 right-0 p-6">
             <h2 className="text-4xl font-extrabold">Naš meni</h2>
             <p className="mt-2 text-white/70">
-              Autentične pice i osvježavajuća pića — veličinu biraš u korpi.
+              Autentične pice i osvježavajuća pića — dodatke i soseve biraš u korpi.
             </p>
           </div>
         </div>
@@ -270,7 +294,7 @@ export default function Menu() {
 
           {Array.from(nonPizzaByCategory.entries()).map(([cat, rows]) => (
             <div key={cat}>
-              <h3 className="text-2xl font-extrabold">{cat}</h3>
+              <h3 className="text-2xl font-extrabold">{displayCategoryLabel(cat)}</h3>
               <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                 {rows.map((r) => (
                   <MenuItem
