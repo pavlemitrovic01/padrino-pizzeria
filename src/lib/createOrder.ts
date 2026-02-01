@@ -36,6 +36,7 @@ export type CreateOrderPayload = {
 
   items: OrderItemPayload[];
 
+  // trenutno RSD total (legacy, ne diramo)
   total_price: number;
   total_items: number;
 
@@ -128,14 +129,30 @@ export async function createOrder(payload: CreateOrderPayload) {
   // meta na početak (stabilno i lako za čitanje u adminu)
   normalizedItems.unshift(meta);
 
-  // ✅ U TVOJOJ TABELI POSTOJI: customer_name/phone/address, items, total_price, status
+  /**
+   * ✅ EUR kolone su dodate u public.orders:
+   * - currency (default 'EUR')
+   * - total_eur_cents (bigint, nullable)
+   * - fx_rsd_per_eur (numeric, nullable)
+   *
+   * Trenutno NE upisujemo total_eur_cents/fx jer kurs NIJE zaključan.
+   * Ovo je namjerno da nema nagađanja i da ne pokvarimo postojeći RSD tok.
+   */
   const row = {
     customer_name,
     customer_phone,
     customer_address,
     items: normalizedItems,
+
+    // legacy RSD total (postojeći sistem)
     total_price,
+
     status: "pending",
+
+    // novi EUR fields (spremno za kartice kasnije)
+    currency: "EUR",
+    total_eur_cents: null as number | null,
+    fx_rsd_per_eur: null as number | null,
   };
 
   const { error } = await supabase.from("orders").insert([row]);
