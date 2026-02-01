@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import MenuItem from "../components/MenuItem";
 import type { PizzaSize } from "../context/CartContext";
+import { toSafeInt } from "../lib/money";
 
 type MenuItemData = {
   id: string;
   name: string;
   description: string;
-  price: number;
+  // IMPORTANT: app koristi EUR cente (int) kao izvor istine.
+  // price (legacy) ostaje u bazi, ali UI/korpa više ne računaju iz njega.
+  price: number | null;
+  price_eur_cents: number | null;
   image: string;
   category: string;
 };
@@ -64,8 +68,8 @@ function resolveMenuImage(item: MenuItemData): string {
   const raw = (item.image ?? "").trim();
   const cat = normalize(item.category);
 
-  // Pića trenutno nemaju fajlove u public/ => da ne spamuje 404, držimo placeholder
-  if (cat === "pica" || cat === "pica" || cat === "pica") {
+  // Pića trenutno nemaju fajlove u public/menu/ => da ne spamuje 404, držimo placeholder
+  if (cat === "pica") {
     return "/menu/about.png";
   }
 
@@ -111,24 +115,11 @@ function slugify(input: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-function isSaucesCategory(category: string): boolean {
-  const c = normalize(category);
-  return c === "sosevi" || c === "sosovi" || c === "sos" || c === "sauce" || c === "sauces";
-}
-
-function isAddonsCategory(category: string): boolean {
-  const c = normalize(category);
-  return c === "dodaci" || c === "dodatci" || c === "extras" || c === "addons";
-}
-
-function displayCategoryLabel(category: string): string {
-  const c = normalize(category);
-
-  // Supabase "Pića" često izađe kao "pica" zbog normalizacije dijakritike
-  if (c === "pica" || c === "pice" || c === "napici" || c === "napitci") return "Piće";
-
-  // Default: vrati original kako je u bazi (da ne lomimo ostale kategorije)
-  return category || "Ostalo";
+function getEurCents(row: MenuItemData): number | null {
+  const raw = row.price_eur_cents;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return toSafeInt(n, 0);
 }
 
 export default function Menu() {
@@ -140,7 +131,7 @@ export default function Menu() {
 
     supabase
       .from("menu_items")
-      .select("*")
+      .select("id,name,description,price,price_eur_cents,image,category")
       .order("category", { ascending: true })
       .order("name", { ascending: true })
       .then(({ data, error }) => {
@@ -166,6 +157,10 @@ export default function Menu() {
     const map = new Map<string, PizzaDisplayItem>();
 
     for (const row of pizzaRows) {
+      const eurCents = getEurCents(row);
+      // Ako EUR cijena fali, ne prikazujemo stavku (bolje nego pogrešna naplata).
+      if (eurCents == null) continue;
+
       const size: PizzaSize | null = isPizzaSize(row.name, 50)
         ? "50"
         : isPizzaSize(row.name, 33)
@@ -181,9 +176,9 @@ export default function Menu() {
         const defaultSize: PizzaSize = size ?? "33";
         const variants: PizzaVariantsProp = {};
 
-        if (size === "33") variants["33"] = { id: row.id, price: row.price, category: row.category };
-        if (size === "50") variants["50"] = { id: row.id, price: row.price, category: row.category };
-        if (!size) variants["33"] = { id: row.id, price: row.price, category: row.category };
+        if (size === "33") variants["33"] = { id: row.id, price: eurCents, category: row.category };
+        if (size === "50") variants["50"] = { id: row.id, price: eurCents, category: row.category };
+        if (!size) variants["33"] = { id: row.id, price: eurCents, category: row.category };
 
         map.set(baseKey, {
           id: row.id,
@@ -194,13 +189,14 @@ export default function Menu() {
           image: resolveMenuImage(row),
           variants,
           defaultSize,
-          defaultPrice: row.price,
+          defaultPrice: eurCents,
         });
       } else {
-        if (size === "33") existing.variants["33"] = { id: row.id, price: row.price, category: row.category };
-        else if (size === "50") existing.variants["50"] = { id: row.id, price: row.price, category: row.category };
-        else existing.variants["33"] = { id: row.id, price: row.price, category: row.category };
+        if (size === "33") existing.variants["33"] = { id: row.id, price: eurCents, category: row.category };
+        else if (size === "50") existing.variants["50"] = { id: row.id, price: eurCents, category: row.category };
+        else existing.variants["33"] = { id: row.id, price: eurCents, category: row.category };
 
+        // držimo image stabilno kroz resolver
         existing.image = resolveMenuImage(row);
 
         if (existing.defaultSize === "50" && !existing.variants["50"] && existing.variants["33"]) {
@@ -223,16 +219,15 @@ export default function Menu() {
     for (const row of items) {
       if (normalize(row.category) === "pizza") continue;
 
-      // dodaci biranje samo u korpi -> ne prikazujemo u meniju
-      if (isAddonsCategory(row.category)) continue;
-
-      // sosevi (ako postoje kao posebna kategorija) takođe ne prikazujemo u meniju
-      if (isSaucesCategory(row.category)) continue;
+      const eurCents = getEurCents(row);
+      // Ako EUR cijena fali, ne prikazujemo stavku (bolje nego pogrešna naplata).
+      if (eurCents == null) continue;
 
       const key = row.category || "Ostalo";
       if (!out.has(key)) out.set(key, []);
       out.get(key)!.push({
         ...row,
+        price_eur_cents: eurCents,
         image: resolveMenuImage(row),
       });
     }
@@ -240,6 +235,7 @@ export default function Menu() {
     return out;
   }, [items]);
 
+  // Hero slika: trenutno koristi fajl koji sigurno postoji u public/menu/
   const heroImage = useMemo(() => "/menu/about.png", []);
 
   if (loading) {
@@ -266,7 +262,7 @@ export default function Menu() {
           <div className="absolute bottom-0 left-0 right-0 p-6">
             <h2 className="text-4xl font-extrabold">Naš meni</h2>
             <p className="mt-2 text-white/70">
-              Autentične pice i osvježavajuća pića — dodatke i soseve biraš u korpi.
+              Autentične pice i osvježavajuća pića — veličinu biraš u korpi.
             </p>
           </div>
         </div>
@@ -294,7 +290,7 @@ export default function Menu() {
 
           {Array.from(nonPizzaByCategory.entries()).map(([cat, rows]) => (
             <div key={cat}>
-              <h3 className="text-2xl font-extrabold">{displayCategoryLabel(cat)}</h3>
+              <h3 className="text-2xl font-extrabold">{cat}</h3>
               <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                 {rows.map((r) => (
                   <MenuItem
@@ -302,7 +298,7 @@ export default function Menu() {
                     id={r.id}
                     name={r.name}
                     description={r.description}
-                    price={r.price}
+                    price={toSafeInt(r.price_eur_cents, 0)}
                     image={r.image}
                     category={r.category}
                   />

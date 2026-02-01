@@ -33,156 +33,80 @@ function safeNumber(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function formatMoneyRSD(value: unknown): string {
-  const n = safeNumber(value, NaN);
-  if (!Number.isFinite(n)) return "";
-  return `${n.toFixed(2)} RSD`;
+function formatMoneyEUR(cents?: number) {
+  const n = typeof cents === "number" ? cents : Number(cents);
+  const safe = Number.isFinite(n) ? Math.trunc(n) : 0;
+  const amount = safe / 100;
+  try {
+    return new Intl.NumberFormat("sr-Latn-ME", {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `€${amount.toFixed(2)}`;
+  }
 }
 
-type OrderItemAddon = {
+function formatMoneyRSD(value?: number) {
+  const n = safeNumber(value, 0);
+  try {
+    return new Intl.NumberFormat("sr-Latn-ME", {
+      style: "currency",
+      currency: "RSD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    return `${Math.round(n)} RSD`;
+  }
+}
+
+type InsertOrderPayload = {
   id?: string;
-  name?: string;
-  price?: number;
-  quantity?: number;
-};
-
-type OrderItem = {
-  name?: string;
-  size?: "33" | "50" | string | null;
-  quantity?: number;
-  addons?: OrderItemAddon[];
-  note?: string | null;
-};
-
-type OrderRecord = {
-  id?: string | number;
   created_at?: string;
-  status?: string;
   customer_name?: string;
   customer_phone?: string;
   customer_address?: string;
   total_price?: number;
+  currency?: string | null;
+  total_eur_cents?: number | null;
+  fx_rsd_per_eur?: number | null;
   items?: unknown;
   note?: string | null;
 };
 
-type WebhookPayload = {
-  record?: unknown;
+type WebhookBody = {
+  type?: string;
+  table?: string;
+  record?: InsertOrderPayload;
   old_record?: unknown;
-  new?: unknown;
-  data?: unknown;
 };
 
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
+const recentIds = new Map<string, number>();
+const RECENT_TTL_MS = 2 * 60 * 1000;
 
-function extractRecord(payload: unknown): OrderRecord | null {
-  if (!isObject(payload)) return null;
-
-  const p = payload as WebhookPayload;
-
-  // Supabase Database Webhooks usually send: { ..., record, old_record }
-  if (isObject(p.record)) return p.record as unknown as OrderRecord;
-
-  // Some setups send { new: {...} } or { data: {...} }
-  if (isObject(p.new)) return p.new as unknown as OrderRecord;
-  if (isObject(p.data)) return p.data as unknown as OrderRecord;
-
-  // If someone calls the function manually with the record directly
-  return payload as unknown as OrderRecord;
-}
-
-function normalizeOrderId(v: unknown): string {
-  const s = safeString(v);
-  if (s) return s;
-  if (typeof v === "number" && Number.isFinite(v)) return String(v);
-  return "";
-}
-
-function summarizeItems(items: unknown): string {
-  if (!Array.isArray(items) || items.length === 0) return "";
-
-  const lines: string[] = [];
-
-  for (const raw of items) {
-    const item = (isObject(raw) ? (raw as unknown as OrderItem) : ({} as OrderItem));
-
-    const name = safeString(item.name) || "Stavka";
-    const qty =
-      typeof item.quantity === "number" && Number.isFinite(item.quantity)
-        ? item.quantity
-        : 1;
-
-    const size = safeString(item.size);
-    const sizePart = size ? ` (${size}cm)` : "";
-
-    const note = safeString(item.note);
-    const notePart = note ? ` — Napomena: ${note}` : "";
-
-    let addonsPart = "";
-    if (Array.isArray(item.addons) && item.addons.length > 0) {
-      const addonNames = item.addons
-        .map((a) => {
-          const an = safeString(a?.name);
-          const aq =
-            typeof a?.quantity === "number" && Number.isFinite(a.quantity)
-              ? a.quantity
-              : 1;
-          return an ? `${an}${aq > 1 ? ` x${aq}` : ""}` : "";
-        })
-        .filter((x) => x.length > 0);
-
-      if (addonNames.length > 0) addonsPart = ` + ${addonNames.join(", ")}`;
-    }
-
-    lines.push(`• ${name}${sizePart} x${qty}${addonsPart}${notePart}`);
+function seenRecently(id: string) {
+  const now = Date.now();
+  for (const [k, t] of recentIds.entries()) {
+    if (now - t > RECENT_TTL_MS) recentIds.delete(k);
   }
-
-  return lines.join("\n");
+  if (recentIds.has(id)) return true;
+  recentIds.set(id, now);
+  return false;
 }
 
-function buildTelegramMessage(order: OrderRecord): string {
-  const id = safeString(order.id);
-  const createdAt = safeString(order.created_at);
+async function sendTelegramMessage(text: string) {
+  const token = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+  const chatId = Deno.env.get("TELEGRAM_CHAT_ID") ?? "";
 
-  const customerName = safeString(order.customer_name);
-  const phone = safeString(order.customer_phone);
-  const address = safeString(order.customer_address);
-
-  const total = formatMoneyRSD(order.total_price);
-
-  const header = `🍕 Nova porudžbina (PENDING)`;
-  const meta: string[] = [];
-
-  if (id) meta.push(`ID: ${id}`);
-  if (createdAt) meta.push(`Vreme: ${createdAt}`);
-
-  const customer: string[] = [];
-  if (customerName) customer.push(`Kupac: ${customerName}`);
-  if (phone) customer.push(`Tel: ${phone}`);
-  if (address) customer.push(`Adresa: ${address}`);
-
-  const items = summarizeItems(order.items);
-  const itemsBlock = items ? `\n\n${items}` : "";
-
-  const note = safeString(order.note);
-  const orderNoteBlock = note ? `\n\n📝 Napomena (order): ${note}` : "";
-
-  const totalLine = total ? `\n\n💰 Ukupno: ${total}` : "";
-
-  const metaBlock = meta.length ? `\n${meta.join("\n")}` : "";
-  const customerBlock = customer.length ? `\n\n${customer.join("\n")}` : "";
-
-  return `${header}${metaBlock}${customerBlock}${itemsBlock}${orderNoteBlock}${totalLine}`.trim();
-}
-
-async function sendTelegram(text: string): Promise<{ ok: boolean; error?: string }> {
-  const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
-  const chatId = Deno.env.get("TELEGRAM_CHAT_ID");
-
-  if (!token) return { ok: false, error: "Missing TELEGRAM_BOT_TOKEN" };
-  if (!chatId) return { ok: false, error: "Missing TELEGRAM_CHAT_ID" };
+  if (!token || !chatId) {
+    return {
+      ok: false,
+      error: "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID",
+    };
+  }
 
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
@@ -192,131 +116,118 @@ async function sendTelegram(text: string): Promise<{ ok: boolean; error?: string
     body: JSON.stringify({
       chat_id: chatId,
       text,
+      parse_mode: "HTML",
       disable_web_page_preview: true,
     }),
   });
 
+  const json = await res.json().catch(() => null);
+
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    return {
-      ok: false,
-      error: `Telegram sendMessage failed: ${res.status} ${res.statusText} ${body}`.trim(),
-    };
+    return { ok: false, status: res.status, json };
   }
 
-  const json: unknown = await res.json().catch(() => null);
-  if (!isObject(json) || (json as { ok?: boolean }).ok !== true) {
-    return { ok: false, error: `Telegram API returned not-ok: ${JSON.stringify(json)}` };
+  return { ok: true, json };
+}
+
+function buildMessage(order: InsertOrderPayload) {
+  const name = safeString(order.customer_name);
+  const phone = safeString(order.customer_phone);
+  const address = safeString(order.customer_address);
+
+  const currency = safeString(order.currency).toUpperCase();
+
+  const total =
+    currency === "EUR" || typeof order.total_eur_cents === "number"
+      ? formatMoneyEUR(
+          typeof order.total_eur_cents === "number" ? order.total_eur_cents : order.total_price
+        )
+      : formatMoneyRSD(order.total_price);
+
+  const header = `🍕 Nova porudžbina (PENDING)`;
+  const meta: string[] = [];
+
+  if (name) meta.push(`<b>Ime:</b> ${name}`);
+  if (phone) meta.push(`<b>Telefon:</b> ${phone}`);
+  if (address) meta.push(`<b>Adresa:</b> ${address}`);
+  meta.push(`<b>Ukupno:</b> ${total}`);
+
+  const itemsRaw = order.items;
+  let lines: string[] = [];
+
+  if (Array.isArray(itemsRaw)) {
+    const rawList = itemsRaw.slice(1);
+    lines = rawList
+      .filter((x) => x && typeof x === "object" && !Array.isArray(x))
+      .map((it: any) => {
+        const n = safeString(it.name);
+        const qty = Math.max(1, Math.floor(safeNumber(it.quantity, 1)));
+        const pricePerItem = safeNumber(it.price_per_item, 0);
+        const lineTotal = pricePerItem * qty;
+
+        const money =
+          currency === "EUR" || typeof order.total_eur_cents === "number"
+            ? formatMoneyEUR(lineTotal)
+            : formatMoneyRSD(lineTotal);
+
+        const size = safeString(it.size);
+        const sizeSuffix = size ? ` (${size})` : "";
+        return `• ${n}${sizeSuffix} x${qty} — ${money}`;
+      });
   }
 
-  return { ok: true };
+  const body = lines.length ? `\n\n<b>Stavke:</b>\n${lines.join("\n")}` : "";
+
+  return `${header}\n\n${meta.join("\n")}${body}`;
 }
 
-/**
- * Best-effort idempotency (per warm Edge instance):
- * Webhooks can retry; we try to prevent duplicate sends for the same order id.
- * Marks only on successful send (so we don't drop notifications).
- */
-const processed = new Map<string, number>(); // orderId -> timestamp ms
-const DEDUPE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+function getSecret() {
+  return Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? Deno.env.get("WEBHOOK_SECRET") ?? "";
+}
 
-function cleanupProcessed(now: number) {
-  for (const [k, ts] of processed) {
-    if (now - ts > DEDUPE_TTL_MS) processed.delete(k);
+export default async function handler(req: Request): Promise<Response> {
+  const secret = getSecret();
+  if (secret) {
+    const header = req.headers.get("x-webhook-secret") ?? "";
+    if (header !== secret) {
+      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
+    }
   }
-}
 
-function isDuplicate(orderId: string): boolean {
-  const now = Date.now();
-  cleanupProcessed(now);
-  const last = processed.get(orderId);
-  return typeof last === "number" && now - last <= DEDUPE_TTL_MS;
-}
+  const body = (await req.json().catch(() => null)) as WebhookBody | null;
+  const record = body?.record;
 
-function markProcessed(orderId: string) {
-  processed.set(orderId, Date.now());
-}
+  if (!record) {
+    return new Response(JSON.stringify({ ok: false, error: "Missing record" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
 
-function json(status: number, body: unknown, headers: Record<string, string>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...headers, "content-type": "application/json" },
+  const id = safeString(record.id);
+  if (id && seenRecently(id)) {
+    return new Response(JSON.stringify({ ok: true, skipped: "duplicate" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const status = safeString((record as any).status);
+  if (status && status !== "pending") {
+    return new Response(JSON.stringify({ ok: true, skipped: "not-pending" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  const text = buildMessage(record);
+  const sent = await sendTelegramMessage(text);
+
+  return new Response(JSON.stringify(sent), {
+    status: sent.ok ? 200 : 500,
+    headers: { "content-type": "application/json" },
   });
 }
-
-Deno.serve(async (req: Request) => {
-  // Minimal CORS for browser testing; webhook calls won't care.
-  const origin = req.headers.get("origin") ?? "*";
-  const corsHeaders: Record<string, string> = {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "content-type, x-webhook-secret",
-  };
-
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return json(405, { ok: false, error: "Method not allowed" }, corsHeaders);
-  }
-
-  // Require shared secret if configured (accept both env names to avoid mismatch)
-  const requiredSecret =
-    Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ??
-    Deno.env.get("WEBHOOK_SECRET") ??
-    "";
-
-  if (requiredSecret) {
-    const got = req.headers.get("x-webhook-secret") ?? "";
-    if (got !== requiredSecret) {
-      return json(401, { ok: false, error: "Unauthorized" }, corsHeaders);
-    }
-  }
-
-  let payload: unknown = null;
-  try {
-    payload = await req.json();
-  } catch {
-    return json(400, { ok: false, error: "Invalid JSON" }, corsHeaders);
-  }
-
-  const record = extractRecord(payload);
-  if (!record) {
-    return json(400, { ok: false, error: "Missing record payload" }, corsHeaders);
-  }
-
-  const status = safeString(record.status).toLowerCase();
-  // Notify ONLY on pending (locked requirement).
-  if (status !== "pending") {
-    return json(200, { ok: true, skipped: true, reason: "status_not_pending" }, corsHeaders);
-  }
-
-  const orderId = normalizeOrderId(record.id);
-
-  // Dedupe only if we have a stable order id
-  if (orderId && isDuplicate(orderId)) {
-    return json(200, { ok: true, skipped: true, reason: "duplicate" }, corsHeaders);
-  }
-
-  const message = buildTelegramMessage(record);
-
-  try {
-    const sent = await sendTelegram(message);
-    if (!sent.ok) {
-      // 500 -> Supabase webhook retries (good).
-      // We do NOT mark processed on failure.
-      return json(500, { ok: false, error: sent.error ?? "Telegram send failed" }, corsHeaders);
-    }
-
-    if (orderId) markProcessed(orderId);
-
-    return json(200, { ok: true }, corsHeaders);
-  } catch (e) {
-    return json(
-      500,
-      { ok: false, error: (e as Error)?.message ?? "Unknown error" },
-      corsHeaders
-    );
-  }
-});

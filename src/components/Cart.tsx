@@ -1,15 +1,8 @@
 import { useCart } from "../context/useCart";
-
+import { formatEUR } from "../lib/money";
 
 export default function Cart() {
-  const {
-    items,
-    isOpen,
-    closeCart,
-    increase,
-    decrease,
-    removeFromCart,
-  } = useCart();
+  const { items, isOpen, closeCart, increase, decrease, removeFromCart } = useCart();
 
   if (!isOpen) return null;
 
@@ -24,7 +17,7 @@ export default function Cart() {
           <div key={item.id} className="border-b pb-3">
             <div className="flex justify-between">
               <span>{item.name}</span>
-              <span>{item.price} RSD</span>
+              <span>{formatEUR(item.price)}</span>
             </div>
 
             <div className="flex items-center gap-2 mt-2">
@@ -41,17 +34,13 @@ export default function Cart() {
           </div>
         ))}
 
-        <button
-          onClick={closeCart}
-          className="w-full bg-black text-white py-2 rounded"
-        >
+        <button onClick={closeCart} className="w-full bg-black text-white py-2 rounded">
           Zatvori
         </button>
       </div>
     </div>
   );
 }
-
 
 
 

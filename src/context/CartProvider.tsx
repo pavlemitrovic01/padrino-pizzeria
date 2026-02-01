@@ -7,10 +7,10 @@ import {
   PizzaVariant,
   isPizzaSize,
 } from "./CartContext";
+import { toSafeInt } from "../lib/money";
 
 function parsePizzaSizeFromText(text: string): PizzaSize | null {
   const t = String(text ?? "").toLowerCase();
-  // hvata: 33cm, 33 cm, 33 CM, 33 cm., pizza 50cm, 50 cm,
   if (/\b50\s*cm\b|pizza\s*50\s*cm[.,]?/i.test(t)) return "50";
   if (/\b33\s*cm\b|pizza\s*33\s*cm[.,]?/i.test(t)) return "33";
   return null;
@@ -35,37 +35,31 @@ function isPizzaLike(category: string, name: string) {
 
 function computeAddonsTotal(addons?: CartAddon[]): number {
   if (!addons || addons.length === 0) return 0;
+
   return addons.reduce((sum, a) => {
-    const qtyRaw = Number((a as CartAddon).quantity ?? 1);
-    const qty = Number.isFinite(qtyRaw) && qtyRaw >= 1 ? Math.floor(qtyRaw) : 1;
-    const next = sum + a.price * qty;
-    return Number.isFinite(next) ? next : sum;
+    const qty = Math.max(1, toSafeInt((a as CartAddon).quantity ?? 1, 1));
+    const price = toSafeInt(a.price ?? 0, 0);
+    return sum + price * qty;
   }, 0);
 }
 
 function pickBestSize(
   variants?: Partial<Record<PizzaSize, PizzaVariant>>
 ): PizzaSize | null {
-  // stabilno: uvijek prvo 33, pa 50 (ako postoji)
   if (variants?.["33"]) return "33";
   if (variants?.["50"]) return "50";
   return null;
 }
 
-/**
- * Base price mora uvijek biti "osnovna cijena" BEZ dodataka.
- * Ako basePrice fali, izračunaj ga iz price - addonsTotal (sa guard-om).
- */
 function getBasePrice(item: CartItem): number {
   if (typeof item.basePrice === "number" && Number.isFinite(item.basePrice)) {
-    return item.basePrice;
+    return toSafeInt(item.basePrice, 0);
   }
 
   const addonsTotal = computeAddonsTotal(item.addons);
-  const derived = (item.price ?? 0) - addonsTotal;
+  const derived = toSafeInt(item.price ?? 0, 0) - addonsTotal;
 
-  if (Number.isFinite(derived)) return derived;
-  return item.price ?? 0;
+  return Math.max(0, derived);
 }
 
 function normalizeIncomingItem(item: CartItem): CartItem {
@@ -74,40 +68,37 @@ function normalizeIncomingItem(item: CartItem): CartItem {
   const normalizedAddons: CartAddon[] = (item.addons ?? []).map((a) => ({
     id: a.id,
     name: a.name,
-    price: a.price,
-    quantity: a.quantity && a.quantity > 0 ? a.quantity : 1,
+    price: toSafeInt(a.price, 0),
+    quantity: Math.max(1, toSafeInt(a.quantity ?? 1, 1)),
   }));
 
+  const incomingPrice = toSafeInt(item.price ?? 0, 0);
+
   if (!looksLikePizza) {
-    // Harden: izračunaj basePrice kroz getBasePrice da nikad ne dupliramo dodatke
     const basePrice = getBasePrice({ ...item, addons: normalizedAddons } as CartItem);
     const finalPrice = basePrice + computeAddonsTotal(normalizedAddons);
 
     return {
       ...item,
+      price: finalPrice,
+      basePrice,
+      addons: normalizedAddons,
       size: null,
       baseKey: item.baseKey ?? item.name,
       menuItemId: item.menuItemId ?? item.id,
       variants: item.variants ?? undefined,
-      basePrice,
-      addons: normalizedAddons,
-      price: finalPrice,
       note: item.note ?? "",
     };
   }
 
-  // Pizza: canonical baseKey + stabilan id
   const baseKey = item.baseKey ?? stripSizeFromName(item.name);
 
-  // detekcija veličine (ako dolazi)
   const detected = item.size ?? parsePizzaSizeFromText(item.name);
   const detectedSize: PizzaSize | null = isPizzaSize(detected) ? detected : null;
 
   const incomingMenuItemId = item.menuItemId ?? item.id;
+  const incomingBasePrice = toSafeInt(item.basePrice ?? incomingPrice, 0);
 
-  const incomingBasePrice = item.basePrice ?? item.price;
-
-  // merge variants (ako postoje)
   const variants: Partial<Record<PizzaSize, PizzaVariant>> = {
     ...(item.variants ?? {}),
   };
@@ -120,19 +111,11 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     };
   }
 
-  // odredi final size (single source of truth)
   const finalSize = detectedSize ?? pickBestSize(variants);
-
-  // odredi final variant (ako postoji)
   const chosenVariant = finalSize ? variants[finalSize] : undefined;
 
-  // basePrice mora biti cijena iz izabrane varijante (kad je imamo)
-  const basePrice = chosenVariant?.price ?? incomingBasePrice;
-
-  // menuItemId mora pratiti izabranu varijantu (kad je imamo)
+  const basePrice = toSafeInt(chosenVariant?.price ?? incomingBasePrice, 0);
   const menuItemId = chosenVariant?.menuItemId ?? incomingMenuItemId;
-
-  // category iz varijante (da UI/checkout bude konzistentan)
   const category = chosenVariant?.category ?? item.category;
 
   const finalPrice = basePrice + computeAddonsTotal(normalizedAddons);
@@ -175,10 +158,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             ...(item.variants ?? {}),
           };
 
-          // zadržavamo dodatke i napomenu na postojećem item-u
           const addons = i.addons ?? [];
 
-          // ako imamo size (ili možemo da ga odredimo), osiguraj basePrice/menuItemId iz varijante
           const candidateSize: PizzaSize | null =
             (isPizzaLike(i.category, i.name) ? (i.size ?? null) : null) ?? null;
 
@@ -188,8 +169,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
           const chosenVariant = bestSize ? mergedVariants[bestSize] : undefined;
 
-          const nextBasePrice =
-            chosenVariant?.price ?? i.basePrice ?? item.basePrice ?? getBasePrice(i);
+          const nextBasePrice = toSafeInt(
+            chosenVariant?.price ?? i.basePrice ?? item.basePrice ?? getBasePrice(i),
+            0
+          );
 
           const nextMenuItemId =
             chosenVariant?.menuItemId ?? i.menuItemId ?? item.menuItemId ?? i.id;
@@ -250,7 +233,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         [size]: next,
       };
 
-      const basePrice = next.price;
+      const basePrice = toSafeInt(next.price, 0);
       const finalPrice = basePrice + computeAddonsTotal(addons);
 
       return prev.map((i) => {
@@ -274,7 +257,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // ✅ Dodaj dodatak: ako postoji -> quantity + 1
   const addAddonToItem = (id: string, addon: Omit<CartAddon, "quantity">) => {
     setItems((prev) =>
       prev.map((i) => {
@@ -342,7 +324,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  // ❌ Ukloni potpuno (X)
   const removeAddonFromItem = (id: string, addonId: string) => {
     setItems((prev) =>
       prev.map((i) => {
@@ -376,8 +357,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items]
   );
 
+  // IMPORTANT: totalPrice je u EUR centima (int)
   const totalPrice = useMemo(
-    () => items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+    () => items.reduce((sum, i) => sum + toSafeInt(i.price, 0) * i.quantity, 0),
     [items]
   );
 

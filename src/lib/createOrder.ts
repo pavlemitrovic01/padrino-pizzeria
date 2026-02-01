@@ -1,8 +1,10 @@
 import { supabase } from "./supabaseClient.ts";
+import { toSafeInt } from "./money";
 
 export type OrderItemAddonPayload = {
   id: string;
   name: string;
+  // EUR cente (int)
   price: number;
   quantity: number;
 };
@@ -14,15 +16,13 @@ export type OrderItemPayload = {
   size: "33" | "50" | null;
   quantity: number;
 
-  // osnovna cijena bez dodataka
+  // osnovna cijena bez dodataka (EUR cente)
   base_price: number | null;
 
-  // cijena jedne stavke sa dodacima (bez množ. quantity)
+  // cijena jedne stavke sa dodacima (EUR cente)
   price_per_item: number;
 
   addons: OrderItemAddonPayload[];
-
-  // napomena po stavci
   note: string | null;
 
   image: string;
@@ -36,11 +36,10 @@ export type CreateOrderPayload = {
 
   items: OrderItemPayload[];
 
-  // trenutno RSD total (legacy, ne diramo)
+  // total (EUR cente)
   total_price: number;
   total_items: number;
 
-  // globalna napomena porudžbine (opciono)
   note?: string | null;
 };
 
@@ -49,9 +48,8 @@ function normalizeString(value: string) {
   return trimmed.length ? trimmed : "";
 }
 
-function safeNumber(value: unknown) {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? n : 0;
+function safeInt(value: unknown, fallback = 0) {
+  return toSafeInt(value, fallback);
 }
 
 function isValidSize(size: unknown): size is "33" | "50" {
@@ -79,34 +77,33 @@ export async function createOrder(payload: CreateOrderPayload) {
   const items = Array.isArray(payload.items) ? payload.items : [];
   if (items.length === 0) throw new Error("Korpa je prazna.");
 
-  const total_price = safeNumber(payload.total_price);
-  const total_items = safeNumber(payload.total_items);
+  const total_price = safeInt(payload.total_price, 0);
+  const total_items = safeInt(payload.total_items, 0);
 
   if (total_items <= 0 || total_price <= 0) {
     throw new Error("Neispravan obračun korpe.");
   }
 
-  // normalizacija stavki (bez mijenjanja poslovne logike)
   const normalizedItems: any[] = items.map((i) => ({
     cart_id: String(i.cart_id),
     menu_item_id: i.menu_item_id ?? null,
     name: String(i.name ?? ""),
     size: isValidSize(i.size) ? i.size : null,
-    quantity: safeNumber(i.quantity),
+    quantity: Math.max(1, safeInt(i.quantity, 1)),
 
     base_price:
       typeof i.base_price === "number" && Number.isFinite(i.base_price)
-        ? i.base_price
+        ? safeInt(i.base_price, 0)
         : null,
 
-    price_per_item: safeNumber(i.price_per_item),
+    price_per_item: safeInt(i.price_per_item, 0),
 
     addons: Array.isArray(i.addons)
       ? i.addons.map((a: any) => ({
           id: String(a.id),
           name: String(a.name),
-          price: safeNumber(a.price),
-          quantity: safeNumber(a.quantity),
+          price: safeInt(a.price, 0),
+          quantity: Math.max(1, safeInt(a.quantity, 1)),
         }))
       : [],
 
@@ -116,43 +113,32 @@ export async function createOrder(payload: CreateOrderPayload) {
     category: String(i.category ?? ""),
   }));
 
-  // ✅ META zapis (jer u tabeli nema total_items kolone)
-  // i globalna napomena ide ovdje (da bude dostupna adminu)
   const order_note = payload.note ? payload.note.trim() || null : null;
 
+  // Backwards compatible meta zapis u orders.items[0]
   const meta: Record<string, any> = {
     total_items,
   };
 
   if (order_note) meta.order_note = order_note;
 
-  // meta na početak (stabilno i lako za čitanje u adminu)
   normalizedItems.unshift(meta);
 
-  /**
-   * ✅ EUR kolone su dodate u public.orders:
-   * - currency (default 'EUR')
-   * - total_eur_cents (bigint, nullable)
-   * - fx_rsd_per_eur (numeric, nullable)
-   *
-   * Trenutno NE upisujemo total_eur_cents/fx jer kurs NIJE zaključan.
-   * Ovo je namjerno da nema nagađanja i da ne pokvarimo postojeći RSD tok.
-   */
   const row = {
     customer_name,
     customer_phone,
     customer_address,
     items: normalizedItems,
 
-    // legacy RSD total (postojeći sistem)
+    // legacy (koristi se u starom admin/telegram) — sada je EUR cente
     total_price,
 
-    status: "pending",
-
-    // novi EUR fields (spremno za kartice kasnije)
+    // nova EUR polja
     currency: "EUR",
-    total_eur_cents: null as number | null,
-    fx_rsd_per_eur: null as number | null,
+    total_eur_cents: total_price,
+    fx_rsd_per_eur: null,
+
+    status: "pending",
   };
 
   const { error } = await supabase.from("orders").insert([row]);

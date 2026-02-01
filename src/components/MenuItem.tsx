@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useCart } from "../context/useCart";
 import type { PizzaSize } from "../context/CartContext";
+import { formatEUR, toSafeInt } from "../lib/money";
 
 type PizzaVariantsProp = Partial<
   Record<"33" | "50", { id: string; price: number; category: string }>
@@ -10,6 +11,7 @@ type MenuItemProps = {
   id: string;
   name: string;
   description: string;
+  // IMPORTANT: EUR cente (int)
   price: number;
   image: string;
   category: string;
@@ -33,12 +35,17 @@ export default function MenuItem({
 }: MenuItemProps) {
   const { addToCart } = useCart();
 
+  const safePrice = toSafeInt(price, 0);
+  const canAdd = Number.isFinite(safePrice) && safePrice >= 0;
+
   const handleAddToCart = () => {
+    if (!canAdd) return;
+
     addToCart({
       id,
       name,
       description,
-      price,
+      price: safePrice,
       image,
       category,
       quantity: 1,
@@ -53,7 +60,7 @@ export default function MenuItem({
               ? {
                   "33": {
                     menuItemId: variants["33"].id,
-                    price: variants["33"].price,
+                    price: toSafeInt(variants["33"].price, 0),
                     category: variants["33"].category,
                   },
                 }
@@ -62,7 +69,7 @@ export default function MenuItem({
               ? {
                   "50": {
                     menuItemId: variants["50"].id,
-                    price: variants["50"].price,
+                    price: toSafeInt(variants["50"].price, 0),
                     category: variants["50"].category,
                   },
                 }
@@ -98,13 +105,14 @@ export default function MenuItem({
         </div>
 
         <div className="flex items-center justify-between mt-4">
-          <span className="text-yellow-400 font-bold">{price} RSD</span>
+          <span className="text-yellow-400 font-bold">{formatEUR(safePrice)}</span>
 
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.92 }}
             onClick={handleAddToCart}
-            className="px-4 py-1.5 rounded-full bg-yellow-500 text-black text-sm font-semibold hover:bg-yellow-400 transition shadow-sm group-hover:shadow"
+            disabled={!canAdd}
+            className="px-4 py-1.5 rounded-full bg-yellow-500 text-black text-sm font-semibold hover:bg-yellow-400 transition shadow-sm group-hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label={`Dodaj ${name} u korpu`}
           >
             Dodaj
