@@ -1,22 +1,36 @@
 /// <reference path="../deno.d.ts" />
 
-// Supabase Edge Function: telegram-new-order
-// Goal: cheapest + stable + read-only Telegram notification for NEW pending orders.
-// Trigger: Supabase Database Webhook (INSERT on orders), calling this function URL.
-//
-// Env required (Supabase Dashboard → Project Settings → Functions → Secrets):
-// - TELEGRAM_BOT_TOKEN
-// - TELEGRAM_CHAT_ID
-//
-// Hardening (recommended):
-// - TELEGRAM_WEBHOOK_SECRET (preferred)  OR  WEBHOOK_SECRET (back-compat)
-//   If set, require header: x-webhook-secret to match exactly.
-//
-// Stability additions in this version:
-// - Accept both env names for webhook secret (so you don't get locked into one)
-// - Best-effort idempotency (in-memory TTL) to avoid duplicate Telegram messages from webhook retries
-// - Keep "pending-only" behavior locked
-// - Safe parsing + clear JSON responses
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+
+type InsertOrderPayload = {
+  id?: string;
+  created_at?: string;
+  status?: string | null;
+
+  customer_name?: string;
+  customer_phone?: string;
+  customer_address?: string;
+
+  // legacy
+  total_price?: number;
+
+  // EUR migration
+  currency?: string | null;
+  total_eur_cents?: number | null;
+  fx_rsd_per_eur?: number | null;
+
+  items?: unknown;
+};
+
+type WebhookBody =
+  | {
+      type?: string;
+      table?: string;
+      schema?: string;
+      record?: InsertOrderPayload;
+      old_record?: unknown;
+    }
+  | InsertOrderPayload;
 
 function safeString(v: unknown): string {
   if (typeof v === "string") return v.trim();
@@ -28,15 +42,16 @@ function safeString(v: unknown): string {
   }
 }
 
-function safeNumber(v: unknown, fallback = 0): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : fallback;
+function safeNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) return Number(v);
+  return null;
 }
 
-function formatMoneyEUR(cents?: number) {
-  const n = typeof cents === "number" ? cents : Number(cents);
-  const safe = Number.isFinite(n) ? Math.trunc(n) : 0;
+function formatMoneyEUR(cents: number) {
+  const safe = Number.isFinite(cents) ? Math.trunc(cents) : 0;
   const amount = safe / 100;
+
   try {
     return new Intl.NumberFormat("sr-Latn-ME", {
       style: "currency",
@@ -49,40 +64,40 @@ function formatMoneyEUR(cents?: number) {
   }
 }
 
-function formatMoneyRSD(value?: number) {
-  const n = safeNumber(value, 0);
+function formatMoneyRSD(value: number) {
+  const safe = Number.isFinite(value) ? value : 0;
   try {
     return new Intl.NumberFormat("sr-Latn-ME", {
       style: "currency",
       currency: "RSD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(n);
+    }).format(safe);
   } catch {
-    return `${Math.round(n)} RSD`;
+    return `${Math.round(safe)} RSD`;
   }
 }
 
-type InsertOrderPayload = {
-  id?: string;
-  created_at?: string;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_address?: string;
-  total_price?: number;
-  currency?: string | null;
-  total_eur_cents?: number | null;
-  fx_rsd_per_eur?: number | null;
-  items?: unknown;
-  note?: string | null;
-};
+function getSecret() {
+  // back-compat
+  return (
+    Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ??
+    Deno.env.get("WEBHOOK_SECRET") ??
+    ""
+  );
+}
 
-type WebhookBody = {
-  type?: string;
-  table?: string;
-  record?: InsertOrderPayload;
-  old_record?: unknown;
-};
+function pickRecord(body: WebhookBody | null): InsertOrderPayload | null {
+  if (!body || typeof body !== "object") return null;
+
+  if ("record" in (body as any)) {
+    const r = (body as any).record;
+    if (r && typeof r === "object") return r as InsertOrderPayload;
+    return null;
+  }
+
+  return body as InsertOrderPayload;
+}
 
 const recentIds = new Map<string, number>();
 const RECENT_TTL_MS = 2 * 60 * 1000;
@@ -97,15 +112,108 @@ function seenRecently(id: string) {
   return false;
 }
 
+function extractOrderNote(items: unknown): string {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  const meta = items[0];
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return "";
+
+  const note =
+    (meta as any).order_note ??
+    (meta as any).note ??
+    (meta as any).napomena ??
+    "";
+
+  return safeString(note);
+}
+
+function extractLineItems(items: unknown): any[] {
+  if (!Array.isArray(items)) return [];
+  // items[0] je meta {order_note}, ostalo su stavke
+  if (
+    items.length > 0 &&
+    items[0] &&
+    typeof items[0] === "object" &&
+    !Array.isArray(items[0]) &&
+    ("order_note" in (items[0] as any) || "note" in (items[0] as any) || "napomena" in (items[0] as any))
+  ) {
+    return items.slice(1);
+  }
+  return items;
+}
+
+function computeTotalString(order: InsertOrderPayload): string {
+  const currency = safeString(order.currency).toUpperCase();
+  const eurCents = safeNumber(order.total_eur_cents);
+
+  // 1) Ako imamo total_eur_cents → uvek EUR (ovo je “source of truth”)
+  if (eurCents != null) return formatMoneyEUR(eurCents);
+
+  // 2) Ako je currency=EUR ali nema total_eur_cents:
+  //    fallback: pretpostavi da je total_price u centima EUR (950 => 9.50€)
+  const totalPrice = safeNumber(order.total_price);
+  if (currency === "EUR" && totalPrice != null) {
+    return formatMoneyEUR(totalPrice);
+  }
+
+  // 3) legacy RSD
+  if (totalPrice != null) return formatMoneyRSD(totalPrice);
+
+  return "N/A";
+}
+
+function buildMessage(order: InsertOrderPayload) {
+  const name = safeString(order.customer_name);
+  const phone = safeString(order.customer_phone);
+  const address = safeString(order.customer_address);
+
+  const header = `🍕 Nova porudžbina (PENDING)`;
+
+  const meta: string[] = [];
+  if (name) meta.push(`<b>Ime:</b> ${name}`);
+  if (phone) meta.push(`<b>Telefon:</b> ${phone}`);
+  if (address) meta.push(`<b>Adresa:</b> ${address}`);
+
+  const totalStr = computeTotalString(order);
+  meta.push(`<b>Ukupno:</b> ${totalStr}`);
+
+  const note = extractOrderNote(order.items);
+  if (note) meta.push(`<b>Napomena:</b> ${note}`);
+
+  const currency = safeString(order.currency).toUpperCase();
+  const preferEur = safeNumber(order.total_eur_cents) != null || currency === "EUR";
+
+  const lineItems = extractLineItems(order.items);
+  const lines: string[] = [];
+
+  for (const it of lineItems) {
+    if (!it || typeof it !== "object" || Array.isArray(it)) continue;
+
+    const n = safeString((it as any).name) || "Stavka";
+    const qty = Math.max(1, Math.floor(safeNumber((it as any).quantity) ?? 1));
+
+    // u tvom payloadu je price_per_item već u centima za EUR mode (950) → formatMoneyEUR očekuje centse
+    const ppi = safeNumber((it as any).price_per_item) ?? 0;
+    const lineTotal = ppi * qty;
+
+    const money = preferEur ? formatMoneyEUR(lineTotal) : formatMoneyRSD(lineTotal);
+
+    const size = safeString((it as any).size);
+    const sizeSuffix = size ? ` (${size})` : "";
+
+    lines.push(`• ${n}${sizeSuffix} x${qty} — ${money}`);
+  }
+
+  const body = lines.length ? `\n\n<b>Stavke:</b>\n${lines.join("\n")}` : "";
+
+  return `${header}\n\n${meta.join("\n")}${body}`;
+}
+
 async function sendTelegramMessage(text: string) {
   const token = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
   const chatId = Deno.env.get("TELEGRAM_CHAT_ID") ?? "";
 
   if (!token || !chatId) {
-    return {
-      ok: false,
-      error: "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID",
-    };
+    return { ok: false, error: "Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID" };
   }
 
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -122,112 +230,98 @@ async function sendTelegramMessage(text: string) {
   });
 
   const json = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    return { ok: false, status: res.status, json };
-  }
-
+  if (!res.ok) return { ok: false, status: res.status, json };
   return { ok: true, json };
 }
 
-function buildMessage(order: InsertOrderPayload) {
-  const name = safeString(order.customer_name);
-  const phone = safeString(order.customer_phone);
-  const address = safeString(order.customer_address);
 
-  const currency = safeString(order.currency).toUpperCase();
+serve(async (req) => {
+  try {
+    const secret = getSecret();
+    if (!secret) {
+      console.log("Missing TELEGRAM_WEBHOOK_SECRET or WEBHOOK_SECRET");
+    }
+    if (secret) {
+      const header = req.headers.get("x-webhook-secret") ?? "";
+      if (header !== secret) {
+        console.log("Unauthorized webhook (secret mismatch)");
+        return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        });
+      }
+    }
 
-  const total =
-    currency === "EUR" || typeof order.total_eur_cents === "number"
-      ? formatMoneyEUR(
-          typeof order.total_eur_cents === "number" ? order.total_eur_cents : order.total_price
-        )
-      : formatMoneyRSD(order.total_price);
+    const body = (await req.json().catch(() => null)) as WebhookBody | null;
+    const record = pickRecord(body);
 
-  const header = `🍕 Nova porudžbina (PENDING)`;
-  const meta: string[] = [];
-
-  if (name) meta.push(`<b>Ime:</b> ${name}`);
-  if (phone) meta.push(`<b>Telefon:</b> ${phone}`);
-  if (address) meta.push(`<b>Adresa:</b> ${address}`);
-  meta.push(`<b>Ukupno:</b> ${total}`);
-
-  const itemsRaw = order.items;
-  let lines: string[] = [];
-
-  if (Array.isArray(itemsRaw)) {
-    const rawList = itemsRaw.slice(1);
-    lines = rawList
-      .filter((x) => x && typeof x === "object" && !Array.isArray(x))
-      .map((it: any) => {
-        const n = safeString(it.name);
-        const qty = Math.max(1, Math.floor(safeNumber(it.quantity, 1)));
-        const pricePerItem = safeNumber(it.price_per_item, 0);
-        const lineTotal = pricePerItem * qty;
-
-        const money =
-          currency === "EUR" || typeof order.total_eur_cents === "number"
-            ? formatMoneyEUR(lineTotal)
-            : formatMoneyRSD(lineTotal);
-
-        const size = safeString(it.size);
-        const sizeSuffix = size ? ` (${size})` : "";
-        return `• ${n}${sizeSuffix} x${qty} — ${money}`;
-      });
-  }
-
-  const body = lines.length ? `\n\n<b>Stavke:</b>\n${lines.join("\n")}` : "";
-
-  return `${header}\n\n${meta.join("\n")}${body}`;
-}
-
-function getSecret() {
-  return Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? Deno.env.get("WEBHOOK_SECRET") ?? "";
-}
-
-export default async function handler(req: Request): Promise<Response> {
-  const secret = getSecret();
-  if (secret) {
-    const header = req.headers.get("x-webhook-secret") ?? "";
-    if (header !== secret) {
-      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-        status: 401,
+    if (!record) {
+      console.log("Missing record in payload");
+      return new Response(JSON.stringify({ ok: false, error: "Missing record" }), {
+        status: 400,
         headers: { "content-type": "application/json" },
       });
     }
-  }
 
-  const body = (await req.json().catch(() => null)) as WebhookBody | null;
-  const record = body?.record;
+    const id = safeString(record.id);
+    if (id && seenRecently(id)) {
+      return new Response(JSON.stringify({ ok: true, skipped: "duplicate" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
 
-  if (!record) {
-    return new Response(JSON.stringify({ ok: false, error: "Missing record" }), {
-      status: 400,
+    const status = safeString((record as any).status);
+    if (status && status !== "pending") {
+      return new Response(JSON.stringify({ ok: true, skipped: "not-pending" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    // DEBUG: vidi šta je stiglo
+    console.log("Order received:", {
+      id: record.id,
+      currency: record.currency,
+      total_eur_cents: record.total_eur_cents,
+      total_price: record.total_price,
+      has_items: Array.isArray(record.items) ? (record.items as any[]).length : typeof record.items,
+      order_note: extractOrderNote(record.items),
+    });
+
+    // Izračunaj EUR iznos
+    let eurCents = safeNumber(record.total_eur_cents);
+    let currency = safeString(record.currency).toUpperCase();
+    let totalPrice = safeNumber(record.total_price);
+    let computedTotal = "N/A";
+    if (eurCents != null) {
+      computedTotal = formatMoneyEUR(eurCents);
+    } else if (currency === "EUR" && totalPrice != null) {
+      computedTotal = formatMoneyEUR(totalPrice);
+    } else if (totalPrice != null) {
+      computedTotal = formatMoneyRSD(totalPrice);
+    }
+    console.log("Computed total:", computedTotal);
+
+    // Napomena iz items[0].order_note
+    const note = extractOrderNote(record.items);
+    if (!note) {
+      console.log("No order note found in items[0].order_note");
+    }
+
+    const text = buildMessage(record);
+    const sent = await sendTelegramMessage(text);
+
+    return new Response(JSON.stringify(sent), {
+      status: sent.ok ? 200 : 500,
+      headers: { "content-type": "application/json" },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log("Handler error:", msg);
+    return new Response(JSON.stringify({ ok: false, error: msg }), {
+      status: 500,
       headers: { "content-type": "application/json" },
     });
   }
-
-  const id = safeString(record.id);
-  if (id && seenRecently(id)) {
-    return new Response(JSON.stringify({ ok: true, skipped: "duplicate" }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  const status = safeString((record as any).status);
-  if (status && status !== "pending") {
-    return new Response(JSON.stringify({ ok: true, skipped: "not-pending" }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  const text = buildMessage(record);
-  const sent = await sendTelegramMessage(text);
-
-  return new Response(JSON.stringify(sent), {
-    status: sent.ok ? 200 : 500,
-    headers: { "content-type": "application/json" },
-  });
-}
+});
