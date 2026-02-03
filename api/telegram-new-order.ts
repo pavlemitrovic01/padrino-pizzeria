@@ -5,21 +5,19 @@ type OrderRow = {
   customer_address: string | null;
   currency: string | null;
 
-  // novo polje (EUR cente)
   total_eur_cents: number | null;
-
-  // legacy polje (u našem sistemu je takođe EUR cente)
   total_price?: number | null;
 
   status: string | null;
   items: any; // jsonb
 };
 
+type TelegramStatus = "sent" | "failed";
+
 function env(name: string): string {
-  // Prioritet: server env, fallback na VITE_*
   let v = process.env[name];
 
-  // fallback samo za Supabase (ako server var fali)
+  // fallback samo za Supabase
   if (!v && name === "SUPABASE_URL") v = process.env["VITE_SUPABASE_URL"];
   if (!v && name === "SUPABASE_SERVICE_ROLE_KEY") v = process.env["VITE_SUPABASE_ANON_KEY"];
 
@@ -41,13 +39,6 @@ function formatMoneyEURFromCents(cents: number) {
   return `${value} €`;
 }
 
-/**
- * Podrška za više payload formata:
- * - Frontend/manual: { order_id: "uuid" }
- * - Supabase DB webhook (Record): { record: { id: "uuid", ... } }
- * - Neki webhooki šalju new_record: { new_record: { id: "uuid" } }
- * - Fallback: { id: "uuid" }
- */
 function extractOrderId(body: any): string {
   const direct = safeStr(body?.order_id).trim();
   if (direct) return direct;
@@ -133,6 +124,18 @@ function buildTelegramText(order: OrderRow) {
   return lines.join("\n");
 }
 
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
   const SUPABASE_URL = env("SUPABASE_URL");
   const SERVICE_ROLE = env("SUPABASE_SERVICE_ROLE_KEY");
@@ -143,14 +146,18 @@ async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
     `&id=eq.${encodeURIComponent(orderId)}` +
     `&limit=1`;
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      apikey: SERVICE_ROLE,
-      Authorization: `Bearer ${SERVICE_ROLE}`,
-      "Content-Type": "application/json",
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        apikey: SERVICE_ROLE,
+        Authorization: `Bearer ${SERVICE_ROLE}`,
+        "Content-Type": "application/json",
+      },
     },
-  });
+    5000
+  );
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
@@ -162,42 +169,85 @@ async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
 }
 
 function assertGroupChatId(chatId: string) {
-  // grupa/supergrupa chat id je negativan
   if (!chatId.startsWith("-")) {
     throw new Error("Misconfigured TELEGRAM_CHAT_ID: must be a group/supergroup id (negative)");
   }
 }
 
-async function sendTelegram(text: string) {
-  const token = env("TELEGRAM_BOT_TOKEN");
-  const chatId = env("TELEGRAM_CHAT_ID");
-  assertGroupChatId(chatId);
+async function sendTelegramBestEffort(orderId: string, text: string): Promise<TelegramStatus> {
+  try {
+    const token = env("TELEGRAM_BOT_TOKEN");
+    const chatId = env("TELEGRAM_CHAT_ID");
+    assertGroupChatId(chatId);
 
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: "Markdown",
-      disable_web_page_preview: true,
-    }),
-  });
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: "Markdown",
+          disable_web_page_preview: true,
+        }),
+      },
+      5000
+    );
 
-  const json = await res.json().catch(() => null);
+    const json = await res.json().catch(() => null);
 
-  if (!res.ok || !json?.ok) {
-    throw new Error(`Telegram send failed: ${res.status} ${JSON.stringify(json)}`);
+    if (!res.ok || !json?.ok) {
+      console.error("[telegram] FAILED", { orderId, status: res.status, body: json });
+      return "failed";
+    }
+
+    console.log("[telegram] SENT", { orderId });
+    return "sent";
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[telegram] FAILED", { orderId, error: msg });
+    return "failed";
   }
-
-  return json;
 }
 
-// NAMJERNO bez @vercel/node import-a -> nema TS2307 na Vercel-u
+/**
+ * CORS (minimalno, bez rizika):
+ * - Dozvoljavamo samo localhost dev origin-e da mogu da gađaju PROD endpoint iz browsera.
+ * - U produkciji normalno radi same-origin, ali ovo ne smeta.
+ */
+function applyCors(req: any, res: any) {
+  const origin = typeof req?.headers?.origin === "string" ? req.headers.origin : "";
+
+  const allowed = new Set<string>([
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+  ]);
+
+  if (allowed.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  // (ne šaljemo cookies, pa credentials ne treba)
+}
+
 export default async function handler(req: any, res: any) {
   try {
+    applyCors(req, res);
+
+    // Preflight
+    if (req?.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+
     if (req?.method !== "POST") {
       res.status(405).json({ ok: false, error: "Method not allowed" });
       return;
@@ -222,9 +272,11 @@ export default async function handler(req: any, res: any) {
     }
 
     const text = buildTelegramText(order);
-    await sendTelegram(text);
 
-    res.status(200).json({ ok: true });
+    // Best-effort: nikad SPOF
+    const telegram = await sendTelegramBestEffort(orderId, text);
+
+    res.status(200).json({ ok: true, telegram });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ ok: false, error: msg });
