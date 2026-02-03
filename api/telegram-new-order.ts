@@ -4,23 +4,23 @@ type OrderRow = {
   customer_phone: string | null;
   customer_address: string | null;
   currency: string | null;
+
+  // novo polje (EUR cente)
   total_eur_cents: number | null;
+
+  // legacy polje (u našem sistemu je takođe EUR cente)
+  total_price?: number | null;
+
   status: string | null;
   items: any; // jsonb
 };
 
-type ApiRequest = {
-  method?: string;
-  body?: any;
-};
 
-type ApiResponse = {
-  status: (code: number) => ApiResponse;
-  json: (data: any) => void;
-};
 
-function env(name: string) {
-  const v = process.env[name];
+  // Prioritet: server env, fallback na VITE_*
+  let v = process.env[name];
+  if (!v && name === "SUPABASE_URL") v = process.env["VITE_SUPABASE_URL"];
+  if (!v && name === "SUPABASE_SERVICE_ROLE_KEY") v = process.env["VITE_SUPABASE_ANON_KEY"];
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
 }
@@ -39,12 +39,47 @@ function formatMoneyEURFromCents(cents: number) {
   return `${value} €`;
 }
 
+/**
+ * Podrška za više payload formata:
+ * - Frontend/manual: { order_id: "uuid" }
+ * - Supabase DB webhook (Record): { record: { id: "uuid", ... } }
+ * - Neki webhooki šalju new_record: { new_record: { id: "uuid" } }
+ * - Fallback: { id: "uuid" }
+ */
+function extractOrderId(body: any): string {
+  const direct = safeStr(body?.order_id).trim();
+  if (direct) return direct;
+
+  const recordId = safeStr(body?.record?.id).trim();
+  if (recordId) return recordId;
+
+  const newRecordId = safeStr(body?.new_record?.id).trim();
+  if (newRecordId) return newRecordId;
+
+  const id = safeStr(body?.id).trim();
+  if (id) return id;
+
+  return "";
+}
+
+function computeTotalCents(order: OrderRow): number {
+  // Primarno: total_eur_cents
+  const eurCents = safeInt(order.total_eur_cents, 0);
+  if (eurCents > 0) return eurCents;
+
+  // Fallback: legacy total_price (u našem sistemu je isto EUR cente)
+  const legacy = safeInt((order as any).total_price, 0);
+  if (legacy > 0) return legacy;
+
+  return 0;
+}
+
 function buildTelegramText(order: OrderRow) {
   const name = safeStr(order.customer_name) || "—";
   const phone = safeStr(order.customer_phone) || "—";
   const address = safeStr(order.customer_address) || "—";
   const status = safeStr(order.status) || "—";
-  const totalCents = safeInt(order.total_eur_cents, 0);
+  const totalCents = computeTotalCents(order);
 
   const items = Array.isArray(order.items) ? order.items : [];
   const meta = items.length > 0 && typeof items[0] === "object" ? items[0] : null;
@@ -101,9 +136,10 @@ async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
   const SUPABASE_URL = env("SUPABASE_URL");
   const SERVICE_ROLE = env("SUPABASE_SERVICE_ROLE_KEY");
 
+  // DODATO: total_price u select (legacy fallback)
   const url =
     `${SUPABASE_URL}/rest/v1/orders` +
-    `?select=id,customer_name,customer_phone,customer_address,currency,total_eur_cents,status,items` +
+    `?select=id,customer_name,customer_phone,customer_address,currency,total_eur_cents,total_price,status,items` +
     `&id=eq.${encodeURIComponent(orderId)}` +
     `&limit=1`;
 
@@ -126,10 +162,10 @@ async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
 }
 
 function assertGroupChatId(chatId: string) {
-  // Zaključavanje: prihvatamo samo group/supergroup ID (negativan).
-  // Privatni chat id je pozitivan i neće proći.
   if (!chatId.startsWith("-")) {
-    throw new Error("Misconfigured TELEGRAM_CHAT_ID: must be a group/supergroup id (negative)");
+    throw new Error(
+      "Misconfigured TELEGRAM_CHAT_ID: must be a group/supergroup id (negative)"
+    );
   }
 }
 
@@ -160,18 +196,19 @@ async function sendTelegram(text: string) {
   return json;
 }
 
-export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     if (req.method !== "POST") {
       res.status(405).json({ ok: false, error: "Method not allowed" });
       return;
     }
 
-    const body = req.body ?? {};
-    const orderId = safeStr((body as any).order_id).trim();
+    // Očekujemo JSON body oblika { order_id: string }
+    let body = req.body;
+    if (!body || typeof body !== "object") body = {};
+    const orderId = safeStr(body.order_id).trim();
 
     if (!orderId) {
-      res.status(400).json({ ok: false, error: "Missing order_id" });
+      res.status(400).json({ ok: false, error: "Missing order_id in body. Expected: { order_id: string }" });
       return;
     }
 
