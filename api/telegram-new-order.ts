@@ -1,4 +1,14 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+// api/telegram-new-order.ts
+
+type VercelRequest = {
+  method?: string;
+  body?: any;
+};
+
+type VercelResponse = {
+  status: (code: number) => VercelResponse;
+  json: (payload: any) => void;
+};
 
 type OrderRow = {
   id: string;
@@ -15,11 +25,6 @@ function env(name: string) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
-}
-
-function envOptional(name: string) {
-  const v = process.env[name];
-  return v ? v : null;
 }
 
 function safeStr(v: unknown) {
@@ -61,7 +66,7 @@ function buildTelegramText(order: OrderRow) {
   lines.push("");
   lines.push("*Stavke:*");
 
-  // preskačemo meta na [0] ako postoji
+  // preskačemo meta na [0]
   const realItems = items.slice(meta ? 1 : 0);
 
   for (const it of realItems) {
@@ -93,19 +98,6 @@ function buildTelegramText(order: OrderRow) {
   lines.push(`💶 Ukupno: *${formatMoneyEURFromCents(totalCents)}*`);
 
   return lines.join("\n");
-}
-
-function extractOrderIdFromBody(body: any): string {
-  // podržimo oba formata:
-  // 1) { order_id: "..." } (frontend)
-  // 2) { record: { id: "..." } } (Supabase webhook oblik)
-  const direct = safeStr(body?.order_id).trim();
-  if (direct) return direct;
-
-  const fromRecord = safeStr(body?.record?.id).trim();
-  if (fromRecord) return fromRecord;
-
-  return "";
 }
 
 async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
@@ -162,21 +154,6 @@ async function sendTelegram(text: string) {
   return json;
 }
 
-function enforceOptionalWebhookSecret(req: VercelRequest) {
-  // Pravilo (stabilno, bez nagađanja):
-  // - Ako TELEGRAM_WEBHOOK_SECRET NIJE postavljen -> ne tražimo header (frontend može da radi).
-  // - Ako TELEGRAM_WEBHOOK_SECRET JESTE postavljen -> zahtijevamo x-webhook-secret.
-  const secret = envOptional("TELEGRAM_WEBHOOK_SECRET");
-  if (!secret) return;
-
-  const header = safeStr(req.headers["x-webhook-secret"]).trim();
-  if (!header || header !== secret) {
-    const err = new Error("Unauthorized (x-webhook-secret)");
-    (err as any).statusCode = 401;
-    throw err;
-  }
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (req.method !== "POST") {
@@ -184,17 +161,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return;
     }
 
-    // Enforce secret only if TELEGRAM_WEBHOOK_SECRET exists in env
-    enforceOptionalWebhookSecret(req);
-
     const body = req.body ?? {};
-    const orderId = extractOrderIdFromBody(body);
+    const orderId = safeStr((body as any).order_id).trim();
 
     if (!orderId) {
-      res.status(400).json({
-        ok: false,
-        error: "Missing order_id (or record.id)",
-      });
+      res.status(400).json({ ok: false, error: "Missing order_id" });
       return;
     }
 
@@ -207,10 +178,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const text = buildTelegramText(order);
     await sendTelegram(text);
 
-    res.status(200).json({ ok: true, sent: true, order_id: orderId });
+    res.status(200).json({ ok: true });
   } catch (e: any) {
-    const status = typeof e?.statusCode === "number" ? e.statusCode : 500;
     const msg = e instanceof Error ? e.message : String(e);
-    res.status(status).json({ ok: false, error: msg });
+    res.status(500).json({ ok: false, error: msg });
   }
 }
