@@ -7,8 +7,18 @@ import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLogs from "./pages/admin/AdminLogs";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
+import type { Session } from "@supabase/supabase-js";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
+
+// ✅ Minimalno i sigurno: admin = allowlist email-a (magic link + email check)
+const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
+
+function isAdminSession(session: Session | null): boolean {
+  const email =
+    typeof session?.user?.email === "string" ? session.user.email.trim().toLowerCase() : "";
+  return email.length > 0 && ADMIN_EMAILS.has(email);
+}
 
 export default function App() {
   const pathname = typeof window !== "undefined" ? window.location.pathname : "";
@@ -17,13 +27,11 @@ export default function App() {
   const isAdminLogsRoute = pathname === "/admin/logs" || pathname === "/admin/logs/";
   const isAdminRoute = pathname === "/admin" || pathname === "/admin/";
 
-  // Guard treba da radi za sve admin rute koje renderujemo ovdje (bez novog routera)
   const needsAdminGuard = isAdminRoute || isAdminLogsRoute;
 
   const [guardState, setGuardState] = useState<GuardState>("loading");
   const [checking, setChecking] = useState(true);
 
-  // Hardening: minimal online/offline signal (no libs, no routing changes).
   const [isOnline, setIsOnline] = useState<boolean>(() => {
     if (typeof navigator === "undefined") return true;
     return navigator.onLine;
@@ -72,14 +80,17 @@ export default function App() {
 
   useEffect(() => {
     if (!needsAdminGuard) return;
+
     let mounted = true;
 
     async function checkSession() {
       setGuardState("loading");
       setChecking(true);
+
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      const session = data?.session;
+
+      const session = data?.session ?? null;
 
       if (!session || !session.user) {
         setGuardState("unauthenticated");
@@ -87,8 +98,7 @@ export default function App() {
         return;
       }
 
-      const role = session.user.user_metadata?.role;
-      setGuardState(role === "admin" ? "admin" : "not-admin");
+      setGuardState(isAdminSession(session) ? "admin" : "not-admin");
       setChecking(false);
     }
 
@@ -103,8 +113,7 @@ export default function App() {
         return;
       }
 
-      const role = session.user.user_metadata?.role;
-      setGuardState(role === "admin" ? "admin" : "not-admin");
+      setGuardState(isAdminSession(session) ? "admin" : "not-admin");
       setChecking(false);
     });
 
@@ -126,7 +135,6 @@ export default function App() {
     );
   }
 
-  // Svi admin ekrani (orders / logs) idu kroz isti guard
   if (needsAdminGuard) {
     if (guardState === "loading" || checking) {
       return (
@@ -180,7 +188,6 @@ export default function App() {
       );
     }
 
-    // Admin je OK — biramo ekran po path-u (bez novih routera)
     if (isAdminLogsRoute) {
       return (
         <>
@@ -193,7 +200,6 @@ export default function App() {
       );
     }
 
-    // Default admin ekran: orders
     return (
       <>
         {onlineBanner}
@@ -205,7 +211,6 @@ export default function App() {
     );
   }
 
-  // Public app
   return (
     <>
       {onlineBanner}
