@@ -1,4 +1,3 @@
-
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 type OrderRow = {
@@ -16,6 +15,11 @@ function env(name: string) {
   const v = process.env[name];
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
+}
+
+function envOptional(name: string) {
+  const v = process.env[name];
+  return v ? v : null;
 }
 
 function safeStr(v: unknown) {
@@ -57,7 +61,7 @@ function buildTelegramText(order: OrderRow) {
   lines.push("");
   lines.push("*Stavke:*");
 
-  // preskačemo meta na [0]
+  // preskačemo meta na [0] ako postoji
   const realItems = items.slice(meta ? 1 : 0);
 
   for (const it of realItems) {
@@ -89,6 +93,19 @@ function buildTelegramText(order: OrderRow) {
   lines.push(`💶 Ukupno: *${formatMoneyEURFromCents(totalCents)}*`);
 
   return lines.join("\n");
+}
+
+function extractOrderIdFromBody(body: any): string {
+  // podržimo oba formata:
+  // 1) { order_id: "..." } (frontend)
+  // 2) { record: { id: "..." } } (Supabase webhook oblik)
+  const direct = safeStr(body?.order_id).trim();
+  if (direct) return direct;
+
+  const fromRecord = safeStr(body?.record?.id).trim();
+  if (fromRecord) return fromRecord;
+
+  return "";
 }
 
 async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
@@ -145,74 +162,55 @@ async function sendTelegram(text: string) {
   return json;
 }
 
+function enforceOptionalWebhookSecret(req: VercelRequest) {
+  // Pravilo (stabilno, bez nagađanja):
+  // - Ako TELEGRAM_WEBHOOK_SECRET NIJE postavljen -> ne tražimo header (frontend može da radi).
+  // - Ako TELEGRAM_WEBHOOK_SECRET JESTE postavljen -> zahtijevamo x-webhook-secret.
+  const secret = envOptional("TELEGRAM_WEBHOOK_SECRET");
+  if (!secret) return;
+
+  const header = safeStr(req.headers["x-webhook-secret"]).trim();
+  if (!header || header !== secret) {
+    const err = new Error("Unauthorized (x-webhook-secret)");
+    (err as any).statusCode = 401;
+    throw err;
+  }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    // 1. Provjera HTTP metode
     if (req.method !== "POST") {
       res.status(405).json({ ok: false, error: "Method not allowed" });
       return;
     }
 
-    // 2. Provjera x-webhook-secret headera
-    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-    const providedSecret = req.headers["x-webhook-secret"] || req.headers["X-Webhook-Secret"];
-    if (!expectedSecret) {
-      res.status(500).json({ ok: false, error: "Server misconfiguration: missing TELEGRAM_WEBHOOK_SECRET" });
-      return;
-    }
-    if (!providedSecret || safeStr(providedSecret) !== expectedSecret) {
-      res.status(401).json({ ok: false, error: "Unauthorized: invalid or missing webhook secret" });
-      return;
-    }
+    // Enforce secret only if TELEGRAM_WEBHOOK_SECRET exists in env
+    enforceOptionalWebhookSecret(req);
 
-    // 3. Parsiranje order_id iz payloada
     const body = req.body ?? {};
-    let orderId = "";
-    if (typeof body === "object" && body !== null) {
-      if ("order_id" in body) {
-        orderId = safeStr((body as any).order_id).trim();
-      } else if ("record" in body && typeof (body as any).record === "object" && (body as any).record !== null) {
-        orderId = safeStr((body as any).record.id).trim();
-      }
-    }
+    const orderId = extractOrderIdFromBody(body);
 
     if (!orderId) {
-      console.log({ phase: "validate", order_id: orderId || undefined });
-      res.status(400).json({ ok: false, error: "Missing order_id in payload (expected { order_id } or { record: { id } })" });
+      res.status(400).json({
+        ok: false,
+        error: "Missing order_id (or record.id)",
+      });
       return;
     }
-    console.log({ phase: "validate", order_id: orderId });
 
-    // 4. Fetch order
-    let order: OrderRow | null = null;
-    try {
-      order = await fetchOrderById(orderId);
-    } catch (err) {
-      console.log({ phase: "fetch", order_id: orderId, error: err instanceof Error ? err.message : String(err) });
-      res.status(502).json({ ok: false, error: "Failed to fetch order from database" });
-      return;
-    }
+    const order = await fetchOrderById(orderId);
     if (!order) {
-      console.log({ phase: "fetch", order_id: orderId, error: "Order not found" });
       res.status(404).json({ ok: false, error: "Order not found" });
       return;
     }
-    console.log({ phase: "fetch", order_id: orderId });
 
-    // 5. Slanje na Telegram
-    let sent: any = null;
-    try {
-      const text = buildTelegramText(order);
-      sent = await sendTelegram(text);
-    } catch (err) {
-      console.log({ phase: "telegram", order_id: orderId, error: err instanceof Error ? err.message : String(err) });
-      res.status(502).json({ ok: false, error: "Failed to send Telegram message" });
-      return;
-    }
-    console.log({ phase: "telegram", order_id: orderId });
+    const text = buildTelegramText(order);
+    await sendTelegram(text);
 
-    res.status(200).json({ ok: true, telegram: sent?.result ? true : true });
+    res.status(200).json({ ok: true, sent: true, order_id: orderId });
   } catch (e: any) {
+    const status = typeof e?.statusCode === "number" ? e.statusCode : 500;
     const msg = e instanceof Error ? e.message : String(e);
-    res.status(500).json({ ok: false, error: msg });
+    res.status(status).json({ ok: false, error: msg });
   }
 }
