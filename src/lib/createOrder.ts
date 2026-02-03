@@ -65,6 +65,25 @@ function formatSupabaseError(err: any) {
   return parts.filter(Boolean).join(" — ") || "Greška pri slanju porudžbine.";
 }
 
+async function notifyTelegramViaVercel(orderId: string) {
+  // Ne rušimo porudžbinu ako Telegram padne, ali logujemo.
+  try {
+    const res = await fetch("/api/telegram-new-order", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      console.error("Telegram API failed:", res.status, json);
+    }
+  } catch (e) {
+    console.error("Telegram API error:", e);
+  }
+}
+
 export async function createOrder(payload: CreateOrderPayload) {
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
@@ -77,10 +96,10 @@ export async function createOrder(payload: CreateOrderPayload) {
   const items = Array.isArray(payload.items) ? payload.items : [];
   if (items.length === 0) throw new Error("Korpa je prazna.");
 
-  const total_price = safeInt(payload.total_price, 0);
+  const total_price_cents = safeInt(payload.total_price, 0);
   const total_items = safeInt(payload.total_items, 0);
 
-  if (total_items <= 0 || total_price <= 0) {
+  if (total_items <= 0 || total_price_cents <= 0) {
     throw new Error("Neispravan obračun korpe.");
   }
 
@@ -116,34 +135,44 @@ export async function createOrder(payload: CreateOrderPayload) {
   const order_note = payload.note ? payload.note.trim() || null : null;
 
   // Backwards compatible meta zapis u orders.items[0]
-  const meta: Record<string, any> = {
-    total_items,
-  };
-
+  const meta: Record<string, any> = { total_items };
   if (order_note) meta.order_note = order_note;
-
   normalizedItems.unshift(meta);
 
-  const row = {
+  // Bitno:
+  // - total_eur_cents je int (cente)
+  // - total_price (legacy numeric EUR) ostavljamo NULL da ga BEFORE INSERT trigger popuni iz total_eur_cents/100
+  const row: Record<string, any> = {
     customer_name,
     customer_phone,
     customer_address,
     items: normalizedItems,
 
-    // legacy (koristi se u starom admin/telegram) — sada je EUR cente
-    total_price,
+    // legacy EUR numeric -> neka trigger popuni (da ne upišemo 950 umjesto 9.50)
+    total_price: null,
 
-    // nova EUR polja
     currency: "EUR",
-    total_eur_cents: total_price,
+    total_eur_cents: total_price_cents,
     fx_rsd_per_eur: null,
 
     status: "pending",
   };
 
-  const { error } = await supabase.from("orders").insert([row]);
+  const { data, error } = await supabase
+    .from("orders")
+    .insert([row])
+    .select("id")
+    .single();
 
   if (error) throw new Error(formatSupabaseError(error));
 
-  return { success: true };
+  const orderId = String((data as any)?.id ?? "").trim();
+  if (orderId) {
+    // Telegram šaljemo server-side preko Vercel API-ja
+    void notifyTelegramViaVercel(orderId);
+  } else {
+    console.warn("Order inserted but no id returned; telegram not triggered.");
+  }
+
+  return { success: true, orderId };
 }

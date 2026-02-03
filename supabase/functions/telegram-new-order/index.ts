@@ -78,13 +78,18 @@ function formatMoneyRSD(value: number) {
   }
 }
 
-function getSecret() {
-  // back-compat
-  return (
+function requireWebhookSecret(): string {
+  const secret =
     Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ??
     Deno.env.get("WEBHOOK_SECRET") ??
-    ""
-  );
+    "";
+
+  // DETERMINISTIČKI: ako nema secreta, failuj odmah (da ne ostane “otvoren” endpoint)
+  if (!secret) {
+    throw new Error("Missing TELEGRAM_WEBHOOK_SECRET (or WEBHOOK_SECRET). Set it in Settings → Vault (BETA) then redeploy.");
+  }
+
+  return secret;
 }
 
 function pickRecord(body: WebhookBody | null): InsertOrderPayload | null {
@@ -145,17 +150,10 @@ function computeTotalString(order: InsertOrderPayload): string {
   const currency = safeString(order.currency).toUpperCase();
   const eurCents = safeNumber(order.total_eur_cents);
 
-  // 1) Ako imamo total_eur_cents → uvek EUR (ovo je “source of truth”)
   if (eurCents != null) return formatMoneyEUR(eurCents);
 
-  // 2) Ako je currency=EUR ali nema total_eur_cents:
-  //    fallback: pretpostavi da je total_price u centima EUR (950 => 9.50€)
   const totalPrice = safeNumber(order.total_price);
-  if (currency === "EUR" && totalPrice != null) {
-    return formatMoneyEUR(totalPrice);
-  }
-
-  // 3) legacy RSD
+  if (currency === "EUR" && totalPrice != null) return formatMoneyEUR(totalPrice);
   if (totalPrice != null) return formatMoneyRSD(totalPrice);
 
   return "N/A";
@@ -173,8 +171,7 @@ function buildMessage(order: InsertOrderPayload) {
   if (phone) meta.push(`<b>Telefon:</b> ${phone}`);
   if (address) meta.push(`<b>Adresa:</b> ${address}`);
 
-  const totalStr = computeTotalString(order);
-  meta.push(`<b>Ukupno:</b> ${totalStr}`);
+  meta.push(`<b>Ukupno:</b> ${computeTotalString(order)}`);
 
   const note = extractOrderNote(order.items);
   if (note) meta.push(`<b>Napomena:</b> ${note}`);
@@ -190,8 +187,6 @@ function buildMessage(order: InsertOrderPayload) {
 
     const n = safeString((it as any).name) || "Stavka";
     const qty = Math.max(1, Math.floor(safeNumber((it as any).quantity) ?? 1));
-
-    // u tvom payloadu je price_per_item već u centima za EUR mode (950) → formatMoneyEUR očekuje centse
     const ppi = safeNumber((it as any).price_per_item) ?? 0;
     const lineTotal = ppi * qty;
 
@@ -204,7 +199,6 @@ function buildMessage(order: InsertOrderPayload) {
   }
 
   const body = lines.length ? `\n\n<b>Stavke:</b>\n${lines.join("\n")}` : "";
-
   return `${header}\n\n${meta.join("\n")}${body}`;
 }
 
@@ -234,29 +228,24 @@ async function sendTelegramMessage(text: string) {
   return { ok: true, json };
 }
 
-
 serve(async (req) => {
   try {
-    const secret = getSecret();
-    if (!secret) {
-      console.log("Missing TELEGRAM_WEBHOOK_SECRET or WEBHOOK_SECRET");
-    }
-    if (secret) {
-      const header = req.headers.get("x-webhook-secret") ?? "";
-      if (header !== secret) {
-        console.log("Unauthorized webhook (secret mismatch)");
-        return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-          status: 401,
-          headers: { "content-type": "application/json" },
-        });
-      }
+    // 1) Secret MUST exist, иначе fail odmah (stabilno ponašanje)
+    const secret = requireWebhookSecret();
+
+    // 2) Secret MUST match header
+    const header = req.headers.get("x-webhook-secret") ?? "";
+    if (header !== secret) {
+      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
     }
 
     const body = (await req.json().catch(() => null)) as WebhookBody | null;
     const record = pickRecord(body);
 
     if (!record) {
-      console.log("Missing record in payload");
       return new Response(JSON.stringify({ ok: false, error: "Missing record" }), {
         status: 400,
         headers: { "content-type": "application/json" },
@@ -279,36 +268,6 @@ serve(async (req) => {
       });
     }
 
-    // DEBUG: vidi šta je stiglo
-    console.log("Order received:", {
-      id: record.id,
-      currency: record.currency,
-      total_eur_cents: record.total_eur_cents,
-      total_price: record.total_price,
-      has_items: Array.isArray(record.items) ? (record.items as any[]).length : typeof record.items,
-      order_note: extractOrderNote(record.items),
-    });
-
-    // Izračunaj EUR iznos
-    let eurCents = safeNumber(record.total_eur_cents);
-    let currency = safeString(record.currency).toUpperCase();
-    let totalPrice = safeNumber(record.total_price);
-    let computedTotal = "N/A";
-    if (eurCents != null) {
-      computedTotal = formatMoneyEUR(eurCents);
-    } else if (currency === "EUR" && totalPrice != null) {
-      computedTotal = formatMoneyEUR(totalPrice);
-    } else if (totalPrice != null) {
-      computedTotal = formatMoneyRSD(totalPrice);
-    }
-    console.log("Computed total:", computedTotal);
-
-    // Napomena iz items[0].order_note
-    const note = extractOrderNote(record.items);
-    if (!note) {
-      console.log("No order note found in items[0].order_note");
-    }
-
     const text = buildMessage(record);
     const sent = await sendTelegramMessage(text);
 
@@ -318,7 +277,6 @@ serve(async (req) => {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.log("Handler error:", msg);
     return new Response(JSON.stringify({ ok: false, error: msg }), {
       status: 500,
       headers: { "content-type": "application/json" },

@@ -1,3 +1,4 @@
+
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 type OrderRow = {
@@ -144,29 +145,70 @@ async function sendTelegram(text: string) {
   return json;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
+    // 1. Provjera HTTP metode
     if (req.method !== "POST") {
       res.status(405).json({ ok: false, error: "Method not allowed" });
       return;
     }
 
-    const body = req.body ?? {};
-    const orderId = safeStr((body as any).order_id).trim();
-
-    if (!orderId) {
-      res.status(400).json({ ok: false, error: "Missing order_id" });
+    // 2. Provjera x-webhook-secret headera
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    const providedSecret = req.headers["x-webhook-secret"] || req.headers["X-Webhook-Secret"];
+    if (!expectedSecret) {
+      res.status(500).json({ ok: false, error: "Server misconfiguration: missing TELEGRAM_WEBHOOK_SECRET" });
+      return;
+    }
+    if (!providedSecret || safeStr(providedSecret) !== expectedSecret) {
+      res.status(401).json({ ok: false, error: "Unauthorized: invalid or missing webhook secret" });
       return;
     }
 
-    const order = await fetchOrderById(orderId);
+    // 3. Parsiranje order_id iz payloada
+    const body = req.body ?? {};
+    let orderId = "";
+    if (typeof body === "object" && body !== null) {
+      if ("order_id" in body) {
+        orderId = safeStr((body as any).order_id).trim();
+      } else if ("record" in body && typeof (body as any).record === "object" && (body as any).record !== null) {
+        orderId = safeStr((body as any).record.id).trim();
+      }
+    }
+
+    if (!orderId) {
+      console.log({ phase: "validate", order_id: orderId || undefined });
+      res.status(400).json({ ok: false, error: "Missing order_id in payload (expected { order_id } or { record: { id } })" });
+      return;
+    }
+    console.log({ phase: "validate", order_id: orderId });
+
+    // 4. Fetch order
+    let order: OrderRow | null = null;
+    try {
+      order = await fetchOrderById(orderId);
+    } catch (err) {
+      console.log({ phase: "fetch", order_id: orderId, error: err instanceof Error ? err.message : String(err) });
+      res.status(502).json({ ok: false, error: "Failed to fetch order from database" });
+      return;
+    }
     if (!order) {
+      console.log({ phase: "fetch", order_id: orderId, error: "Order not found" });
       res.status(404).json({ ok: false, error: "Order not found" });
       return;
     }
+    console.log({ phase: "fetch", order_id: orderId });
 
-    const text = buildTelegramText(order);
-    const sent = await sendTelegram(text);
+    // 5. Slanje na Telegram
+    let sent: any = null;
+    try {
+      const text = buildTelegramText(order);
+      sent = await sendTelegram(text);
+    } catch (err) {
+      console.log({ phase: "telegram", order_id: orderId, error: err instanceof Error ? err.message : String(err) });
+      res.status(502).json({ ok: false, error: "Failed to send Telegram message" });
+      return;
+    }
+    console.log({ phase: "telegram", order_id: orderId });
 
     res.status(200).json({ ok: true, telegram: sent?.result ? true : true });
   } catch (e: any) {
