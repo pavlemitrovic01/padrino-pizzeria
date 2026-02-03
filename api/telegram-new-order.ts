@@ -1,15 +1,3 @@
-// api/telegram-new-order.ts
-
-type VercelRequest = {
-  method?: string;
-  body?: any;
-};
-
-type VercelResponse = {
-  status: (code: number) => VercelResponse;
-  json: (payload: any) => void;
-};
-
 type OrderRow = {
   id: string;
   customer_name: string | null;
@@ -19,6 +7,16 @@ type OrderRow = {
   total_eur_cents: number | null;
   status: string | null;
   items: any; // jsonb
+};
+
+type ApiRequest = {
+  method?: string;
+  body?: any;
+};
+
+type ApiResponse = {
+  status: (code: number) => ApiResponse;
+  json: (data: any) => void;
 };
 
 function env(name: string) {
@@ -66,7 +64,6 @@ function buildTelegramText(order: OrderRow) {
   lines.push("");
   lines.push("*Stavke:*");
 
-  // preskačemo meta na [0]
   const realItems = items.slice(meta ? 1 : 0);
 
   for (const it of realItems) {
@@ -128,9 +125,18 @@ async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
   return data?.[0] ?? null;
 }
 
+function assertGroupChatId(chatId: string) {
+  // Zaključavanje: prihvatamo samo group/supergroup ID (negativan).
+  // Privatni chat id je pozitivan i neće proći.
+  if (!chatId.startsWith("-")) {
+    throw new Error("Misconfigured TELEGRAM_CHAT_ID: must be a group/supergroup id (negative)");
+  }
+}
+
 async function sendTelegram(text: string) {
   const token = env("TELEGRAM_BOT_TOKEN");
   const chatId = env("TELEGRAM_CHAT_ID");
+  assertGroupChatId(chatId);
 
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
@@ -154,7 +160,7 @@ async function sendTelegram(text: string) {
   return json;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   try {
     if (req.method !== "POST") {
       res.status(405).json({ ok: false, error: "Method not allowed" });
