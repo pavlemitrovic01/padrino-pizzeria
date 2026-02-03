@@ -15,12 +15,14 @@ type OrderRow = {
   items: any; // jsonb
 };
 
-
-
+function env(name: string): string {
   // Prioritet: server env, fallback na VITE_*
   let v = process.env[name];
+
+  // fallback samo za Supabase (ako server var fali)
   if (!v && name === "SUPABASE_URL") v = process.env["VITE_SUPABASE_URL"];
   if (!v && name === "SUPABASE_SERVICE_ROLE_KEY") v = process.env["VITE_SUPABASE_ANON_KEY"];
+
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
 }
@@ -63,11 +65,9 @@ function extractOrderId(body: any): string {
 }
 
 function computeTotalCents(order: OrderRow): number {
-  // Primarno: total_eur_cents
   const eurCents = safeInt(order.total_eur_cents, 0);
   if (eurCents > 0) return eurCents;
 
-  // Fallback: legacy total_price (u našem sistemu je isto EUR cente)
   const legacy = safeInt((order as any).total_price, 0);
   if (legacy > 0) return legacy;
 
@@ -83,6 +83,7 @@ function buildTelegramText(order: OrderRow) {
 
   const items = Array.isArray(order.items) ? order.items : [];
   const meta = items.length > 0 && typeof items[0] === "object" ? items[0] : null;
+
   const orderNote =
     meta && typeof meta.order_note === "string" && meta.order_note.trim().length
       ? meta.order_note.trim()
@@ -136,7 +137,6 @@ async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
   const SUPABASE_URL = env("SUPABASE_URL");
   const SERVICE_ROLE = env("SUPABASE_SERVICE_ROLE_KEY");
 
-  // DODATO: total_price u select (legacy fallback)
   const url =
     `${SUPABASE_URL}/rest/v1/orders` +
     `?select=id,customer_name,customer_phone,customer_address,currency,total_eur_cents,total_price,status,items` +
@@ -162,10 +162,9 @@ async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
 }
 
 function assertGroupChatId(chatId: string) {
+  // grupa/supergrupa chat id je negativan
   if (!chatId.startsWith("-")) {
-    throw new Error(
-      "Misconfigured TELEGRAM_CHAT_ID: must be a group/supergroup id (negative)"
-    );
+    throw new Error("Misconfigured TELEGRAM_CHAT_ID: must be a group/supergroup id (negative)");
   }
 }
 
@@ -196,19 +195,23 @@ async function sendTelegram(text: string) {
   return json;
 }
 
+// NAMJERNO bez @vercel/node import-a -> nema TS2307 na Vercel-u
+export default async function handler(req: any, res: any) {
   try {
-    if (req.method !== "POST") {
+    if (req?.method !== "POST") {
       res.status(405).json({ ok: false, error: "Method not allowed" });
       return;
     }
 
-    // Očekujemo JSON body oblika { order_id: string }
-    let body = req.body;
-    if (!body || typeof body !== "object") body = {};
-    const orderId = safeStr(body.order_id).trim();
+    const body = req?.body && typeof req.body === "object" ? req.body : {};
+    const orderId = extractOrderId(body);
 
     if (!orderId) {
-      res.status(400).json({ ok: false, error: "Missing order_id in body. Expected: { order_id: string }" });
+      res.status(400).json({
+        ok: false,
+        error:
+          "Missing order id in body. Expected: { order_id } or { record: { id } } or { new_record: { id } } or { id }",
+      });
       return;
     }
 
@@ -222,7 +225,7 @@ async function sendTelegram(text: string) {
     await sendTelegram(text);
 
     res.status(200).json({ ok: true });
-  } catch (e: any) {
+  } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     res.status(500).json({ ok: false, error: msg });
   }

@@ -66,7 +66,14 @@ function formatSupabaseError(err: any) {
 }
 
 async function notifyTelegramViaVercel(orderId: string) {
-  // Ne rušimo porudžbinu ako Telegram padne, ali logujemo.
+  // DEV: Vite dev server nema /api rute -> 404 spam.
+  // Najstabilnije: u DEV ne šaljemo telegram iz browser-a.
+  if (import.meta.env.DEV) {
+    console.info("[telegram] DEV mode: Telegram notify je isključen (koristi 'vercel dev' za end-to-end test).");
+    return;
+  }
+
+  // PROD: Ne rušimo porudžbinu ako Telegram padne, ali logujemo.
   try {
     const res = await fetch("/api/telegram-new-order", {
       method: "POST",
