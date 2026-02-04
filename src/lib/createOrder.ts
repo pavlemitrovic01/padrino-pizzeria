@@ -91,6 +91,56 @@ async function notifyTelegramViaVercel(orderId: string) {
   }
 }
 
+/**
+ * KRITIČNO: Direktan PostgREST insert sa eksplicitnim headerima.
+ * Razlog: tvoj HAR pokazuje da supabase-js request stiže BEZ Authorization headera,
+ * pa RLS vidi request kao bez JWT claims -> 42501.
+ */
+async function insertOrderViaPostgrest(row: Record<string, any>): Promise<{ id: string }> {
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+  const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+  if (!SUPABASE_URL || !ANON_KEY) {
+    throw new Error("Supabase env nedostaje (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).");
+  }
+
+  // Insert 1 reda + vrati kao objekat (id)
+  const endpoint =
+    `${SUPABASE_URL}/rest/v1/orders` +
+    `?select=id`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      // PostgREST
+      "content-type": "application/json",
+      accept: "application/vnd.pgrst.object+json",
+      prefer: "return=representation",
+      "content-profile": "public",
+
+      // Supabase auth (projekat + JWT claims)
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify(row),
+  });
+
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok) {
+    // formatiramo slično supabase errorima
+    const msg =
+      (json && (json.message || json.error || json.hint || json.details)) ||
+      `HTTP ${res.status}`;
+    const code = json?.code ? `Kod: ${String(json.code)}` : `HTTP: ${res.status}`;
+    throw new Error([String(msg), code].filter(Boolean).join(" — "));
+  }
+
+  const id = String(json?.id ?? "").trim();
+  if (!id) throw new Error("Insert je prošao, ali id nije vraćen.");
+  return { id };
+}
+
 export async function createOrder(payload: CreateOrderPayload) {
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
@@ -165,17 +215,20 @@ export async function createOrder(payload: CreateOrderPayload) {
     status: "pending",
   };
 
-  const { data, error } = await supabase
-    .from("orders")
-    .insert([row])
-    .select("id")
-    .single();
+  // Primarni put: direktan PostgREST (najstabilnije za ovaj bug)
+  let orderId = "";
+  try {
+    const inserted = await insertOrderViaPostgrest(row);
+    orderId = inserted.id;
+  } catch (e: any) {
+    // Fallback: zadrži stari put radi dijagnostike (ne bi trebalo da radi, ali dobijamo jasniji error)
+    console.warn("[createOrder] PostgREST direct insert failed, trying supabase-js fallback:", e?.message || e);
+    const { data, error } = await supabase.from("orders").insert([row]).select("id").single();
+    if (error) throw new Error(formatSupabaseError(error));
+    orderId = String((data as any)?.id ?? "").trim();
+  }
 
-  if (error) throw new Error(formatSupabaseError(error));
-
-  const orderId = String((data as any)?.id ?? "").trim();
   if (orderId) {
-    // Telegram šaljemo server-side preko Vercel API-ja
     void notifyTelegramViaVercel(orderId);
   } else {
     console.warn("Order inserted but no id returned; telegram not triggered.");

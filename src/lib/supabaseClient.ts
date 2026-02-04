@@ -8,8 +8,9 @@ if (!url || !anon) {
 }
 
 /**
- * DEV-only debug: potvrđuje da URL i ANON key pripadaju ISTOM Supabase projektu.
- * Ne loguje kompletan key (samo fingerprint + decoded JWT metadata).
+ * DEV-only debug (bez curenja tajni):
+ * - potvrđuje da je anon key iz istog projekta kao URL
+ * - ispisuje samo fingerprint + par JWT polja
  */
 function base64UrlDecode(input: string): string {
   const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
@@ -64,8 +65,6 @@ function devAssertSupabaseConfigMatchesProject() {
   const payload = decodeJwtPayload(anon);
 
   const debug = {
-    urlPresent: Boolean(url),
-    anonPresent: Boolean(anon),
     urlHost: (() => {
       try {
         return new URL(url).hostname;
@@ -87,7 +86,7 @@ function devAssertSupabaseConfigMatchesProject() {
       : null,
   };
 
-  // @ts-expect-error - debug aid
+  // @ts-expect-error debug helper
   (globalThis as any).__padrinoSupabaseDebug = debug;
 
   // eslint-disable-next-line no-console
@@ -102,17 +101,32 @@ function devAssertSupabaseConfigMatchesProject() {
   if (!refMatches) {
     // eslint-disable-next-line no-console
     console.error(
-      '[Padrino][Supabase Debug] MISMATCH: VITE_SUPABASE_URL projekat i VITE_SUPABASE_ANON_KEY nisu isti. ' +
-        'Provjeri da key pripada projektu iz URL-a.'
+      '[Padrino][Supabase Debug] MISMATCH: VITE_SUPABASE_URL projekat i VITE_SUPABASE_ANON_KEY nisu isti.'
     );
     throw new Error(
-      'Supabase env mismatch: VITE_SUPABASE_URL i VITE_SUPABASE_ANON_KEY nisu iz istog projekta (vidi console log).'
+      'Supabase env mismatch: VITE_SUPABASE_URL i VITE_SUPABASE_ANON_KEY nisu iz istog projekta.'
     );
   }
 }
 
 devAssertSupabaseConfigMatchesProject();
 
+/**
+ * KRITIČNO:
+ * Forsiramo Authorization Bearer ANON ključ na SVE requestove.
+ * Tvoj HAR je dokazao da se ranije slao samo apikey (bez Authorization),
+ * i to završava kao RLS deny (42501).
+ */
 export const supabase = createClient(url, anon, {
-  auth: { persistSession: false },
+  global: {
+    headers: {
+      apikey: anon,
+      Authorization: `Bearer ${anon}`,
+    },
+  },
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
 });
