@@ -1,4 +1,3 @@
-import { supabase } from "./supabaseClient.ts";
 import { toSafeInt } from "./money";
 
 export type OrderItemAddonPayload = {
@@ -56,24 +55,20 @@ function isValidSize(size: unknown): size is "33" | "50" {
   return size === "33" || size === "50";
 }
 
-function formatSupabaseError(err: any) {
+function formatHttpError(status: number, body: any) {
+  // API vraća { ok:false, error, code? }
   const parts: string[] = [];
-  if (err?.message) parts.push(String(err.message));
-  if (err?.details) parts.push(String(err.details));
-  if (err?.hint) parts.push(String(err.hint));
-  if (err?.code) parts.push(`Kod: ${String(err.code)}`);
-  return parts.filter(Boolean).join(" — ") || "Greška pri slanju porudžbine.";
+  if (body?.error) parts.push(String(body.error));
+  if (body?.code) parts.push(`Kod: ${String(body.code)}`);
+  if (parts.length) return parts.join(" — ");
+  return `Greška pri slanju porudžbine. HTTP ${status}`;
 }
 
 async function notifyTelegramViaVercel(orderId: string) {
   // DEV: Vite dev server nema /api rute -> 404 spam.
-  // Najstabilnije: u DEV ne šaljemo telegram iz browser-a.
-  if (import.meta.env.DEV) {
-    console.info("[telegram] DEV mode: Telegram notify je isključen (koristi 'vercel dev' za end-to-end test).");
-    return;
-  }
+  if (import.meta.env.DEV) return;
 
-  // PROD: Ne rušimo porudžbinu ako Telegram padne, ali logujemo.
+  // PROD: ne rušimo porudžbinu ako Telegram padne (best-effort)
   try {
     const res = await fetch("/api/telegram-new-order", {
       method: "POST",
@@ -81,64 +76,13 @@ async function notifyTelegramViaVercel(orderId: string) {
       body: JSON.stringify({ order_id: orderId }),
     });
 
-    const json = await res.json().catch(() => null);
-
     if (!res.ok) {
-      console.error("Telegram API failed:", res.status, json);
+      const j = await res.json().catch(() => null);
+      console.error("[telegram] notify failed:", res.status, j);
     }
   } catch (e) {
-    console.error("Telegram API error:", e);
+    console.error("[telegram] notify error:", e);
   }
-}
-
-/**
- * KRITIČNO: Direktan PostgREST insert sa eksplicitnim headerima.
- * Razlog: tvoj HAR pokazuje da supabase-js request stiže BEZ Authorization headera,
- * pa RLS vidi request kao bez JWT claims -> 42501.
- */
-async function insertOrderViaPostgrest(row: Record<string, any>): Promise<{ id: string }> {
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-  const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-  if (!SUPABASE_URL || !ANON_KEY) {
-    throw new Error("Supabase env nedostaje (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).");
-  }
-
-  // Insert 1 reda + vrati kao objekat (id)
-  const endpoint =
-    `${SUPABASE_URL}/rest/v1/orders` +
-    `?select=id`;
-
-  const res = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      // PostgREST
-      "content-type": "application/json",
-      accept: "application/vnd.pgrst.object+json",
-      prefer: "return=representation",
-      "content-profile": "public",
-
-      // Supabase auth (projekat + JWT claims)
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-    },
-    body: JSON.stringify(row),
-  });
-
-  const json = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    // formatiramo slično supabase errorima
-    const msg =
-      (json && (json.message || json.error || json.hint || json.details)) ||
-      `HTTP ${res.status}`;
-    const code = json?.code ? `Kod: ${String(json.code)}` : `HTTP: ${res.status}`;
-    throw new Error([String(msg), code].filter(Boolean).join(" — "));
-  }
-
-  const id = String(json?.id ?? "").trim();
-  if (!id) throw new Error("Insert je prošao, ali id nije vraćen.");
-  return { id };
 }
 
 export async function createOrder(payload: CreateOrderPayload) {
@@ -153,13 +97,14 @@ export async function createOrder(payload: CreateOrderPayload) {
   const items = Array.isArray(payload.items) ? payload.items : [];
   if (items.length === 0) throw new Error("Korpa je prazna.");
 
-  const total_price_cents = safeInt(payload.total_price, 0);
+  const total_eur_cents = safeInt(payload.total_price, 0);
   const total_items = safeInt(payload.total_items, 0);
 
-  if (total_items <= 0 || total_price_cents <= 0) {
+  if (total_items <= 0 || total_eur_cents <= 0) {
     throw new Error("Neispravan obračun korpe.");
   }
 
+  // Normalizujemo items (stability-first)
   const normalizedItems: any[] = items.map((i) => ({
     cart_id: String(i.cart_id),
     menu_item_id: i.menu_item_id ?? null,
@@ -196,43 +141,35 @@ export async function createOrder(payload: CreateOrderPayload) {
   if (order_note) meta.order_note = order_note;
   normalizedItems.unshift(meta);
 
-  // Bitno:
-  // - total_eur_cents je int (cente)
-  // - total_price (legacy numeric EUR) ostavljamo NULL da ga BEFORE INSERT trigger popuni iz total_eur_cents/100
-  const row: Record<string, any> = {
+  // Ključno: više NEMA direktnog Supabase inserta iz browser-a.
+  const apiBody = {
     customer_name,
     customer_phone,
     customer_address,
     items: normalizedItems,
 
-    // legacy EUR numeric -> neka trigger popuni (da ne upišemo 950 umjesto 9.50)
-    total_price: null,
-
+    total_eur_cents,
     currency: "EUR",
-    total_eur_cents: total_price_cents,
-    fx_rsd_per_eur: null,
-
     status: "pending",
+    fx_rsd_per_eur: null,
   };
 
-  // Primarni put: direktan PostgREST (najstabilnije za ovaj bug)
-  let orderId = "";
-  try {
-    const inserted = await insertOrderViaPostgrest(row);
-    orderId = inserted.id;
-  } catch (e: any) {
-    // Fallback: zadrži stari put radi dijagnostike (ne bi trebalo da radi, ali dobijamo jasniji error)
-    console.warn("[createOrder] PostgREST direct insert failed, trying supabase-js fallback:", e?.message || e);
-    const { data, error } = await supabase.from("orders").insert([row]).select("id").single();
-    if (error) throw new Error(formatSupabaseError(error));
-    orderId = String((data as any)?.id ?? "").trim();
+  const res = await fetch("/api/create-order", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(apiBody),
+  });
+
+  const json = await res.json().catch(() => null);
+
+  if (!res.ok || !json?.ok) {
+    throw new Error(formatHttpError(res.status, json));
   }
 
-  if (orderId) {
-    void notifyTelegramViaVercel(orderId);
-  } else {
-    console.warn("Order inserted but no id returned; telegram not triggered.");
-  }
+  const orderId = String(json?.id ?? "").trim();
+  if (!orderId) throw new Error("Porudžbina je poslata, ali ID nije vraćen.");
+
+  void notifyTelegramViaVercel(orderId);
 
   return { success: true, orderId };
 }
