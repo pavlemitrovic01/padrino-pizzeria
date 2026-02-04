@@ -1,4 +1,3 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
 type CreateOrderBody = {
@@ -11,13 +10,13 @@ type CreateOrderBody = {
   // očekujemo EUR cente (int)
   total_eur_cents?: unknown;
 
-  // opcionalno (default)
+  // opcionalno
   currency?: unknown; // "EUR"
   status?: unknown; // "pending"
   fx_rsd_per_eur?: unknown; // number | null
 };
 
-function json(res: VercelResponse, status: number, body: any) {
+function json(res: any, status: number, body: any) {
   res.status(status);
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.send(JSON.stringify(body));
@@ -38,16 +37,8 @@ function toInt(v: unknown): number | null {
 }
 
 function sanitizeItems(v: unknown): any[] {
-  // Ne radimo duboku validaciju (da ne uvodimo krhkost),
-  // ali moramo zahtijevati da bude JSON niz.
   if (Array.isArray(v)) return v;
   return [];
-}
-
-function getEnv(name: string): string {
-  const val = process.env[name];
-  if (!val) throw new Error(`Missing env: ${name}`);
-  return val;
 }
 
 function buildSupabaseAdmin() {
@@ -65,10 +56,10 @@ function buildSupabaseAdmin() {
   });
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   try {
-    // CORS (sigurno i minimalno) – da radi i sa preview domena ako treba
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+    // Minimalan CORS (sigurno)
+    res.setHeader("Access-Control-Allow-Origin", req.headers?.origin || "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "content-type");
 
@@ -82,13 +73,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const customer_address = toTrimmedString(body.customer_address);
 
     const items = sanitizeItems(body.items);
-
     const total_eur_cents = toInt(body.total_eur_cents);
 
     const currency = toTrimmedString(body.currency) || "EUR";
     const status = toTrimmedString(body.status) || "pending";
 
-    // fx_rsd_per_eur može biti number ili null (ostavi null ako nevalidno)
     const fx_rsd_per_eur = (() => {
       if (body.fx_rsd_per_eur === null || body.fx_rsd_per_eur === undefined) return null;
       const n = typeof body.fx_rsd_per_eur === "number" ? body.fx_rsd_per_eur : Number(body.fx_rsd_per_eur);
@@ -105,16 +94,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const supabaseAdmin = buildSupabaseAdmin();
 
-    // Bitno:
-    // - total_price ostavljamo NULL (ako postoji trigger/legacy logika)
-    // - total_eur_cents je izvor istine (cente)
     const row: Record<string, any> = {
       customer_name,
       customer_phone,
       customer_address,
       items,
 
+      // legacy numeric EUR ostavljamo NULL
       total_price: null,
+
       currency,
       total_eur_cents,
       fx_rsd_per_eur,
@@ -125,7 +113,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data, error } = await supabaseAdmin.from("orders").insert([row]).select("id").single();
 
     if (error) {
-      // Ne vraćamo interne detalje previše, ali dovoljno za debug
       return json(res, 500, {
         ok: false,
         error: error.message || "Insert failed",
