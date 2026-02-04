@@ -4,16 +4,12 @@ type CreateOrderBody = {
   customer_name?: unknown;
   customer_phone?: unknown;
   customer_address?: unknown;
-
   items?: unknown;
 
-  // očekujemo EUR cente (int)
   total_eur_cents?: unknown;
-
-  // opcionalno
-  currency?: unknown; // "EUR"
-  status?: unknown; // "pending"
-  fx_rsd_per_eur?: unknown; // number | null
+  currency?: unknown;
+  status?: unknown;
+  fx_rsd_per_eur?: unknown;
 };
 
 function json(res: any, status: number, body: any) {
@@ -41,11 +37,24 @@ function sanitizeItems(v: unknown): any[] {
   return [];
 }
 
+function safeUrlHost(value: string | null | undefined): string | null {
+  try {
+    if (!value) return null;
+    const u = new URL(value.trim());
+    return u.host;
+  } catch {
+    return null;
+  }
+}
+
 function buildSupabaseAdmin() {
-  // Preferiramo server-side env nazive (Vercel)
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim();
+
   const SERVICE_ROLE =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE;
+    (process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.SUPABASE_SERVICE_KEY ||
+      process.env.SUPABASE_SERVICE_ROLE ||
+      "").trim();
 
   if (!SUPABASE_URL) throw new Error("Missing env: SUPABASE_URL (or VITE_SUPABASE_URL)");
   if (!SERVICE_ROLE) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY");
@@ -56,16 +65,46 @@ function buildSupabaseAdmin() {
   });
 }
 
+function extractErrorDetails(err: any) {
+  // Bez tajni — samo “stvarni razlog” fetch failed
+  const message = String(err?.message || err);
+  const name = err?.name ? String(err.name) : null;
+
+  // Node često stavlja pravi razlog u err.cause
+  const cause = err?.cause
+    ? {
+        name: err.cause?.name ? String(err.cause.name) : null,
+        message: err.cause?.message ? String(err.cause.message) : String(err.cause),
+        code: err.cause?.code ? String(err.cause.code) : null,
+      }
+    : null;
+
+  return { name, message, cause };
+}
+
 export default async function handler(req: any, res: any) {
+  // Minimalan CORS
+  res.setHeader("Access-Control-Allow-Origin", req.headers?.origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return json(res, 405, { ok: false, error: "Method Not Allowed" });
+
+  // Debug info (bez ključeva)
+  const debug = {
+    nodeEnv: process.env.NODE_ENV || null,
+    supabaseUrlHost: safeUrlHost(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+    hasSupabaseUrl: Boolean((process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "").trim()),
+    hasServiceRole: Boolean(
+      (process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE ||
+        "").trim()
+    ),
+  };
+
   try {
-    // Minimalan CORS (sigurno)
-    res.setHeader("Access-Control-Allow-Origin", req.headers?.origin || "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "content-type");
-
-    if (req.method === "OPTIONS") return res.status(200).end();
-    if (req.method !== "POST") return json(res, 405, { ok: false, error: "Method Not Allowed" });
-
     const body: CreateOrderBody = isPlainObject(req.body) ? (req.body as any) : {};
 
     const customer_name = toTrimmedString(body.customer_name);
@@ -84,13 +123,13 @@ export default async function handler(req: any, res: any) {
       return Number.isFinite(n) ? n : null;
     })();
 
-    // Minimalna validacija (stability-first)
-    if (customer_name.length < 2) return json(res, 400, { ok: false, error: "Invalid customer_name" });
-    if (customer_phone.length < 6) return json(res, 400, { ok: false, error: "Invalid customer_phone" });
-    if (customer_address.length < 5) return json(res, 400, { ok: false, error: "Invalid customer_address" });
-    if (!Array.isArray(items) || items.length === 0) return json(res, 400, { ok: false, error: "Items required" });
+    // Minimalna validacija
+    if (customer_name.length < 2) return json(res, 400, { ok: false, error: "Invalid customer_name", debug });
+    if (customer_phone.length < 6) return json(res, 400, { ok: false, error: "Invalid customer_phone", debug });
+    if (customer_address.length < 5) return json(res, 400, { ok: false, error: "Invalid customer_address", debug });
+    if (!Array.isArray(items) || items.length === 0) return json(res, 400, { ok: false, error: "Items required", debug });
     if (total_eur_cents === null || total_eur_cents <= 0)
-      return json(res, 400, { ok: false, error: "Invalid total_eur_cents" });
+      return json(res, 400, { ok: false, error: "Invalid total_eur_cents", debug });
 
     const supabaseAdmin = buildSupabaseAdmin();
 
@@ -99,14 +138,10 @@ export default async function handler(req: any, res: any) {
       customer_phone,
       customer_address,
       items,
-
-      // legacy numeric EUR ostavljamo NULL
       total_price: null,
-
       currency,
       total_eur_cents,
       fx_rsd_per_eur,
-
       status,
     };
 
@@ -117,14 +152,17 @@ export default async function handler(req: any, res: any) {
         ok: false,
         error: error.message || "Insert failed",
         code: error.code || null,
+        debug,
       });
     }
 
     const id = String((data as any)?.id ?? "").trim();
-    if (!id) return json(res, 500, { ok: false, error: "Insert ok but no id returned" });
+    if (!id) return json(res, 500, { ok: false, error: "Insert ok but no id returned", debug });
 
     return json(res, 200, { ok: true, id });
-  } catch (e: any) {
-    return json(res, 500, { ok: false, error: String(e?.message || e) });
+  } catch (err: any) {
+    const details = extractErrorDetails(err);
+    console.error("[api/create-order] error:", details, debug);
+    return json(res, 500, { ok: false, error: details.message, details, debug });
   }
 }
