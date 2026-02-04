@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { formatEUR, formatRSD, toSafeInt } from "../lib/money";
 
-type OrderStatus = "pending" | "done" | "cancelled";
+type OrderStatus = "pending" | "preparing" | "done" | "cancelled";
 
 type OrderRow = {
   id: string;
@@ -12,7 +12,7 @@ type OrderRow = {
   customer_phone: string;
   customer_address: string;
 
-  // legacy (stare porudžbine u RSD, nove su bile svašta ranije)
+  // legacy (stare porudžbine)
   total_price: number | null;
 
   // EUR migracija (nove porudžbine)
@@ -31,6 +31,12 @@ type ParsedItem = {
   price_per_item: number;
   addons: { name: string; quantity: number; price: number }[];
   note: string | null;
+};
+
+type TelegramResponse = {
+  ok: boolean;
+  telegram?: "sent" | "failed";
+  error?: string;
 };
 
 function safeString(v: unknown): string {
@@ -74,7 +80,6 @@ function getOrderTotalLabel(o: OrderRow) {
         : safeInt(o.total_price, 0);
     return formatEUR(cents);
   }
-  // legacy RSD
   return formatRSD(o.total_price ?? 0);
 }
 
@@ -112,36 +117,84 @@ function parseOrderItems(itemsRaw: unknown[] | null): { meta: any | null; items:
   return { meta, items };
 }
 
+function pillClass(status: OrderStatus) {
+  switch (status) {
+    case "pending":
+      return "bg-yellow-500/15 text-yellow-200 border-yellow-500/20";
+    case "preparing":
+      return "bg-blue-500/15 text-blue-200 border-blue-500/20";
+    case "done":
+      return "bg-emerald-500/15 text-emerald-200 border-emerald-500/20";
+    case "cancelled":
+      return "bg-red-500/15 text-red-200 border-red-500/20";
+    default:
+      return "bg-white/10 text-white/70 border-white/10";
+  }
+}
+
+/**
+ * VAŽNO:
+ * - U Vite dev-u (`localhost:5173`) ne postoji `/api/*` → 404.
+ * - Zato u DEV-u gađamo PRODUCTION Vercel endpoint direktno.
+ * - U PROD-u gađamo relativno `/api/...` (isti origin).
+ */
+const TELEGRAM_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
+
+async function postTelegram(orderId: string): Promise<TelegramResponse> {
+  const url = `${TELEGRAM_API_BASE}/api/telegram-new-order`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ order_id: orderId }),
+  });
+
+  const json = (await res.json().catch(() => null)) as TelegramResponse | null;
+
+  if (!res.ok) {
+    return { ok: false, error: json?.error || `HTTP ${res.status}` };
+  }
+
+  return json ?? { ok: true };
+}
+
 export default function AdminOrders() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const [busyStatusById, setBusyStatusById] = useState<Record<string, boolean>>({});
+  const [busyTelegramById, setBusyTelegramById] = useState<Record<string, boolean>>({});
+  const [toastById, setToastById] = useState<Record<string, string>>({});
+
+  async function loadOrders() {
+    setLoading(true);
+    setErrorMsg(null);
+
+    const { data, error } = await supabase
+      .from("orders")
+      .select(
+        "id, created_at, customer_name, customer_phone, customer_address, total_price, currency, total_eur_cents, fx_rsd_per_eur, items, status"
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setOrders([]);
+      setErrorMsg(error.message ?? "Greška pri učitavanju.");
+    } else {
+      setOrders((data ?? []) as OrderRow[]);
+    }
+
+    setLoading(false);
+  }
+
   useEffect(() => {
     let mounted = true;
 
     async function load() {
-      setLoading(true);
-      setErrorMsg(null);
-
-      const { data, error } = await supabase
-        .from("orders")
-        .select(
-          "id, created_at, customer_name, customer_phone, customer_address, total_price, currency, total_eur_cents, fx_rsd_per_eur, items, status"
-        )
-        .order("created_at", { ascending: false });
-
       if (!mounted) return;
-
-      if (error) {
-        setOrders([]);
-        setErrorMsg(error.message ?? "Greška pri učitavanju.");
-      } else {
-        setOrders((data ?? []) as OrderRow[]);
-      }
-
-      setLoading(false);
+      await loadOrders();
     }
 
     void load();
@@ -149,17 +202,75 @@ export default function AdminOrders() {
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const renderedOrders = useMemo(() => orders, [orders]);
 
+  async function updateStatus(orderId: string, next: OrderStatus) {
+    setToastById((m) => ({ ...m, [orderId]: "" }));
+    setBusyStatusById((m) => ({ ...m, [orderId]: true }));
+
+    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: next } : o)));
+
+    const { error } = await supabase.from("orders").update({ status: next }).eq("id", orderId);
+
+    if (error) {
+      setToastById((m) => ({ ...m, [orderId]: `Greška: ${error.message ?? "update failed"}` }));
+      await loadOrders();
+    } else {
+      setToastById((m) => ({ ...m, [orderId]: `Status: ${next}` }));
+    }
+
+    setBusyStatusById((m) => ({ ...m, [orderId]: false }));
+  }
+
+  async function resendTelegram(orderId: string) {
+    setToastById((m) => ({ ...m, [orderId]: "" }));
+    setBusyTelegramById((m) => ({ ...m, [orderId]: true }));
+
+    try {
+      const r = await postTelegram(orderId);
+
+      if (!r.ok) {
+        setToastById((m) => ({ ...m, [orderId]: `Telegram error: ${r.error ?? "failed"}` }));
+      } else {
+        const s = r.telegram ? ` (${r.telegram})` : "";
+        const devHint = import.meta.env.DEV ? " (DEV → prod endpoint)" : "";
+        setToastById((m) => ({ ...m, [orderId]: `Telegram: ok${s}${devHint}` }));
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setToastById((m) => ({ ...m, [orderId]: `Telegram error: ${msg}` }));
+    } finally {
+      setBusyTelegramById((m) => ({ ...m, [orderId]: false }));
+    }
+  }
+
   return (
     <section className="bg-black text-white py-14">
       <div className="mx-auto max-w-6xl px-4">
-        <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
-        <p className="mt-2 text-white/70">
-          Nove porudžbine su u EUR (cents), stare ostaju u RSD (fallback).
-        </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
+            <p className="mt-2 text-white/70">
+              Nove porudžbine su u EUR (cents), stare ostaju u RSD (fallback).
+            </p>
+            {import.meta.env.DEV ? (
+              <p className="mt-1 text-xs text-white/50">
+                DEV: Resend Telegram koristi production endpoint (nema /api na localhost:5173).
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-extrabold text-white hover:border-white/20"
+            onClick={() => void loadOrders()}
+            title="Refresh orders"
+          >
+            Osveži listu
+          </button>
+        </div>
 
         <div className="mt-8">
           {loading ? (
@@ -183,11 +294,13 @@ export default function AdminOrders() {
                 const eur = isEurOrder(o);
                 const isExpanded = expandedId === o.id;
 
+                const currentStatus = (o.status ?? "pending") as OrderStatus;
+                const toast = toastById[o.id] || "";
+                const statusBusy = !!busyStatusById[o.id];
+                const telegramBusy = !!busyTelegramById[o.id];
+
                 return (
-                  <div
-                    key={o.id}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                  >
+                  <div key={o.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="text-sm text-white/60">{safeDateTime(o.created_at)}</p>
@@ -196,9 +309,61 @@ export default function AdminOrders() {
                         </p>
                         <p className="mt-1 text-sm text-white/70 truncate">{o.customer_phone}</p>
                         <p className="mt-1 text-sm text-white/70 truncate">{o.customer_address}</p>
-                        <p className="mt-2 text-xs text-white/60">
-                          Status: {safeString(o.status ?? "pending")}
-                        </p>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${pillClass(
+                              currentStatus
+                            )}`}
+                          >
+                            Status: {currentStatus}
+                          </span>
+
+                          {toast ? <span className="text-xs text-white/60">{toast}</span> : null}
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
+                            disabled={statusBusy || currentStatus === "pending"}
+                            onClick={() => void updateStatus(o.id, "pending")}
+                          >
+                            Pending
+                          </button>
+
+                          <button
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
+                            disabled={statusBusy || currentStatus === "preparing"}
+                            onClick={() => void updateStatus(o.id, "preparing")}
+                          >
+                            Preparing
+                          </button>
+
+                          <button
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
+                            disabled={statusBusy || currentStatus === "done"}
+                            onClick={() => void updateStatus(o.id, "done")}
+                          >
+                            Done
+                          </button>
+
+                          <button
+                            className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:border-red-500/30 disabled:opacity-50"
+                            disabled={statusBusy || currentStatus === "cancelled"}
+                            onClick={() => void updateStatus(o.id, "cancelled")}
+                          >
+                            Cancel
+                          </button>
+
+                          <button
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
+                            disabled={telegramBusy}
+                            onClick={() => void resendTelegram(o.id)}
+                            title="Pošalji ponovo Telegram poruku za ovaj order"
+                          >
+                            {telegramBusy ? "Šaljem…" : "Resend Telegram"}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="text-right shrink-0">
@@ -241,9 +406,6 @@ export default function AdminOrders() {
                                         const aq = Math.max(1, a.quantity);
                                         const addonLabel = `+ ${a.name} ${aq > 1 ? `x${aq}` : ""}`;
 
-                                        // Stabilno:
-                                        // - EUR: addons su EUR centi
-                                        // - RSD: addons istorijski nijesu pouzdani -> prikazujemo bez iznosa
                                         return (
                                           <div
                                             key={`${idx}-${j}`}
