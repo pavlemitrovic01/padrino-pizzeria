@@ -1,3 +1,63 @@
+export type CreateOrderPayload = {
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  items: any[];
+  total_eur_cents: number;
+  currency: "EUR";
+  status: "pending" | "done" | "cancelled";
+  fx_rsd_per_eur: number | null;
+};
+
+type CreateOrderResponse =
+  | { ok: true; id: string }
+  | { ok: false; error: string; details?: unknown };
+
+function getApiBaseUrl() {
+  // Ako korisnik eksplicitno postavi (lokalno) – poštujemo.
+  const envBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
+  if (envBase && envBase.trim()) return envBase.trim().replace(/\/+$/, "");
+
+  // U produkciji na Vercelu: relative rute rade.
+  if ((import.meta as any).env?.PROD) return "";
+
+  // U dev-u na Vite (localhost) nema /api funkcija => gađamo produkciju da test može da radi.
+  return "https://padrino-pizzeria.vercel.app";
+}
+
+export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResponse> {
+  const base = getApiBaseUrl();
+  const url = `${base}/api/create-order`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    // ignore
+  }
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: `HTTP ${res.status}`,
+      details: json ?? text,
+    };
+  }
+
+  if (json && typeof json === "object" && "ok" in json) {
+    return json as CreateOrderResponse;
+  }
+
+  // fallback
+  return { ok: true, id: json?.id ?? "" };
+}
 import { toSafeInt } from "./money";
 
 export type OrderItemAddonPayload = {
