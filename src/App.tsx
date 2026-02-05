@@ -1,17 +1,25 @@
-import Menu from "./sections/Menu";
-import Checkout from "./components/Checkout";
-import CartDrawer from "./components/CartDrawer";
+import { useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+
 import Navbar from "./components/Navbar";
+import CartDrawer from "./components/CartDrawer";
+import Checkout from "./components/Checkout";
 import AdminOrders from "./components/AdminOrders";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLogs from "./pages/admin/AdminLogs";
-import { useEffect, useMemo, useState } from "react";
+
+import Hero from "./sections/Hero";
+import Menu from "./sections/Menu";
+import Delivery from "./sections/Delivery";
+import About from "./sections/About";
+import Contact from "./sections/Contact";
+import Footer from "./sections/Footer";
+
 import { supabase } from "./lib/supabaseClient";
-import type { Session } from "@supabase/supabase-js";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
-// ✅ Minimalno i sigurno: admin = allowlist email-a (magic link + email check)
+// ✅ Minimalno i stabilno: admin = allowlist email-a (magic link + email check)
 const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
 function isAdminSession(session: Session | null): boolean {
@@ -211,13 +219,19 @@ export default function App() {
     );
   }
 
+  // ✅ Public sajt: vrati kompletan “one-page” layout (hero + sekcije + meni + checkout)
   return (
     <>
       {onlineBanner}
       <Navbar />
       <main className="bg-black">
+        <Hero />
         <Menu />
         <Checkout />
+        <Delivery />
+        <About />
+        <Contact />
+        <Footer />
       </main>
       <CartDrawer />
     </>
