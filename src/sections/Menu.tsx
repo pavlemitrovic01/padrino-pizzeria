@@ -11,14 +11,14 @@ type MenuItemRow = {
   category: string | null;
   image: string | null;
 
-  // realna šema (vidi CartDrawer.tsx)
+  // potvrđeno da postoji (koristi ga CartDrawer.tsx)
   price_eur_cents: number | null;
-  price: number | null; // legacy
-
-  is_active: boolean | null;
+  price: number | null; // legacy fallback
 };
 
 const normalizeCategory = (c: string | null | undefined) => (c || "").trim();
+const normalizeCategoryKey = (c: string | null | undefined) =>
+  normalizeCategory(c).toLowerCase();
 
 function formatCategoryLabel(c: string) {
   const s = c.trim();
@@ -32,12 +32,12 @@ function toSafeInt(v: unknown, fallback: number): number {
 }
 
 function priceFromRow(row: MenuItemRow): number {
-  // primarno koristimo EUR cente (int)
+  // primarno EUR cente (int)
   if (typeof row.price_eur_cents === "number" && Number.isFinite(row.price_eur_cents)) {
     return Math.trunc(row.price_eur_cents);
   }
 
-  // fallback: ako je legacy price u eurima
+  // fallback: legacy price u eurima
   if (typeof row.price === "number" && Number.isFinite(row.price)) {
     return Math.trunc(row.price * 100);
   }
@@ -54,8 +54,6 @@ function resolveMenuImage(row: MenuItemRow): string {
   if (row.image && typeof row.image === "string" && row.image.trim() !== "") {
     return row.image.trim();
   }
-
-  // stabilan fallback (ne ruši UI ako nema slike)
   return "/menu/anatoli.png";
 }
 
@@ -90,16 +88,14 @@ export default function Menu() {
   const [activeCategory, setActiveCategory] = useState<string>("");
 
   const computed = useMemo(() => {
-    const activeOnly = items.filter((x) => x.is_active !== false);
-
+    // nema is_active filtera jer kolona ne postoji u bazi
     const categories = Array.from(
-      new Set(activeOnly.map((x) => normalizeCategory(x.category)).filter(Boolean))
+      new Set(items.map((x) => normalizeCategory(x.category)).filter(Boolean))
     ).sort((a, b) => a.localeCompare(b));
 
-    const filtered = activeOnly.filter((x) => {
-      const cat = normalizeCategory(x.category);
+    const filtered = items.filter((x) => {
       if (!activeCategory) return true;
-      return cat === activeCategory;
+      return normalizeCategoryKey(x.category) === normalizeCategoryKey(activeCategory);
     });
 
     return { categories, filtered };
@@ -112,9 +108,10 @@ export default function Menu() {
       setLoading(true);
       setError(null);
 
+      // BITNO: selektujemo SAMO kolone koje postoje (vidi CartDrawer.tsx)
       const { data, error: err } = await supabase
         .from("menu_items")
-        .select("id,name,description,category,image,price,price_eur_cents,is_active")
+        .select("id,name,description,category,image,price,price_eur_cents")
         .order("category", { ascending: true })
         .order("name", { ascending: true });
 
@@ -177,7 +174,7 @@ export default function Menu() {
 
           <div className="flex flex-wrap gap-2">
             {computed.categories.map((c) => {
-              const isActive = c === activeCategory;
+              const isActive = normalizeCategoryKey(c) === normalizeCategoryKey(activeCategory);
               return (
                 <button
                   key={c}
@@ -243,21 +240,19 @@ export default function Menu() {
                     <button
                       type="button"
                       onClick={() => {
+                        const base = toSafeInt(cents, 0);
+
+                        // CartItem mora da se poklopi 1/1 sa tipom iz CartContext.tsx
                         const item: CartItem = {
                           id: row.id,
                           name: row.name,
+                          price: base,
                           image: imageUrl,
                           description: row.description ?? "",
-                          category: normalizeCategory(row.category) || "ostalo",
-
-                          // CartItem tip u projektu koristi "price" i "quantity"
-                          price: toSafeInt(cents, 0),
+                          category: normalizeCategoryKey(row.category) || "ostalo",
                           quantity: 1,
 
-                          // bitno: camelCase
-                          basePrice: toSafeInt(cents, 0),
-
-                          // ostalo normalizuje CartProvider
+                          basePrice: base,
                           note: "",
                           addons: [],
                         };
