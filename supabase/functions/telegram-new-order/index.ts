@@ -78,18 +78,72 @@ function formatMoneyRSD(value: number) {
   }
 }
 
-function requireWebhookSecret(): string {
-  const secret =
-    Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ??
-    Deno.env.get("WEBHOOK_SECRET") ??
-    "";
+/**
+ * WEBHOOK SECRET STRATEGIJA (stabilno, bez downtime):
+ * - Secret vrijednost: TELEGRAM_WEBHOOK_SECRET (ili WEBHOOK_SECRET) u Supabase Settings → Vault (BETA)
+ * - Rollout mod:
+ *   - TELEGRAM_WEBHOOK_ENFORCE=0 (default): ako secret postoji -> validiraj; ako ne postoji -> pusti (soft)
+ *   - TELEGRAM_WEBHOOK_ENFORCE=1: secret mora postojati i mora matchovati (hard)
+ *
+ * Headeri koje prihvatamo:
+ * - Telegram standard: X-Telegram-Bot-Api-Secret-Token
+ * - Legacy (ako si imao klijenta): x-webhook-secret
+ */
+function getEnforceMode(): boolean {
+  const raw = safeString(Deno.env.get("TELEGRAM_WEBHOOK_ENFORCE"));
+  if (!raw) return false;
+  return raw === "1" || raw.toLowerCase() === "true" || raw.toLowerCase() === "yes";
+}
 
-  // DETERMINISTIČKI: ako nema secreta, failuj odmah (da ne ostane “otvoren” endpoint)
-  if (!secret) {
-    throw new Error("Missing TELEGRAM_WEBHOOK_SECRET (or WEBHOOK_SECRET). Set it in Settings → Vault (BETA) then redeploy.");
+function getConfiguredSecret(): string {
+  return (
+    safeString(Deno.env.get("TELEGRAM_WEBHOOK_SECRET")) ||
+    safeString(Deno.env.get("WEBHOOK_SECRET")) ||
+    ""
+  );
+}
+
+function getProvidedSecret(req: Request): string {
+  // Telegram šalje ovaj header kada setWebhook ima secret_token
+  const tg = safeString(req.headers.get("x-telegram-bot-api-secret-token"));
+  if (tg) return tg;
+
+  // Legacy fallback
+  const legacy = safeString(req.headers.get("x-webhook-secret"));
+  if (legacy) return legacy;
+
+  return "";
+}
+
+function verifyWebhookSecret(req: Request): { ok: true } | { ok: false; status: number; error: string } {
+  const enforce = getEnforceMode();
+  const configured = getConfiguredSecret();
+
+  // Soft mode: ako nema konfigurisanog secreta, ne blokiraj (da ne pukne produkcija)
+  if (!configured && !enforce) return { ok: true };
+
+  // Hard mode: mora postojati
+  if (!configured && enforce) {
+    return {
+      ok: false,
+      status: 500,
+      error:
+        "Missing TELEGRAM_WEBHOOK_SECRET (or WEBHOOK_SECRET). Set it in Settings → Vault (BETA) then redeploy.",
+    };
   }
 
-  return secret;
+  const provided = getProvidedSecret(req);
+
+  // Ako je secret konfigurisan, a request ne nosi header -> 401
+  if (!provided) {
+    return { ok: false, status: 401, error: "Unauthorized" };
+  }
+
+  if (provided !== configured) {
+    return { ok: false, status: 401, error: "Unauthorized" };
+  }
+
+  return { ok: true };
 }
 
 function pickRecord(body: WebhookBody | null): InsertOrderPayload | null {
@@ -230,14 +284,11 @@ async function sendTelegramMessage(text: string) {
 
 serve(async (req) => {
   try {
-    // 1) Secret MUST exist, иначе fail odmah (stabilno ponašanje)
-    const secret = requireWebhookSecret();
-
-    // 2) Secret MUST match header
-    const header = req.headers.get("x-webhook-secret") ?? "";
-    if (header !== secret) {
-      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-        status: 401,
+    // 0) Webhook secret verification (soft/hard mode)
+    const verified = verifyWebhookSecret(req);
+    if (!verified.ok) {
+      return new Response(JSON.stringify({ ok: false, error: verified.error }), {
+        status: verified.status,
         headers: { "content-type": "application/json" },
       });
     }

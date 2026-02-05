@@ -1,32 +1,18 @@
+import type { VercelRequest, VercelResponse } from "vercel";
 import { createClient } from "@supabase/supabase-js";
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-/**
- * HARDENED ENV LOADING
- * - trim() uklanja whitespace / newline / hidden chars
- * - nema više "Invalid supabaseUrl"
- */
-const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim();
-const SUPABASE_SERVICE_ROLE_KEY = (
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
-).trim();
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!SUPABASE_URL) {
-  throw new Error("SUPABASE_URL is missing or empty");
-}
-
-if (!SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("SUPABASE_SERVICE_ROLE_KEY is missing or empty");
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
 }
 
 const supabase = createClient(
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
   {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
+    auth: { persistSession: false },
   }
 );
 
@@ -35,7 +21,10 @@ export default async function handler(
   res: VercelResponse
 ) {
   if (req.method !== "POST") {
-    return res.status(405).json({ ok: false, error: "Method not allowed" });
+    return res.status(405).json({
+      ok: false,
+      error: "Method not allowed",
+    });
   }
 
   try {
@@ -44,11 +33,11 @@ export default async function handler(
       customer_phone,
       customer_address,
       items,
-      total_eur_cents,
       currency = "EUR",
       status = "pending",
-    } = req.body || {};
+    } = req.body ?? {};
 
+    // ---------- HARD VALIDATION ----------
     if (
       !customer_name ||
       !customer_phone ||
@@ -62,6 +51,31 @@ export default async function handler(
       });
     }
 
+    // ---------- PRICE CALCULATION (SOURCE OF TRUTH) ----------
+    let total_eur_cents = 0;
+
+    for (const item of items) {
+      if (
+        typeof item.quantity !== "number" ||
+        typeof item.price_per_item !== "number"
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error: "Invalid item structure",
+        });
+      }
+
+      total_eur_cents += item.quantity * item.price_per_item;
+    }
+
+    if (total_eur_cents <= 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "Total price must be greater than zero",
+      });
+    }
+
+    // ---------- DB INSERT ----------
     const { data, error } = await supabase
       .from("orders")
       .insert({
@@ -69,18 +83,19 @@ export default async function handler(
         customer_phone,
         customer_address,
         items,
-        total_eur_cents,
         currency,
         status,
+        total_eur_cents,
+        total_price: (total_eur_cents / 100).toFixed(2),
       })
       .select("id")
       .single();
 
     if (error) {
-      console.error("DB INSERT ERROR:", error);
+      console.error("Supabase insert error:", error);
       return res.status(500).json({
         ok: false,
-        error: "DB insert failed",
+        error: "Database insert failed",
       });
     }
 
@@ -89,11 +104,10 @@ export default async function handler(
       id: data.id,
     });
   } catch (err: any) {
-    console.error("CREATE ORDER FATAL:", err);
-
+    console.error("create-order fatal error:", err);
     return res.status(500).json({
       ok: false,
-      error: "Server error",
+      error: "Internal server error",
     });
   }
 }
