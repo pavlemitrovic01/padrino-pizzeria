@@ -1,314 +1,191 @@
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { supabase } from "../lib/supabaseClient";
-import MenuItem from "../components/MenuItem";
-import type { PizzaSize } from "../context/CartContext";
-import { toSafeInt } from "../lib/money";
+import { ShoppingCart } from "lucide-react";
+import { useCart } from "../context/CartProvider";
 
-type MenuItemData = {
+type MenuItemRow = {
   id: string;
   name: string;
-  description: string;
-  // IMPORTANT: app koristi EUR cente (int) kao izvor istine.
-  // price (legacy) ostaje u bazi, ali UI/korpa više ne računaju iz njega.
-  price: number | null;
-  price_eur_cents: number | null;
-  image: string;
-  category: string;
+  description: string | null;
+  category: string | null;
+  image: string | null;
+  sizes: any;
+  is_active: boolean | null;
 };
 
-type PizzaVariantsProp = Partial<
-  Record<"33" | "50", { id: string; price: number; category: string }>
->;
+const normalizeCategory = (c: string | null | undefined) => (c || "").trim().toLowerCase();
 
-type PizzaDisplayItem = {
-  id: string;
-  baseKey: string;
-  name: string;
-  description: string;
-  category: string;
-  image: string;
-  variants: PizzaVariantsProp;
-  defaultSize: PizzaSize;
-  defaultPrice: number;
-};
-
-function normalize(value: string) {
-  return (value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("đ", "dj")
-    .replaceAll("ž", "z")
-    .trim();
-}
-
-function stripExt(filename: string) {
-  return filename.replace(/\.(png|jpg|jpeg|webp)$/i, "");
-}
-
-function lastSegment(path: string) {
-  const clean = path.split("?")[0].split("#")[0];
-  const parts = clean.split("/").filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : "";
-}
-
-/**
- * Fix za Vercel 404:
- * - Baza ima legacy putanje /pizza/*.jpg i /drinks/*.jpg
- * - U repo-u realno postoji public/menu/*.png
- *
- * Pravilo:
- * - full URL => koristi
- * - /menu/* => koristi
- * - /pizza/* ili golo ime => mapiraj na /menu/<name>.png
- * - pića (pica) => placeholder (/menu/about.png) dok ne ubaciš drink slike
- */
-function resolveMenuImage(item: MenuItemData): string {
-  const raw = (item.image ?? "").trim();
-  const cat = normalize(item.category);
-
-  // Pića trenutno nemaju fajlove u public/menu/ => da ne spamuje 404, držimo placeholder
-  if (cat === "pica") {
-    return "/menu/about.png";
-  }
-
-  if (!raw) return "/menu/about.png";
-
-  // Full URL (Supabase Storage/CDN)
-  if (/^https?:\/\//i.test(raw)) return raw;
-
-  // Ako je već pravilno iz public/menu
-  if (raw.startsWith("/menu/")) return raw;
-
-  // Legacy putanje ("/pizza/x.jpg", "/drinks/x.jpg") ili "x.jpg"
-  const base = stripExt(lastSegment(raw));
-  if (!base) return "/menu/about.png";
-
-  // Mapiramo na postojeći folder i ekstenziju (.png)
-  return `/menu/${base}.png`;
-}
-
-function isPizzaSize(name: string, size: 33 | 50) {
-  const safe = name ?? "";
-  const re = new RegExp(`\\b${size}\\s*cm\\b`, "i");
-  return re.test(safe);
-}
-
-function stripSizeFromName(name: string) {
-  return name
-    .replace(/33\s*cm/gi, "")
-    .replace(/50\s*cm/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-function slugify(input: string) {
-  return (input ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("đ", "dj")
-    .replaceAll("ž", "z")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
-
-function getEurCents(row: MenuItemData): number | null {
-  const raw = row.price_eur_cents;
-  const n = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isFinite(n)) return null;
-  return toSafeInt(n, 0);
+function resolveMenuImage(row: MenuItemRow): string {
+  if (row.image && typeof row.image === "string" && row.image.trim() !== "") return row.image.trim();
+  const cat = normalizeCategory(row.category);
+  if (cat.includes("pizza")) return "/menu/anatoli.png";
+  if (cat.includes("dodaci")) return "/menu/anatoli.png";
+  if (cat.includes("pice")) return "/menu/anatoli.png";
+  return "/menu/anatoli.png";
 }
 
 export default function Menu() {
-  const [items, setItems] = useState<MenuItemData[]>([]);
+  const [items, setItems] = useState<MenuItemRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { addToCart } = useCart();
 
   useEffect(() => {
-    let mounted = true;
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("menu_items")
+          .select("id,name,description,category,image,sizes,is_active")
+          .eq("is_active", true)
+          .order("category", { ascending: true })
+          .order("name", { ascending: true });
 
-    supabase
-      .from("menu_items")
-      .select("id,name,description,price,price_eur_cents,image,category")
-      .order("category", { ascending: true })
-      .order("name", { ascending: true })
-      .then(({ data, error }) => {
-        if (!mounted) return;
-
+        if (!alive) return;
         if (error) {
-          // eslint-disable-next-line no-console
-          console.error("Greška pri učitavanju menija:", error);
+          console.error("[Menu] failed to load menu_items:", error);
           setItems([]);
         } else {
-          setItems((data ?? []) as MenuItemData[]);
+          setItems((data || []) as MenuItemRow[]);
         }
+      } catch (e) {
+        console.error("[Menu] unexpected error:", e);
+        if (!alive) return;
+        setItems([]);
+      } finally {
+        if (!alive) return;
         setLoading(false);
-      });
+      }
+    })();
 
     return () => {
-      mounted = false;
+      alive = false;
     };
   }, []);
 
-  const pizzaGrouped = useMemo(() => {
-    const pizzaRows = items.filter((i) => normalize(i.category) === "pizza");
-    const map = new Map<string, PizzaDisplayItem>();
-
-    for (const row of pizzaRows) {
-      const eurCents = getEurCents(row);
-      // Ako EUR cijena fali, ne prikazujemo stavku (bolje nego pogrešna naplata).
-      if (eurCents == null) continue;
-
-      const size: PizzaSize | null = isPizzaSize(row.name, 50)
-        ? "50"
-        : isPizzaSize(row.name, 33)
-          ? "33"
-          : null;
-
-      const baseName = stripSizeFromName(row.name);
-      const baseKey = slugify(baseName || row.id);
-
-      const existing = map.get(baseKey);
-
-      if (!existing) {
-        const defaultSize: PizzaSize = size ?? "33";
-        const variants: PizzaVariantsProp = {};
-
-        if (size === "33") variants["33"] = { id: row.id, price: eurCents, category: row.category };
-        if (size === "50") variants["50"] = { id: row.id, price: eurCents, category: row.category };
-        if (!size) variants["33"] = { id: row.id, price: eurCents, category: row.category };
-
-        map.set(baseKey, {
-          id: row.id,
-          baseKey,
-          name: baseName || row.name,
-          description: row.description,
-          category: row.category,
-          image: resolveMenuImage(row),
-          variants,
-          defaultSize,
-          defaultPrice: eurCents,
-        });
-      } else {
-        if (size === "33") existing.variants["33"] = { id: row.id, price: eurCents, category: row.category };
-        else if (size === "50") existing.variants["50"] = { id: row.id, price: eurCents, category: row.category };
-        else existing.variants["33"] = { id: row.id, price: eurCents, category: row.category };
-
-        // držimo image stabilno kroz resolver
-        existing.image = resolveMenuImage(row);
-
-        if (existing.defaultSize === "50" && !existing.variants["50"] && existing.variants["33"]) {
-          existing.defaultSize = "33";
-          existing.defaultPrice = existing.variants["33"].price;
-        }
-        if (existing.defaultSize === "33" && !existing.variants["33"] && existing.variants["50"]) {
-          existing.defaultSize = "50";
-          existing.defaultPrice = existing.variants["50"].price;
-        }
-      }
+  const grouped = useMemo(() => {
+    const map = new Map<string, MenuItemRow[]>();
+    for (const it of items) {
+      const cat = normalizeCategory(it.category) || "ostalo";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(it);
     }
-
-    return Array.from(map.values());
+    return Array.from(map.entries());
   }, [items]);
 
-  const nonPizzaByCategory = useMemo(() => {
-    const out = new Map<string, MenuItemData[]>();
-
-    for (const row of items) {
-      if (normalize(row.category) === "pizza") continue;
-
-      const eurCents = getEurCents(row);
-      // Ako EUR cijena fali, ne prikazujemo stavku (bolje nego pogrešna naplata).
-      if (eurCents == null) continue;
-
-      const key = row.category || "Ostalo";
-      if (!out.has(key)) out.set(key, []);
-      out.get(key)!.push({
-        ...row,
-        price_eur_cents: eurCents,
-        image: resolveMenuImage(row),
-      });
-    }
-
-    return out;
-  }, [items]);
-
-  // Hero slika: trenutno koristi fajl koji sigurno postoji u public/menu/
-  const heroImage = useMemo(() => "/menu/about.png", []);
-
-  if (loading) {
-    return (
-      <section className="bg-black text-white py-16">
-        <div className="mx-auto max-w-5xl px-4">
-          <p className="text-white/70">Učitavam meni…</p>
-        </div>
-      </section>
-    );
-  }
+  const heroImage = useMemo(() => "/menu/anatoli.png", []);
 
   return (
-    <section className="bg-black text-white">
-      <div className="relative mx-auto max-w-5xl px-4 pt-16">
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#121212]">
-          <img
-            src={heroImage}
-            alt="Padrino meni"
-            className="h-56 w-full object-cover opacity-60"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 p-6">
-            <h2 className="text-4xl font-extrabold">Naš meni</h2>
-            <p className="mt-2 text-white/70">
-              Autentične pice i osvježavajuća pića — veličinu biraš u korpi.
-            </p>
-          </div>
-        </div>
+    <section id="meni" className="py-20 bg-black">
+      <div className="container mx-auto px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="max-w-4xl mx-auto text-center"
+        >
+          <h2 className="text-4xl font-bold text-white mb-6">Naš meni</h2>
+          <p className="text-gray-300 text-lg mb-10">
+            Autentične pice i osvježavajuća pića — veličinu biraš u korpi.
+          </p>
 
-        <div className="mt-10 space-y-10">
-          <div>
-            <h3 className="text-2xl font-extrabold">Pizza</h3>
-            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {pizzaGrouped.map((p) => (
-                <MenuItem
-                  key={p.baseKey}
-                  id={p.variants[p.defaultSize]?.id ?? p.id}
-                  name={p.name}
-                  description={p.description}
-                  price={p.variants[p.defaultSize]?.price ?? p.defaultPrice}
-                  image={p.image}
-                  category={p.category}
-                  pizzaSize={p.defaultSize}
-                  baseKey={p.baseKey}
-                  variants={p.variants}
-                />
-              ))}
-            </div>
+          <div className="relative rounded-2xl overflow-hidden mb-14">
+            <img
+              src={heroImage}
+              alt="Padrino meni"
+              className="w-full h-52 object-cover opacity-60"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
           </div>
+        </motion.div>
 
-          {Array.from(nonPizzaByCategory.entries()).map(([cat, rows]) => (
-            <div key={cat}>
-              <h3 className="text-2xl font-extrabold">{cat}</h3>
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                {rows.map((r) => (
-                  <MenuItem
-                    key={r.id}
-                    id={r.id}
-                    name={r.name}
-                    description={r.description}
-                    price={toSafeInt(r.price_eur_cents, 0)}
-                    image={r.image}
-                    category={r.category}
-                  />
-                ))}
+        {loading ? (
+          <div className="text-center text-gray-400 py-10">Učitavanje menija…</div>
+        ) : (
+          <div className="space-y-12">
+            {grouped.map(([cat, rows]) => (
+              <div key={cat}>
+                <h3 className="text-2xl font-semibold text-white mb-6 capitalize">
+                  {cat}
+                </h3>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {rows.map((row) => {
+                    const img = resolveMenuImage(row);
+                    const sizesObj = row.sizes && typeof row.sizes === "object" ? row.sizes : {};
+                    const firstSizeKey = Object.keys(sizesObj)[0] || "33";
+                    const price =
+                      typeof (sizesObj as any)?.[firstSizeKey] === "number"
+                        ? (sizesObj as any)[firstSizeKey]
+                        : null;
+
+                    return (
+                      <motion.div
+                        key={row.id}
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-[#111111] rounded-2xl border border-gray-800 overflow-hidden shadow"
+                      >
+                        <div className="h-40 bg-black/40">
+                          <img
+                            src={img}
+                            alt={row.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        </div>
+
+                        <div className="p-5 text-left">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h4 className="text-lg font-semibold text-white">
+                                {row.name}
+                              </h4>
+                              {row.description ? (
+                                <p className="text-sm text-gray-400 mt-1">
+                                  {row.description}
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <button
+                              className="shrink-0 inline-flex items-center gap-2 bg-yellow-400 text-black px-3 py-2 rounded-full font-semibold hover:bg-yellow-300 transition"
+                              onClick={() => {
+                                addToCart({
+                                  cart_id: row.name,
+                                  menu_item_id: row.id,
+                                  name: row.name,
+                                  size: firstSizeKey,
+                                  quantity: 1,
+                                  base_price: price ?? 0,
+                                  price_per_item: price ?? 0,
+                                  addons: [],
+                                  note: null,
+                                  image: img,
+                                  category: row.category || "menu",
+                                });
+                              }}
+                            >
+                              <ShoppingCart className="w-4 h-4" />
+                              Dodaj
+                            </button>
+                          </div>
+
+                          <div className="mt-4 flex items-baseline justify-between">
+                            <span className="text-gray-400 text-sm">Od</span>
+                            <span className="text-yellow-400 font-bold text-lg">
+                              {price !== null ? `${(price / 100).toFixed(2)} €` : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="h-12" />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

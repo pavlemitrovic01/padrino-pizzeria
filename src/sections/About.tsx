@@ -1,92 +1,84 @@
-function About() {
+
+import { motion } from "framer-motion";
+import { Heart, MapPin, Phone } from "lucide-react";
+
+export default function About() {
   return (
-    <section
-      id="about"
-      className="py-32 px-6 bg-zinc-950 text-white"
-    >
-      <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-16 items-center">
-        
-        {/* IMAGE */}
-        <div className="group relative overflow-hidden rounded-2xl shadow-2xl">
-          <img
-            src="/menu/about.png"
-            alt="Naša priča"
-            className="
-              w-full
-              h-full
-              object-cover
-              transition
-              duration-700
-              ease-out
-              group-hover:scale-105
-            "
-          />
-
-          {/* Overlay */}
-          <div
-            className="
-              absolute inset-0
-              bg-gradient-to-t
-              from-black/50
-              via-black/20
-              to-transparent
-              opacity-0
-              group-hover:opacity-100
-              transition
-              duration-700
-            "
-          />
-        </div>
-
-        {/* TEXT */}
-        <div>
-          <span className="text-amber-500 uppercase tracking-widest text-sm">
-            Naša priča
-          </span>
-
-          <h2 className="mt-4 text-5xl font-serif leading-tight">
-            Iz kućne kuhinje <br /> do vaših vrata
-          </h2>
-
-          <p className="mt-6 text-zinc-300 leading-relaxed">
-            Padrino je nastao u porodičnoj kuhinji, iz želje da se autentični
-            italijanski ukusi podijele sa komšilukom. Prve pizze su pravljene
-            ručno, sa istom pažnjom kao za najbliže.
+    <section id="o-nama" className="py-20 bg-gradient-to-b from-black to-[#111111]">
+      <div className="container mx-auto px-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="max-w-4xl mx-auto text-center"
+        >
+          <h2 className="text-4xl font-bold text-white mb-6">O nama</h2>
+          <p className="text-gray-300 text-lg mb-12">
+            Padrino je porodična pizzerija u Budvi, gdje se tradicija i kvalitet
+            spajaju u savršen zalogaj. Svaku pizzu pripremamo sa ljubavlju,
+            koristeći pažljivo birane sastojke i autentične recepte.
           </p>
 
-          <p className="mt-4 text-zinc-400 leading-relaxed">
-            Danas i dalje njegujemo iste vrijednosti – kvalitet, tradiciju i
-            brzu dostavu. Svaka porudžbina nosi dio naše porodične priče.
-          </p>
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800"
+            >
+              <Heart className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">Kvalitet</h3>
+              <p className="text-gray-400">
+                Samo najbolji sastojci i domaće tijesto
+              </p>
+            </motion.div>
 
-          {/* STATS */}
-          <div className="mt-10 grid grid-cols-2 gap-8">
-            <div>
-              <span className="block text-4xl font-serif text-amber-500">
-                2014
-              </span>
-              <span className="text-sm text-zinc-400">
-                Početak priče
-              </span>
-            </div>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800"
+            >
+              <MapPin className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">Lokacija</h3>
+              <p className="text-gray-400">Budva, Crna Gora</p>
+            </motion.div>
 
-            <div>
-              <span className="block text-4xl font-serif text-amber-500">
-                30 min
-              </span>
-              <span className="text-sm text-zinc-400">
-                Prosječna dostava
-              </span>
-            </div>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              className="bg-[#1a1a1a] p-6 rounded-xl border border-gray-800"
+            >
+              <Phone className="w-8 h-8 text-yellow-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">Dostava</h3>
+              <p className="text-gray-400">Brza dostava na tvoju adresu</p>
+            </motion.div>
           </div>
-        </div>
 
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 1 }}
+            className="relative rounded-2xl overflow-hidden"
+          >
+            <img
+              src="/menu/anatoli.png"
+              alt="Padrino pizza"
+              className="w-full h-64 object-cover opacity-70"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-6 text-left">
+              <h3 className="text-2xl font-bold text-white mb-2">
+                Ljubav na kućnu adresu
+              </h3>
+              <p className="text-gray-300">
+                Naruči online i uživaj u autentičnom ukusu Padrino pice
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   );
 }
 
-export default About;
 
 
 
