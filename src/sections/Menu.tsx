@@ -1,232 +1,223 @@
-// Robust fallback za slike: ako slika ne postoji, koristi /menu/about.png
-function handleImgError(e: React.SyntheticEvent<HTMLImageElement, Event>) {
-  const target = e.currentTarget;
-  if (target.src.endsWith('/menu/about.png')) return;
-  target.onerror = null;
-  target.src = '/menu/about.png';
-}
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { useCart } from "../context/useCart";
-import { formatEUR } from "../lib/money";
+import type { SyntheticEvent } from "react";
 import { supabase } from "../lib/supabaseClient";
-import type { MenuItemRow } from "../types";
+import { useCart } from "../context/useCart";
+
+type MenuItemRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  price_eur_cents: number;
+  category: string;
+  image: string | null;
+  size: string | null;
+};
 
 type CategoryKey = "dodaci" | "pica" | "pizza" | "sosevi";
 
-function normalizeCategory(input: unknown): CategoryKey {
-  const raw = String(input ?? "").trim().toLowerCase();
+const CATEGORY_LABELS: Record<CategoryKey, string> = {
+  dodaci: "Dodaci",
+  pica: "Pića",
+  pizza: "Pizza",
+  sosevi: "Sosevi",
+};
 
-  if (raw === "pizza") return "pizza";
-  if (raw === "pica" || raw === "pića" || raw === "pice") return "pica";
-  if (raw === "dodaci" || raw === "dodatak" || raw === "dodaci ") return "dodaci";
-  if (raw === "sosevi" || raw === "sosovi" || raw === "sos") return "sosevi";
-
-  // Fallback: treat unknown as pizza to keep UI consistent
-  return "pizza";
+function safeBasename(path: string) {
+  const clean = path.split("?")[0];
+  const parts = clean.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : clean;
 }
 
-function formatCategoryLabel(c: CategoryKey) {
-  if (c === "dodaci") return "Dodaci";
-  if (c === "pica") return "Pića";
-  if (c === "pizza") return "Pizza";
-  return "Sosevi";
-}
+function normalizeImagePath(image: string | null) {
+  // Stabilan fallback (mora postojati u public/menu/)
+  const fallback = "/menu/about.png";
+  if (!image) return fallback;
 
-function priceFromRow(row: MenuItemRow): number {
-  // Supports either cents (number) or euro (number/string) – project historically had mixed inputs.
-  const anyRow = row as any;
-  if (typeof anyRow.price_eur_cents === "number") return anyRow.price_eur_cents;
+  // Već ispravna putanja u projektu
+  if (image.startsWith("/menu/")) return image;
 
-  const price = anyRow.price ?? anyRow.base_price ?? 0;
-  if (typeof price === "number") {
-    // If price looks like cents (>= 100), keep it. If it looks like euros (e.g., 9.5), convert.
-    if (price >= 100) return Math.round(price);
-    return Math.round(price * 100);
+  // Ako u bazi stoje stare rute (/drinks, /extras, /public/...), prebacimo na /menu/<basename>
+  if (image.startsWith("/drinks/") || image.startsWith("/extras/") || image.startsWith("/public/")) {
+    const file = safeBasename(image);
+    return `/menu/${file}`;
   }
 
-  if (typeof price === "string") {
-    const n = Number(price.replace(",", "."));
-    if (Number.isFinite(n)) {
-      if (n >= 100) return Math.round(n);
-      return Math.round(n * 100);
-    }
-  }
+  // Ako je bez leading slash
+  if (!image.startsWith("/")) return `/${image}`;
 
-  return 0;
+  return image;
 }
 
-function resolveMenuImage(row: MenuItemRow): string {
-  // If DB already stores full path like "/menu/bianco.png" keep it.
-  const img = String((row as any).image ?? "").trim();
-  if (!img) return "/menu/about.png";
+function handleImgError(e: SyntheticEvent<HTMLImageElement>) {
+  const img = e.currentTarget;
+  img.onerror = null; // spriječi infinite loop
+  img.src = "/menu/about.png";
+}
 
-  // Ensure leading slash
-  if (img.startsWith("/")) return img;
-  return `/${img}`;
+async function fetchMenuItems(): Promise<{ data: MenuItemRow[]; error: string | null }> {
+  // 1) Pokušaj sa created_at (ako postoji)
+  const first = await supabase
+    .from("menu_items")
+    .select("id,name,description,price_eur_cents,category,image,size")
+    .order("created_at", { ascending: false });
+
+  if (!first.error) {
+    return { data: (first.data ?? []) as MenuItemRow[], error: null };
+  }
+
+  // 2) Fallback ako created_at ne postoji / pravi problem
+  const second = await supabase
+    .from("menu_items")
+    .select("id,name,description,price_eur_cents,category,image,size")
+    .order("id", { ascending: false });
+
+  if (second.error) {
+    return { data: [], error: second.error.message || "Greška pri učitavanju menija." };
+  }
+
+  return { data: (second.data ?? []) as MenuItemRow[], error: null };
 }
 
 export default function Menu() {
   const { addToCart } = useCart();
 
-  const [rows, setRows] = useState<MenuItemRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<MenuItemRow[]>([]);
   const [activeCategory, setActiveCategory] = useState<CategoryKey>("pizza");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filteredItems = useMemo(() => {
+    const wanted = activeCategory.toLowerCase();
+
+    return items.filter((i) => {
+      const cat = String(i.category || "").toLowerCase();
+
+      // podrži i varijante iz baze: "pice" -> "pica", "sosovi/sos" -> "sosevi"
+      if (wanted === "pica") return cat === "pica" || cat === "pice" || cat === "drinks";
+      if (wanted === "sosevi") return cat === "sosevi" || cat === "sosovi" || cat === "sos" || cat === "sauces";
+      return cat === wanted;
+    });
+  }, [items, activeCategory]);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    (async () => {
       setLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
-        .from("menu_items")
-        .select("*")
-        .order("created_at", { ascending: false });
-
+      const res = await fetchMenuItems();
       if (cancelled) return;
 
-      if (error) {
-        setError(error.message ?? "Greška pri učitavanju menija.");
-        setRows([]);
-        setLoading(false);
-        return;
+      if (res.error) {
+        setItems([]);
+        setError(res.error);
+      } else {
+        setItems(res.data);
       }
 
-      setRows((data ?? []) as MenuItemRow[]);
       setLoading(false);
-    }
-
-    void load();
+    })();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const computed = useMemo(() => {
-    const normalized = rows.map((r) => ({
-      ...r,
-      _categoryKey: normalizeCategory((r as any).category),
-    })) as Array<MenuItemRow & { _categoryKey: CategoryKey }>;
-
-    const categories: CategoryKey[] = ["dodaci", "pica", "pizza", "sosevi"];
-
-    const filtered = normalized.filter((r) => r._categoryKey === activeCategory);
-
-    return { normalized, categories, filtered };
-  }, [rows, activeCategory]);
-
-  function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
-    const img = e.currentTarget;
-    // Prevent infinite loop if placeholder also fails
-    img.onerror = null;
-    img.src = "/menu/about.png";
-  }
-
   return (
-    <section id="meni" className="relative py-16">
-      <div className="container mx-auto px-4">
-        <div className="flex items-end justify-between gap-6 flex-wrap">
-          <div>
-            <h2 className="text-4xl sm:text-5xl font-black text-white">Meni</h2>
-            <p className="text-white/70 mt-2">
-              Izaberi kategoriju i dodaj u korpu. Cijene su prikazane u €.
-            </p>
-          </div>
+    <section id="meni" className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10">
+      <h2 className="mb-2 text-4xl font-extrabold tracking-tight text-white">Meni</h2>
+      <p className="mb-6 text-sm text-white/70">Izaberi kategoriju i dodaj u korpu. Cijene su prikazane u €.</p>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {computed.categories.map((c) => {
-              const isActive = c === activeCategory;
-              return (
-                <button
-                  key={c}
-                  onClick={() => setActiveCategory(c)}
-                  className={[
-                    "px-4 py-2 rounded-full text-sm font-bold transition",
-                    "border border-white/10",
-                    isActive ? "bg-yellow-400 text-black" : "bg-white/5 text-white hover:bg-white/10",
-                  ].join(" ")}
-                >
-                  {formatCategoryLabel(c)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {loading && (
-          <div className="mt-10 text-white/70">
-            Učitavam meni…
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="mt-10 text-red-200 bg-red-500/10 border border-red-500/20 rounded-2xl p-4">
-            {error}
-          </div>
-        )}
-
-        {!loading && !error && (
-          <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {computed.filtered.map((row) => {
-              const imageUrl = resolveMenuImage(row);
-              const cents = priceFromRow(row);
-
-              return (
-                <motion.div
-                  key={row.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="rounded-3xl border border-white/10 bg-white/5 overflow-hidden hover:bg-white/[0.07] transition"
-                >
-                  <div className="h-44 w-full overflow-hidden">
-                    <img
-                      src={imageUrl}
-                      alt={row.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={handleImgError}
-                    />
-                  </div>
-
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <h3 className="text-lg font-black text-white leading-tight">{row.name}</h3>
-                        {row.description && (
-                          <p className="text-sm text-white/70 mt-1">{row.description}</p>
-                        )}
-                      </div>
-
-                      <div className="shrink-0 text-yellow-300 font-black">
-                        {formatEUR(cents)}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <span className="text-xs text-white/50">
-                        {normalizeCategory((row as any).category)}
-                      </span>
-
-                      <button
-                        onClick={() => addToCart(row)}
-                        className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-400 text-black font-black hover:brightness-95 active:brightness-90 transition"
-                      >
-                        <span className="inline-flex">🛒</span>
-                        Dodaj
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+      <div className="mb-6 flex flex-wrap gap-2">
+        {(Object.keys(CATEGORY_LABELS) as CategoryKey[]).map((k) => {
+          const active = k === activeCategory;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setActiveCategory(k)}
+              className={[
+                "rounded-full px-4 py-2 text-sm font-semibold transition",
+                active ? "bg-[#f2b400] text-black" : "bg-white/10 text-white hover:bg-white/15",
+              ].join(" ")}
+            >
+              {CATEGORY_LABELS[k]}
+            </button>
+          );
+        })}
       </div>
+
+      {loading && <div className="rounded-xl bg-white/5 p-4 text-white/80">Učitavam meni…</div>}
+
+      {error && <div className="rounded-xl bg-red-500/10 p-4 text-red-200">{error}</div>}
+
+      {!loading && !error && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredItems.map((item) => {
+            const imgSrc = normalizeImagePath(item.image);
+            const priceEur =
+              typeof item.price_eur_cents === "number"
+                ? (item.price_eur_cents / 100).toFixed(2).replace(".", ",")
+                : "0,00";
+
+            return (
+              <div
+                key={item.id}
+                className="overflow-hidden rounded-3xl bg-black/50 shadow-[0_8px_30px_rgba(0,0,0,0.35)] ring-1 ring-white/10"
+              >
+                <img
+                  src={imgSrc}
+                  alt={item.name}
+                  className="h-44 w-full object-cover"
+                  loading="lazy"
+                  onError={handleImgError}
+                />
+
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xl font-extrabold text-white">{item.name}</div>
+                      {item.description ? <div className="mt-1 text-sm text-white/70">{item.description}</div> : null}
+                      <div className="mt-3 text-xs text-white/50">{String(item.category || "").toLowerCase()}</div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <div className="text-lg font-extrabold text-[#f2b400]">{priceEur} €</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        addToCart({
+                          id: item.id,
+                          name: item.name,
+                          image: imgSrc,
+                          category: String(item.category || "").toLowerCase(),
+                          quantity: 1,
+                          base_price: item.price_eur_cents,
+                          price_per_item: item.price_eur_cents,
+                          menu_item_id: item.id,
+                          size: item.size ?? null,
+                          note: null,
+                          addons: [],
+                          cart_id: item.name,
+                        } as any)
+                      }
+                      className="inline-flex items-center gap-2 rounded-full bg-[#f2b400] px-5 py-2 text-sm font-extrabold text-black hover:brightness-95"
+                    >
+                      <span>🛒</span>
+                      Dodaj
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

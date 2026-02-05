@@ -1,63 +1,3 @@
-export type CreateOrderPayload = {
-  customer_name: string;
-  customer_phone: string;
-  customer_address: string;
-  items: any[];
-  total_eur_cents: number;
-  currency: "EUR";
-  status: "pending" | "done" | "cancelled";
-  fx_rsd_per_eur: number | null;
-};
-
-type CreateOrderResponse =
-  | { ok: true; id: string }
-  | { ok: false; error: string; details?: unknown };
-
-function getApiBaseUrl() {
-  // Ako korisnik eksplicitno postavi (lokalno) – poštujemo.
-  const envBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
-  if (envBase && envBase.trim()) return envBase.trim().replace(/\/+$/, "");
-
-  // U produkciji na Vercelu: relative rute rade.
-  if ((import.meta as any).env?.PROD) return "";
-
-  // U dev-u na Vite (localhost) nema /api funkcija => gađamo produkciju da test može da radi.
-  return "https://padrino-pizzeria.vercel.app";
-}
-
-export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResponse> {
-  const base = getApiBaseUrl();
-  const url = `${base}/api/create-order`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const text = await res.text();
-  let json: any = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    // ignore
-  }
-
-  if (!res.ok) {
-    return {
-      ok: false,
-      error: `HTTP ${res.status}`,
-      details: json ?? text,
-    };
-  }
-
-  if (json && typeof json === "object" && "ok" in json) {
-    return json as CreateOrderResponse;
-  }
-
-  // fallback
-  return { ok: true, id: json?.id ?? "" };
-}
 import { toSafeInt } from "./money";
 
 export type OrderItemAddonPayload = {
@@ -102,6 +42,8 @@ export type CreateOrderPayload = {
   note?: string | null;
 };
 
+export type CreateOrderResult = { success: true; orderId: string };
+
 function normalizeString(value: string) {
   const trimmed = value.trim();
   return trimmed.length ? trimmed : "";
@@ -116,7 +58,6 @@ function isValidSize(size: unknown): size is "33" | "50" {
 }
 
 function formatHttpError(status: number, body: any) {
-  // API vraća { ok:false, error, code? }
   const parts: string[] = [];
   if (body?.error) parts.push(String(body.error));
   if (body?.code) parts.push(`Kod: ${String(body.code)}`);
@@ -124,11 +65,23 @@ function formatHttpError(status: number, body: any) {
   return `Greška pri slanju porudžbine. HTTP ${status}`;
 }
 
-async function notifyTelegramViaVercel(orderId: string) {
-  // DEV: Vite dev server nema /api rute -> 404 spam.
+function getApiBaseUrl() {
+  // Ako korisnik eksplicitno postavi (lokalno) – poštujemo.
+  const envBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
+  if (envBase && envBase.trim()) return envBase.trim().replace(/\/+$/, "");
+
+  // U produkciji: relative rute rade (Vercel /api/*).
+  if ((import.meta as any).env?.PROD) return "";
+
+  // U dev-u: Vite dev server nema /api rute -> gađamo produkciju da test može da radi bez 404 spama.
+  return "https://padrino-pizzeria.vercel.app";
+}
+
+async function notifyTelegram(orderId: string) {
+  // DEV: Vite dev server nema /api rute -> 404 spam. Preskačemo.
   if (import.meta.env.DEV) return;
 
-  // PROD: ne rušimo porudžbinu ako Telegram padne (best-effort)
+  // PROD: best-effort (ne rušimo porudžbinu ako Telegram padne)
   try {
     const res = await fetch("/api/telegram-new-order", {
       method: "POST",
@@ -145,7 +98,7 @@ async function notifyTelegramViaVercel(orderId: string) {
   }
 }
 
-export async function createOrder(payload: CreateOrderPayload) {
+export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
   const customer_address = normalizeString(payload.customer_address);
@@ -201,7 +154,6 @@ export async function createOrder(payload: CreateOrderPayload) {
   if (order_note) meta.order_note = order_note;
   normalizedItems.unshift(meta);
 
-  // Ključno: više NEMA direktnog Supabase inserta iz browser-a.
   const apiBody = {
     customer_name,
     customer_phone,
@@ -214,7 +166,10 @@ export async function createOrder(payload: CreateOrderPayload) {
     fx_rsd_per_eur: null,
   };
 
-  const res = await fetch("/api/create-order", {
+  const base = getApiBaseUrl();
+  const url = `${base}/api/create-order`;
+
+  const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(apiBody),
@@ -229,7 +184,7 @@ export async function createOrder(payload: CreateOrderPayload) {
   const orderId = String(json?.id ?? "").trim();
   if (!orderId) throw new Error("Porudžbina je poslata, ali ID nije vraćen.");
 
-  void notifyTelegramViaVercel(orderId);
+  void notifyTelegram(orderId);
 
   return { success: true, orderId };
 }
