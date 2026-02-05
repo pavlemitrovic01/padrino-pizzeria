@@ -1,3 +1,5 @@
+// Named export useCart kao alias na postojeći hook
+export { useCart } from "./useCart";
 import { ReactNode, useMemo, useState } from "react";
 import {
   CartAddon,
