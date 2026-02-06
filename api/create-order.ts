@@ -2,17 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 
 function setCors(req: any, res: any) {
   const origin = typeof req?.headers?.origin === "string" ? req.headers.origin : "";
-
-  // Za create-order nema tajni u requestu i endpoint je javno pozivan iz web app-a,
-  // pa je najstabilnije dozvoliti sve origine (sprečava dev/prod CORS probleme).
   res.setHeader("Access-Control-Allow-Origin", origin || "*");
   res.setHeader("Vary", "Origin");
 
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "content-type, x-requested-with"
-  );
+  res.setHeader("Access-Control-Allow-Headers", "content-type, x-requested-with");
   res.setHeader("Access-Control-Max-Age", "86400");
 }
 
@@ -42,7 +36,7 @@ function getSupabase() {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  // Trim + striktna validacija URL-a
+  // Trim + striktna validacija URL-a (poznati bug: razmaci -> malformed URL)
   try {
     const u = new URL(rawUrl);
     if (!u.hostname.endsWith("supabase.co")) {
@@ -58,6 +52,49 @@ function getSupabase() {
 }
 
 const supabase = getSupabase();
+
+function isPlainObject(v: any): v is Record<string, any> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * Legacy meta zapis koji frontend ubacuje u items[0]:
+ * { total_items: number, order_note?: string }
+ * - nema quantity/price_per_item
+ * - treba ga ignorisati u validaciji i obračunu
+ */
+function looksLikeLegacyMetaItem(v: any) {
+  if (!isPlainObject(v)) return false;
+
+  const keys = Object.keys(v);
+  if (keys.length === 0) return false;
+
+  // dozvoljena polja meta zapisa
+  const allowed = new Set(["total_items", "order_note", "note"]);
+
+  // ako sadrži neka "item" polja, nije meta
+  const itemish = ["quantity", "price_per_item", "name", "menu_item_id", "cart_id"];
+  if (itemish.some((k) => k in v)) return false;
+
+  // svi ključevi moraju biti u allowed
+  return keys.every((k) => allowed.has(k));
+}
+
+function looksLikeRealItemButInvalid(v: any) {
+  // Ako liči na real item (ima name ili menu_item_id ili cart_id),
+  // ali mu fale quantity/price_per_item, onda je invalid payload.
+  if (!isPlainObject(v)) return false;
+
+  const hasItemIdentity =
+    "name" in v || "menu_item_id" in v || "cart_id" in v || "menuItemId" in v;
+
+  if (!hasItemIdentity) return false;
+
+  const hasQty = "quantity" in v;
+  const hasPpi = "price_per_item" in v || "pricePerItem" in v;
+
+  return !hasQty || !hasPpi;
+}
 
 export default async function handler(req: any, res: any) {
   setCors(req, res);
@@ -79,7 +116,7 @@ export default async function handler(req: any, res: any) {
     const customer_phone = toTrimmedString(body.customer_phone);
     const customer_address = toTrimmedString(body.customer_address);
 
-    const items = Array.isArray(body.items) ? body.items : [];
+    const rawItems = Array.isArray(body.items) ? body.items : [];
 
     const currency = toTrimmedString(body.currency) || "EUR";
     const status = toTrimmedString(body.status) || "pending";
@@ -88,21 +125,39 @@ export default async function handler(req: any, res: any) {
       customer_name.length < 2 ||
       customer_phone.length < 6 ||
       customer_address.length < 5 ||
-      items.length === 0
+      rawItems.length === 0
     ) {
       return json(res, 400, { ok: false, error: "Invalid payload" });
     }
 
-    // SOURCE OF TRUTH total_eur_cents
-    let total_eur_cents = 0;
-
-    for (const item of items) {
-      const quantity = (item as any)?.quantity;
-      const price_per_item = (item as any)?.price_per_item;
-
-      if (typeof quantity !== "number" || typeof price_per_item !== "number") {
+    // ✅ 1) Reject ako bilo koji element liči na item ali je “polu-popunjen”
+    for (const it of rawItems) {
+      if (looksLikeRealItemButInvalid(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
+    }
+
+    // ✅ 2) Za obračun koristimo samo real iteme sa quantity + price_per_item
+    const calcItems = rawItems.filter((it: any) => {
+      if (looksLikeLegacyMetaItem(it)) return false;
+      if (!isPlainObject(it)) return false;
+
+      const q = it.quantity;
+      const p = it.price_per_item ?? it.pricePerItem;
+
+      return typeof q === "number" && typeof p === "number";
+    });
+
+    if (calcItems.length === 0) {
+      return json(res, 400, { ok: false, error: "Invalid item structure" });
+    }
+
+    // SOURCE OF TRUTH: total_eur_cents računamo na serveru
+    let total_eur_cents = 0;
+
+    for (const item of calcItems) {
+      const quantity = item.quantity;
+      const price_per_item = item.price_per_item ?? item.pricePerItem;
 
       if (!Number.isFinite(quantity) || !Number.isFinite(price_per_item)) {
         return json(res, 400, { ok: false, error: "Invalid item values" });
@@ -121,11 +176,12 @@ export default async function handler(req: any, res: any) {
       });
     }
 
+    // Čuvamo items tačno kako su došli (uključujući meta), radi kompatibilnosti/debug-a
     const insertRow: Record<string, any> = {
       customer_name,
       customer_phone,
       customer_address,
-      items,
+      items: rawItems,
       currency,
       status,
       total_eur_cents,
