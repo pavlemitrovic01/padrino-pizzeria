@@ -4,7 +4,6 @@ function setCors(req: any, res: any) {
   const origin = typeof req?.headers?.origin === "string" ? req.headers.origin : "";
   res.setHeader("Access-Control-Allow-Origin", origin || "*");
   res.setHeader("Vary", "Origin");
-
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "content-type, x-requested-with");
   res.setHeader("Access-Control-Max-Age", "86400");
@@ -17,41 +16,41 @@ function json(res: any, status: number, body: any) {
 }
 
 function toTrimmedString(v: unknown): string {
-  if (typeof v !== "string") return "";
-  return v.trim();
+  return typeof v === "string" ? v.trim() : "";
 }
 
 function getEnv(name: string): string {
   return toTrimmedString((process.env as any)?.[name]);
 }
 
-function getSupabase() {
-  const rawUrl = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const rawKey =
+function buildSupabaseAdmin() {
+  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
+  const SERVICE_ROLE =
     getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
     getEnv("SUPABASE_SERVICE_KEY") ||
     getEnv("SUPABASE_SERVICE_ROLE");
 
-  if (!rawUrl || !rawKey) {
+  if (!SUPABASE_URL || !SERVICE_ROLE) {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  // Trim + striktna validacija URL-a (poznati bug: razmaci -> malformed URL)
+  // poznati bug: razmaci/pogrešan URL -> malformed
   try {
-    const u = new URL(rawUrl);
-    if (!u.hostname.endsWith("supabase.co")) {
-      throw new Error("Invalid SUPABASE_URL: expected a *.supabase.co host.");
+    const u = new URL(SUPABASE_URL);
+    if (!u.hostname.endsWith(".supabase.co")) {
+      throw new Error("Invalid supabaseUrl: Expected *.supabase.co host.");
     }
   } catch {
     throw new Error("Invalid supabaseUrl: Provided URL is malformed.");
   }
 
-  return createClient(rawUrl, rawKey, {
-    auth: { persistSession: false },
+  return createClient(SUPABASE_URL, SERVICE_ROLE, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { "X-Client-Info": "padrino-vercel-api/create-order" } },
   });
 }
 
-const supabase = getSupabase();
+const supabase = buildSupabaseAdmin();
 
 function isPlainObject(v: any): v is Record<string, any> {
   return !!v && typeof v === "object" && !Array.isArray(v);
@@ -60,18 +59,14 @@ function isPlainObject(v: any): v is Record<string, any> {
 /**
  * Legacy meta zapis koji frontend ubacuje u items[0]:
  * { total_items: number, order_note?: string }
- * - nema quantity/price_per_item
- * - treba ga ignorisati u validaciji i obračunu
  */
 function looksLikeLegacyMetaItem(v: any) {
   if (!isPlainObject(v)) return false;
-
   const keys = Object.keys(v);
   if (keys.length === 0) return false;
 
   const allowed = new Set(["total_items", "order_note", "note"]);
-
-  const itemish = ["quantity", "price_per_item", "name", "menu_item_id", "cart_id"];
+  const itemish = ["quantity", "price_per_item", "name", "menu_item_id", "cart_id", "menuItemId"];
   if (itemish.some((k) => k in v)) return false;
 
   return keys.every((k) => allowed.has(k));
@@ -101,38 +96,38 @@ function getRequestBaseUrl(req: any) {
 }
 
 async function notifyTelegramBestEffort(req: any, orderId: string) {
+  const base = getRequestBaseUrl(req);
+  if (!base) return { attempted: false, ok: false, status: 0 };
+
+  const url = `${base}/api/telegram-new-order`;
+  const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
+
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (secret) headers["x-telegram-secret"] = secret;
+
   try {
-    const base = getRequestBaseUrl(req);
-    if (!base) return;
-
-    const url = `${base}/api/telegram-new-order`;
-    const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
-
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-    };
-    if (secret) headers["x-telegram-secret"] = secret;
-
-    const res = await fetch(url, {
+    const r = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify({ order_id: orderId }),
     });
 
-    // Best-effort: ne rušimo narudžbinu ako Telegram padne
-    if (!res.ok) {
-      const j = await res.json().catch(() => null);
-      console.error("[telegram-new-order] notify failed:", res.status, j);
+    if (!r.ok) {
+      const j = await r.json().catch(() => null);
+      console.error("[create-order] telegram notify failed:", r.status, j);
+      return { attempted: true, ok: false, status: r.status };
     }
+
+    return { attempted: true, ok: true, status: r.status };
   } catch (e) {
-    console.error("[telegram-new-order] notify error:", e);
+    console.error("[create-order] telegram notify error:", e);
+    return { attempted: true, ok: false, status: 0 };
   }
 }
 
 export default async function handler(req: any, res: any) {
   setCors(req, res);
 
-  // ✅ Preflight
   if (req.method === "OPTIONS") {
     res.status(204).send("");
     return;
@@ -163,14 +158,14 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Invalid payload" });
     }
 
-    // ✅ Reject ako bilo koji element liči na item ali je “polu-popunjen”
+    // Reject item koji liči na pravi item ali mu fale polja
     for (const it of rawItems) {
       if (looksLikeRealItemButInvalid(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
     }
 
-    // ✅ Za obračun koristimo samo real iteme sa quantity + price_per_item
+    // Za obračun koristimo samo real iteme
     const calcItems = rawItems.filter((it: any) => {
       if (looksLikeLegacyMetaItem(it)) return false;
       if (!isPlainObject(it)) return false;
@@ -203,22 +198,18 @@ export default async function handler(req: any, res: any) {
     }
 
     if (!Number.isFinite(total_eur_cents) || total_eur_cents <= 0) {
-      return json(res, 400, {
-        ok: false,
-        error: "Total price must be greater than zero",
-      });
+      return json(res, 400, { ok: false, error: "Total price must be greater than zero" });
     }
 
-    // Čuvamo items tačno kako su došli (uključujući meta), radi kompatibilnosti/debug-a
     const insertRow: Record<string, any> = {
       customer_name,
       customer_phone,
       customer_address,
-      items: rawItems,
+      items: rawItems, // čuvamo tačno kako je došlo (meta + itemi)
       currency,
       status,
       total_eur_cents,
-      // legacy: number radi kompatibilnosti
+      // legacy: numeric kompatibilno
       total_price: total_eur_cents / 100,
     };
 
@@ -234,9 +225,9 @@ export default async function handler(req: any, res: any) {
     }
 
     // ✅ Telegram notify (best-effort)
-    await notifyTelegramBestEffort(req, data.id);
+    const telegram = await notifyTelegramBestEffort(req, data.id);
 
-    return json(res, 200, { ok: true, id: data.id });
+    return json(res, 200, { ok: true, id: data.id, telegram });
   } catch (err: any) {
     console.error("create-order fatal error:", err);
     return json(res, 500, { ok: false, error: "Internal server error" });
