@@ -1,4 +1,5 @@
 import { toSafeInt } from "./money";
+import { getApiBase } from "./apiBase";
 
 export type OrderItemAddonPayload = {
   id: string;
@@ -63,20 +64,8 @@ function formatHttpError(status: number, body: any) {
   return `Greška pri slanju porudžbine. HTTP ${status}`;
 }
 
-function getApiBaseUrl() {
-  // Ako korisnik eksplicitno postavi (lokalno) – poštujemo.
-  const envBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
-  if (envBase && envBase.trim()) return envBase.trim().replace(/\/+$/, "");
-
-  // U produkciji (Vercel) relativne rute rade: /api/...
-  if ((import.meta as any).env?.PROD) return "";
-
-  // U dev-u (Vite localhost) nema /api funkcija => gađamo produkciju da test radi.
-  return "https://padrino-pizzeria.vercel.app";
-}
-
 async function notifyTelegramBestEffort(orderId: string) {
-  // DEV: ne šaljemo da ne spamuje 404 na localhostu
+  // DEV: ne šaljemo da ne spamuje (i da ne pravi šum dok testiraš lokalno)
   if ((import.meta as any).env?.DEV) return;
 
   try {
@@ -88,75 +77,109 @@ async function notifyTelegramBestEffort(orderId: string) {
 
     if (!res.ok) {
       const j = await res.json().catch(() => null);
+      // eslint-disable-next-line no-console
       console.error("[telegram] notify failed:", res.status, j);
     }
   } catch (e) {
+    // eslint-disable-next-line no-console
     console.error("[telegram] notify error:", e);
   }
 }
 
 export async function createOrder(payload: CreateOrderPayload) {
+  // ✅ Strict-validacija inputa (fail-fast)
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
   const customer_address = normalizeString(payload.customer_address);
 
-  if (customer_name.length < 2) throw new Error("Neispravno ime i prezime.");
-  if (customer_phone.length < 6) throw new Error("Neispravan broj telefona.");
-  if (customer_address.length < 5) throw new Error("Neispravna adresa za dostavu.");
+  if (!customer_name || !customer_phone || !customer_address) {
+    throw new Error("Unesite ime, telefon i adresu.");
+  }
 
-  const items = Array.isArray(payload.items) ? payload.items : [];
-  if (items.length === 0) throw new Error("Korpa je prazna.");
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
+    throw new Error("Korpa je prazna.");
+  }
+
+  const normalizedItems: OrderItemPayload[] = payload.items.map((it) => {
+    const cart_id = normalizeString(String(it.cart_id ?? ""));
+    const name = normalizeString(String(it.name ?? ""));
+    const image = normalizeString(String(it.image ?? ""));
+    const category = normalizeString(String(it.category ?? ""));
+
+    if (!cart_id || !name || !image || !category) {
+      throw new Error("Invalid item structure");
+    }
+
+    const quantity = safeInt(it.quantity, 1);
+    if (quantity <= 0) throw new Error("Invalid item structure");
+
+    const size = it.size === null ? null : isValidSize(it.size) ? it.size : null;
+
+    const menu_item_id =
+      it.menu_item_id === null ? null : normalizeString(String(it.menu_item_id ?? "")) || null;
+
+    const base_price =
+      it.base_price === null || it.base_price === undefined ? null : safeInt(it.base_price, 0);
+
+    const price_per_item = safeInt(it.price_per_item, 0);
+    if (price_per_item <= 0) throw new Error("Invalid item structure");
+
+    const note = it.note ? normalizeString(String(it.note)) : null;
+
+    const addonsRaw = Array.isArray(it.addons) ? it.addons : [];
+    const addons: OrderItemAddonPayload[] = addonsRaw.map((a) => {
+      const id = normalizeString(String(a.id ?? ""));
+      const aname = normalizeString(String(a.name ?? ""));
+      const price = safeInt((a as any).price, 0);
+      const aq = safeInt((a as any).quantity, 1);
+
+      if (!id || !aname || price < 0 || aq <= 0) {
+        throw new Error("Invalid item structure");
+      }
+
+      return { id, name: aname, price, quantity: aq };
+    });
+
+    return {
+      cart_id,
+      menu_item_id,
+      name,
+      size,
+      quantity,
+      base_price,
+      price_per_item,
+      addons,
+      note,
+      image,
+      category,
+    };
+  });
 
   const total_eur_cents = safeInt(payload.total_price, 0);
   const total_items = safeInt(payload.total_items, 0);
 
-  if (total_items <= 0 || total_eur_cents <= 0) {
-    throw new Error("Neispravan obračun korpe.");
+  if (total_eur_cents <= 0 || total_items <= 0) {
+    throw new Error("Invalid total");
   }
 
-  // Normalizujemo items (stability-first)
-  const normalizedItems: any[] = items.map((i: any) => ({
-    cart_id: String(i.cart_id ?? i.id ?? i.name ?? ""),
-    menu_item_id: i.menu_item_id ?? i.menuItemId ?? null,
-    name: String(i.name ?? ""),
-    size: isValidSize(i.size) ? i.size : null,
-    quantity: Math.max(1, safeInt(i.quantity, 1)),
+  // meta-stavka na početak (kompatibilno sa backendom ako očekuje)
+  const meta = {
+    cart_id: "meta",
+    menu_item_id: null,
+    name: "META",
+    size: null,
+    quantity: 1,
+    base_price: null,
+    price_per_item: 0,
+    addons: [],
+    note: payload.note ?? null,
+    image: "",
+    category: "meta",
+  } as unknown as OrderItemPayload;
 
-    base_price:
-      typeof i.base_price === "number" && Number.isFinite(i.base_price)
-        ? safeInt(i.base_price, 0)
-        : typeof i.basePrice === "number" && Number.isFinite(i.basePrice)
-          ? safeInt(i.basePrice, 0)
-          : null,
-
-    price_per_item:
-      typeof i.price_per_item === "number"
-        ? safeInt(i.price_per_item, 0)
-        : typeof i.price === "number"
-          ? safeInt(i.price, 0)
-          : safeInt(i.base_price ?? i.basePrice ?? 0, 0),
-
-    addons: Array.isArray(i.addons)
-      ? i.addons.map((a: any) => ({
-          id: String(a.id),
-          name: String(a.name),
-          price: safeInt(a.price, 0),
-          quantity: Math.max(1, safeInt(a.quantity ?? 1, 1)),
-        }))
-      : [],
-
-    note: i.note ? String(i.note).trim() || null : null,
-
-    image: String(i.image ?? ""),
-    category: String(i.category ?? ""),
-  }));
-
-  const order_note = payload.note ? String(payload.note).trim() || null : null;
-
-  // Backwards compatible meta zapis u orders.items[0]
-  const meta: Record<string, any> = { total_items };
-  if (order_note) meta.order_note = order_note;
-  normalizedItems.unshift(meta);
+  // ubaci meta samo ako ima napomene
+  const hasMetaNote = typeof payload.note === "string" && payload.note.trim().length > 0;
+  if (hasMetaNote) normalizedItems.unshift(meta);
 
   const apiBody = {
     customer_name,
@@ -169,8 +192,8 @@ export async function createOrder(payload: CreateOrderPayload) {
     fx_rsd_per_eur: null,
   };
 
-  const base = getApiBaseUrl();
-  const url = `${base}/api/create-order`;
+  const base = getApiBase().replace(/\/+$/, "");
+  const url = `${base}/create-order`;
 
   const res = await fetch(url, {
     method: "POST",

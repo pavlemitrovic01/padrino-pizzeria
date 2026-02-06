@@ -516,7 +516,8 @@ export default function CartDrawer() {
 
                     {!canSubmit && !submitting ? (
                       <div className="mt-2 text-xs text-white/50">
-                        Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.
+                        Popuni ime/telefon/adresu i provjeri da korpa ima ispravan
+                        obračun.
                       </div>
                     ) : null}
                   </div>
@@ -553,7 +554,10 @@ export default function CartDrawer() {
                             {Array.isArray(i.addons) && i.addons.length > 0 ? (
                               <div className="mt-2 space-y-1">
                                 {i.addons.map((a) => (
-                                  <div key={a.id} className="text-xs text-white/55">
+                                  <div
+                                    key={a.id}
+                                    className="text-xs text-white/55"
+                                  >
                                     + {a.name} x{a.quantity} (
                                     {formatEUR(a.price * a.quantity)})
                                   </div>
@@ -628,22 +632,24 @@ export default function CartDrawer() {
                                 </button>
                               </div>
 
-                              <div className="mt-3 flex items-center gap-2">
-                                <button
-                                  className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
-                                  onClick={() => decrease(item.id)}
-                                >
-                                  -
-                                </button>
-                                <span className="text-white/80 text-sm">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
-                                  onClick={() => increase(item.id)}
-                                >
-                                  +
-                                </button>
+                              <div className="mt-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
+                                    onClick={() => decrease(item.id)}
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-white/80 text-sm">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
+                                    onClick={() => increase(item.id)}
+                                  >
+                                    +
+                                  </button>
+                                </div>
                               </div>
 
                               {/* ✅ Size picker za pice: iz baze (name: 33/50 cm) */}

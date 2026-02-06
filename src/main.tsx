@@ -1,6 +1,5 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { CartProvider } from "./context/CartProvider";
 import { AuthProvider } from "./auth/AuthProvider";
@@ -29,7 +28,6 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           : undefined,
     });
 
-    // Namerno ostavljamo i console za brz debug
     // eslint-disable-next-line no-console
     console.error("Unhandled UI error:", err, info);
   }
@@ -49,7 +47,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
           <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121212] p-6">
             <h1 className="text-xl font-extrabold">Došlo je do greške</h1>
             <p className="text-sm text-gray-400 mt-2">
-              Aplikacija je naišla na neočekivan problem. Možeš da pokušaš ponovo ili da osvežiš stranicu.
+              Aplikacija je naišla na neočekivan problem. Možeš da pokušaš ponovo ili da osvežiš
+              stranicu.
             </p>
 
             {this.state.message ? (
@@ -88,20 +87,17 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 // Ne vezujemo ga za komponente/providere da se ne bi duplirao u StrictMode re-renderima.
 initClientMonitoring({
   appTag: "padrino-web",
-  // Opcionalno: možeš kasnije da ubaciš build tag (npr. git sha) ako ga budeš imao.
   version: "unknown",
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <BrowserRouter>
-        <CartProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </CartProvider>
-      </BrowserRouter>
+      <CartProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </CartProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );
