@@ -47,28 +47,46 @@ function isPizza50cmName(name: string) {
   return /\b50\s*cm\b/i.test(String(name ?? ""));
 }
 
-function normalizeImagePath(image: string | null) {
-  if (!image) return "/menu/about.png";
-  if (image.startsWith("/menu/")) return image;
+/**
+ * ✅ BITNO: nikad ne vraćamo "about.png" ili neku izmišljenu sliku.
+ * Ako nema slike -> null (nema network requesta).
+ */
+function normalizeImagePath(image: string | null): string | null {
+  if (!image) return null;
 
-  if (image.startsWith("/public/")) {
-    const file = safeBasename(image);
+  const trimmed = image.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith("/menu/")) return trimmed;
+
+  if (trimmed.startsWith("/public/")) {
+    const file = safeBasename(trimmed);
     return `/menu/${file}`;
   }
 
-  if (image.startsWith("/drinks/") || image.startsWith("/extras/")) {
-    const file = safeBasename(image);
+  if (trimmed.startsWith("/drinks/") || trimmed.startsWith("/extras/")) {
+    const file = safeBasename(trimmed);
     return `/menu/${file}`;
   }
 
-  if (!image.startsWith("/")) return `/${image}`;
-  return image;
+  if (!trimmed.startsWith("/")) return `/${trimmed}`;
+  return trimmed;
 }
 
 function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
   const img = e.currentTarget;
+
+  // ✅ Stabilno: kad failuje, ne pokušavamo drugi URL (da ne pravimo 404 spam)
   img.onerror = null;
-  img.src = "/menu/about.png";
+
+  // Sakrij sliku
+  img.style.display = "none";
+
+  // Pokaži placeholder odmah posle <img>
+  const placeholder = img.nextElementSibling as HTMLElement | null;
+  if (placeholder) {
+    placeholder.style.display = "flex";
+  }
 }
 
 /**
@@ -107,11 +125,8 @@ export default function Menu() {
   const [error, setError] = useState<string | null>(null);
 
   const filteredItems = useMemo(() => {
-    // 1) Filtriraj po UI kategoriji (alias mapping)
     const byCategory = items.filter((i) => isInUiCategory(i.category || "", activeCategory));
 
-    // 2) Stabilno čišćenje menija:
-    // - Pizza: sakrij 50cm (duplikati)
     if (activeCategory === "pizza") {
       return byCategory.filter((i) => !isPizza50cmName(i.name));
     }
@@ -157,11 +172,14 @@ export default function Menu() {
           ? row.price
           : 0;
 
+    const img = normalizeImagePath(row.image);
+
     const cartItem: CartItem = {
       id: row.id,
       name: row.name,
       price: cents,
-      image: normalizeImagePath(row.image),
+      // ✅ ako nema slike, stavi prazno (CartDrawer ima svoje ponašanje, a ovdje nema spam requesta)
+      image: img ?? "",
       description: row.description ?? "",
       category: row.category ?? "",
       quantity: 1,
@@ -221,13 +239,28 @@ export default function Menu() {
                 key={row.id}
                 className="overflow-hidden rounded-3xl bg-black/50 shadow-[0_8px_30px_rgba(0,0,0,0.35)] ring-1 ring-white/10"
               >
-                <img
-                  src={imgSrc}
-                  alt={row.name}
-                  className="h-44 w-full object-cover"
-                  loading="lazy"
-                  onError={handleImgError}
-                />
+                {imgSrc ? (
+                  <>
+                    <img
+                      src={imgSrc}
+                      alt={row.name}
+                      className="h-44 w-full object-cover"
+                      loading="lazy"
+                      onError={handleImgError}
+                    />
+                    {/* placeholder (skriven dok slika ne failuje) */}
+                    <div
+                      className="h-44 w-full items-center justify-center bg-white/5 text-white/40 text-sm font-semibold"
+                      style={{ display: "none" }}
+                    >
+                      Nema slike
+                    </div>
+                  </>
+                ) : (
+                  <div className="h-44 w-full flex items-center justify-center bg-white/5 text-white/40 text-sm font-semibold">
+                    Nema slike
+                  </div>
+                )}
 
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4">

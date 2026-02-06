@@ -1,11 +1,12 @@
 /**
  * Jedan izvor istine za API base.
  *
- * Cilj (stabilizacija > feature):
- * - U produkciji (Vercel): koristi relativno "/api" (isto porijeklo)
- * - U dev (localhost): koristi Vercel domen da Vite ne baca 404 za /api/*
+ * Stabilno ponašanje:
+ * - Produkcija (Vercel): koristi relativno "/api"
+ * - Dev (localhost): koristi ENV ako postoji, inače fallback na Vercel prod domen
  *
- * Nema nagađanja, nema CORS preflight-a: gađamo HTTPS Vercel endpoint.
+ * ENV:
+ * - VITE_API_BASE_URL (npr. "https://padrino-pizzeria.vercel.app/api")
  */
 export function getApiBase(): string {
   const isDev =
@@ -15,7 +16,11 @@ export function getApiBase(): string {
 
   if (!isDev) return "/api";
 
-  // Dev: direktno Vercel prod domen (jedan izvor istine)
-  // Ako promijeniš domen u budućnosti, mijenja se samo ovdje.
+  const envBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+  const trimmed = envBase.trim();
+
+  if (trimmed.length > 0) return trimmed;
+
+  // Fallback (radi odmah i bez env-a)
   return "https://padrino-pizzeria.vercel.app/api";
 }
