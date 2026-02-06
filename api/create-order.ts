@@ -1,5 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
 
+function setCors(req: any, res: any) {
+  const origin = typeof req?.headers?.origin === "string" ? req.headers.origin : "";
+
+  // Za create-order nema tajni u requestu i endpoint je javno pozivan iz web app-a,
+  // pa je najstabilnije dozvoliti sve origine (sprečava dev/prod CORS probleme).
+  res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  res.setHeader("Vary", "Origin");
+
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "content-type, x-requested-with"
+  );
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
+
 function json(res: any, status: number, body: any) {
   res.status(status);
   res.setHeader("content-type", "application/json; charset=utf-8");
@@ -16,7 +32,6 @@ function getEnv(name: string): string {
 }
 
 function getSupabase() {
-  // Primarni (server-side) env:
   const rawUrl = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
   const rawKey =
     getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
@@ -27,7 +42,7 @@ function getSupabase() {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  // Trim + striktna validacija URL-a (poznati bug: razmaci -> malformed URL)
+  // Trim + striktna validacija URL-a
   try {
     const u = new URL(rawUrl);
     if (!u.hostname.endsWith("supabase.co")) {
@@ -42,10 +57,17 @@ function getSupabase() {
   });
 }
 
-// Singleton (jedna instanca po cold start-u)
 const supabase = getSupabase();
 
 export default async function handler(req: any, res: any) {
+  setCors(req, res);
+
+  // ✅ Preflight
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
   if (req.method !== "POST") {
     return json(res, 405, { ok: false, error: "Method not allowed" });
   }
@@ -62,7 +84,6 @@ export default async function handler(req: any, res: any) {
     const currency = toTrimmedString(body.currency) || "EUR";
     const status = toTrimmedString(body.status) || "pending";
 
-    // HARD VALIDATION
     if (
       customer_name.length < 2 ||
       customer_phone.length < 6 ||
@@ -72,7 +93,7 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Invalid payload" });
     }
 
-    // SOURCE OF TRUTH: total_eur_cents računamo na serveru
+    // SOURCE OF TRUTH total_eur_cents
     let total_eur_cents = 0;
 
     for (const item of items) {
@@ -108,7 +129,7 @@ export default async function handler(req: any, res: any) {
       currency,
       status,
       total_eur_cents,
-      // legacy: čuvamo kao number da se ne lomi numeric kolona
+      // legacy: number (ne string) radi kompatibilnosti sa numeric kolonom
       total_price: total_eur_cents / 100,
     };
 
