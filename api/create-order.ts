@@ -69,20 +69,15 @@ function looksLikeLegacyMetaItem(v: any) {
   const keys = Object.keys(v);
   if (keys.length === 0) return false;
 
-  // dozvoljena polja meta zapisa
   const allowed = new Set(["total_items", "order_note", "note"]);
 
-  // ako sadrži neka "item" polja, nije meta
   const itemish = ["quantity", "price_per_item", "name", "menu_item_id", "cart_id"];
   if (itemish.some((k) => k in v)) return false;
 
-  // svi ključevi moraju biti u allowed
   return keys.every((k) => allowed.has(k));
 }
 
 function looksLikeRealItemButInvalid(v: any) {
-  // Ako liči na real item (ima name ili menu_item_id ili cart_id),
-  // ali mu fale quantity/price_per_item, onda je invalid payload.
   if (!isPlainObject(v)) return false;
 
   const hasItemIdentity =
@@ -94,6 +89,44 @@ function looksLikeRealItemButInvalid(v: any) {
   const hasPpi = "price_per_item" in v || "pricePerItem" in v;
 
   return !hasQty || !hasPpi;
+}
+
+function getRequestBaseUrl(req: any) {
+  const xfProto = toTrimmedString(req?.headers?.["x-forwarded-proto"]);
+  const proto = xfProto || "https";
+  const xfHost = toTrimmedString(req?.headers?.["x-forwarded-host"]);
+  const host = xfHost || toTrimmedString(req?.headers?.host);
+  if (!host) return "";
+  return `${proto}://${host}`;
+}
+
+async function notifyTelegramBestEffort(req: any, orderId: string) {
+  try {
+    const base = getRequestBaseUrl(req);
+    if (!base) return;
+
+    const url = `${base}/api/telegram-new-order`;
+    const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
+
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+    };
+    if (secret) headers["x-telegram-secret"] = secret;
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ order_id: orderId }),
+    });
+
+    // Best-effort: ne rušimo narudžbinu ako Telegram padne
+    if (!res.ok) {
+      const j = await res.json().catch(() => null);
+      console.error("[telegram-new-order] notify failed:", res.status, j);
+    }
+  } catch (e) {
+    console.error("[telegram-new-order] notify error:", e);
+  }
 }
 
 export default async function handler(req: any, res: any) {
@@ -130,14 +163,14 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Invalid payload" });
     }
 
-    // ✅ 1) Reject ako bilo koji element liči na item ali je “polu-popunjen”
+    // ✅ Reject ako bilo koji element liči na item ali je “polu-popunjen”
     for (const it of rawItems) {
       if (looksLikeRealItemButInvalid(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
     }
 
-    // ✅ 2) Za obračun koristimo samo real iteme sa quantity + price_per_item
+    // ✅ Za obračun koristimo samo real iteme sa quantity + price_per_item
     const calcItems = rawItems.filter((it: any) => {
       if (looksLikeLegacyMetaItem(it)) return false;
       if (!isPlainObject(it)) return false;
@@ -185,7 +218,7 @@ export default async function handler(req: any, res: any) {
       currency,
       status,
       total_eur_cents,
-      // legacy: number (ne string) radi kompatibilnosti sa numeric kolonom
+      // legacy: number radi kompatibilnosti
       total_price: total_eur_cents / 100,
     };
 
@@ -199,6 +232,9 @@ export default async function handler(req: any, res: any) {
       console.error("Supabase insert error:", error);
       return json(res, 500, { ok: false, error: "Database insert failed" });
     }
+
+    // ✅ Telegram notify (best-effort)
+    await notifyTelegramBestEffort(req, data.id);
 
     return json(res, 200, { ok: true, id: data.id });
   } catch (err: any) {
