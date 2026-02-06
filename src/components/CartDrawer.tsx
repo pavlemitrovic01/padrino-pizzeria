@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient.ts";
 import { useCart } from "../context/useCart";
-import type { CartAddon } from "../context/CartContext";
+import type { CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
 import { formatEUR, toSafeInt } from "../lib/money";
 
 type MenuItemData = {
@@ -47,7 +47,10 @@ function isSauceCategory(category: string) {
 }
 
 function hasEurPrice(row: MenuItemData) {
-  const n = typeof row.price_eur_cents === "number" ? row.price_eur_cents : Number(row.price_eur_cents);
+  const n =
+    typeof row.price_eur_cents === "number"
+      ? row.price_eur_cents
+      : Number(row.price_eur_cents);
   return Number.isFinite(n);
 }
 
@@ -98,6 +101,30 @@ function getPerItemAddonsTotal(addons: CartAddon[]) {
   return addons.reduce((sum, a) => sum + a.price * (a.quantity ?? 1), 0);
 }
 
+function parsePizzaSizeFromName(name: string): PizzaSize | null {
+  const t = normalizeText(name);
+  if (/\b50\s*cm\b/.test(t)) return "50";
+  if (/\b33\s*cm\b/.test(t)) return "33";
+  return null;
+}
+
+function stripPizzaSizeFromName(name: string): string {
+  return String(name ?? "")
+    .replace(/33\s*cm/gi, "")
+    .replace(/50\s*cm/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPizzaRow(row: MenuItemData): boolean {
+  const cat = normalizeCategory(row.category ?? "");
+  const nm = normalizeText(row.name ?? "");
+  // dovoljno stabilno: u tvojoj bazi pice imaju "33 cm" / "50 cm" u name-u
+  return nm.includes("33 cm") || nm.includes("50 cm") || cat.includes("pizza");
+}
+
+type PizzaVariantsMap = Record<string, Partial<Record<PizzaSize, PizzaVariant>>>;
+
 export default function CartDrawer() {
   const {
     items,
@@ -121,7 +148,13 @@ export default function CartDrawer() {
     { id: string; name: string; price: number }[]
   >([]);
   const [hasSaucesControl, setHasSaucesControl] = useState(false);
-  const [openSaucesForItemId, setOpenSaucesForItemId] = useState<string | null>(null);
+  const [openSaucesForItemId, setOpenSaucesForItemId] = useState<string | null>(
+    null
+  );
+
+  // ✅ NOVO: mapa 33/50 varijanti po bazičnom imenu pice (bez "33 cm"/"50 cm")
+  const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] =
+    useState<PizzaVariantsMap>({});
 
   useEffect(() => {
     let mounted = true;
@@ -137,22 +170,53 @@ export default function CartDrawer() {
 
         const rows = ((data ?? []) as MenuItemData[]).filter(hasEurPrice);
 
+        // ✅ 0) Izgradi mapu pizza varijanti (33/50) iz baze
+        const nextPizzaVariants: PizzaVariantsMap = {};
+        for (const r of rows) {
+          if (!isPizzaRow(r)) continue;
+
+          const size = parsePizzaSizeFromName(r.name);
+          if (!size) continue;
+
+          const baseKey = stripPizzaSizeFromName(r.name);
+          if (!baseKey) continue;
+
+          const variant: PizzaVariant = {
+            menuItemId: r.id,
+            price: toSafeInt(r.price_eur_cents, 0),
+            category: r.category ?? "",
+          };
+
+          if (!nextPizzaVariants[baseKey]) nextPizzaVariants[baseKey] = {};
+          nextPizzaVariants[baseKey][size] = variant;
+        }
+        setPizzaVariantsByBaseKey(nextPizzaVariants);
+
         // 1) Sve iz "dodaci"
-        const dodaciRows = rows.filter((r) => normalizeCategory(r.category) === "dodaci");
+        const dodaciRows = rows.filter(
+          (r) => normalizeCategory(r.category) === "dodaci"
+        );
 
         // 2) Ako ikad uvedeš posebnu kategoriju za soseve (opcioni upgrade)
         const sauceCategoryRows = rows.filter((r) => isSauceCategory(r.category));
 
         // 3) Ako su sosevi i dalje u "dodaci", prepoznaj po imenu
-        const sauceFromDodaciRows = dodaciRows.filter((r) => isSauceItemName(r.name));
+        const sauceFromDodaciRows = dodaciRows.filter((r) =>
+          isSauceItemName(r.name)
+        );
 
         // 4) Placeholder "Sosevi" (postojeća stavka u "dodaci")
         const hasPlaceholder = dodaciRows.some((r) => isSaucesPlaceholder(r.name));
 
         // 5) Finalni katalog soseva: prvo kategorija (ako postoji), inače iz "dodaci"
-        const saucesSource = sauceCategoryRows.length > 0 ? sauceCategoryRows : sauceFromDodaciRows;
+        const saucesSource =
+          sauceCategoryRows.length > 0 ? sauceCategoryRows : sauceFromDodaciRows;
 
-        const nextSauces = saucesSource.map((r) => ({ id: r.id, name: r.name, price: toSafeInt(r.price_eur_cents, 0) }));
+        const nextSauces = saucesSource.map((r) => ({
+          id: r.id,
+          name: r.name,
+          price: toSafeInt(r.price_eur_cents, 0),
+        }));
 
         const shouldShowSaucesControl = hasPlaceholder || nextSauces.length > 0;
 
@@ -162,12 +226,17 @@ export default function CartDrawer() {
             if (isSaucesPlaceholder(r.name)) return false;
 
             if (nextSauces.length > 0) {
-              if (saucesSource === sauceFromDodaciRows && isSauceItemName(r.name)) return false;
+              if (saucesSource === sauceFromDodaciRows && isSauceItemName(r.name))
+                return false;
             }
 
             return true;
           })
-          .map((r) => ({ id: r.id, name: r.name, price: toSafeInt(r.price_eur_cents, 0) }));
+          .map((r) => ({
+            id: r.id,
+            name: r.name,
+            price: toSafeInt(r.price_eur_cents, 0),
+          }));
 
         setSaucesCatalog(nextSauces);
         setAddonsCatalog(nextAddons);
@@ -177,6 +246,7 @@ export default function CartDrawer() {
         setAddonsCatalog([]);
         setSaucesCatalog([]);
         setHasSaucesControl(false);
+        setPizzaVariantsByBaseKey({});
       }
     }
 
@@ -188,12 +258,18 @@ export default function CartDrawer() {
 
   const handleGoToMenu = () => {
     closeCart();
-    document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" });
+
+    // ✅ Primarni ID u projektu je "meni" (Menu.tsx)
+    const el =
+      document.getElementById("meni") || document.getElementById("menu");
+    el?.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleGoToCheckout = () => {
     closeCart();
-    document.getElementById("checkout")?.scrollIntoView({ behavior: "smooth" });
+
+    // ✅ Checkout nema stabilan id u layout-u, ali je dole na stranici
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   };
 
   const derivedTotalPrice = useMemo(() => {
@@ -252,55 +328,67 @@ export default function CartDrawer() {
               </div>
             ) : (
               <>
-                <div className="mt-6 space-y-4">
+                <div className="mt-5 space-y-4">
                   {items.map((item) => {
                     const isDrink = isDrinkCategory(item.category ?? "");
-                    const addons = item.addons ?? [];
-                    const addonsTotal = isDrink ? 0 : getPerItemAddonsTotal(addons);
+                    const baseKey = item.baseKey ?? item.name;
 
-                    const base =
-                      typeof item.basePrice === "number" && Number.isFinite(item.basePrice)
-                        ? item.basePrice
-                        : Math.max(0, (item.price ?? 0) - addonsTotal);
-
-                    const lineTotal = (base + addonsTotal) * item.quantity;
+                    // ✅ varijante iz baze (33/50) po bazičnom imenu
+                    const variantsFromDb = pizzaVariantsByBaseKey[baseKey];
+                    const canPickSize =
+                      !!variantsFromDb && (!!variantsFromDb["33"] || !!variantsFromDb["50"]);
 
                     return (
                       <div
                         key={item.id}
                         className="rounded-2xl border border-white/10 bg-white/5 p-4"
                       >
-                        <div className="flex items-start gap-3">
-                          <div className="h-16 w-16 overflow-hidden rounded-xl bg-black/30 shrink-0">
-                            <img
-                              src={item.image}
-                              alt={item.name}
-                              className="h-full w-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
+                        <div className="flex gap-3">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="h-16 w-16 rounded-xl object-cover border border-white/10"
+                          />
 
-                          <div className="min-w-0 flex-1">
+                          <div className="flex-1">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-white font-semibold truncate">
+                              <div>
+                                <p className="text-white font-semibold leading-tight">
                                   {item.name}
                                 </p>
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {item.category}
+                                <p className="text-white/60 text-xs">
+                                  {formatEUR(item.price)}
                                 </p>
                               </div>
 
                               <button
                                 onClick={() => removeFromCart(item.id)}
-                                className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/70 hover:text-white hover:border-white/20"
+                                className="text-xs text-white/60 hover:text-white"
                               >
                                 Ukloni
                               </button>
                             </div>
 
-                            {/* Size picker samo za pice */}
-                            {item.variants && item.size && (
+                            <div className="mt-3 flex items-center gap-2">
+                              <button
+                                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
+                                onClick={() => decrease(item.id)}
+                              >
+                                -
+                              </button>
+                              <span className="text-white/80 text-sm">
+                                {item.quantity}
+                              </span>
+                              <button
+                                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
+                                onClick={() => increase(item.id)}
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* ✅ Size picker za pice: sada radi iz baze (name: 33/50 cm) */}
+                            {canPickSize && (
                               <div className="mt-3 flex items-center gap-2">
                                 <button
                                   className={`rounded-full px-3 py-1 text-xs font-semibold border ${
@@ -309,13 +397,14 @@ export default function CartDrawer() {
                                       : "bg-transparent text-white/80 border-white/15 hover:border-white/25"
                                   }`}
                                   onClick={() => {
-                                    const next = item.variants?.["33"];
+                                    const next = variantsFromDb?.["33"];
                                     if (!next) return;
                                     changeSize(item.id, "33", next);
                                   }}
                                 >
                                   33 cm
                                 </button>
+
                                 <button
                                   className={`rounded-full px-3 py-1 text-xs font-semibold border ${
                                     item.size === "50"
@@ -323,7 +412,7 @@ export default function CartDrawer() {
                                       : "bg-transparent text-white/80 border-white/15 hover:border-white/25"
                                   }`}
                                   onClick={() => {
-                                    const next = item.variants?.["50"];
+                                    const next = variantsFromDb?.["50"];
                                     if (!next) return;
                                     changeSize(item.id, "50", next);
                                   }}
@@ -336,107 +425,100 @@ export default function CartDrawer() {
                             {/* Addons / sosevi */}
                             {!isDrink && (
                               <div className="mt-4 space-y-3">
+                                {/* Sosevi control */}
                                 {hasSaucesControl && (
-                                  <div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <p className="text-xs font-semibold text-white/80">
+                                      Sosevi
+                                    </p>
                                     <button
-                                      className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left hover:border-yellow-500/30"
+                                      className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
                                       onClick={() =>
-                                        setOpenSaucesForItemId((prev) =>
-                                          prev === item.id ? null : item.id
+                                        setOpenSaucesForItemId(
+                                          openSaucesForItemId === item.id ? null : item.id
                                         )
                                       }
                                     >
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-sm font-semibold text-white">
-                                          Sosevi
-                                        </span>
-                                        <span className="text-xs text-white/70">
-                                          {openSaucesForItemId === item.id ? "Zatvori" : "Dodaj"}
-                                        </span>
-                                      </div>
+                                      {openSaucesForItemId === item.id
+                                        ? "Zatvori"
+                                        : "Dodaj soseve"}
                                     </button>
-
-                                    {openSaucesForItemId === item.id && (
-                                      <div className="mt-3 grid grid-cols-2 gap-2">
-                                        {saucesCatalog.map((s) => (
-                                          <button
-                                            key={s.id}
-                                            onClick={() =>
-                                              addAddonToItem(item.id, {
-                                                id: s.id,
-                                                name: s.name,
-                                                price: s.price,
-                                              })
-                                            }
-                                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left hover:border-yellow-500/30"
-                                          >
-                                            <p className="text-xs text-white truncate">{s.name}</p>
-                                            <p className="text-[11px] text-gray-400">
-                                              {formatEUR(s.price)}
-                                            </p>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
                                   </div>
                                 )}
 
+                                {openSaucesForItemId === item.id && saucesCatalog.length > 0 && (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {saucesCatalog.map((a) => (
+                                      <button
+                                        key={a.id}
+                                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
+                                        onClick={() => addAddonToItem(item.id, a)}
+                                      >
+                                        <div className="font-semibold text-white">{a.name}</div>
+                                        <div className="text-white/60">{formatEUR(a.price)}</div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Addons grid */}
                                 {addonsCatalog.length > 0 && (
                                   <div>
-                                    <p className="text-xs text-white/70 mb-2">Dodaci</p>
+                                    <p className="text-xs font-semibold text-white/80 mb-2">
+                                      Dodaci
+                                    </p>
                                     <div className="grid grid-cols-2 gap-2">
                                       {addonsCatalog.map((a) => (
                                         <button
                                           key={a.id}
-                                          onClick={() =>
-                                            addAddonToItem(item.id, {
-                                              id: a.id,
-                                              name: a.name,
-                                              price: a.price,
-                                            })
-                                          }
-                                          className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-left hover:border-yellow-500/30"
+                                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
+                                          onClick={() => addAddonToItem(item.id, a)}
                                         >
-                                          <p className="text-xs text-white truncate">{a.name}</p>
-                                          <p className="text-[11px] text-gray-400">{formatEUR(a.price)}</p>
+                                          <div className="font-semibold text-white">{a.name}</div>
+                                          <div className="text-white/60">{formatEUR(a.price)}</div>
                                         </button>
                                       ))}
                                     </div>
                                   </div>
                                 )}
 
-                                {addons.length > 0 && (
-                                  <div className="pt-1">
-                                    <p className="text-xs text-white/70 mb-2">U korpi</p>
+                                {/* Selected addons list */}
+                                {Array.isArray(item.addons) && item.addons.length > 0 && (
+                                  <div className="pt-2">
+                                    <p className="text-xs font-semibold text-white/80 mb-2">
+                                      Izabrano
+                                    </p>
                                     <div className="space-y-2">
-                                      {addons.map((a) => (
+                                      {item.addons.map((a) => (
                                         <div
                                           key={a.id}
-                                          className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2"
+                                          className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
                                         >
                                           <div className="min-w-0">
-                                            <p className="text-xs text-white truncate">{a.name}</p>
-                                            <p className="text-[11px] text-gray-400">
-                                              {a.quantity} × {formatEUR(a.price)}
-                                            </p>
+                                            <div className="text-xs font-semibold text-white truncate">
+                                              {a.name}
+                                            </div>
+                                            <div className="text-[11px] text-white/60">
+                                              {formatEUR(a.price)} × {a.quantity}
+                                            </div>
                                           </div>
 
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-1">
                                             <button
+                                              className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
                                               onClick={() => decreaseAddonQuantity(item.id, a.id)}
-                                              className="h-7 w-7 rounded-full border border-white/10 text-white/80 hover:text-white hover:border-white/20"
                                             >
                                               -
                                             </button>
                                             <button
+                                              className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
                                               onClick={() => increaseAddonQuantity(item.id, a.id)}
-                                              className="h-7 w-7 rounded-full border border-white/10 text-white/80 hover:text-white hover:border-white/20"
                                             >
                                               +
                                             </button>
                                             <button
+                                              className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
                                               onClick={() => removeAddonFromItem(item.id, a.id)}
-                                              className="h-7 w-7 rounded-full border border-white/10 text-white/80 hover:text-white hover:border-white/20"
                                             >
                                               ×
                                             </button>
@@ -446,42 +528,22 @@ export default function CartDrawer() {
                                     </div>
                                   </div>
                                 )}
+
+                                {/* Note */}
+                                <div className="pt-2">
+                                  <p className="text-xs font-semibold text-white/80 mb-2">
+                                    Napomena
+                                  </p>
+                                  <textarea
+                                    value={item.note ?? ""}
+                                    onChange={(e) => setItemNote(item.id, e.target.value)}
+                                    className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20"
+                                    placeholder="Npr. bez luka, dobro zapečeno..."
+                                    rows={2}
+                                  />
+                                </div>
                               </div>
                             )}
-
-                            {/* Note */}
-                            <div className="mt-4">
-                              <textarea
-                                value={item.note ?? ""}
-                                onChange={(e) => setItemNote(item.id, e.target.value)}
-                                placeholder="Napomena (opciono)"
-                                className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white placeholder:text-white/30 outline-none focus:border-yellow-500/30"
-                                rows={2}
-                              />
-                            </div>
-
-                            {/* Quantity + line total */}
-                            <div className="mt-4 flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => decrease(item.id)}
-                                  className="h-8 w-8 rounded-full border border-white/10 text-white/80 hover:text-white hover:border-white/20"
-                                >
-                                  -
-                                </button>
-                                <span className="text-white font-semibold w-6 text-center">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  onClick={() => increase(item.id)}
-                                  className="h-8 w-8 rounded-full border border-white/10 text-white/80 hover:text-white hover:border-white/20"
-                                >
-                                  +
-                                </button>
-                              </div>
-
-                              <p className="text-white font-bold">{formatEUR(lineTotal)}</p>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -491,26 +553,25 @@ export default function CartDrawer() {
 
                 <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-400 text-sm">Ukupno</span>
-                    <span className="text-white font-extrabold text-lg">
+                    <p className="text-white/70 text-sm">Ukupno</p>
+                    <p className="text-white font-extrabold text-lg">
                       {formatEUR(derivedTotalPrice)}
-                    </span>
+                    </p>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      onClick={handleGoToMenu}
-                      className="rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-sm font-semibold text-white hover:border-white/20"
-                    >
-                      Nazad na meni
-                    </button>
-                    <button
-                      onClick={handleGoToCheckout}
-                      className="rounded-xl bg-yellow-500 px-4 py-2 text-sm font-semibold text-black hover:bg-yellow-400"
-                    >
-                      Poruči
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleGoToCheckout}
+                    className="mt-4 w-full rounded-full bg-yellow-500 px-5 py-3 text-sm font-extrabold text-black hover:bg-yellow-400"
+                  >
+                    Poruči
+                  </button>
+
+                  <button
+                    onClick={handleGoToMenu}
+                    className="mt-3 w-full rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 hover:border-white/25 hover:text-white"
+                  >
+                    Nazad na meni
+                  </button>
                 </div>
               </>
             )}
