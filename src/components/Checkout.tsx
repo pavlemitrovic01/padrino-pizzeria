@@ -1,206 +1,185 @@
-import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { useCart } from "../context/useCart";
-import CheckoutSuccess from "./CheckoutSuccess";
-import { createOrder } from "../lib/createOrder";
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useCart } from "../context/CartProvider";
 import { formatEUR } from "../lib/money";
-
-type FieldErrors = {
-  fullName?: string;
-  phone?: string;
-  address?: string;
-};
-
-function getErrorMessage(err: unknown) {
-  if (typeof err === "string") return err;
-  if (err && typeof err === "object" && "message" in err) {
-    return String((err as any).message);
-  }
-  return "Došlo je do greške.";
-}
+import { createOrder } from "../lib/createOrder";
 
 export default function Checkout() {
-  const { items, totalPrice, totalItems, resetCart } = useCart();
+  const navigate = useNavigate();
+  const { items, totalPrice, clearCart } = useCart();
 
-  const [fullName, setFullName] = useState("");
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
 
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const totalItems = useMemo(
+    () => items.reduce((acc, i) => acc + (i.quantity || 0), 0),
+    [items]
+  );
 
-  const formattedTotal = useMemo(() => formatEUR(totalPrice), [totalPrice]);
+  const canSubmit = useMemo(() => {
+    if (!name.trim() || !phone.trim() || !address.trim()) return false;
+    if (items.length === 0) return false;
+    if (totalItems <= 0) return false;
+    if (totalPrice <= 0) return false;
+    return true;
+  }, [name, phone, address, items.length, totalItems, totalPrice]);
 
-  const validate = () => {
-    const next: FieldErrors = {};
-
-    if (fullName.trim().length < 2) next.fullName = "Upiši ime i prezime.";
-    if (phone.trim().length < 6) next.phone = "Upiši validan broj telefona.";
-    if (address.trim().length < 5) next.address = "Upiši tačnu adresu dostave.";
-
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
-
-  const onSubmit = async () => {
-    setSubmitError(null);
-
-    if (items.length === 0) {
-      setSubmitError("Korpa je prazna.");
-      return;
-    }
-
-    if (!validate()) return;
-
-    setIsSubmitting(true);
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
 
     try {
-      await createOrder({
-        customer_name: fullName.trim(),
+      setSubmitting(true);
+
+      const payload = {
+        customer_name: name.trim(),
         customer_phone: phone.trim(),
         customer_address: address.trim(),
-        note: note.trim() || null,
-        total_items: totalItems,
-        total_price: totalPrice, // EUR cente
-        items: items.map((item) => ({
-          cart_id: item.id,
-          menu_item_id: item.menuItemId ?? null,
-          name: item.name,
-          size: item.size ?? null,
-          quantity: item.quantity,
-          base_price: item.basePrice ?? null, // EUR cente
-          price_per_item: item.price, // EUR cente
-          addons: (item.addons ?? []).map((a) => ({
-            id: a.id,
-            name: a.name,
-            price: a.price, // EUR cente
-            quantity: a.quantity ?? 1,
-          })),
-          note: (item.note ?? "").trim() || null,
-          image: item.image ?? "",     // IMPORTANT: uvijek string
-          category: item.category ?? "", // IMPORTANT: uvijek string
+
+        // createOrder normalizuje, ali mu pošalji što više smislenih polja
+        items: items.map((i) => ({
+          cart_id: String(i.id),
+          menu_item_id: (i as any).menuItemId ?? null,
+          name: i.name,
+          size: i.size ?? null,
+          quantity: i.quantity || 1,
+          base_price: typeof i.basePrice === "number" ? i.basePrice : null,
+          price_per_item: typeof i.price === "number" ? i.price : 0,
+          addons: Array.isArray(i.addons) ? i.addons : [],
+          note: i.note ? String(i.note) : null,
+          image: i.image,
+          category: i.category,
         })),
-      });
 
-      resetCart();
-      setShowSuccess(true);
-    } catch (err) {
-      setSubmitError(getErrorMessage(err));
+        total_price: totalPrice,
+        total_items: totalItems,
+        note: note.trim() || null,
+      };
+
+      const result = await createOrder(payload as any);
+
+      clearCart();
+      navigate(`/checkout/success?id=${encodeURIComponent(result.orderId)}`);
+    } catch (err: any) {
+      setError(err?.message || "Došlo je do greške pri slanju porudžbine.");
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
-  };
-
-  if (showSuccess) {
-    return <CheckoutSuccess onBackToMenu={() => setShowSuccess(false)} />;
   }
 
   return (
-    <section id="checkout" className="bg-black text-white py-16">
-      <div className="mx-auto max-w-3xl px-4">
-        <h2 className="text-3xl font-extrabold">Porudžbina</h2>
-        <p className="mt-2 text-white/70">
-          Unesi podatke za dostavu. Plaćanje je pouzećem (za sada).
-        </p>
+    <section className="mx-auto w-full max-w-5xl px-4 pb-16 pt-10">
+      <h2 className="mb-6 text-4xl font-extrabold tracking-tight text-white">Porudžbina</h2>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-2">
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm text-white/80">Ime i prezime</label>
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-yellow-500/40"
-                placeholder="npr. Pavle Mitrović"
-              />
-              {errors.fullName && (
-                <p className="mt-2 text-xs text-red-400">{errors.fullName}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm text-white/80">Telefon</label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-yellow-500/40"
-                placeholder="npr. +382 6X XXX XXX"
-              />
-              {errors.phone && (
-                <p className="mt-2 text-xs text-red-400">{errors.phone}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm text-white/80">Adresa</label>
-              <input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-yellow-500/40"
-                placeholder="npr. Budva, ..."
-              />
-              {errors.address && (
-                <p className="mt-2 text-xs text-red-400">{errors.address}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="text-sm text-white/80">Napomena (opciono)</label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-yellow-500/40"
-                placeholder="npr. bez luka, pozovi na dolasku..."
-                rows={3}
-              />
-            </div>
-
-            {submitError && (
-              <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {submitError}
-              </p>
-            )}
-
-            <motion.button
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.98 }}
-              disabled={isSubmitting || items.length === 0}
-              onClick={onSubmit}
-              className="w-full rounded-2xl bg-yellow-500 px-5 py-3 text-sm font-extrabold text-black hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? "Šaljem..." : "Potvrdi porudžbinu"}
-            </motion.button>
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-white/80">Ime i prezime</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+              placeholder="Npr. Pavle Mitrović"
+              autoComplete="name"
+            />
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <h3 className="text-lg font-extrabold">Pregled</h3>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-white/80">Telefon</label>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+              placeholder="Npr. 06X XXX XXX"
+              autoComplete="tel"
+            />
+          </div>
 
-            <div className="mt-4 space-y-3">
-              {items.map((i) => (
-                <div key={i.id} className="flex items-start justify-between gap-4">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-white/80">Adresa</label>
+            <input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+              placeholder="Ulica i broj"
+              autoComplete="street-address"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-white/80">Napomena (opciono)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="h-28 w-full resize-none rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+              placeholder="Npr. bez luka, pozvati prije dolaska…"
+            />
+          </div>
+
+          {error ? <div className="rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">{error}</div> : null}
+
+          <button
+            type="submit"
+            disabled={!canSubmit || submitting}
+            className={[
+              "w-full rounded-2xl px-5 py-3 text-sm font-extrabold text-black transition",
+              !canSubmit || submitting ? "bg-[#f2b400]/50" : "bg-[#f2b400] hover:brightness-95",
+            ].join(" ")}
+          >
+            {submitting ? "Šaljem…" : "Potvrdi porudžbinu"}
+          </button>
+
+          {!canSubmit && !submitting ? (
+            <div className="text-xs text-white/50">Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.</div>
+          ) : null}
+        </form>
+
+        <aside className="rounded-3xl bg-black/50 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.35)] ring-1 ring-white/10">
+          <div className="mb-4 text-2xl font-extrabold text-white">Pregled</div>
+
+          <div className="space-y-3">
+            {items.map((i) => {
+              const unit = typeof i.price === "number" ? i.price : typeof i.basePrice === "number" ? i.basePrice : 0;
+              const qty = i.quantity || 1;
+              const lineTotal = unit * qty;
+
+              return (
+                <div key={i.id} className="flex items-start justify-between gap-4 text-white">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">
+                    <div className="truncate text-sm font-bold">
                       {i.name} {i.size ? `(${i.size} cm)` : ""}
-                    </p>
-                    <p className="text-xs text-white/60">x{i.quantity}</p>
-                  </div>
-                  <p className="text-sm font-bold text-white">
-                    {formatEUR(i.price * i.quantity)}
-                  </p>
-                </div>
-              ))}
-            </div>
+                    </div>
+                    <div className="text-xs text-white/60">x {qty}</div>
 
-            <div className="mt-6 border-t border-white/10 pt-4 flex items-center justify-between">
-              <span className="text-white/70">Ukupno</span>
-              <span className="text-white text-xl font-extrabold">{formattedTotal}</span>
-            </div>
+                    {Array.isArray(i.addons) && i.addons.length > 0 ? (
+                      <div className="mt-2 space-y-1">
+                        {i.addons.map((a) => (
+                          <div key={a.id} className="text-xs text-white/55">
+                            + {a.name} x{a.quantity} ({formatEUR(a.price * a.quantity)})
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="shrink-0 text-sm font-extrabold text-white">{formatEUR(lineTotal)}</div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+
+          <div className="my-6 h-px bg-white/10" />
+
+          <div className="flex items-center justify-between text-white">
+            <div className="text-sm font-bold text-white/70">Ukupno</div>
+            <div className="text-2xl font-extrabold text-white">{formatEUR(totalPrice)}</div>
+          </div>
+        </aside>
       </div>
     </section>
   );

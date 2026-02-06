@@ -42,8 +42,6 @@ export type CreateOrderPayload = {
   note?: string | null;
 };
 
-export type CreateOrderResult = { success: true; orderId: string };
-
 function normalizeString(value: string) {
   const trimmed = value.trim();
   return trimmed.length ? trimmed : "";
@@ -70,18 +68,17 @@ function getApiBaseUrl() {
   const envBase = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
   if (envBase && envBase.trim()) return envBase.trim().replace(/\/+$/, "");
 
-  // U produkciji: relative rute rade (Vercel /api/*).
+  // U produkciji (Vercel) relativne rute rade: /api/...
   if ((import.meta as any).env?.PROD) return "";
 
-  // U dev-u: Vite dev server nema /api rute -> gađamo produkciju da test može da radi bez 404 spama.
+  // U dev-u (Vite localhost) nema /api funkcija => gađamo produkciju da test radi.
   return "https://padrino-pizzeria.vercel.app";
 }
 
-async function notifyTelegram(orderId: string) {
-  // DEV: Vite dev server nema /api rute -> 404 spam. Preskačemo.
-  if (import.meta.env.DEV) return;
+async function notifyTelegramBestEffort(orderId: string) {
+  // DEV: ne šaljemo da ne spamuje 404 na localhostu
+  if ((import.meta as any).env?.DEV) return;
 
-  // PROD: best-effort (ne rušimo porudžbinu ako Telegram padne)
   try {
     const res = await fetch("/api/telegram-new-order", {
       method: "POST",
@@ -98,7 +95,7 @@ async function notifyTelegram(orderId: string) {
   }
 }
 
-export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
+export async function createOrder(payload: CreateOrderPayload) {
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
   const customer_address = normalizeString(payload.customer_address);
@@ -118,9 +115,9 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   }
 
   // Normalizujemo items (stability-first)
-  const normalizedItems: any[] = items.map((i) => ({
-    cart_id: String(i.cart_id),
-    menu_item_id: i.menu_item_id ?? null,
+  const normalizedItems: any[] = items.map((i: any) => ({
+    cart_id: String(i.cart_id ?? i.id ?? i.name ?? ""),
+    menu_item_id: i.menu_item_id ?? i.menuItemId ?? null,
     name: String(i.name ?? ""),
     size: isValidSize(i.size) ? i.size : null,
     quantity: Math.max(1, safeInt(i.quantity, 1)),
@@ -128,16 +125,23 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
     base_price:
       typeof i.base_price === "number" && Number.isFinite(i.base_price)
         ? safeInt(i.base_price, 0)
-        : null,
+        : typeof i.basePrice === "number" && Number.isFinite(i.basePrice)
+          ? safeInt(i.basePrice, 0)
+          : null,
 
-    price_per_item: safeInt(i.price_per_item, 0),
+    price_per_item:
+      typeof i.price_per_item === "number"
+        ? safeInt(i.price_per_item, 0)
+        : typeof i.price === "number"
+          ? safeInt(i.price, 0)
+          : safeInt(i.base_price ?? i.basePrice ?? 0, 0),
 
     addons: Array.isArray(i.addons)
       ? i.addons.map((a: any) => ({
           id: String(a.id),
           name: String(a.name),
           price: safeInt(a.price, 0),
-          quantity: Math.max(1, safeInt(a.quantity, 1)),
+          quantity: Math.max(1, safeInt(a.quantity ?? 1, 1)),
         }))
       : [],
 
@@ -147,7 +151,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
     category: String(i.category ?? ""),
   }));
 
-  const order_note = payload.note ? payload.note.trim() || null : null;
+  const order_note = payload.note ? String(payload.note).trim() || null : null;
 
   // Backwards compatible meta zapis u orders.items[0]
   const meta: Record<string, any> = { total_items };
@@ -159,7 +163,6 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
     customer_phone,
     customer_address,
     items: normalizedItems,
-
     total_eur_cents,
     currency: "EUR",
     status: "pending",
@@ -184,7 +187,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   const orderId = String(json?.id ?? "").trim();
   if (!orderId) throw new Error("Porudžbina je poslata, ali ID nije vraćen.");
 
-  void notifyTelegram(orderId);
+  void notifyTelegramBestEffort(orderId);
 
   return { success: true, orderId };
 }
