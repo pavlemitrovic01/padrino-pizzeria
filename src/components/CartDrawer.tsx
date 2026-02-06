@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabaseClient.ts";
 import { useCart } from "../context/useCart";
 import type { CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
 import { formatEUR, toSafeInt } from "../lib/money";
+import { createOrder } from "../lib/createOrder";
 
 type MenuItemData = {
   id: string;
@@ -12,6 +13,8 @@ type MenuItemData = {
   price: number | null;
   category: string;
 };
+
+type DrawerView = "cart" | "checkout" | "success";
 
 function normalizeText(value: string) {
   return String(value ?? "")
@@ -127,7 +130,10 @@ export default function CartDrawer() {
     decreaseAddonQuantity,
     removeAddonFromItem,
     setItemNote,
+    clearCart,
   } = useCart();
+
+  const [view, setView] = useState<DrawerView>("cart");
 
   const [addonsCatalog, setAddonsCatalog] = useState<
     { id: string; name: string; price: number }[]
@@ -143,6 +149,16 @@ export default function CartDrawer() {
   const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] =
     useState<PizzaVariantsMap>({});
 
+  // Checkout state (unutar korpe)
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [orderNote, setOrderNote] = useState("");
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
+
   useEffect(() => {
     let mounted = true;
 
@@ -157,6 +173,7 @@ export default function CartDrawer() {
 
         const rows = ((data ?? []) as MenuItemData[]).filter(hasEurPrice);
 
+        // ✅ Pizza varijante (33/50) iz baze po bazičnom imenu
         const nextPizzaVariants: PizzaVariantsMap = {};
         for (const r of rows) {
           if (!isPizzaRow(r)) continue;
@@ -178,6 +195,7 @@ export default function CartDrawer() {
         }
         setPizzaVariantsByBaseKey(nextPizzaVariants);
 
+        // Addons + Sosevi
         const dodaciRows = rows.filter(
           (r) => normalizeCategory(r.category) === "dodaci"
         );
@@ -235,49 +253,30 @@ export default function CartDrawer() {
     };
   }, []);
 
+  // Kad se korpa zatvori, resetuj view nazad na cart (stabilno)
+  useEffect(() => {
+    if (!isOpen) {
+      setView("cart");
+      setSubmitting(false);
+      setSubmitError(null);
+      setSuccessOrderId(null);
+      setOpenSaucesForItemId(null);
+    }
+  }, [isOpen]);
+
   const handleGoToMenu = () => {
     closeCart();
-
     const el =
       document.getElementById("meni") || document.getElementById("menu");
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleGoToCheckout = () => {
-    // Zatvori drawer pa onda targetiraj checkout section.
-    closeCart();
+  const totalItems = useMemo(
+    () => items.reduce((acc, i) => acc + (i.quantity || 0), 0),
+    [items]
+  );
 
-    const findCheckoutSection = (): HTMLElement | null => {
-      // 1) Ako kasnije dodamo id, ovo će raditi odmah
-      const byId =
-        (document.getElementById("checkout") as HTMLElement | null) ||
-        (document.getElementById("porudzbina") as HTMLElement | null);
-      if (byId) return byId;
-
-      // 2) Stabilno: Checkout.tsx ima <h2>Porudžbina</h2> unutar <section>
-      const headings = Array.from(document.querySelectorAll("h1,h2,h3"));
-      const target = headings.find(
-        (h) => normalizeText(h.textContent ?? "") === "porudzbina"
-      ) as HTMLElement | undefined;
-
-      if (!target) return null;
-
-      const section = target.closest("section") as HTMLElement | null;
-      return section ?? target;
-    };
-
-    const doScroll = () => {
-      const el = findCheckoutSection();
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-
-    // Multi-tick: da sačekamo da se overlay zatvori i da browser vrati scroll
-    setTimeout(doScroll, 0);
-    setTimeout(doScroll, 80);
-    setTimeout(doScroll, 200);
-  };
-
+  // Za prikaz ukupnog: pića bez dodataka, sve ostalo sa dodacima
   const derivedTotalPrice = useMemo(() => {
     return items.reduce((sum, item) => {
       const hideAddons = isDrinkCategory(item.category ?? "");
@@ -289,10 +288,73 @@ export default function CartDrawer() {
           ? item.basePrice
           : Math.max(0, (item.price ?? 0) - addonsTotal);
 
-      const lineTotal = (base + addonsTotal) * item.quantity;
+      const lineTotal = (base + addonsTotal) * (item.quantity || 1);
       return sum + lineTotal;
     }, 0);
   }, [items]);
+
+  const canSubmit = useMemo(() => {
+    if (!name.trim() || !phone.trim() || !address.trim()) return false;
+    if (items.length === 0) return false;
+    if (totalItems <= 0) return false;
+    if (derivedTotalPrice <= 0) return false;
+    return true;
+  }, [name, phone, address, items.length, totalItems, derivedTotalPrice]);
+
+  async function onSubmitOrder(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitError(null);
+
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        customer_name: name.trim(),
+        customer_phone: phone.trim(),
+        customer_address: address.trim(),
+
+        items: items.map((i) => ({
+          cart_id: String(i.id),
+          menu_item_id: (i as any).menuItemId ?? null,
+          name: i.name,
+          size: i.size ?? null,
+          quantity: i.quantity || 1,
+          base_price: typeof i.basePrice === "number" ? i.basePrice : null,
+          price_per_item: typeof i.price === "number" ? i.price : 0,
+          addons: Array.isArray(i.addons) ? i.addons : [],
+          note: i.note ? String(i.note) : null,
+          image: i.image,
+          category: i.category,
+        })),
+
+        total_price: derivedTotalPrice,
+        total_items: totalItems,
+        note: orderNote.trim() || null,
+      };
+
+      const result = await createOrder(payload as any);
+
+      clearCart();
+      setSuccessOrderId(String(result.orderId));
+      setView("success");
+    } catch (err: any) {
+      setSubmitError(err?.message || "Došlo je do greške pri slanju porudžbine.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const openCheckout = () => {
+    setSubmitError(null);
+    setSuccessOrderId(null);
+    setView("checkout");
+  };
+
+  const backToCart = () => {
+    setSubmitError(null);
+    setSubmitting(false);
+    setView("cart");
+  };
 
   return (
     <AnimatePresence>
@@ -313,293 +375,486 @@ export default function CartDrawer() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-extrabold text-white">Korpa</h3>
-              <button
-                onClick={closeCart}
-                className="rounded-full border border-white/10 px-3 py-1 text-sm text-white/80 hover:text-white hover:border-white/20"
-              >
-                Zatvori
-              </button>
-            </div>
+              <h3 className="text-xl font-extrabold text-white">
+                {view === "cart"
+                  ? "Korpa"
+                  : view === "checkout"
+                  ? "Porudžbina"
+                  : "Uspješno"}
+              </h3>
 
-            {items.length === 0 ? (
-              <div className="mt-10 text-center">
-                <p className="text-white/70">Korpa je prazna.</p>
+              <div className="flex items-center gap-2">
+                {view !== "cart" ? (
+                  <button
+                    onClick={backToCart}
+                    className="rounded-full border border-white/10 px-3 py-1 text-sm text-white/80 hover:text-white hover:border-white/20"
+                  >
+                    Nazad
+                  </button>
+                ) : null}
+
                 <button
-                  onClick={handleGoToMenu}
-                  className="mt-4 rounded-full bg-yellow-500 px-5 py-2 text-sm font-semibold text-black hover:bg-yellow-400"
+                  onClick={closeCart}
+                  className="rounded-full border border-white/10 px-3 py-1 text-sm text-white/80 hover:text-white hover:border-white/20"
                 >
-                  Idi na meni
+                  Zatvori
                 </button>
               </div>
-            ) : (
-              <>
-                <div className="mt-5 space-y-4">
-                  {items.map((item) => {
-                    const isDrink = isDrinkCategory(item.category ?? "");
-                    const baseKey = item.baseKey ?? item.name;
+            </div>
 
-                    const variantsFromDb = pizzaVariantsByBaseKey[baseKey];
-                    const canPickSize =
-                      !!variantsFromDb &&
-                      (!!variantsFromDb["33"] || !!variantsFromDb["50"]);
+            {/* SUCCESS VIEW */}
+            {view === "success" ? (
+              <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5">
+                <p className="text-white font-extrabold text-lg">
+                  Porudžbina je poslata ✅
+                </p>
+                <p className="mt-2 text-sm text-white/70">
+                  {successOrderId
+                    ? `ID porudžbine: ${successOrderId}`
+                    : "Porudžbina je evidentirana."}
+                </p>
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                      >
-                        <div className="flex gap-3">
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="h-16 w-16 rounded-xl object-cover border border-white/10"
-                          />
+                <div className="mt-5 grid grid-cols-1 gap-3">
+                  <button
+                    onClick={handleGoToMenu}
+                    className="w-full rounded-full bg-yellow-500 px-5 py-3 text-sm font-extrabold text-black hover:bg-yellow-400"
+                  >
+                    Nazad na meni
+                  </button>
 
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-white font-semibold leading-tight">
-                                  {item.name}
-                                </p>
-                                <p className="text-white/60 text-xs">
-                                  {formatEUR(item.price)}
-                                </p>
+                  <button
+                    onClick={closeCart}
+                    className="w-full rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 hover:border-white/25 hover:text-white"
+                  >
+                    Zatvori
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* CHECKOUT VIEW (unutar korpe) */}
+            {view === "checkout" ? (
+              <div className="mt-5 space-y-5">
+                <form onSubmit={onSubmitOrder} className="space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-white/80">
+                      Ime i prezime
+                    </label>
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+                      placeholder="Npr. Pavle Mitrović"
+                      autoComplete="name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-white/80">
+                      Telefon
+                    </label>
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+                      placeholder="Npr. 06X XXX XXX"
+                      autoComplete="tel"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-white/80">
+                      Adresa
+                    </label>
+                    <input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+                      placeholder="Ulica i broj"
+                      autoComplete="street-address"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-semibold text-white/80">
+                      Napomena (opciono)
+                    </label>
+                    <textarea
+                      value={orderNote}
+                      onChange={(e) => setOrderNote(e.target.value)}
+                      className="h-24 w-full resize-none rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
+                      placeholder="Npr. bez luka, pozvati prije dolaska…"
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-white/70 text-sm">Ukupno</p>
+                      <p className="text-white font-extrabold text-lg">
+                        {formatEUR(derivedTotalPrice)}
+                      </p>
+                    </div>
+
+                    {submitError ? (
+                      <div className="mt-3 rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">
+                        {submitError}
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="submit"
+                      disabled={!canSubmit || submitting}
+                      className={[
+                        "mt-4 w-full rounded-full px-5 py-3 text-sm font-extrabold text-black transition",
+                        !canSubmit || submitting
+                          ? "bg-[#f2b400]/50"
+                          : "bg-[#f2b400] hover:brightness-95",
+                      ].join(" ")}
+                    >
+                      {submitting ? "Šaljem…" : "Potvrdi porudžbinu"}
+                    </button>
+
+                    {!canSubmit && !submitting ? (
+                      <div className="mt-2 text-xs text-white/50">
+                        Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.
+                      </div>
+                    ) : null}
+                  </div>
+                </form>
+
+                {/* Pregled unutar korpe */}
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm font-extrabold text-white mb-3">
+                    Pregled
+                  </div>
+
+                  <div className="space-y-3">
+                    {items.map((i) => {
+                      const qty = i.quantity || 1;
+                      const unit =
+                        typeof i.price === "number"
+                          ? i.price
+                          : typeof i.basePrice === "number"
+                          ? i.basePrice
+                          : 0;
+                      const lineTotal = unit * qty;
+
+                      return (
+                        <div
+                          key={i.id}
+                          className="flex items-start justify-between gap-4 text-white"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-bold">
+                              {i.name} {i.size ? `(${i.size} cm)` : ""}
+                            </div>
+                            <div className="text-xs text-white/60">x {qty}</div>
+
+                            {Array.isArray(i.addons) && i.addons.length > 0 ? (
+                              <div className="mt-2 space-y-1">
+                                {i.addons.map((a) => (
+                                  <div key={a.id} className="text-xs text-white/55">
+                                    + {a.name} x{a.quantity} (
+                                    {formatEUR(a.price * a.quantity)})
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="shrink-0 text-sm font-extrabold text-white">
+                            {formatEUR(lineTotal)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* CART VIEW */}
+            {view === "cart" ? (
+              items.length === 0 ? (
+                <div className="mt-10 text-center">
+                  <p className="text-white/70">Korpa je prazna.</p>
+                  <button
+                    onClick={handleGoToMenu}
+                    className="mt-4 rounded-full bg-yellow-500 px-5 py-2 text-sm font-semibold text-black hover:bg-yellow-400"
+                  >
+                    Idi na meni
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mt-5 space-y-4">
+                    {items.map((item) => {
+                      const isDrink = isDrinkCategory(item.category ?? "");
+                      const baseKey = item.baseKey ?? item.name;
+
+                      const variantsFromDb = pizzaVariantsByBaseKey[baseKey];
+                      const canPickSize =
+                        !!variantsFromDb &&
+                        (!!variantsFromDb["33"] || !!variantsFromDb["50"]);
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                        >
+                          <div className="flex gap-3">
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="h-16 w-16 rounded-xl object-cover border border-white/10"
+                            />
+
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-white font-semibold leading-tight">
+                                    {item.name}
+                                  </p>
+                                  <p className="text-white/60 text-xs">
+                                    {formatEUR(item.price)}
+                                  </p>
+                                </div>
+
+                                <button
+                                  onClick={() => removeFromCart(item.id)}
+                                  className="text-xs text-white/60 hover:text-white"
+                                >
+                                  Ukloni
+                                </button>
                               </div>
 
-                              <button
-                                onClick={() => removeFromCart(item.id)}
-                                className="text-xs text-white/60 hover:text-white"
-                              >
-                                Ukloni
-                              </button>
-                            </div>
-
-                            <div className="mt-3 flex items-center gap-2">
-                              <button
-                                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
-                                onClick={() => decrease(item.id)}
-                              >
-                                -
-                              </button>
-                              <span className="text-white/80 text-sm">
-                                {item.quantity}
-                              </span>
-                              <button
-                                className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
-                                onClick={() => increase(item.id)}
-                              >
-                                +
-                              </button>
-                            </div>
-
-                            {canPickSize && (
                               <div className="mt-3 flex items-center gap-2">
                                 <button
-                                  className={`rounded-full px-3 py-1 text-xs font-semibold border ${
-                                    item.size === "33"
-                                      ? "bg-yellow-500 text-black border-yellow-500"
-                                      : "bg-transparent text-white/80 border-white/15 hover:border-white/25"
-                                  }`}
-                                  onClick={() => {
-                                    const next = variantsFromDb?.["33"];
-                                    if (!next) return;
-                                    changeSize(item.id, "33", next);
-                                  }}
+                                  className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
+                                  onClick={() => decrease(item.id)}
                                 >
-                                  33 cm
+                                  -
                                 </button>
-
+                                <span className="text-white/80 text-sm">
+                                  {item.quantity}
+                                </span>
                                 <button
-                                  className={`rounded-full px-3 py-1 text-xs font-semibold border ${
-                                    item.size === "50"
-                                      ? "bg-yellow-500 text-black border-yellow-500"
-                                      : "bg-transparent text-white/80 border-white/15 hover:border-white/25"
-                                  }`}
-                                  onClick={() => {
-                                    const next = variantsFromDb?.["50"];
-                                    if (!next) return;
-                                    changeSize(item.id, "50", next);
-                                  }}
+                                  className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
+                                  onClick={() => increase(item.id)}
                                 >
-                                  50 cm
+                                  +
                                 </button>
                               </div>
-                            )}
 
-                            {!isDrink && (
-                              <div className="mt-4 space-y-3">
-                                {hasSaucesControl && (
-                                  <div className="flex items-center justify-between gap-3">
-                                    <p className="text-xs font-semibold text-white/80">
-                                      Sosevi
-                                    </p>
-                                    <button
-                                      className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
-                                      onClick={() =>
-                                        setOpenSaucesForItemId(
-                                          openSaucesForItemId === item.id ? null : item.id
-                                        )
-                                      }
-                                    >
-                                      {openSaucesForItemId === item.id
-                                        ? "Zatvori"
-                                        : "Dodaj soseve"}
-                                    </button>
-                                  </div>
-                                )}
+                              {/* ✅ Size picker za pice: iz baze (name: 33/50 cm) */}
+                              {canPickSize && (
+                                <div className="mt-3 flex items-center gap-2">
+                                  <button
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold border ${
+                                      item.size === "33"
+                                        ? "bg-yellow-500 text-black border-yellow-500"
+                                        : "bg-transparent text-white/80 border-white/15 hover:border-white/25"
+                                    }`}
+                                    onClick={() => {
+                                      const next = variantsFromDb?.["33"];
+                                      if (!next) return;
+                                      changeSize(item.id, "33", next);
+                                    }}
+                                  >
+                                    33 cm
+                                  </button>
 
-                                {openSaucesForItemId === item.id &&
-                                  saucesCatalog.length > 0 && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {saucesCatalog.map((a) => (
-                                        <button
-                                          key={a.id}
-                                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
-                                          onClick={() => addAddonToItem(item.id, a)}
-                                        >
-                                          <div className="font-semibold text-white">
-                                            {a.name}
-                                          </div>
-                                          <div className="text-white/60">
-                                            {formatEUR(a.price)}
-                                          </div>
-                                        </button>
-                                      ))}
+                                  <button
+                                    className={`rounded-full px-3 py-1 text-xs font-semibold border ${
+                                      item.size === "50"
+                                        ? "bg-yellow-500 text-black border-yellow-500"
+                                        : "bg-transparent text-white/80 border-white/15 hover:border-white/25"
+                                    }`}
+                                    onClick={() => {
+                                      const next = variantsFromDb?.["50"];
+                                      if (!next) return;
+                                      changeSize(item.id, "50", next);
+                                    }}
+                                  >
+                                    50 cm
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Addons / sosevi */}
+                              {!isDrink && (
+                                <div className="mt-4 space-y-3">
+                                  {/* Sosevi control */}
+                                  {hasSaucesControl && (
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="text-xs font-semibold text-white/80">
+                                        Sosevi
+                                      </p>
+                                      <button
+                                        className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-white/80 hover:border-white/25"
+                                        onClick={() =>
+                                          setOpenSaucesForItemId(
+                                            openSaucesForItemId === item.id
+                                              ? null
+                                              : item.id
+                                          )
+                                        }
+                                      >
+                                        {openSaucesForItemId === item.id
+                                          ? "Zatvori"
+                                          : "Dodaj soseve"}
+                                      </button>
                                     </div>
                                   )}
 
-                                {addonsCatalog.length > 0 && (
-                                  <div>
-                                    <p className="text-xs font-semibold text-white/80 mb-2">
-                                      Dodaci
-                                    </p>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {addonsCatalog.map((a) => (
-                                        <button
-                                          key={a.id}
-                                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
-                                          onClick={() => addAddonToItem(item.id, a)}
-                                        >
-                                          <div className="font-semibold text-white">
-                                            {a.name}
-                                          </div>
-                                          <div className="text-white/60">
-                                            {formatEUR(a.price)}
-                                          </div>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {Array.isArray(item.addons) &&
-                                  item.addons.length > 0 && (
-                                    <div className="pt-2">
-                                      <p className="text-xs font-semibold text-white/80 mb-2">
-                                        Izabrano
-                                      </p>
-                                      <div className="space-y-2">
-                                        {item.addons.map((a) => (
-                                          <div
+                                  {openSaucesForItemId === item.id &&
+                                    saucesCatalog.length > 0 && (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {saucesCatalog.map((a) => (
+                                          <button
                                             key={a.id}
-                                            className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
+                                            onClick={() => addAddonToItem(item.id, a)}
                                           >
-                                            <div className="min-w-0">
-                                              <div className="text-xs font-semibold text-white truncate">
-                                                {a.name}
-                                              </div>
-                                              <div className="text-[11px] text-white/60">
-                                                {formatEUR(a.price)} ×{" "}
-                                                {a.quantity}
-                                              </div>
+                                            <div className="font-semibold text-white">
+                                              {a.name}
                                             </div>
+                                            <div className="text-white/60">
+                                              {formatEUR(a.price)}
+                                            </div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
 
-                                            <div className="flex items-center gap-1">
-                                              <button
-                                                className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
-                                                onClick={() =>
-                                                  decreaseAddonQuantity(
-                                                    item.id,
-                                                    a.id
-                                                  )
-                                                }
-                                              >
-                                                -
-                                              </button>
-                                              <button
-                                                className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
-                                                onClick={() =>
-                                                  increaseAddonQuantity(
-                                                    item.id,
-                                                    a.id
-                                                  )
-                                                }
-                                              >
-                                                +
-                                              </button>
-                                              <button
-                                                className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
-                                                onClick={() =>
-                                                  removeAddonFromItem(item.id, a.id)
-                                                }
-                                              >
-                                                ×
-                                              </button>
+                                  {/* Addons grid */}
+                                  {addonsCatalog.length > 0 && (
+                                    <div>
+                                      <p className="text-xs font-semibold text-white/80 mb-2">
+                                        Dodaci
+                                      </p>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {addonsCatalog.map((a) => (
+                                          <button
+                                            key={a.id}
+                                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
+                                            onClick={() => addAddonToItem(item.id, a)}
+                                          >
+                                            <div className="font-semibold text-white">
+                                              {a.name}
                                             </div>
-                                          </div>
+                                            <div className="text-white/60">
+                                              {formatEUR(a.price)}
+                                            </div>
+                                          </button>
                                         ))}
                                       </div>
                                     </div>
                                   )}
 
-                                <div className="pt-2">
-                                  <p className="text-xs font-semibold text-white/80 mb-2">
-                                    Napomena
-                                  </p>
-                                  <textarea
-                                    value={item.note ?? ""}
-                                    onChange={(e) =>
-                                      setItemNote(item.id, e.target.value)
-                                    }
-                                    className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20"
-                                    placeholder="Npr. bez luka, dobro zapečeno..."
-                                    rows={2}
-                                  />
+                                  {/* Selected addons list */}
+                                  {Array.isArray(item.addons) &&
+                                    item.addons.length > 0 && (
+                                      <div className="pt-2">
+                                        <p className="text-xs font-semibold text-white/80 mb-2">
+                                          Izabrano
+                                        </p>
+                                        <div className="space-y-2">
+                                          {item.addons.map((a) => (
+                                            <div
+                                              key={a.id}
+                                              className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                                            >
+                                              <div className="min-w-0">
+                                                <div className="text-xs font-semibold text-white truncate">
+                                                  {a.name}
+                                                </div>
+                                                <div className="text-[11px] text-white/60">
+                                                  {formatEUR(a.price)} × {a.quantity}
+                                                </div>
+                                              </div>
+
+                                              <div className="flex items-center gap-1">
+                                                <button
+                                                  className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
+                                                  onClick={() =>
+                                                    decreaseAddonQuantity(item.id, a.id)
+                                                  }
+                                                >
+                                                  -
+                                                </button>
+                                                <button
+                                                  className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
+                                                  onClick={() =>
+                                                    increaseAddonQuantity(item.id, a.id)
+                                                  }
+                                                >
+                                                  +
+                                                </button>
+                                                <button
+                                                  className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
+                                                  onClick={() =>
+                                                    removeAddonFromItem(item.id, a.id)
+                                                  }
+                                                >
+                                                  ×
+                                                </button>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                  {/* Note per item */}
+                                  <div className="pt-2">
+                                    <p className="text-xs font-semibold text-white/80 mb-2">
+                                      Napomena za stavku
+                                    </p>
+                                    <textarea
+                                      value={item.note ?? ""}
+                                      onChange={(e) =>
+                                        setItemNote(item.id, e.target.value)
+                                      }
+                                      className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20"
+                                      placeholder="Npr. bez luka, dobro zapečeno..."
+                                      rows={2}
+                                    />
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-white/70 text-sm">Ukupno</p>
-                    <p className="text-white font-extrabold text-lg">
-                      {formatEUR(derivedTotalPrice)}
-                    </p>
+                      );
+                    })}
                   </div>
 
-                  <button
-                    onClick={handleGoToCheckout}
-                    className="mt-4 w-full rounded-full bg-yellow-500 px-5 py-3 text-sm font-extrabold text-black hover:bg-yellow-400"
-                  >
-                    Poruči
-                  </button>
+                  <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-white/70 text-sm">Ukupno</p>
+                      <p className="text-white font-extrabold text-lg">
+                        {formatEUR(derivedTotalPrice)}
+                      </p>
+                    </div>
 
-                  <button
-                    onClick={handleGoToMenu}
-                    className="mt-3 w-full rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 hover:border-white/25 hover:text-white"
-                  >
-                    Nazad na meni
-                  </button>
-                </div>
-              </>
-            )}
+                    <button
+                      onClick={openCheckout}
+                      className="mt-4 w-full rounded-full bg-yellow-500 px-5 py-3 text-sm font-extrabold text-black hover:bg-yellow-400"
+                    >
+                      Poruči
+                    </button>
+
+                    <button
+                      onClick={handleGoToMenu}
+                      className="mt-3 w-full rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 hover:border-white/25 hover:text-white"
+                    >
+                      Nazad na meni
+                    </button>
+                  </div>
+                </>
+              )
+            ) : null}
           </motion.aside>
         </motion.div>
       )}
