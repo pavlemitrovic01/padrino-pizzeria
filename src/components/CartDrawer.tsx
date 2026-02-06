@@ -238,27 +238,44 @@ export default function CartDrawer() {
   const handleGoToMenu = () => {
     closeCart();
 
-    // Primarni ID u projektu je "meni"
     const el =
       document.getElementById("meni") || document.getElementById("menu");
-    el?.scrollIntoView({ behavior: "smooth" });
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const handleGoToCheckout = () => {
-    // Problem: dok je korpa otvorena često je aktivan scroll lock (overflow hidden),
-    // pa scrollTo ne “uhvati”. Rješenje: zatvori korpu pa odloži scroll u par tick-ova.
+    // Zatvori drawer pa onda targetiraj checkout section.
     closeCart();
 
-    const doScroll = () => {
-      const top =
-        document.documentElement.scrollHeight || document.body.scrollHeight || 0;
-      window.scrollTo({ top, behavior: "smooth" });
+    const findCheckoutSection = (): HTMLElement | null => {
+      // 1) Ako kasnije dodamo id, ovo će raditi odmah
+      const byId =
+        (document.getElementById("checkout") as HTMLElement | null) ||
+        (document.getElementById("porudzbina") as HTMLElement | null);
+      if (byId) return byId;
+
+      // 2) Stabilno: Checkout.tsx ima <h2>Porudžbina</h2> unutar <section>
+      const headings = Array.from(document.querySelectorAll("h1,h2,h3"));
+      const target = headings.find(
+        (h) => normalizeText(h.textContent ?? "") === "porudzbina"
+      ) as HTMLElement | undefined;
+
+      if (!target) return null;
+
+      const section = target.closest("section") as HTMLElement | null;
+      return section ?? target;
     };
 
-    // Multi-tick: garantuje da se overflow vrati prije scroll-a
+    const doScroll = () => {
+      const el = findCheckoutSection();
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    // Multi-tick: da sačekamo da se overlay zatvori i da browser vrati scroll
     setTimeout(doScroll, 0);
-    setTimeout(doScroll, 60);
-    setTimeout(doScroll, 180);
+    setTimeout(doScroll, 80);
+    setTimeout(doScroll, 200);
   };
 
   const derivedTotalPrice = useMemo(() => {
@@ -432,20 +449,25 @@ export default function CartDrawer() {
                                   </div>
                                 )}
 
-                                {openSaucesForItemId === item.id && saucesCatalog.length > 0 && (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {saucesCatalog.map((a) => (
-                                      <button
-                                        key={a.id}
-                                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
-                                        onClick={() => addAddonToItem(item.id, a)}
-                                      >
-                                        <div className="font-semibold text-white">{a.name}</div>
-                                        <div className="text-white/60">{formatEUR(a.price)}</div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
+                                {openSaucesForItemId === item.id &&
+                                  saucesCatalog.length > 0 && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {saucesCatalog.map((a) => (
+                                        <button
+                                          key={a.id}
+                                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
+                                          onClick={() => addAddonToItem(item.id, a)}
+                                        >
+                                          <div className="font-semibold text-white">
+                                            {a.name}
+                                          </div>
+                                          <div className="text-white/60">
+                                            {formatEUR(a.price)}
+                                          </div>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
 
                                 {addonsCatalog.length > 0 && (
                                   <div>
@@ -459,59 +481,77 @@ export default function CartDrawer() {
                                           className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-white/80 hover:border-white/20"
                                           onClick={() => addAddonToItem(item.id, a)}
                                         >
-                                          <div className="font-semibold text-white">{a.name}</div>
-                                          <div className="text-white/60">{formatEUR(a.price)}</div>
+                                          <div className="font-semibold text-white">
+                                            {a.name}
+                                          </div>
+                                          <div className="text-white/60">
+                                            {formatEUR(a.price)}
+                                          </div>
                                         </button>
                                       ))}
                                     </div>
                                   </div>
                                 )}
 
-                                {Array.isArray(item.addons) && item.addons.length > 0 && (
-                                  <div className="pt-2">
-                                    <p className="text-xs font-semibold text-white/80 mb-2">
-                                      Izabrano
-                                    </p>
-                                    <div className="space-y-2">
-                                      {item.addons.map((a) => (
-                                        <div
-                                          key={a.id}
-                                          className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
-                                        >
-                                          <div className="min-w-0">
-                                            <div className="text-xs font-semibold text-white truncate">
-                                              {a.name}
+                                {Array.isArray(item.addons) &&
+                                  item.addons.length > 0 && (
+                                    <div className="pt-2">
+                                      <p className="text-xs font-semibold text-white/80 mb-2">
+                                        Izabrano
+                                      </p>
+                                      <div className="space-y-2">
+                                        {item.addons.map((a) => (
+                                          <div
+                                            key={a.id}
+                                            className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                                          >
+                                            <div className="min-w-0">
+                                              <div className="text-xs font-semibold text-white truncate">
+                                                {a.name}
+                                              </div>
+                                              <div className="text-[11px] text-white/60">
+                                                {formatEUR(a.price)} ×{" "}
+                                                {a.quantity}
+                                              </div>
                                             </div>
-                                            <div className="text-[11px] text-white/60">
-                                              {formatEUR(a.price)} × {a.quantity}
-                                            </div>
-                                          </div>
 
-                                          <div className="flex items-center gap-1">
-                                            <button
-                                              className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
-                                              onClick={() => decreaseAddonQuantity(item.id, a.id)}
-                                            >
-                                              -
-                                            </button>
-                                            <button
-                                              className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
-                                              onClick={() => increaseAddonQuantity(item.id, a.id)}
-                                            >
-                                              +
-                                            </button>
-                                            <button
-                                              className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
-                                              onClick={() => removeAddonFromItem(item.id, a.id)}
-                                            >
-                                              ×
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                              <button
+                                                className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
+                                                onClick={() =>
+                                                  decreaseAddonQuantity(
+                                                    item.id,
+                                                    a.id
+                                                  )
+                                                }
+                                              >
+                                                -
+                                              </button>
+                                              <button
+                                                className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
+                                                onClick={() =>
+                                                  increaseAddonQuantity(
+                                                    item.id,
+                                                    a.id
+                                                  )
+                                                }
+                                              >
+                                                +
+                                              </button>
+                                              <button
+                                                className="rounded-full border border-white/15 px-2 py-1 text-xs text-white/80 hover:border-white/25"
+                                                onClick={() =>
+                                                  removeAddonFromItem(item.id, a.id)
+                                                }
+                                              >
+                                                ×
+                                              </button>
+                                            </div>
                                           </div>
-                                        </div>
-                                      ))}
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
 
                                 <div className="pt-2">
                                   <p className="text-xs font-semibold text-white/80 mb-2">
@@ -519,7 +559,9 @@ export default function CartDrawer() {
                                   </p>
                                   <textarea
                                     value={item.note ?? ""}
-                                    onChange={(e) => setItemNote(item.id, e.target.value)}
+                                    onChange={(e) =>
+                                      setItemNote(item.id, e.target.value)
+                                    }
                                     className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20"
                                     placeholder="Npr. bez luka, dobro zapečeno..."
                                     rows={2}
