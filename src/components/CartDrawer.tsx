@@ -8,9 +8,7 @@ import { formatEUR, toSafeInt } from "../lib/money";
 type MenuItemData = {
   id: string;
   name: string;
-  // EUR cente (int) iz baze
   price_eur_cents: number | null;
-  // legacy (ne koristimo za račun)
   price: number | null;
   category: string;
 };
@@ -32,11 +30,10 @@ function normalizeCategory(value: string) {
 
 function isDrinkCategory(category: string) {
   const c = normalizeCategory(category);
-  // "Pića" -> "pica" nakon normalizacije
   return (
-    c.includes("pica") || // Pića
-    c.includes("pice") || // fallback ako negdje već postoji bez dijakritike
-    c.includes("napici") || // sigurnosno (ako koristiš "Napitci/Napici")
+    c.includes("pica") || // Pića -> pica
+    c.includes("pice") ||
+    c.includes("napici") ||
     c.includes("napitci")
   );
 }
@@ -54,19 +51,11 @@ function hasEurPrice(row: MenuItemData) {
   return Number.isFinite(n);
 }
 
-/**
- * Placeholder stavka (ono što trenutno imaš u bazi kao "Sosevi" u kategoriji "dodaci")
- * NE SME direktno da se dodaje u korpu, već služi kao dugme koje otvara izbor.
- */
 function isSaucesPlaceholder(name: string) {
   const n = normalizeText(name);
   return n === "sosevi" || n === "sosovi" || n === "sos";
 }
 
-/**
- * Prepoznavanje "pravih" sos stavki kad su i one u category="dodaci".
- * Radi preko imena (najstabilnije bez promene šeme).
- */
 function isSauceItemName(name: string) {
   const n = normalizeText(name);
   if (!n) return false;
@@ -119,7 +108,6 @@ function stripPizzaSizeFromName(name: string): string {
 function isPizzaRow(row: MenuItemData): boolean {
   const cat = normalizeCategory(row.category ?? "");
   const nm = normalizeText(row.name ?? "");
-  // dovoljno stabilno: u tvojoj bazi pice imaju "33 cm" / "50 cm" u name-u
   return nm.includes("33 cm") || nm.includes("50 cm") || cat.includes("pizza");
 }
 
@@ -152,7 +140,6 @@ export default function CartDrawer() {
     null
   );
 
-  // ✅ NOVO: mapa 33/50 varijanti po bazičnom imenu pice (bez "33 cm"/"50 cm")
   const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] =
     useState<PizzaVariantsMap>({});
 
@@ -170,7 +157,6 @@ export default function CartDrawer() {
 
         const rows = ((data ?? []) as MenuItemData[]).filter(hasEurPrice);
 
-        // ✅ 0) Izgradi mapu pizza varijanti (33/50) iz baze
         const nextPizzaVariants: PizzaVariantsMap = {};
         for (const r of rows) {
           if (!isPizzaRow(r)) continue;
@@ -192,23 +178,17 @@ export default function CartDrawer() {
         }
         setPizzaVariantsByBaseKey(nextPizzaVariants);
 
-        // 1) Sve iz "dodaci"
         const dodaciRows = rows.filter(
           (r) => normalizeCategory(r.category) === "dodaci"
         );
 
-        // 2) Ako ikad uvedeš posebnu kategoriju za soseve (opcioni upgrade)
         const sauceCategoryRows = rows.filter((r) => isSauceCategory(r.category));
-
-        // 3) Ako su sosevi i dalje u "dodaci", prepoznaj po imenu
         const sauceFromDodaciRows = dodaciRows.filter((r) =>
           isSauceItemName(r.name)
         );
 
-        // 4) Placeholder "Sosevi" (postojeća stavka u "dodaci")
         const hasPlaceholder = dodaciRows.some((r) => isSaucesPlaceholder(r.name));
 
-        // 5) Finalni katalog soseva: prvo kategorija (ako postoji), inače iz "dodaci"
         const saucesSource =
           sauceCategoryRows.length > 0 ? sauceCategoryRows : sauceFromDodaciRows;
 
@@ -220,7 +200,6 @@ export default function CartDrawer() {
 
         const shouldShowSaucesControl = hasPlaceholder || nextSauces.length > 0;
 
-        // 6) Addons grid: svi dodaci, ali bez placeholdera i (ako treba) bez sos stavki
         const nextAddons = dodaciRows
           .filter((r) => {
             if (isSaucesPlaceholder(r.name)) return false;
@@ -259,17 +238,27 @@ export default function CartDrawer() {
   const handleGoToMenu = () => {
     closeCart();
 
-    // ✅ Primarni ID u projektu je "meni" (Menu.tsx)
+    // Primarni ID u projektu je "meni"
     const el =
       document.getElementById("meni") || document.getElementById("menu");
     el?.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleGoToCheckout = () => {
+    // Problem: dok je korpa otvorena često je aktivan scroll lock (overflow hidden),
+    // pa scrollTo ne “uhvati”. Rješenje: zatvori korpu pa odloži scroll u par tick-ova.
     closeCart();
 
-    // ✅ Checkout nema stabilan id u layout-u, ali je dole na stranici
-    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    const doScroll = () => {
+      const top =
+        document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+      window.scrollTo({ top, behavior: "smooth" });
+    };
+
+    // Multi-tick: garantuje da se overflow vrati prije scroll-a
+    setTimeout(doScroll, 0);
+    setTimeout(doScroll, 60);
+    setTimeout(doScroll, 180);
   };
 
   const derivedTotalPrice = useMemo(() => {
@@ -333,10 +322,10 @@ export default function CartDrawer() {
                     const isDrink = isDrinkCategory(item.category ?? "");
                     const baseKey = item.baseKey ?? item.name;
 
-                    // ✅ varijante iz baze (33/50) po bazičnom imenu
                     const variantsFromDb = pizzaVariantsByBaseKey[baseKey];
                     const canPickSize =
-                      !!variantsFromDb && (!!variantsFromDb["33"] || !!variantsFromDb["50"]);
+                      !!variantsFromDb &&
+                      (!!variantsFromDb["33"] || !!variantsFromDb["50"]);
 
                     return (
                       <div
@@ -387,7 +376,6 @@ export default function CartDrawer() {
                               </button>
                             </div>
 
-                            {/* ✅ Size picker za pice: sada radi iz baze (name: 33/50 cm) */}
                             {canPickSize && (
                               <div className="mt-3 flex items-center gap-2">
                                 <button
@@ -422,10 +410,8 @@ export default function CartDrawer() {
                               </div>
                             )}
 
-                            {/* Addons / sosevi */}
                             {!isDrink && (
                               <div className="mt-4 space-y-3">
-                                {/* Sosevi control */}
                                 {hasSaucesControl && (
                                   <div className="flex items-center justify-between gap-3">
                                     <p className="text-xs font-semibold text-white/80">
@@ -461,7 +447,6 @@ export default function CartDrawer() {
                                   </div>
                                 )}
 
-                                {/* Addons grid */}
                                 {addonsCatalog.length > 0 && (
                                   <div>
                                     <p className="text-xs font-semibold text-white/80 mb-2">
@@ -482,7 +467,6 @@ export default function CartDrawer() {
                                   </div>
                                 )}
 
-                                {/* Selected addons list */}
                                 {Array.isArray(item.addons) && item.addons.length > 0 && (
                                   <div className="pt-2">
                                     <p className="text-xs font-semibold text-white/80 mb-2">
@@ -529,7 +513,6 @@ export default function CartDrawer() {
                                   </div>
                                 )}
 
-                                {/* Note */}
                                 <div className="pt-2">
                                   <p className="text-xs font-semibold text-white/80 mb-2">
                                     Napomena
