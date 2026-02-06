@@ -3,7 +3,8 @@ import type { Session } from "@supabase/supabase-js";
 
 import Navbar from "./components/Navbar";
 import CartDrawer from "./components/CartDrawer";
-import Checkout from "./components/Checkout";
+// ✅ Checkout je izbačen sa glavne stranice (sve ide kroz korpu)
+// import Checkout from "./components/Checkout";
 import AdminOrders from "./components/AdminOrders";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminLogs from "./pages/admin/AdminLogs";
@@ -24,14 +25,17 @@ const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
 function isAdminSession(session: Session | null): boolean {
   const email =
-    typeof session?.user?.email === "string" ? session.user.email.trim().toLowerCase() : "";
+    typeof session?.user?.email === "string"
+      ? session.user.email.trim().toLowerCase()
+      : "";
   return email.length > 0 && ADMIN_EMAILS.has(email);
 }
 
 export default function App() {
   const pathname = typeof window !== "undefined" ? window.location.pathname : "";
 
-  const isAdminLoginRoute = pathname === "/admin/login" || pathname.startsWith("/admin/login/");
+  const isAdminLoginRoute =
+    pathname === "/admin/login" || pathname.startsWith("/admin/login/");
   const isAdminLogsRoute = pathname === "/admin/logs" || pathname === "/admin/logs/";
   const isAdminRoute = pathname === "/admin" || pathname === "/admin/";
 
@@ -55,7 +59,8 @@ export default function App() {
               <div className="min-w-0">
                 <p className="text-sm font-extrabold text-yellow-200">Nema interneta</p>
                 <p className="text-xs text-yellow-200/80 mt-0.5">
-                  Proveri konekciju. Porudžbine / admin osvježavanje mogu privremeno da ne rade.
+                  Proveri konekciju. Porudžbine / admin osvježavanje mogu privremeno
+                  da ne rade.
                 </p>
               </div>
               <button
@@ -196,7 +201,7 @@ export default function App() {
       );
     }
 
-    if (isAdminLogsRoute) {
+    if (pathname === "/admin/logs" || pathname === "/admin/logs/") {
       return (
         <>
           {onlineBanner}
@@ -219,15 +224,19 @@ export default function App() {
     );
   }
 
-  // ✅ Public sajt: vrati kompletan “one-page” layout (hero + sekcije + meni + checkout)
+  // ✅ Public sajt: one-page layout BEZ Checkout sekcije (checkout je sad u korpi)
   return (
     <>
       {onlineBanner}
       <Navbar />
       <main className="bg-black">
         <Hero />
-        <Menu />
-        <Checkout />
+
+        {/* ✅ FIX: Navbar/Hero linkuju na #menu, pa ovo mora postojati */}
+        <section id="menu">
+          <Menu />
+        </section>
+
         <Delivery />
         <About />
         <Contact />

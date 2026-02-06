@@ -10,23 +10,16 @@ type DbMenuItem = {
   description: string | null;
   category: string;
   image: string | null;
-
-  // koristimo cents kao primarni izvor
   price_eur_cents: number | null;
-
-  // legacy fallback
   price: number | null;
-
   created_at?: string;
 };
 
-type CategoryKey = "dodaci" | "pica" | "pizza" | "sosevi";
+type CategoryKey = "pizza" | "pica";
 
 const CATEGORY_LABELS: Record<CategoryKey, string> = {
-  dodaci: "Dodaci",
-  pica: "Pića",
   pizza: "Pizza",
-  sosevi: "Sosevi",
+  pica: "Pića",
 };
 
 function safeBasename(path: string) {
@@ -35,27 +28,40 @@ function safeBasename(path: string) {
   return parts.length ? parts[parts.length - 1] : clean;
 }
 
+function normalizeText(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replaceAll("č", "c")
+    .replaceAll("ć", "c")
+    .replaceAll("š", "s")
+    .replaceAll("ž", "z")
+    .replaceAll("đ", "dj")
+    .trim();
+}
+
+function normalizeCategory(value: string) {
+  return normalizeText(value);
+}
+
+function isPizza50cmName(name: string) {
+  return /\b50\s*cm\b/i.test(String(name ?? ""));
+}
+
 function normalizeImagePath(image: string | null) {
   if (!image) return "/menu/about.png";
-
-  // već dobro
   if (image.startsWith("/menu/")) return image;
 
-  // ako je došlo /public/menu/... to treba bez /public (public je root)
   if (image.startsWith("/public/")) {
     const file = safeBasename(image);
     return `/menu/${file}`;
   }
 
-  // ako je došlo /drinks/... ili /extras/... a mi u public nemamo te foldere na vercelu, fallback na /menu/<file>
   if (image.startsWith("/drinks/") || image.startsWith("/extras/")) {
     const file = safeBasename(image);
     return `/menu/${file}`;
   }
 
-  // relative -> napravi absolute
   if (!image.startsWith("/")) return `/${image}`;
-
   return image;
 }
 
@@ -63,6 +69,33 @@ function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
   const img = e.currentTarget;
   img.onerror = null;
   img.src = "/menu/about.png";
+}
+
+/**
+ * Stabilna klasifikacija kategorija iz baze (bez migracija):
+ * - pizza: "pizza", "pizze", "pice"
+ * - pica: "pica", "pice", "pića", "pice", "drinks", "napici", "napitci", "sokovi"
+ */
+const PIZZA_ALIASES = new Set<string>(["pizza", "pizze", "pice"]);
+const DRINKS_ALIASES = new Set<string>([
+  "pica",
+  "pice",
+  "pića",
+  "pice",
+  "drinks",
+  "napici",
+  "napitci",
+  "sokovi",
+  "voda",
+  "gazirano",
+  "negazirano",
+]);
+
+function isInUiCategory(rowCategoryRaw: string, uiCategory: CategoryKey): boolean {
+  const c = normalizeCategory(rowCategoryRaw);
+
+  if (uiCategory === "pizza") return PIZZA_ALIASES.has(c);
+  return DRINKS_ALIASES.has(c);
 }
 
 export default function Menu() {
@@ -74,8 +107,16 @@ export default function Menu() {
   const [error, setError] = useState<string | null>(null);
 
   const filteredItems = useMemo(() => {
-    const cat = activeCategory.toLowerCase();
-    return items.filter((i) => (i.category || "").toLowerCase() === cat);
+    // 1) Filtriraj po UI kategoriji (alias mapping)
+    const byCategory = items.filter((i) => isInUiCategory(i.category || "", activeCategory));
+
+    // 2) Stabilno čišćenje menija:
+    // - Pizza: sakrij 50cm (duplikati)
+    if (activeCategory === "pizza") {
+      return byCategory.filter((i) => !isPizza50cmName(i.name));
+    }
+
+    return byCategory;
   }, [items, activeCategory]);
 
   useEffect(() => {
@@ -85,7 +126,6 @@ export default function Menu() {
       setLoading(true);
       setError(null);
 
-      // bitno: ne tražimo kolone koje ne postoje (npr size)
       const { data, error } = await supabase
         .from("menu_items")
         .select("id,name,description,category,image,price_eur_cents,price,created_at")
@@ -120,12 +160,11 @@ export default function Menu() {
     const cartItem: CartItem = {
       id: row.id,
       name: row.name,
-      price: cents, // KLJUČNO: CartProvider očekuje "price"
+      price: cents,
       image: normalizeImagePath(row.image),
       description: row.description ?? "",
       category: row.category ?? "",
       quantity: 1,
-      // ostalo CartProvider sam normalizuje (pizza size, variants itd)
     };
 
     addToCart(cartItem);
@@ -134,11 +173,14 @@ export default function Menu() {
   return (
     <section id="meni" className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10">
       <h2 className="mb-2 text-4xl font-extrabold tracking-tight text-white">Meni</h2>
-      <p className="mb-6 text-sm text-white/70">Izaberi kategoriju i dodaj u korpu. Cijene su prikazane u €.</p>
+      <p className="mb-6 text-sm text-white/70">
+        Izaberi kategoriju i dodaj u korpu. Cijene su prikazane u €.
+      </p>
 
       <div className="mb-6 flex flex-wrap gap-2">
         {(Object.keys(CATEGORY_LABELS) as CategoryKey[]).map((k) => {
           const active = k === activeCategory;
+
           return (
             <button
               key={k}
@@ -155,9 +197,13 @@ export default function Menu() {
         })}
       </div>
 
-      {loading && <div className="rounded-xl bg-white/5 p-4 text-white/80">Učitavam meni…</div>}
+      {loading && (
+        <div className="rounded-xl bg-white/5 p-4 text-white/80">Učitavam meni…</div>
+      )}
 
-      {error && <div className="rounded-xl bg-red-500/10 p-4 text-red-200">{error}</div>}
+      {error && (
+        <div className="rounded-xl bg-red-500/10 p-4 text-red-200">{error}</div>
+      )}
 
       {!loading && !error && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -187,12 +233,15 @@ export default function Menu() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="text-xl font-extrabold text-white">{row.name}</div>
-                      {row.description ? <div className="mt-1 text-sm text-white/70">{row.description}</div> : null}
-                      <div className="mt-3 text-xs text-white/50">{(row.category || "").toLowerCase()}</div>
+                      {row.description ? (
+                        <div className="mt-1 text-sm text-white/70">{row.description}</div>
+                      ) : null}
                     </div>
 
                     <div className="shrink-0 text-right">
-                      <div className="text-lg font-extrabold text-[#f2b400]">{formatEUR(cents)}</div>
+                      <div className="text-lg font-extrabold text-[#f2b400]">
+                        {formatEUR(cents)}
+                      </div>
                     </div>
                   </div>
 
