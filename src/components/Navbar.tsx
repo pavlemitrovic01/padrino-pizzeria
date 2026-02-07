@@ -15,6 +15,16 @@ function scrollToId(id: string) {
   el.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function scrollToTop() {
+  // Prefer Hero section anchor if exists
+  const hero = document.getElementById("top");
+  if (hero) {
+    hero.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 export default function Navbar() {
   const { totalItems, openCart } = useCart();
 
@@ -48,9 +58,9 @@ export default function Navbar() {
     };
   }, []);
 
+  // ✅ "Meni" uklonjen (bubble je primarni)
   const links = useMemo(
     () => [
-      { id: "menu", label: "Meni" },
       { id: "delivery", label: "Dostava" },
       { id: "o-nama", label: "O nama" },
       { id: "contact", label: "Kontakt" },
@@ -75,6 +85,21 @@ export default function Navbar() {
     scrollToId(id);
   }
 
+  function onLogoClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    setMobileOpen(false);
+
+    // Admin: zadrži normalan behavior (reload / navigacija)
+    if (isAdminRoute) return;
+
+    // Public: premium smooth scroll bez reload-a
+    e.preventDefault();
+
+    // očisti hash (da ne ostane /#...)
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+    scrollToTop();
+  }
+
   useEffect(() => {
     const hash = (window.location.hash || "").replace("#", "").trim();
     if (!hash) return;
@@ -88,7 +113,7 @@ export default function Navbar() {
         <a
           href="/"
           className="flex items-center gap-3 text-xl font-black tracking-wide"
-          onClick={() => setMobileOpen(false)}
+          onClick={onLogoClick}
         >
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-yellow-500 text-black">
             P

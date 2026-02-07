@@ -43,6 +43,14 @@ export type CartItem = {
   note?: string;
 };
 
+export type AddToCartOptions = {
+  /**
+   * Default: true
+   * Kada je false, item se doda ali se korpa (drawer) ne otvara automatski.
+   */
+  openCart?: boolean;
+};
+
 export type CartContextType = {
   items: CartItem[];
   isOpen: boolean;
@@ -52,7 +60,7 @@ export type CartContextType = {
   openCart: () => void;
   closeCart: () => void;
 
-  addToCart: (item: CartItem) => void;
+  addToCart: (item: CartItem, options?: AddToCartOptions) => void;
   increase: (id: string) => void;
   decrease: (id: string) => void;
   removeFromCart: (id: string) => void;
@@ -71,30 +79,3 @@ export type CartContextType = {
 };
 
 export const CartContext = createContext<CartContextType | null>(null);
-
-// Provider implementacija (pseudo, za aliasing clearCart/resetCart):
-//
-// function clearCart() { ... }
-// // Alias za kompatibilnost, planira se deprecacija resetCart u budućnosti
-// const resetCart = clearCart;
-//
-// value={{ ..., clearCart, resetCart }}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

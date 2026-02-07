@@ -1,7 +1,9 @@
 // Named export useCart kao alias na postojeći hook
 export { useCart } from "./useCart";
+
 import { ReactNode, useMemo, useState } from "react";
 import {
+  AddToCartOptions,
   CartAddon,
   CartContext,
   CartItem,
@@ -145,7 +147,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const openCart = () => setIsOpen(true);
   const closeCart = () => setIsOpen(false);
 
-  const addToCart = (rawItem: CartItem) => {
+  // ✅ dodali smo options, default ponašanje ostaje isto
+  const addToCart = (rawItem: CartItem, options?: AddToCartOptions) => {
     const item = normalizeIncomingItem(rawItem);
 
     setItems((prev) => {
@@ -201,7 +204,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return [...prev, item];
     });
 
-    setIsOpen(true);
+    // ✅ samo otvori ako nije eksplicitno zabranjeno
+    if (options?.openCart !== false) {
+      setIsOpen(true);
+    }
   };
 
   const increase = (id: string) => {
@@ -354,10 +360,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clearCart = () => setItems([]);
   const resetCart = () => setItems([]);
 
-  const totalItems = useMemo(
-    () => items.reduce((sum, i) => sum + i.quantity, 0),
-    [items]
-  );
+  const totalItems = useMemo(() => items.reduce((sum, i) => sum + i.quantity, 0), [items]);
 
   // IMPORTANT: totalPrice je u EUR centima (int)
   const totalPrice = useMemo(
