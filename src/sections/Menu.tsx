@@ -84,6 +84,99 @@ function normalizeImagePath(image: string | null): string | null {
   return `/menu/${file}`;
 }
 
+/**
+ * U public/menu imamo nekoliko “izuzetaka” gde filename nije 1:1 kao naziv artikla.
+ * Ovo uklanja 90% polomljenih slika kada je DB image polje prazno ili pogrešno.
+ */
+const NAME_TO_FILE: Record<string, string> = {
+  // pizze
+  "quattro formaggi": "quattro.png",
+  "don pesto": "pesto.png",
+  "don pamidoro": "pomodoro.png",
+
+  // pica / pića
+  "coca cola": "coca-cola.png",
+  "coca-cola": "coca-cola.png",
+  "coca zero": "coca-zero.png",
+  "coca-zero": "coca-zero.png",
+
+  // sosevi (filename sa razmakom u public/menu)
+  "ljuti sos": "ljuti sos.png",
+  "slatko ljuti": "slatko ljuti.png",
+};
+
+function buildFileCandidatesFromFilename(file: string): string[] {
+  const f = String(file ?? "").trim();
+  if (!f) return [];
+
+  const lower = f.toLowerCase();
+  const spaceTo20 = f.replaceAll(" ", "%20");
+  const spaceTo20Lower = lower.replaceAll(" ", "%20");
+
+  const encodedFile = encodeURIComponent(f).replaceAll("%2F", "/");
+  const encodedLower = encodeURIComponent(lower).replaceAll("%2F", "/");
+
+  const uniq = new Set<string>([
+    `/menu/${f}`,
+    `/menu/${lower}`,
+    `/menu/${encodedFile}`,
+    `/menu/${encodedLower}`,
+    `/menu/${spaceTo20}`,
+    `/menu/${spaceTo20Lower}`,
+  ]);
+
+  return [...uniq];
+}
+
+function buildFileCandidatesFromName(name: string): string[] {
+  const raw = stripSize(name);
+  const n = normalizeText(raw);
+  if (!n) return [];
+
+  const mapped = NAME_TO_FILE[n];
+  if (mapped) {
+    return buildFileCandidatesFromFilename(mapped);
+  }
+
+  // default: pokušaj “slug” varijante
+  // primer: "coca cola" -> coca-cola.png, ali i "ljuti sos" -> ljuti sos.png
+  const withDash = n.replaceAll(" ", "-");
+  const withSpace = n; // već normalized (space)
+  const noDash = withDash.replaceAll("-", "");
+
+  // NOTE: ne diramo ekstenziju na drugačije — u public/menu su png
+  const candidates = [
+    `${withDash}.png`,
+    `${withSpace}.png`,
+    `${noDash}.png`,
+  ];
+
+  // ubaci i verzije bez "dj" -> "d" (za slučaj da je neko ručno nazvao drugačije)
+  const djToD = withDash.replaceAll("dj", "d");
+  if (djToD !== withDash) candidates.push(`${djToD}.png`);
+
+  const uniq = new Set<string>();
+  for (const file of candidates) {
+    for (const c of buildFileCandidatesFromFilename(file)) uniq.add(c);
+  }
+
+  return [...uniq];
+}
+
+function buildImageCandidates(image: string | null, name: string): string[] {
+  const base = normalizeImagePath(image);
+  const uniq = new Set<string>();
+
+  if (base) {
+    const file = base.replace("/menu/", "");
+    for (const c of buildFileCandidatesFromFilename(file)) uniq.add(c);
+  }
+
+  for (const c of buildFileCandidatesFromName(name)) uniq.add(c);
+
+  return [...uniq];
+}
+
 function clampText(value: string, max = 78) {
   const s = String(value ?? "").trim();
   if (!s) return "";
@@ -103,6 +196,35 @@ type ToastState = {
   title: string;
   subtitle?: string;
 };
+
+function SmartMenuImage(props: { image: string | null; name: string; alt: string; className: string }) {
+  const { image, name, alt, className } = props;
+
+  const candidates = useMemo(() => buildImageCandidates(image, name), [image, name]);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setIdx(0);
+  }, [image, name]);
+
+  const src = candidates[idx] ?? null;
+
+  if (!src) {
+    return <div className={className + " bg-white/5"} aria-hidden="true" />;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => {
+        setIdx((i) => (i < candidates.length - 1 ? i + 1 : i));
+      }}
+    />
+  );
+}
 
 export default function Menu() {
   const { addToCart, openCart } = useCart();
@@ -238,13 +360,16 @@ export default function Menu() {
 
   function onAdd(row: DbMenuItem) {
     const cents = getSafeCents(row);
-    const img = normalizeImagePath(row.image);
+
+    // ✅ U korpu upisujemo najstabilniji mogući image (da CartDrawer ne ostane bez slike)
+    const candidates = buildImageCandidates(row.image, row.name);
+    const best = candidates[0] ?? "";
 
     const cartItem: CartItem = {
       id: row.id,
       name: row.name,
       price: cents,
-      image: img ?? "",
+      image: best,
       description: row.description ?? "",
       category: row.category ?? "",
       quantity: 1,
@@ -282,6 +407,8 @@ export default function Menu() {
     );
   }
 
+  const isPizza = flowCategory === "pizza";
+
   return (
     <section id="meni">
       <button
@@ -291,23 +418,22 @@ export default function Menu() {
         onClick={closeAll}
       />
 
-      <div className="fixed inset-0 z-50 flex justify-center pt-16 md:pt-20 px-4 pb-14">
-        <div className="relative w-full max-w-[1080px] rounded-[30px] bg-black/50 ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.7)] overflow-hidden">
-          <div className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-[#f2b400]/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-white/6 blur-3xl" />
+      <div className="fixed inset-0 z-50 flex justify-center px-4 pb-14 pt-12 sm:pt-16 md:pt-20">
+        <div className="relative w-full max-w-[1080px] overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/45 backdrop-blur-md">
+          <div className="pointer-events-none absolute -top-36 -left-36 h-96 w-96 rounded-full bg-[#f2b400]/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
 
-          {/* HEADER (samo slogan) */}
-          <div className="relative flex items-start justify-between gap-6 px-6 sm:px-8 py-7">
+          <div className="relative flex items-start justify-between gap-6 px-6 py-6 sm:px-8 sm:py-7">
             <div className="min-w-0">
-              <h2 className="text-[30px] sm:text-[34px] leading-tight font-extrabold tracking-wide text-white/90">
+              <div className="p-kicker">Meni</div>
+              <h2 className="mt-2 text-[28px] sm:text-[34px] leading-tight font-extrabold tracking-wide text-white/92">
                 Iz naših srca, do vaših osmjeha.
               </h2>
-
               <div className="mt-4 h-px w-56 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
             </div>
 
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex shrink-0 items-center gap-3">
               <button
                 type="button"
                 onClick={goToCart}
@@ -327,16 +453,23 @@ export default function Menu() {
             </div>
           </div>
 
-          <div className="relative px-6 sm:px-8 pb-8">
+          <div className="relative px-6 pb-8 sm:px-8">
             {flowStep === "root" ? (
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid gap-6 md:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => {
                     setFlowCategory("pizza");
                     setFlowStep("list");
                   }}
-                  className="rounded-[26px] p-6 text-left bg-black/35 ring-1 ring-white/10 hover:bg-black/45 hover:ring-white/15 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
+                  className={[
+                    "p-glass p-glass-hover",
+                    "p-6 text-left",
+                    "shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
+                    "transition-all duration-200",
+                    "hover:-translate-y-[3px]",
+                    "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
+                  ].join(" ")}
                 >
                   <div className="text-3xl font-extrabold text-white/92">Pizza</div>
                   <div className="mt-2 text-white/60">Ručno rađene • 33 cm</div>
@@ -348,10 +481,17 @@ export default function Menu() {
                     setFlowCategory("pica");
                     setFlowStep("list");
                   }}
-                  className="rounded-[26px] p-6 text-left bg-black/35 ring-1 ring-white/10 hover:bg-black/45 hover:ring-white/15 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
+                  className={[
+                    "p-glass p-glass-hover",
+                    "p-6 text-left",
+                    "shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
+                    "transition-all duration-200",
+                    "hover:-translate-y-[3px]",
+                    "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
+                  ].join(" ")}
                 >
                   <div className="text-3xl font-extrabold text-white/92">Pića</div>
-                  <div className="mt-2 text-white/60">Sokovi • vode • pivo</div>
+                  <div className="mt-2 text-white/60">Sokovi • vode</div>
                 </button>
               </div>
             ) : (
@@ -359,16 +499,15 @@ export default function Menu() {
                 <button
                   type="button"
                   onClick={() => setFlowStep("root")}
-                  className="mb-6 text-white/70 hover:text-white transition"
+                  className="mb-6 inline-flex items-center gap-2 text-white/70 hover:text-white transition"
                 >
-                  ← Nazad
+                  <span aria-hidden="true">←</span> Nazad
                 </button>
 
                 <div className="max-h-[70vh] overflow-y-auto pr-2">
-                  {flowCategory === "pizza" ? (
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-6 pb-3">
+                  {isPizza ? (
+                    <div className="grid grid-cols-2 gap-6 pb-3 md:grid-cols-4 lg:grid-cols-7">
                       {activeRows.map((row, idx) => {
-                        const img = normalizeImagePath(row.image);
                         const price = getSafeCents(row);
                         const desc = row.description ? clampText(row.description, 78) : "";
                         const isAdded = addedId === row.id;
@@ -381,10 +520,10 @@ export default function Menu() {
                             className={[
                               "group text-left relative",
                               "rounded-[26px] overflow-hidden",
-                              "bg-black/35 ring-1 ring-white/10",
+                              "p-glass p-glass-hover",
                               "shadow-[0_20px_65px_rgba(0,0,0,0.55)]",
                               "transition-all duration-200",
-                              "hover:bg-black/45 hover:ring-white/15 hover:-translate-y-[3px]",
+                              "hover:-translate-y-[3px]",
                               "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
                               isAdded
                                 ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]"
@@ -407,19 +546,15 @@ export default function Menu() {
                               ✓
                             </div>
 
-                            {img ? (
-                              <div className="relative">
-                                <img
-                                  src={img}
-                                  alt={row.name}
-                                  className="h-[96px] w-full object-cover"
-                                  loading="lazy"
-                                />
-                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
-                              </div>
-                            ) : (
-                              <div className="h-[96px] w-full bg-white/5" />
-                            )}
+                            <div className="relative">
+                              <SmartMenuImage
+                                image={row.image}
+                                name={row.name}
+                                alt={row.name}
+                                className="h-[96px] w-full object-cover"
+                              />
+                              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
+                            </div>
 
                             <div className="p-4">
                               <div className="text-[14px] font-extrabold text-white/92 leading-tight">
@@ -461,9 +596,8 @@ export default function Menu() {
                       })}
                     </div>
                   ) : (
-                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 pb-3">
+                    <div className="grid grid-cols-1 gap-6 pb-3 md:grid-cols-2 lg:grid-cols-3">
                       {activeRows.map((row) => {
-                        const img = normalizeImagePath(row.image);
                         const price = getSafeCents(row);
                         const desc = row.description ? clampText(row.description, 90) : "";
                         const isAdded = addedId === row.id;
@@ -476,10 +610,10 @@ export default function Menu() {
                             className={[
                               "group text-left relative",
                               "rounded-[26px] overflow-hidden",
-                              "bg-black/35 ring-1 ring-white/10",
+                              "p-glass p-glass-hover",
                               "shadow-[0_22px_70px_rgba(0,0,0,0.55)]",
                               "transition-all duration-200",
-                              "hover:bg-black/45 hover:ring-white/15 hover:-translate-y-[3px]",
+                              "hover:-translate-y-[3px]",
                               "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
                               isAdded
                                 ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]"
@@ -502,19 +636,15 @@ export default function Menu() {
                               ✓
                             </div>
 
-                            {img ? (
-                              <div className="relative">
-                                <img
-                                  src={img}
-                                  alt={row.name}
-                                  className="h-48 w-full object-cover"
-                                  loading="lazy"
-                                />
-                                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/30" />
-                              </div>
-                            ) : (
-                              <div className="h-48 w-full bg-white/5" />
-                            )}
+                            <div className="relative">
+                              <SmartMenuImage
+                                image={row.image}
+                                name={row.name}
+                                alt={row.name}
+                                className="h-48 w-full object-cover"
+                              />
+                              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/30" />
+                            </div>
 
                             <div className="p-5">
                               <div className="text-xl font-extrabold text-white/92 leading-tight">
@@ -559,8 +689,7 @@ export default function Menu() {
               <div
                 className={[
                   "pointer-events-auto",
-                  "rounded-2xl bg-black/70 backdrop-blur-md",
-                  "ring-1 ring-white/10 shadow-[0_20px_80px_rgba(0,0,0,0.65)]",
+                  "p-glass",
                   "px-4 py-3 sm:px-5 sm:py-4",
                   "flex items-center justify-between gap-3",
                 ].join(" ")}

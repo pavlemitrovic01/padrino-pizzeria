@@ -4,6 +4,49 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== PADRINO THEME TOKENS (premium unified look) ===== */
+@layer components {
+  /* Glass card (primary) */
+  .p-glass {
+    @apply rounded-2xl border border-white/10 bg-black/60 backdrop-blur-md shadow-[0_20px_90px_rgba(0,0,0,0.60)];
+  }
+
+  /* Glass card (softer / badge / secondary) */
+  .p-glass-soft {
+    @apply rounded-2xl border border-white/10 bg-black/45 backdrop-blur-md shadow-[0_20px_90px_rgba(0,0,0,0.55)];
+  }
+
+  /* Premium hover (subtle) */
+  .p-glass-hover {
+    @apply transition-all duration-500 hover:border-white/15 hover:bg-black/55;
+  }
+
+  /* Section kicker (small uppercase label) */
+  .p-kicker {
+    @apply text-yellow-500/90 uppercase tracking-[0.32em] text-xs;
+  }
+
+  /* Section title */
+  .p-title {
+    @apply font-serif text-zinc-100;
+  }
+
+  /* Thin premium divider */
+  .p-divider {
+    @apply h-px bg-gradient-to-r from-transparent via-yellow-200/20 to-transparent;
+  }
+
+  /* Chips / tags */
+  .p-chip {
+    @apply inline-flex items-center rounded-full border border-white/10 bg-black/40 px-3 py-1 text-xs text-zinc-100/90;
+  }
+
+  /* Primary CTA (matches Hero feel) */
+  .p-cta {
+    @apply inline-flex items-center justify-center gap-3 rounded-[22px] px-10 py-4 border border-yellow-200/25 bg-black/35 backdrop-blur-md shadow-[0_18px_55px_rgba(0,0,0,0.55)] hover:bg-black/45 hover:border-yellow-200/35 transition-all;
+  }
+}
+
 /* ===== GLOBAL RESET ===== */
 html,
 body {
@@ -98,6 +141,7 @@ input {
 .animate-scaleIn {
   animation: scaleIn 0.25s ease-out;
 }
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);
@@ -110,6 +154,7 @@ input {
 .animate-slideIn {
   animation: slideIn 0.3s ease-out forwards;
 }
+
 @keyframes slide-in {
   from {
     transform: translateX(100%);
@@ -122,5 +167,3 @@ input {
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
 }
-
-
