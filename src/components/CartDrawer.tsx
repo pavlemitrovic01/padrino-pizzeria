@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabaseClient.ts";
 import { useCart } from "../context/useCart";
 import type { CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
@@ -212,12 +212,7 @@ function SmartCartImage(props: { image?: string | null; name: string; alt: strin
   const src = candidates[idx] ?? null;
 
   if (!src) {
-    return (
-      <div
-        className="h-16 w-16 rounded-2xl bg-white/5 ring-1 ring-white/10"
-        aria-hidden="true"
-      />
-    );
+    return <div className="h-16 w-16 rounded-2xl bg-white/5 ring-1 ring-white/10" aria-hidden="true" />;
   }
 
   return (
@@ -251,12 +246,8 @@ export default function CartDrawer() {
 
   const [view, setView] = useState<DrawerView>("cart");
 
-  const [addonsCatalog, setAddonsCatalog] = useState<{ id: string; name: string; price: number }[]>(
-    []
-  );
-  const [saucesCatalog, setSaucesCatalog] = useState<{ id: string; name: string; price: number }[]>(
-    []
-  );
+  const [addonsCatalog, setAddonsCatalog] = useState<{ id: string; name: string; price: number }[]>([]);
+  const [saucesCatalog, setSaucesCatalog] = useState<{ id: string; name: string; price: number }[]>([]);
   const [hasSaucesControl, setHasSaucesControl] = useState(false);
   const [openSaucesForItemId, setOpenSaucesForItemId] = useState<string | null>(null);
 
@@ -388,9 +379,7 @@ export default function CartDrawer() {
   };
 
   // Total: drinks without addons, others with addons
-  const derivedTotalPrice = useMemo(() => {
-    return items.reduce((sum, item) => sum + getLineTotal(item), 0);
-  }, [items]);
+  const derivedTotalPrice = useMemo(() => items.reduce((sum, item) => sum + getLineTotal(item), 0), [items]);
 
   const canSubmit = useMemo(() => {
     if (!name.trim() || !phone.trim() || !address.trim()) return false;
@@ -400,7 +389,7 @@ export default function CartDrawer() {
     return true;
   }, [name, phone, address, items.length, totalItems, derivedTotalPrice]);
 
-  async function onSubmitOrder(e: React.FormEvent) {
+  async function onSubmitOrder(e: FormEvent) {
     e.preventDefault();
     setSubmitError(null);
 
@@ -470,8 +459,7 @@ export default function CartDrawer() {
           <motion.aside
             className={[
               "absolute right-0 top-0 h-full w-full max-w-md",
-              "bg-black/45 backdrop-blur-md border-l border-white/10",
-              "shadow-[0_40px_140px_rgba(0,0,0,0.75)]",
+              "p-glass-strong",
               "overflow-hidden",
             ].join(" ")}
             initial={{ x: 32, opacity: 0 }}
@@ -489,7 +477,7 @@ export default function CartDrawer() {
             <div className="relative border-b border-white/10 px-5 pb-4 pt-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="p-kicker">Padrino</div>
+                  <div className="p-eyebrow">PADRINO</div>
                   <h3 className="mt-2 text-xl font-extrabold text-white/92">{title}</h3>
                   {view === "cart" ? (
                     <div className="mt-1 text-xs text-white/55">
@@ -500,18 +488,12 @@ export default function CartDrawer() {
 
                 <div className="flex shrink-0 items-center gap-2">
                   {view !== "cart" ? (
-                    <button
-                      onClick={backToCart}
-                      className="h-9 px-4 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition"
-                    >
+                    <button onClick={backToCart} className="p-btn-ghost h-9 px-4 text-sm font-extrabold">
                       Nazad
                     </button>
                   ) : null}
 
-                  <button
-                    onClick={closeCart}
-                    className="h-9 px-4 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition"
-                  >
+                  <button onClick={closeCart} className="p-btn-ghost h-9 px-4 text-sm font-extrabold">
                     Zatvori
                   </button>
                 </div>
@@ -529,17 +511,11 @@ export default function CartDrawer() {
                   </p>
 
                   <div className="mt-5 grid grid-cols-1 gap-3">
-                    <button
-                      onClick={handleGoToMenu}
-                      className="w-full rounded-full bg-[#f2b400] px-5 py-3 text-sm font-extrabold text-black hover:brightness-105 active:brightness-95 transition"
-                    >
+                    <button onClick={handleGoToMenu} className="p-btn-gold w-full h-12 text-sm">
                       Nazad na meni
                     </button>
 
-                    <button
-                      onClick={closeCart}
-                      className="w-full rounded-full border border-white/15 px-5 py-3 text-sm font-semibold text-white/80 hover:border-white/25 hover:text-white transition"
-                    >
+                    <button onClick={closeCart} className="p-btn-ghost w-full h-12 text-sm font-extrabold">
                       Zatvori
                     </button>
                   </div>
@@ -552,9 +528,7 @@ export default function CartDrawer() {
                   <form onSubmit={onSubmitOrder} className="space-y-4">
                     <div className="p-glass p-4">
                       <div>
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Ime i prezime
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Ime i prezime</label>
                         <input
                           value={name}
                           onChange={(e) => setName(e.target.value)}
@@ -565,9 +539,7 @@ export default function CartDrawer() {
                       </div>
 
                       <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Telefon
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Telefon</label>
                         <input
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
@@ -578,9 +550,7 @@ export default function CartDrawer() {
                       </div>
 
                       <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Adresa
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Adresa</label>
                         <input
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
@@ -591,9 +561,7 @@ export default function CartDrawer() {
                       </div>
 
                       <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Napomena (opciono)
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Napomena (opciono)</label>
                         <textarea
                           value={orderNote}
                           onChange={(e) => setOrderNote(e.target.value)}
@@ -610,33 +578,28 @@ export default function CartDrawer() {
                       </div>
 
                       {submitError ? (
-                        <div className="mt-3 rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">
-                          {submitError}
-                        </div>
+                        <div className="mt-3 rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">{submitError}</div>
                       ) : null}
 
                       <button
                         type="submit"
                         disabled={!canSubmit || submitting}
                         className={[
-                          "mt-4 w-full rounded-full px-5 py-3 text-sm font-extrabold text-black transition",
-                          !canSubmit || submitting
-                            ? "bg-[#f2b400]/50"
-                            : "bg-[#f2b400] hover:brightness-105 active:brightness-95",
+                          "mt-4 w-full h-12",
+                          "p-btn-gold",
+                          !canSubmit || submitting ? "opacity-60 pointer-events-none" : "",
                         ].join(" ")}
                       >
                         {submitting ? "Šaljem…" : "Potvrdi porudžbinu"}
                       </button>
 
                       {!canSubmit && !submitting ? (
-                        <div className="mt-2 text-xs text-white/50">
-                          Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.
-                        </div>
+                        <div className="mt-2 text-xs text-white/50">Popuni ime/telefon/adresu i provjeri obračun.</div>
                       ) : null}
                     </div>
                   </form>
 
-                  {/* PREGLED (bitno: dodaci + napomena) */}
+                  {/* PREGLED */}
                   <div className="p-glass p-4">
                     <div className="text-sm font-extrabold text-white mb-3">Pregled</div>
 
@@ -666,15 +629,11 @@ export default function CartDrawer() {
                               ) : null}
 
                               {i.note ? (
-                                <div className="mt-2 text-xs text-white/60 italic">
-                                  Napomena: {String(i.note)}
-                                </div>
+                                <div className="mt-2 text-xs text-white/60 italic">Napomena: {String(i.note)}</div>
                               ) : null}
                             </div>
 
-                            <div className="shrink-0 text-sm font-extrabold text-white">
-                              {formatEUR(lineTotal)}
-                            </div>
+                            <div className="shrink-0 text-sm font-extrabold text-white">{formatEUR(lineTotal)}</div>
                           </div>
                         );
                       })}
@@ -695,10 +654,7 @@ export default function CartDrawer() {
                 items.length === 0 ? (
                   <div className="mt-10 text-center">
                     <p className="text-white/70">Korpa je prazna.</p>
-                    <button
-                      onClick={handleGoToMenu}
-                      className="mt-4 rounded-full bg-[#f2b400] px-5 py-2 text-sm font-extrabold text-black hover:brightness-105 active:brightness-95 transition"
-                    >
+                    <button onClick={handleGoToMenu} className="p-btn-gold mt-4 h-11 px-5 text-sm">
                       Idi na meni
                     </button>
                   </div>
@@ -731,9 +687,7 @@ export default function CartDrawer() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="text-white font-extrabold leading-tight truncate">
-                                    {item.name}
-                                  </p>
+                                  <p className="text-white font-extrabold leading-tight truncate">{item.name}</p>
 
                                   <div className="mt-1 text-xs text-white/60">
                                     {item.size ? (
@@ -741,27 +695,21 @@ export default function CartDrawer() {
                                     ) : null}
                                     {item.size ? <span className="mx-2 text-white/25">•</span> : null}
                                     <span>
-                                      Osnova:{" "}
-                                      <span className="text-white/80 font-semibold">{formatEUR(base)}</span>
+                                      Osnova: <span className="text-white/80 font-semibold">{formatEUR(base)}</span>
                                     </span>
                                     {!hideAddons && addonsTotal > 0 ? (
                                       <>
                                         <span className="mx-2 text-white/25">•</span>
                                         <span>
                                           Dodaci:{" "}
-                                          <span className="text-white/80 font-semibold">
-                                            {formatEUR(addonsTotal)}
-                                          </span>
+                                          <span className="text-white/80 font-semibold">{formatEUR(addonsTotal)}</span>
                                         </span>
                                       </>
                                     ) : null}
                                   </div>
                                 </div>
 
-                                <button
-                                  onClick={() => removeFromCart(item.id)}
-                                  className="h-8 px-3 rounded-full bg-white/10 text-xs font-semibold text-white/75 hover:bg-white/15 hover:text-white transition"
-                                >
+                                <button onClick={() => removeFromCart(item.id)} className="p-btn-ghost h-8 px-3 text-xs font-extrabold">
                                   Ukloni
                                 </button>
                               </div>
@@ -788,9 +736,7 @@ export default function CartDrawer() {
                                   </button>
                                 </div>
 
-                                <div className="text-sm font-extrabold text-white">
-                                  {formatEUR(getLineTotal(item))}
-                                </div>
+                                <div className="text-sm font-extrabold text-white">{formatEUR(getLineTotal(item))}</div>
                               </div>
 
                               {/* Size picker */}
@@ -838,7 +784,7 @@ export default function CartDrawer() {
                                     <div className="flex items-center justify-between gap-3">
                                       <p className="text-xs font-extrabold text-white/80">Sosevi</p>
                                       <button
-                                        className="h-9 px-4 rounded-full bg-white/10 text-xs font-extrabold text-white/85 hover:bg-white/15 transition"
+                                        className="p-btn-ghost h-9 px-4 text-xs font-extrabold"
                                         onClick={() =>
                                           setOpenSaucesForItemId(openSaucesForItemId === item.id ? null : item.id)
                                         }
@@ -893,9 +839,7 @@ export default function CartDrawer() {
                                             className="flex items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
                                           >
                                             <div className="min-w-0">
-                                              <div className="text-xs font-extrabold text-white truncate">
-                                                {a.name}
-                                              </div>
+                                              <div className="text-xs font-extrabold text-white truncate">{a.name}</div>
                                               <div className="text-[11px] text-white/60">
                                                 {formatEUR(a.price)} × {a.quantity}
                                               </div>
@@ -932,9 +876,7 @@ export default function CartDrawer() {
 
                                   {/* Note per item */}
                                   <div className="pt-1">
-                                    <p className="text-xs font-extrabold text-white/80 mb-2">
-                                      Napomena za stavku
-                                    </p>
+                                    <p className="text-xs font-extrabold text-white/80 mb-2">Napomena za stavku</p>
                                     <textarea
                                       value={(item as any).note ?? ""}
                                       onChange={(e) => setItemNote(item.id, e.target.value)}
@@ -963,17 +905,11 @@ export default function CartDrawer() {
                   <p className="text-white font-extrabold text-lg">{formatEUR(derivedTotalPrice)}</p>
                 </div>
 
-                <button
-                  onClick={openCheckout}
-                  className="mt-3 w-full rounded-full bg-[#f2b400] px-5 py-3 text-sm font-extrabold text-black hover:brightness-105 active:brightness-95 transition"
-                >
+                <button onClick={openCheckout} className="p-btn-gold mt-3 w-full h-12 text-sm">
                   Poruči
                 </button>
 
-                <button
-                  onClick={handleGoToMenu}
-                  className="mt-2 w-full rounded-full bg-white/10 px-5 py-3 text-sm font-extrabold text-white/85 hover:bg-white/15 transition"
-                >
+                <button onClick={handleGoToMenu} className="p-btn-ghost mt-2 w-full h-12 text-sm font-extrabold">
                   Nazad na meni
                 </button>
               </div>
