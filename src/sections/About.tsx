@@ -261,7 +261,7 @@ export default function About() {
         <div className="lg:hidden relative z-10 px-4 pt-28 pb-10">
           <div className="mx-auto max-w-xl space-y-6">
             <a
-              href="https://www.google.com/search?q=Padrino+Pizzeria+Budva+reviews"
+              href="https://www.google.com/search?rlz=1C1GCEA_enRS1106RS1106&sca_esv=cc509cf985bd090a&sxsrf=ANbL-n5qsrVE7idZOtLazsTwpBuVN6CK1Q:1770504064951&q=padrino+budva&si=AL3DRZEsmMGCryMMFSHJ3StBhOdZ2-6yYkXd_doETEE1OR-qOTstmithlT6_yzLrxpkdpuvm3NPUbexX9EoyngovVydPcRXbsXNl5pLZR4PsZHs0KqPE2yTk_Tlna6Z0q3viI3pAey-f59JI_3WnJJU7y6v82BoQqrLzLywHe8Q23vXqDxewGLk%3D&sa=X&ved=2ahUKEwiVoPXOuciSAxU1OBAIHVI8M10QrrQLegQIHhAA&biw=1097&bih=544&dpr=1.75"
               target="_blank"
               rel="noreferrer"
               className="block"
