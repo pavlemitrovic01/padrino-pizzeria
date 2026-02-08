@@ -138,16 +138,12 @@ function buildFileCandidatesFromName(name: string): string[] {
     return buildFileCandidatesFromFilename(mapped);
   }
 
-  // default: pokušaj “slug” varijante
-  // primer: "coca cola" -> coca-cola.png, ali i "ljuti sos" -> ljuti sos.png
   const withDash = n.replaceAll(" ", "-");
-  const withSpace = n; // već normalized (space)
+  const withSpace = n;
   const noDash = withDash.replaceAll("-", "");
 
-  // NOTE: ne diramo ekstenziju na drugačije — u public/menu su png
   const candidates = [`${withDash}.png`, `${withSpace}.png`, `${noDash}.png`];
 
-  // ubaci i verzije bez "dj" -> "d" (za slučaj da je neko ručno nazvao drugačije)
   const djToD = withDash.replaceAll("dj", "d");
   if (djToD !== withDash) candidates.push(`${djToD}.png`);
 
@@ -356,7 +352,7 @@ export default function Menu() {
   function onAdd(row: DbMenuItem) {
     const cents = getSafeCents(row);
 
-    // ✅ U korpu upisujemo najstabilniji mogući image (da CartDrawer ne ostane bez slike)
+    // ✅ U korpu upisujemo najstabilniji mogući image
     const candidates = buildImageCandidates(row.image, row.name);
     const best = candidates[0] ?? "";
 
@@ -370,10 +366,8 @@ export default function Menu() {
       quantity: 1,
     };
 
-    addToCart(cartItem, {
-      openDrawer: false,
-      skipScroll: true,
-    });
+    // ✅ FIX: AddToCartOptions ima openCart, ne openDrawer
+    addToCart(cartItem, { openCart: false });
 
     markAdded(row.id);
 
@@ -422,7 +416,6 @@ export default function Menu() {
           <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
 
-          {/* ✅ POLISH: mobile header u koloni (tekst puni red), tracking smiren na mobile */}
           <div className="relative flex flex-col sm:flex-row sm:items-start justify-between gap-5 sm:gap-6 px-6 py-6 sm:px-8 sm:py-7">
             <div className="min-w-0">
               <div className="p-kicker">Meni</div>
@@ -560,7 +553,6 @@ export default function Menu() {
                                 {row.name}
                               </div>
 
-                              {/* ✅ POLISH: sastojci veći (mobile + desktop) */}
                               {desc ? (
                                 <div className="mt-1 text-[13px] sm:text-[13px] text-white/65 leading-snug">
                                   {desc}
