@@ -138,12 +138,16 @@ function buildFileCandidatesFromName(name: string): string[] {
     return buildFileCandidatesFromFilename(mapped);
   }
 
+  // default: pokušaj “slug” varijante
+  // primer: "coca cola" -> coca-cola.png, ali i "ljuti sos" -> ljuti sos.png
   const withDash = n.replaceAll(" ", "-");
-  const withSpace = n;
+  const withSpace = n; // već normalized (space)
   const noDash = withDash.replaceAll("-", "");
 
+  // NOTE: ne diramo ekstenziju na drugačije — u public/menu su png
   const candidates = [`${withDash}.png`, `${withSpace}.png`, `${noDash}.png`];
 
+  // ubaci i verzije bez "dj" -> "d" (za slučaj da je neko ručno nazvao drugačije)
   const djToD = withDash.replaceAll("dj", "d");
   if (djToD !== withDash) candidates.push(`${djToD}.png`);
 
@@ -352,7 +356,7 @@ export default function Menu() {
   function onAdd(row: DbMenuItem) {
     const cents = getSafeCents(row);
 
-    // ✅ U korpu upisujemo najstabilniji mogući image
+    // ✅ U korpu upisujemo najstabilniji mogući image (da CartDrawer ne ostane bez slike)
     const candidates = buildImageCandidates(row.image, row.name);
     const best = candidates[0] ?? "";
 
@@ -366,7 +370,6 @@ export default function Menu() {
       quantity: 1,
     };
 
-    // ✅ FIX: AddToCartOptions ima openCart, ne openDrawer
     addToCart(cartItem, { openCart: false });
 
     markAdded(row.id);
@@ -416,16 +419,16 @@ export default function Menu() {
           <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
 
-          <div className="relative flex flex-col sm:flex-row sm:items-start justify-between gap-5 sm:gap-6 px-6 py-6 sm:px-8 sm:py-7">
-            <div className="min-w-0">
+          <div className="relative flex flex-col gap-5 px-6 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-8 sm:py-7">
+            <div className="min-w-0 w-full sm:w-auto">
               <div className="p-kicker">Meni</div>
-              <h2 className="mt-2 text-[26px] sm:text-[34px] leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-balance">
+              <h2 className="mt-2 text-[26px] sm:text-[34px] leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left">
                 Iz naših srca, do vaših osmjeha.
               </h2>
-              <div className="mt-4 h-px w-56 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
+              <div className="mt-4 h-px w-56 mx-auto sm:mx-0 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
             </div>
 
-            <div className="flex shrink-0 items-center gap-3 self-start sm:self-auto">
+            <div className="flex w-full shrink-0 items-center justify-center gap-3 sm:w-auto sm:justify-end">
               <button
                 type="button"
                 onClick={goToCart}
@@ -554,11 +557,11 @@ export default function Menu() {
                               </div>
 
                               {desc ? (
-                                <div className="mt-1 text-[13px] sm:text-[13px] text-white/65 leading-snug">
+                                <div className="mt-1 text-[12px] text-white/60 leading-snug">
                                   {desc}
                                 </div>
                               ) : (
-                                <div className="mt-1 text-[13px] sm:text-[13px] text-white/35"> </div>
+                                <div className="mt-1 text-[12px] text-white/35"> </div>
                               )}
 
                               <div className="mt-3">
@@ -687,14 +690,10 @@ export default function Menu() {
                 ].join(" ")}
               >
                 <div className="min-w-0">
-                  <div className="text-sm sm:text-[15px] font-extrabold text-white/90">
-                    {toast.title}
-                  </div>
+                  <div className="text-sm sm:text-[15px] font-extrabold text-white/90">{toast.title}</div>
 
                   {toast.subtitle ? (
-                    <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">
-                      {toast.subtitle}
-                    </div>
+                    <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div>
                   ) : null}
                 </div>
 
