@@ -28,6 +28,53 @@ export default function Hero() {
         <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.85)]" />
       </div>
 
+      {/* Brand signature (zona 1) */}
+      <motion.div
+        className={[
+          "pointer-events-none absolute z-10",
+          "hidden md:block",
+          "right-10 lg:right-16",
+          "top-1/2 -translate-y-1/2",
+          "max-w-[520px]",
+          "text-right",
+        ].join(" ")}
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut", delay: 0.15 }}
+        aria-hidden="true"
+      >
+        <div
+          className={[
+            "inline-block",
+            "px-6 py-4",
+            "rounded-[28px]",
+            "bg-black/10",
+            "backdrop-blur-[2px]",
+            "border border-yellow-200/10",
+            "shadow-[0_30px_90px_rgba(0,0,0,0.55)]",
+          ].join(" ")}
+        >
+          <div
+            className={[
+              "font-serif uppercase",
+              "tracking-[0.22em]",
+              "text-[42px] lg:text-[52px]",
+              "leading-[1.05]",
+              "text-yellow-50/85",
+              "drop-shadow-[0_2px_18px_rgba(0,0,0,0.85)]",
+            ].join(" ")}
+            style={{
+              textShadow:
+                "0 2px 18px rgba(0,0,0,0.75), 0 0 22px rgba(234,179,8,0.08)",
+            }}
+          >
+            Padrino Pizzeria
+          </div>
+
+          <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-yellow-200/20 to-transparent" />
+        </div>
+      </motion.div>
+
       {/* Content */}
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6">
         <div className="flex w-full items-center">

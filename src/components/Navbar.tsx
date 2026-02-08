@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useCart } from "../context/useCart";
+import ChefHatLogo from "./brand/ChefHatLogo";
 
 function normalizePath(): string {
   const path = window.location.pathname || "";
@@ -16,7 +17,6 @@ function scrollToId(id: string) {
 }
 
 function scrollToTop() {
-  // Prefer Hero section anchor if exists
   const hero = document.getElementById("top");
   if (hero) {
     hero.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -58,7 +58,6 @@ export default function Navbar() {
     };
   }, []);
 
-  // ✅ "Meni" uklonjen (bubble je primarni)
   const links = useMemo(
     () => [
       { id: "delivery", label: "Dostava" },
@@ -85,18 +84,13 @@ export default function Navbar() {
     scrollToId(id);
   }
 
-  function onLogoClick(e: React.MouseEvent<HTMLAnchorElement>) {
+  function onLogoClick(e: MouseEvent<HTMLAnchorElement>) {
     setMobileOpen(false);
 
-    // Admin: zadrži normalan behavior (reload / navigacija)
     if (isAdminRoute) return;
 
-    // Public: premium smooth scroll bez reload-a
     e.preventDefault();
-
-    // očisti hash (da ne ostane /#...)
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
-
     scrollToTop();
   }
 
@@ -109,90 +103,89 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-black/80 backdrop-blur text-white border-b border-white/10">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div className="w-full px-4 sm:px-6 h-16 flex items-center">
+        {/* ✅ još bliže levoj ivici */}
         <a
           href="/"
-          className="flex items-center gap-3 text-xl font-black tracking-wide"
           onClick={onLogoClick}
+          aria-label="Padrino"
+          className="flex items-center hover:opacity-90 transition-opacity -ml-2"
         >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-yellow-500 text-black">
-            P
-          </span>
-          <span className="hidden sm:inline">Padrino</span>
+          <ChefHatLogo />
         </a>
 
-        {/* DESKTOP NAV */}
-        <nav className="hidden md:flex items-center gap-2">
-          {!isAdminRoute &&
-            links.map((l) => (
+        <div className="ml-auto flex items-center">
+          <nav className="hidden md:flex items-center gap-2">
+            {!isAdminRoute &&
+              links.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => onClickLink(l.id)}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold text-white/80 hover:text-white hover:bg-white/5 transition"
+                >
+                  {l.label}
+                </button>
+              ))}
+
+            {isAdminRoute && hasSession && (
               <button
-                key={l.id}
                 type="button"
-                onClick={() => onClickLink(l.id)}
-                className="px-3 py-2 rounded-xl text-sm font-semibold text-white/80 hover:text-white hover:bg-white/5 transition"
+                onClick={handleLogout}
+                className="ml-2 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-full font-semibold transition"
               >
-                {l.label}
+                Logout
               </button>
-            ))}
+            )}
 
-          {isAdminRoute && hasSession && (
+            {!isAdminRoute && (
+              <button
+                type="button"
+                onClick={openCart}
+                className="relative ml-2 flex items-center gap-2 bg-yellow-500 text-black px-4 py-2 rounded-full font-extrabold hover:bg-yellow-400 transition"
+              >
+                🛒 Korpa
+                {totalItems > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                    {totalItems}
+                  </span>
+                )}
+              </button>
+            )}
+          </nav>
+
+          <div className="md:hidden flex items-center gap-2">
+            {!isAdminRoute && (
+              <button
+                type="button"
+                onClick={openCart}
+                className="relative flex items-center gap-2 bg-yellow-500 text-black px-3 py-2 rounded-full font-extrabold hover:bg-yellow-400 transition"
+                aria-label="Otvori korpu"
+              >
+                🛒
+                {totalItems > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                    {totalItems}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={handleLogout}
-              className="ml-2 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-full font-semibold transition"
+              onClick={() => setMobileOpen((v) => !v)}
+              className="px-3 py-2 rounded-2xl border border-white/15 hover:border-white/30 transition"
+              aria-label="Meni"
             >
-              Logout
+              ☰
             </button>
-          )}
-
-          {!isAdminRoute && (
-            <button
-              type="button"
-              onClick={openCart}
-              className="relative ml-2 flex items-center gap-2 bg-yellow-500 text-black px-4 py-2 rounded-full font-extrabold hover:bg-yellow-400 transition"
-            >
-              🛒 Korpa
-              {totalItems > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                  {totalItems}
-                </span>
-              )}
-            </button>
-          )}
-        </nav>
-
-        {/* MOBILE */}
-        <div className="md:hidden flex items-center gap-2">
-          {!isAdminRoute && (
-            <button
-              type="button"
-              onClick={openCart}
-              className="relative flex items-center gap-2 bg-yellow-500 text-black px-3 py-2 rounded-full font-extrabold hover:bg-yellow-400 transition"
-              aria-label="Otvori korpu"
-            >
-              🛒
-              {totalItems > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                  {totalItems}
-                </span>
-              )}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setMobileOpen((v) => !v)}
-            className="px-3 py-2 rounded-2xl border border-white/15 hover:border-white/30 transition"
-            aria-label="Meni"
-          >
-            ☰
-          </button>
+          </div>
         </div>
       </div>
 
       {mobileOpen && !isAdminRoute && (
         <div className="md:hidden border-t border-white/10 bg-black/95">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1">
+          <div className="px-4 py-3 flex flex-col gap-1">
             {links.map((l) => (
               <button
                 key={l.id}
