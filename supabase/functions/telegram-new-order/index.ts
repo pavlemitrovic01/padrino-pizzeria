@@ -14,12 +14,13 @@ type InsertOrderPayload = {
   // legacy
   total_price?: number;
 
-  // EUR migration
+  // EUR
   currency?: string | null;
   total_eur_cents?: number | null;
   fx_rsd_per_eur?: number | null;
 
   items?: unknown;
+  note?: string | null;
 };
 
 type WebhookBody =
@@ -48,212 +49,145 @@ function safeNumber(v: unknown): number | null {
   return null;
 }
 
-function formatMoneyEUR(cents: number) {
+function normalizeText(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replaceAll("č", "c")
+    .replaceAll("ć", "c")
+    .replaceAll("š", "s")
+    .replaceAll("ž", "z")
+    .replaceAll("đ", "dj")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isDrinkCategory(category: string) {
+  const c = normalizeText(category);
+  return c.includes("pica") || c.includes("pice") || c.includes("napici") || c.includes("napitci");
+}
+
+function isMetaRow(it: any) {
+  const cartId = normalizeText(safeString(it?.cart_id));
+  const name = normalizeText(safeString(it?.name));
+  const cat = normalizeText(safeString(it?.category));
+  return cartId === "meta" || name === "meta" || cat === "meta";
+}
+
+function addonEmoji(name: string) {
+  const n = normalizeText(name);
+
+  if (n.includes("sos") || n.includes("kecap") || n.includes("kečap") || n.includes("majonez")) return "🧄";
+  if (n.includes("sir") || n.includes("mozz") || n.includes("kack") || n.includes("kačk")) return "🧀";
+  if (n.includes("krof") || n.includes("donut")) return "🍩";
+  if (n.includes("pecur") || n.includes("samp") || n.includes("šamp")) return "🍄";
+  if (n.includes("sunka") || n.includes("prsut") || n.includes("slanina")) return "🥓";
+
+  return "➕";
+}
+
+function formatTotalEURFromCents(cents: number) {
   const safe = Number.isFinite(cents) ? Math.trunc(cents) : 0;
-  const amount = safe / 100;
+  return (safe / 100).toFixed(2);
+}
 
-  try {
-    return new Intl.NumberFormat("sr-Latn-ME", {
-      style: "currency",
-      currency: "EUR",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  } catch {
-    return `€${amount.toFixed(2)}`;
+function parseItems(raw: unknown): any[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
+  return [];
 }
 
-function formatMoneyRSD(value: number) {
-  const safe = Number.isFinite(value) ? value : 0;
-  try {
-    return new Intl.NumberFormat("sr-Latn-ME", {
-      style: "currency",
-      currency: "RSD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(safe);
-  } catch {
-    return `${Math.round(safe)} RSD`;
-  }
+function extractOrderNote(order: InsertOrderPayload, items: any[]) {
+  // 1) prefer order.note ako postoji
+  const direct = safeString(order?.note);
+  if (direct) return direct;
+
+  // 2) meta stavka (createOrder ubaci META sa note)
+  const meta = items.find((it) => it && typeof it === "object" && isMetaRow(it));
+  const metaNote = meta ? safeString(meta?.note) : "";
+  return metaNote;
 }
 
-/**
- * WEBHOOK SECRET STRATEGIJA (stabilno, bez downtime):
- * - Secret vrijednost: TELEGRAM_WEBHOOK_SECRET (ili WEBHOOK_SECRET) u Supabase Settings → Vault (BETA)
- * - Rollout mod:
- *   - TELEGRAM_WEBHOOK_ENFORCE=0 (default): ako secret postoji -> validiraj; ako ne postoji -> pusti (soft)
- *   - TELEGRAM_WEBHOOK_ENFORCE=1: secret mora postojati i mora matchovati (hard)
- *
- * Headeri koje prihvatamo:
- * - Telegram standard: X-Telegram-Bot-Api-Secret-Token
- * - Legacy (ako si imao klijenta): x-webhook-secret
- */
-function getEnforceMode(): boolean {
-  const raw = safeString(Deno.env.get("TELEGRAM_WEBHOOK_ENFORCE"));
-  if (!raw) return false;
-  return raw === "1" || raw.toLowerCase() === "true" || raw.toLowerCase() === "yes";
-}
+function formatTelegramMessage(order: InsertOrderPayload) {
+  const name = safeString(order.customer_name) || "-";
+  const phone = safeString(order.customer_phone) || "-";
+  const address = safeString(order.customer_address) || "-";
+  const status = safeString(order.status) || "pending";
 
-function getConfiguredSecret(): string {
-  return (
-    safeString(Deno.env.get("TELEGRAM_WEBHOOK_SECRET")) ||
-    safeString(Deno.env.get("WEBHOOK_SECRET")) ||
-    ""
-  );
-}
+  const itemsAll = parseItems(order.items);
+  const orderNote = extractOrderNote(order, itemsAll);
 
-function getProvidedSecret(req: Request): string {
-  // Telegram šalje ovaj header kada setWebhook ima secret_token
-  const tg = safeString(req.headers.get("x-telegram-bot-api-secret-token"));
-  if (tg) return tg;
+  // pravi items bez META
+  const items = itemsAll.filter((it) => it && typeof it === "object" && safeString(it?.cart_id) && !isMetaRow(it));
 
-  // Legacy fallback
-  const legacy = safeString(req.headers.get("x-webhook-secret"));
-  if (legacy) return legacy;
+  const pizzas = items.filter((it) => !isDrinkCategory(safeString(it?.category)));
+  const drinks = items.filter((it) => isDrinkCategory(safeString(it?.category)));
 
-  return "";
-}
-
-function verifyWebhookSecret(req: Request): { ok: true } | { ok: false; status: number; error: string } {
-  const enforce = getEnforceMode();
-  const configured = getConfiguredSecret();
-
-  // Soft mode: ako nema konfigurisanog secreta, ne blokiraj (da ne pukne produkcija)
-  if (!configured && !enforce) return { ok: true };
-
-  // Hard mode: mora postojati
-  if (!configured && enforce) {
-    return {
-      ok: false,
-      status: 500,
-      error:
-        "Missing TELEGRAM_WEBHOOK_SECRET (or WEBHOOK_SECRET). Set it in Settings → Vault (BETA) then redeploy.",
-    };
-  }
-
-  const provided = getProvidedSecret(req);
-
-  // Ako je secret konfigurisan, a request ne nosi header -> 401
-  if (!provided) {
-    return { ok: false, status: 401, error: "Unauthorized" };
-  }
-
-  if (provided !== configured) {
-    return { ok: false, status: 401, error: "Unauthorized" };
-  }
-
-  return { ok: true };
-}
-
-function pickRecord(body: WebhookBody | null): InsertOrderPayload | null {
-  if (!body || typeof body !== "object") return null;
-
-  if ("record" in (body as any)) {
-    const r = (body as any).record;
-    if (r && typeof r === "object") return r as InsertOrderPayload;
-    return null;
-  }
-
-  return body as InsertOrderPayload;
-}
-
-const recentIds = new Map<string, number>();
-const RECENT_TTL_MS = 2 * 60 * 1000;
-
-function seenRecently(id: string) {
-  const now = Date.now();
-  for (const [k, t] of recentIds.entries()) {
-    if (now - t > RECENT_TTL_MS) recentIds.delete(k);
-  }
-  if (recentIds.has(id)) return true;
-  recentIds.set(id, now);
-  return false;
-}
-
-function extractOrderNote(items: unknown): string {
-  if (!Array.isArray(items) || items.length === 0) return "";
-  const meta = items[0];
-  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return "";
-
-  const note =
-    (meta as any).order_note ??
-    (meta as any).note ??
-    (meta as any).napomena ??
-    "";
-
-  return safeString(note);
-}
-
-function extractLineItems(items: unknown): any[] {
-  if (!Array.isArray(items)) return [];
-  // items[0] je meta {order_note}, ostalo su stavke
-  if (
-    items.length > 0 &&
-    items[0] &&
-    typeof items[0] === "object" &&
-    !Array.isArray(items[0]) &&
-    ("order_note" in (items[0] as any) || "note" in (items[0] as any) || "napomena" in (items[0] as any))
-  ) {
-    return items.slice(1);
-  }
-  return items;
-}
-
-function computeTotalString(order: InsertOrderPayload): string {
-  const currency = safeString(order.currency).toUpperCase();
-  const eurCents = safeNumber(order.total_eur_cents);
-
-  if (eurCents != null) return formatMoneyEUR(eurCents);
-
-  const totalPrice = safeNumber(order.total_price);
-  if (currency === "EUR" && totalPrice != null) return formatMoneyEUR(totalPrice);
-  if (totalPrice != null) return formatMoneyRSD(totalPrice);
-
-  return "N/A";
-}
-
-function buildMessage(order: InsertOrderPayload) {
-  const name = safeString(order.customer_name);
-  const phone = safeString(order.customer_phone);
-  const address = safeString(order.customer_address);
-
-  const header = `🍕 Nova porudžbina (PENDING)`;
-
-  const meta: string[] = [];
-  if (name) meta.push(`<b>Ime:</b> ${name}`);
-  if (phone) meta.push(`<b>Telefon:</b> ${phone}`);
-  if (address) meta.push(`<b>Adresa:</b> ${address}`);
-
-  meta.push(`<b>Ukupno:</b> ${computeTotalString(order)}`);
-
-  const note = extractOrderNote(order.items);
-  if (note) meta.push(`<b>Napomena:</b> ${note}`);
-
-  const currency = safeString(order.currency).toUpperCase();
-  const preferEur = safeNumber(order.total_eur_cents) != null || currency === "EUR";
-
-  const lineItems = extractLineItems(order.items);
   const lines: string[] = [];
 
-  for (const it of lineItems) {
-    if (!it || typeof it !== "object" || Array.isArray(it)) continue;
+  lines.push("📪📬📭 Nova porudžbina:");
+  lines.push(`🙅‍♂️ Ime: ${name}`);
+  lines.push(`☎️ Telefon: ${phone}`);
+  lines.push(`🏠 Adresa: ${address}`);
+  lines.push(`🕒 Status: ${status}`);
+  lines.push("");
+  lines.push("🔊🔊 LISTA PROIZVODA:");
 
-    const n = safeString((it as any).name) || "Stavka";
-    const qty = Math.max(1, Math.floor(safeNumber((it as any).quantity) ?? 1));
-    const ppi = safeNumber((it as any).price_per_item) ?? 0;
-    const lineTotal = ppi * qty;
-
-    const money = preferEur ? formatMoneyEUR(lineTotal) : formatMoneyRSD(lineTotal);
-
-    const size = safeString((it as any).size);
+  // Pizze + dodaci + napomene
+  for (const it of pizzas) {
+    const nm = safeString(it?.name) || "Proizvod";
+    const qty = Math.max(1, Math.trunc(safeNumber(it?.quantity) ?? 1));
+    const size = safeString(it?.size);
     const sizeSuffix = size ? ` (${size})` : "";
 
-    lines.push(`• ${n}${sizeSuffix} x${qty} — ${money}`);
+    lines.push(`🍕 ● ${qty}x ${nm}${sizeSuffix}`);
+
+    const addons = Array.isArray(it?.addons) ? it.addons : [];
+    if (addons.length > 0) {
+      lines.push("🍄● Dodaci:");
+      for (const a of addons) {
+        const an = safeString(a?.name);
+        if (!an) continue;
+        const aq = Math.max(1, Math.trunc(safeNumber(a?.quantity) ?? 1));
+        lines.push(` ${addonEmoji(an)}● ${aq}x ${an}`);
+      }
+    }
+
+    const itemNote = safeString(it?.note);
+    if (itemNote) {
+      lines.push(`🚨 ● NAPOMENA: ${itemNote}`);
+    }
+
+    lines.push("");
   }
 
-  const body = lines.length ? `\n\n<b>Stavke:</b>\n${lines.join("\n")}` : "";
-  return `${header}\n\n${meta.join("\n")}${body}`;
+  // Pića
+  if (drinks.length > 0) {
+    lines.push("🥤● Piće:");
+    for (const it of drinks) {
+      const nm = safeString(it?.name) || "Piće";
+      const qty = Math.max(1, Math.trunc(safeNumber(it?.quantity) ?? 1));
+      lines.push(`  - ${qty}x ${nm}`);
+    }
+    lines.push("");
+  }
+
+  // Napomena za porudžbinu
+  if (orderNote) {
+    lines.push(`🚨 ● NAPOMENA: ${orderNote}`);
+    lines.push("");
+  }
+
+  const totalCents = Math.max(0, Math.trunc(safeNumber(order.total_eur_cents) ?? 0));
+  lines.push(`💸 ● Ukupno: ${formatTotalEURFromCents(totalCents)} €`);
+
+  return lines.join("\n").trim();
 }
 
 async function sendTelegramMessage(text: string) {
@@ -266,71 +200,62 @@ async function sendTelegramMessage(text: string) {
 
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-    }),
-  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        // plain text -> emoji + format stabilno
+        disable_web_page_preview: true,
+      }),
+    });
 
-  const json = await res.json().catch(() => null);
-  if (!res.ok) return { ok: false, status: res.status, json };
-  return { ok: true, json };
+    const json = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, json };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 serve(async (req) => {
   try {
-    // 0) Webhook secret verification (soft/hard mode)
-    const verified = verifyWebhookSecret(req);
-    if (!verified.ok) {
-      return new Response(JSON.stringify({ ok: false, error: verified.error }), {
-        status: verified.status,
-        headers: { "content-type": "application/json" },
-      });
+    // optional secret guard
+    const expected = safeString(Deno.env.get("TELEGRAM_WEBHOOK_SECRET"));
+    if (expected) {
+      const got = safeString(req.headers.get("x-telegram-secret"));
+      if (!got || got !== expected) {
+        return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+          status: 401,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        });
+      }
     }
 
-    const body = (await req.json().catch(() => null)) as WebhookBody | null;
-    const record = pickRecord(body);
+    const body: WebhookBody = await req.json().catch(() => ({} as any));
 
-    if (!record) {
-      return new Response(JSON.stringify({ ok: false, error: "Missing record" }), {
+    // Supabase webhook body: { record: {...} } ili direktno record
+    const order: InsertOrderPayload = (body as any)?.record ?? (body as any);
+
+    if (!order || !order.id) {
+      return new Response(JSON.stringify({ ok: false, error: "Missing order in payload" }), {
         status: 400,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json; charset=utf-8" },
       });
     }
 
-    const id = safeString(record.id);
-    if (id && seenRecently(id)) {
-      return new Response(JSON.stringify({ ok: true, skipped: "duplicate" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
+    const message = formatTelegramMessage(order);
+    const result = await sendTelegramMessage(message);
 
-    const status = safeString((record as any).status);
-    if (status && status !== "pending") {
-      return new Response(JSON.stringify({ ok: true, skipped: "not-pending" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
-
-    const text = buildMessage(record);
-    const sent = await sendTelegramMessage(text);
-
-    return new Response(JSON.stringify(sent), {
-      status: sent.ok ? 200 : 500,
-      headers: { "content-type": "application/json" },
+    return new Response(JSON.stringify({ ok: true, telegram: result }), {
+      status: 200,
+      headers: { "content-type": "application/json; charset=utf-8" },
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return new Response(JSON.stringify({ ok: false, error: msg }), {
+    return new Response(JSON.stringify({ ok: false, error: String(e) }), {
       status: 500,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json; charset=utf-8" },
     });
   }
 });
