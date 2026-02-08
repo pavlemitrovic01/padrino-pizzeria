@@ -2,155 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
-/* =========================================================
-   PADRINO — PREMIUM THEME TOKENS (ONE SOURCE OF TRUTH)
-   Goal: Hero/Menu/Cart/About/Delivery feel like ONE product.
-   ========================================================= */
+/* -------------------------------------------------------
+   PADRINO — Premium theme primitives (stable for @apply)
+   NOTE: Do NOT use slash opacity utilities in @apply
+         (e.g. text-white/92). Use text-opacity-* instead.
+-------------------------------------------------------- */
 
 @layer base {
-  :root {
-    /* Surfaces */
-    --p-bg: 10 10 10;            /* main background */
-    --p-surface: 16 16 16;       /* cards */
-    --p-surface-2: 20 20 20;     /* elevated */
-    --p-border: 255 255 255;     /* for rings */
-
-    /* Text */
-    --p-text: 255 255 255;
-    --p-muted: 170 170 170;
-
-    /* Brand */
-    --p-gold: 242 180 0;         /* #f2b400 */
-    --p-gold-soft: 242 180 0;
-
-    /* Radius */
-    --p-r-lg: 26px;
-    --p-r-xl: 30px;
-
-    /* Shadows */
-    --p-shadow-1: 0 20px 70px rgba(0, 0, 0, 0.55);
-    --p-shadow-2: 0 40px 120px rgba(0, 0, 0, 0.7);
-
-    /* Glass */
-    --p-glass-bg: rgba(0, 0, 0, 0.45);
-    --p-glass-bg-strong: rgba(0, 0, 0, 0.6);
-    --p-glass-ring: rgba(255, 255, 255, 0.10);
-    --p-glass-ring-strong: rgba(255, 255, 255, 0.14);
-
-    /* Section rhythm */
-    --p-section-py: 96px;
-    --p-section-py-mobile: 72px;
-  }
-
   html,
   body {
     height: 100%;
-    background: rgb(var(--p-bg));
-    color: rgb(var(--p-text));
+  }
+
+  body {
+    @apply bg-black text-white antialiased;
   }
 }
 
-/* =========================================================
-   Reusable utilities (no new libs)
-   ========================================================= */
 @layer components {
-  /* Main container rhythm */
-  .p-container {
-    @apply mx-auto w-full max-w-[1180px] px-4 sm:px-6;
+  /* Small premium kicker label (used across sections) */
+  .p-kicker {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-extrabold tracking-[0.22em] uppercase;
+    @apply text-white text-opacity-70;
   }
 
-  .p-section {
-    padding-top: var(--p-section-py-mobile);
-    padding-bottom: var(--p-section-py-mobile);
-  }
-  @media (min-width: 768px) {
-    .p-section {
-      padding-top: var(--p-section-py);
-      padding-bottom: var(--p-section-py);
-    }
+  /* Main title style (hero/about/delivery/contact) */
+  .p-title {
+    /* FIX: text-white/92 is NOT allowed in @apply */
+    @apply font-serif font-extrabold tracking-tight;
+    @apply text-white text-opacity-90;
   }
 
-  /* Premium glass card (primary) */
+  /* Primary glass card */
   .p-glass {
-    border-radius: var(--p-r-xl);
-    background: var(--p-glass-bg);
-    -webkit-backdrop-filter: blur(14px);
-    backdrop-filter: blur(14px);
-    box-shadow: var(--p-shadow-1);
-    border: 1px solid var(--p-glass-ring);
+    @apply rounded-[26px] border border-white/10 bg-white/5 backdrop-blur-md;
+    @apply shadow-[0_20px_80px_rgba(0,0,0,0.55)];
   }
 
-  /* Slightly stronger surface */
-  .p-glass-strong {
-    border-radius: var(--p-r-xl);
-    background: var(--p-glass-bg-strong);
-    -webkit-backdrop-filter: blur(16px);
-    backdrop-filter: blur(16px);
-    box-shadow: var(--p-shadow-2);
-    border: 1px solid var(--p-glass-ring-strong);
+  /* Hoverable glass */
+  .p-glass-hover {
+    @apply transition;
+    @apply hover:bg-white/10 hover:border-white/15;
   }
 
-  /* Premium CTA button (gold) */
-  .p-btn-gold {
-    @apply inline-flex items-center justify-center gap-2;
-    border-radius: 999px;
-    background: rgb(var(--p-gold));
-    color: #000;
-    font-weight: 900;
-    letter-spacing: 0.2px;
-    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
-    transition: filter 160ms ease, transform 160ms ease;
-  }
-  .p-btn-gold:hover {
-    filter: brightness(1.05);
-  }
-  .p-btn-gold:active {
-    filter: brightness(0.95);
-    transform: translateY(1px);
-  }
-
-  /* Secondary button (glass outline) */
-  .p-btn-ghost {
-    @apply inline-flex items-center justify-center gap-2;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-  }
-  .p-btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(255, 255, 255, 0.16);
-    color: rgba(255, 255, 255, 1);
-  }
-
-  /* Section heading style */
-  .p-eyebrow {
-    @apply text-[11px] tracking-[0.32em] uppercase;
-    color: rgba(var(--p-gold-soft), 0.95);
-  }
-
-  .p-h1 {
-    @apply font-extrabold tracking-wide;
-    font-size: clamp(34px, 4.2vw, 64px);
-    line-height: 1.05;
-  }
-
-  .p-lead {
-    @apply text-sm sm:text-base;
-    color: rgba(var(--p-text), 0.65);
-    max-width: 62ch;
-  }
-
-  /* Thin premium divider */
+  /* Subtle divider line */
   .p-divider {
-    height: 1px;
-    width: 100%;
-    background: linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0),
-      rgba(255, 255, 255, 0.12),
-      rgba(255, 255, 255, 0)
-    );
+    @apply h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent;
+  }
+
+  /* Button primitives (optional but consistent) */
+  .p-btn {
+    @apply inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-extrabold transition;
+  }
+
+  .p-btn-primary {
+    @apply p-btn bg-[#f2b400] text-black hover:brightness-105 active:brightness-95;
+  }
+
+  .p-btn-ghost {
+    @apply p-btn bg-white/10 text-white hover:bg-white/15;
+  }
+
+  .p-input {
+    @apply w-full rounded-2xl bg-black/30 px-4 py-3 text-white outline-none;
+    @apply ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/60;
+  }
+
+  .p-textarea {
+    @apply w-full rounded-2xl bg-black/30 px-4 py-3 text-white outline-none resize-none;
+    @apply ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/60;
   }
 }

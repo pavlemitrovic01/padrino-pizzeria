@@ -1,188 +1,240 @@
+import { useMemo, useState } from "react";
+
 const PHONE_DISPLAY = "+382/67-603-780";
-const PHONE_TEL = "+38267603780";
+const PHONE_E164 = "+38267603780";
 const EMAIL = "padrinobudva@gmail.com";
-const ADDRESS = "Jadranski put BB (Kotorski Semafori)";
-const HOURS = "12-00";
+const ADDRESS_LINE = "Jadranski put BB (Kotorski Semafori)";
+const HOURS = "12–00";
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 
+const WHATSAPP_URL = "https://wa.me/38267603780";
+const VIBER_URL = "viber://chat?number=38267603780";
+
 function Contact() {
+  const [name, setName] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [sentHint, setSentHint] = useState<null | "ok">(null);
+
+  const mailtoHref = useMemo(() => {
+    const subject = `Padrino — Poruka sa sajta`;
+    const body = [
+      `Ime: ${name || "-"}`,
+      `Email: ${fromEmail || "-"}`,
+      ``,
+      `Poruka:`,
+      `${message || "-"}`,
+      ``,
+      `— Poslato sa Padrino sajta`,
+    ].join("\n");
+
+    const qs = new URLSearchParams({
+      subject,
+      body,
+    });
+
+    return `mailto:${EMAIL}?${qs.toString()}`;
+  }, [name, fromEmail, message]);
+
   return (
     <section id="contact" className="relative overflow-hidden bg-black text-white">
-      {/* ambience (same theme) */}
+      {/* ambience (same language as Hero/About/Delivery/Footer) */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-gradient-to-b from-black via-black/70 to-black" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.10),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_140px_rgba(0,0,0,0.85)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(0,0,0,0.88)]" />
       </div>
 
-      <div className="relative mx-auto w-full max-w-7xl px-6 py-24 md:py-32">
-        <div className="grid gap-10 md:grid-cols-2 md:gap-16 items-start">
-          {/* LEFT – INFO */}
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 py-28 md:py-32">
+        <div className="grid gap-12 md:grid-cols-2 md:gap-14 items-start">
+          {/* LEFT — INFO */}
           <div>
             <span className="p-kicker">Kontakt</span>
 
-            <h2 className="p-title mt-4 text-4xl md:text-6xl leading-[1.05] text-white/92">
+            <h2 className="p-title mt-4 text-4xl md:text-6xl leading-[1.05]">
               Javite nam se
             </h2>
 
-            <p className="mt-6 text-white/65 max-w-xl leading-relaxed">
-              Imate pitanje, sugestiju ili želite saradnju? Pišite nam — brzo odgovaramo.
+            <p className="mt-6 max-w-xl text-white/65 leading-relaxed">
+              Ako imate pitanje, sugestiju ili želite narudžbu “na brzinu” — tu smo.
+              Najbrži put je poziv ili WhatsApp/Viber.
             </p>
 
-            <div className="mt-10 rounded-[30px] border border-white/10 bg-black/25 backdrop-blur-md p-6 shadow-[0_28px_110px_rgba(0,0,0,0.6)]">
-              <div className="grid gap-5">
-                <div className="flex items-start gap-4">
-                  <div className="h-11 w-11 rounded-2xl bg-[#f2b400]/10 ring-1 ring-white/10 flex items-center justify-center">
-                    <span aria-hidden="true">☎️</span>
-                  </div>
+            <div className="mt-10 grid gap-4">
+              {/* phone */}
+              <div className="rounded-[26px] border border-white/10 bg-black/25 backdrop-blur-md p-5 shadow-[0_22px_80px_rgba(0,0,0,0.60)]">
+                <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="text-xs uppercase tracking-[0.22em] text-white/45">
                       Telefon
                     </div>
-                    <a
-                      href={`tel:${PHONE_TEL}`}
-                      className="mt-2 block text-lg font-extrabold text-white/90 hover:text-white transition"
-                    >
+                    <div className="mt-2 text-xl font-extrabold text-white/92">
                       {PHONE_DISPLAY}
-                    </a>
+                    </div>
+
+                    <div className="mt-2 text-sm text-white/60">
+                      Radno vrijeme: <span className="text-white/80 font-semibold">{HOURS}</span>
+                    </div>
                   </div>
+
+                  <a
+                    href={`tel:${PHONE_E164}`}
+                    className="shrink-0 h-11 px-5 rounded-full bg-[#f2b400] text-black font-extrabold hover:brightness-105 active:brightness-95 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
+                  >
+                    Pozovi
+                  </a>
                 </div>
 
-                <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                <div className="mt-4 h-px w-full bg-gradient-to-r from-[#f2b400]/25 via-white/10 to-transparent" />
 
-                <div className="flex items-start gap-4">
-                  <div className="h-11 w-11 rounded-2xl bg-[#f2b400]/10 ring-1 ring-white/10 flex items-center justify-center">
-                    <span aria-hidden="true">✉️</span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
-                      E-mail
-                    </div>
-                    <a
-                      href={`mailto:${EMAIL}`}
-                      className="mt-2 block text-lg font-extrabold text-white/90 hover:text-white transition break-words"
-                    >
-                      {EMAIL}
-                    </a>
-                  </div>
-                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <a
+                    href={WHATSAPP_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="h-11 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition border border-white/10 flex items-center justify-center gap-2"
+                  >
+                    <span aria-hidden="true">WA</span>
+                    WhatsApp
+                  </a>
 
-                <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-                <div className="flex items-start gap-4">
-                  <div className="h-11 w-11 rounded-2xl bg-[#f2b400]/10 ring-1 ring-white/10 flex items-center justify-center">
-                    <span aria-hidden="true">📍</span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
-                      Lokacija
-                    </div>
-                    <a
-                      href={MAPS_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 block text-lg font-extrabold text-white/90 hover:text-white transition"
-                    >
-                      {ADDRESS}
-                    </a>
-                    <div className="mt-2 text-sm text-white/55">
-                      Radno vrijeme:{" "}
-                      <span className="text-white/80 font-semibold">{HOURS}</span>
-                    </div>
-                  </div>
+                  <a
+                    href={VIBER_URL}
+                    className="h-11 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition border border-white/10 flex items-center justify-center gap-2"
+                  >
+                    <span aria-hidden="true">VB</span>
+                    Viber
+                  </a>
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a
-                  href={MAPS_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="h-11 px-5 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition"
-                >
-                  Otvori mape
-                </a>
+              {/* address */}
+              <div className="rounded-[26px] border border-white/10 bg-black/25 backdrop-blur-md p-5 shadow-[0_22px_80px_rgba(0,0,0,0.60)]">
+                <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                  Lokacija
+                </div>
 
-                <a
-                  href={`tel:${PHONE_TEL}`}
-                  className="h-11 px-5 rounded-full bg-[#f2b400] text-black font-extrabold shadow-[0_18px_60px_rgba(0,0,0,0.45)] hover:brightness-105 active:brightness-95 transition"
-                >
-                  Pozovi
-                </a>
+                <div className="mt-2 text-lg font-extrabold text-white/92">
+                  {ADDRESS_LINE}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <a
+                    href={MAPS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="h-11 px-5 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition border border-white/10 flex items-center gap-2"
+                  >
+                    <span aria-hidden="true">📍</span>
+                    Otvori mape
+                  </a>
+
+                  <a
+                    href={`mailto:${EMAIL}`}
+                    className="h-11 px-5 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition border border-white/10 flex items-center gap-2"
+                  >
+                    <span aria-hidden="true">✉️</span>
+                    Email
+                  </a>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* RIGHT – FORM (premium look, but no backend wiring) */}
-          <form className="relative overflow-hidden rounded-[30px] border border-white/10 bg-black/25 backdrop-blur-md p-7 md:p-10 shadow-[0_28px_110px_rgba(0,0,0,0.6)]">
-            <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#f2b400]/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-white/6 blur-3xl" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
+          {/* RIGHT — FORM */}
+          <div className="rounded-[30px] border border-white/10 bg-black/25 backdrop-blur-md shadow-[0_28px_110px_rgba(0,0,0,0.70)] overflow-hidden">
+            {/* subtle top line */}
+            <div className="h-px w-full bg-gradient-to-r from-transparent via-[#f2b400]/35 to-transparent" />
 
-            <div className="relative">
-              <div className="text-xs uppercase tracking-[0.22em] text-white/45">
-                Poruka
+            <div className="p-6 sm:p-7">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    Brza poruka
+                  </div>
+                  <div className="mt-2 text-2xl font-extrabold text-white/92">
+                    Pišite nam
+                  </div>
+                  <div className="mt-2 text-sm text-white/60">
+                    Forma otvara vaš email klijent sa spremnom porukom.
+                  </div>
+                </div>
+
+                <div className="hidden sm:flex h-12 w-12 rounded-2xl bg-[#f2b400]/10 ring-1 ring-white/10 items-center justify-center text-[#f2b400] font-black">
+                  ✦
+                </div>
               </div>
 
-              <h3 className="mt-2 text-2xl md:text-3xl font-extrabold text-white/92">
-                Napišite nam par riječi
-              </h3>
-
-              <p className="mt-3 text-sm text-white/60 leading-relaxed">
-                Forma je vizuelno spremna. Ako želiš, sledeći korak je da je spojimo na email
-                ili direktno na WhatsApp/Viber.
-              </p>
-
-              <div className="mt-8 space-y-5">
+              <div className="mt-6 space-y-4">
                 <div>
-                  <label className="block text-xs uppercase tracking-[0.22em] text-white/45 mb-2">
+                  <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-white/45">
                     Ime
                   </label>
                   <input
-                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-2xl bg-black/25 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/35 transition placeholder:text-white/30"
                     placeholder="Vaše ime"
-                    className="w-full rounded-2xl bg-black/30 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/60 placeholder:text-white/30 transition"
+                    autoComplete="name"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs uppercase tracking-[0.22em] text-white/45 mb-2">
-                    E-mail
+                  <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-white/45">
+                    Email
                   </label>
                   <input
-                    type="email"
-                    placeholder="Vaš e-mail"
-                    className="w-full rounded-2xl bg-black/30 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/60 placeholder:text-white/30 transition"
+                    value={fromEmail}
+                    onChange={(e) => setFromEmail(e.target.value)}
+                    className="w-full rounded-2xl bg-black/25 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/35 transition placeholder:text-white/30"
+                    placeholder="Vaš email"
+                    autoComplete="email"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs uppercase tracking-[0.22em] text-white/45 mb-2">
+                  <label className="mb-2 block text-xs uppercase tracking-[0.22em] text-white/45">
                     Poruka
                   </label>
                   <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
                     rows={5}
-                    placeholder="Vaša poruka"
-                    className="w-full resize-none rounded-2xl bg-black/30 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/60 placeholder:text-white/30 transition"
+                    className="w-full resize-none rounded-2xl bg-black/25 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/35 transition placeholder:text-white/30"
+                    placeholder="Napišite poruku…"
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full h-12 rounded-full bg-[#f2b400] text-black font-extrabold shadow-[0_18px_60px_rgba(0,0,0,0.45)] hover:brightness-105 active:brightness-95 transition"
-                >
-                  Pošaljite poruku
-                </button>
+                <div className="pt-2">
+                  <a
+                    href={mailtoHref}
+                    onClick={() => setSentHint("ok")}
+                    className="block w-full text-center rounded-full bg-[#f2b400] px-6 py-4 text-sm font-extrabold text-black hover:brightness-105 active:brightness-95 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
+                  >
+                    Pošalji email
+                  </a>
 
-                <div className="text-xs text-white/45 leading-relaxed">
-                  * Trenutno vizuelno (bez slanja). Ako želiš funkcionalno slanje, reci mi da li
-                  hoćeš: <span className="text-white/65 font-semibold">email</span>,{" "}
-                  <span className="text-white/65 font-semibold">WhatsApp</span> ili{" "}
-                  <span className="text-white/65 font-semibold">Viber</span>.
+                  {sentHint === "ok" ? (
+                    <div className="mt-3 rounded-2xl bg-white/5 border border-white/10 p-3 text-sm text-white/65">
+                      Otvoren je email klijent. Ako ste na telefonu, najbrže je WhatsApp/Viber.
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                <div className="text-xs text-white/50 leading-relaxed">
+                  Tip: Za narudžbe i brze izmjene — koristite{" "}
+                  <span className="text-white/70 font-semibold">WhatsApp/Viber</span>.
                 </div>
               </div>
             </div>
-          </form>
+          </div>
+        </div>
+
+        {/* bottom micro detail */}
+        <div className="mt-14 flex justify-center">
+          <div className="h-px w-[240px] bg-gradient-to-r from-transparent via-[#f2b400]/25 to-transparent" />
         </div>
       </div>
     </section>
