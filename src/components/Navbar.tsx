@@ -25,19 +25,12 @@ function scrollToTop() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function getHashId(): string {
-  const raw = (window.location.hash || "").trim();
-  if (!raw) return "";
-  return raw.replace(/^#/, "").trim();
-}
-
 export default function Navbar() {
   const { totalItems, openCart } = useCart();
 
   const [isAdminRoute, setIsAdminRoute] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [activeId, setActiveId] = useState<string>("");
 
   useEffect(() => {
     const path = normalizePath();
@@ -52,13 +45,17 @@ export default function Navbar() {
 
     if (!admin) return;
 
-    supabase.auth.getSession().then(({ data }) => setHasSession(!!data?.session));
+    supabase.auth.getSession().then(({ data }) => {
+      setHasSession(!!data?.session);
+    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_evt, session) =>
-      setHasSession(!!session)
-    );
+    const { data: listener } = supabase.auth.onAuthStateChange((_evt, session) => {
+      setHasSession(!!session);
+    });
 
-    return () => listener?.subscription.unsubscribe();
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
   }, []);
 
   const links = useMemo(
@@ -84,7 +81,6 @@ export default function Navbar() {
     }
 
     window.history.replaceState(null, "", `/#${id}`);
-    setActiveId(id);
     scrollToId(id);
   }
 
@@ -95,227 +91,192 @@ export default function Navbar() {
 
     e.preventDefault();
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    setActiveId("");
     scrollToTop();
   }
 
-  // Initial hash scroll + active set
   useEffect(() => {
-    const hash = getHashId();
+    const hash = (window.location.hash || "").replace("#", "").trim();
     if (!hash) return;
-    setActiveId(hash);
     const t = window.setTimeout(() => scrollToId(hash), 50);
     return () => window.clearTimeout(t);
   }, []);
 
-  // Track hash changes (for back/forward)
+  // Close mobile on resize to desktop
   useEffect(() => {
-    function onHashChange() {
-      const hash = getHashId();
-      setActiveId(hash);
+    function onResize() {
+      if (window.innerWidth >= 768) setMobileOpen(false);
     }
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Mobile overlay: lock body scroll
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [mobileOpen]);
-
-  // Close mobile menu on ESC
-  useEffect(() => {
-    if (!mobileOpen) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setMobileOpen(false);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mobileOpen]);
-
-  function isActive(id: string) {
-    return activeId === id;
-  }
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-40">
-      {/* Glass bar */}
-      <div className="p-glass-strong rounded-none border-b border-white/10">
-        <div className="p-container h-16 flex items-center">
-          {/* Logo */}
+    <header className="fixed top-0 left-0 right-0 z-40 text-white">
+      {/* Premium glass bar (same vibe as hero/menu/cart) */}
+      <div className="relative border-b border-white/10 bg-black/70 backdrop-blur-md">
+        {/* Subtle gold + light ambience */}
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-28 -top-28 h-72 w-72 rounded-full bg-[#f2b400]/10 blur-3xl" />
+          <div className="absolute -right-40 -top-48 h-[460px] w-[460px] rounded-full bg-white/5 blur-3xl" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_45%,rgba(242,180,0,0.10),transparent_55%),radial-gradient(circle_at_78%_40%,rgba(255,255,255,0.06),transparent_55%)]" />
+          <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.75)]" />
+        </div>
+
+        <div className="relative w-full px-4 sm:px-6 h-16 flex items-center">
+          {/* ✅ Stari raspored: logo lijevo */}
           <a
             href="/"
             onClick={onLogoClick}
             aria-label="Padrino"
-            className="flex items-center hover:opacity-90 transition-opacity -ml-1"
+            className="flex items-center hover:opacity-90 transition-opacity -ml-2"
           >
             <ChefHatLogo />
           </a>
 
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 ml-auto" aria-label="Glavna navigacija">
-            {!isAdminRoute &&
-              links.map((l) => (
+          <div className="ml-auto flex items-center">
+            {/* ✅ Desktop: linkovi + korpa (stari layout) */}
+            <nav className="hidden md:flex items-center gap-2">
+              {!isAdminRoute &&
+                links.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => onClickLink(l.id)}
+                    className={[
+                      "relative px-3 py-2 rounded-2xl text-sm font-extrabold",
+                      "text-white/80 hover:text-white transition",
+                      "hover:bg-white/5",
+                      "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25",
+                    ].join(" ")}
+                  >
+                    {l.label}
+                    {/* tiny underline accent on hover */}
+                    <span className="pointer-events-none absolute left-3 right-3 -bottom-[1px] h-px bg-gradient-to-r from-transparent via-[#f2b400]/35 to-transparent opacity-0 group-hover:opacity-100" />
+                  </button>
+                ))}
+
+              {isAdminRoute && hasSession && (
                 <button
-                  key={l.id}
                   type="button"
-                  onClick={() => onClickLink(l.id)}
-                  className={[
-                    "relative h-10 px-4 rounded-full",
-                    "text-sm font-extrabold tracking-wide",
-                    isActive(l.id) ? "text-white" : "text-white/75 hover:text-white",
-                    "bg-white/0 hover:bg-white/10",
-                    "transition",
-                    "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
-                  ].join(" ")}
-                  aria-current={isActive(l.id) ? "page" : undefined}
+                  onClick={handleLogout}
+                  className="ml-2 h-10 px-5 rounded-full bg-red-600/90 text-white font-extrabold hover:bg-red-600 transition"
                 >
-                  {l.label}
-                  {/* subtle underline */}
-                  <span
-                    className={[
-                      "pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-1 h-px w-10",
-                      "bg-gradient-to-r from-transparent via-[#f2b400]/55 to-transparent",
-                      "transition-opacity",
-                      isActive(l.id) ? "opacity-100" : "opacity-0",
-                    ].join(" ")}
-                    aria-hidden="true"
-                  />
+                  Logout
                 </button>
-              ))}
+              )}
 
-            {isAdminRoute && hasSession ? (
+              {!isAdminRoute && (
+                <button
+                  type="button"
+                  onClick={openCart}
+                  className={[
+                    "relative ml-2 h-11 px-5 rounded-full font-extrabold transition",
+                    "bg-[#f2b400] text-black",
+                    "shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
+                    "hover:brightness-105 active:brightness-95",
+                    // premium outline
+                    "ring-1 ring-white/10",
+                  ].join(" ")}
+                >
+                  {/* Subtle inner outline */}
+                  <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-black/30" />
+                  Korpa
+                  {totalItems > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-black text-[#f2b400] text-xs min-w-[22px] h-[22px] px-1 flex items-center justify-center rounded-full ring-1 ring-white/10 font-black">
+                      {totalItems}
+                    </span>
+                  )}
+                </button>
+              )}
+            </nav>
+
+            {/* ✅ Mobile: korpa + hamburger (stari layout) */}
+            <div className="md:hidden flex items-center gap-2">
+              {!isAdminRoute && (
+                <button
+                  type="button"
+                  onClick={openCart}
+                  className={[
+                    "relative h-10 px-3 rounded-full font-extrabold transition",
+                    "bg-[#f2b400] text-black",
+                    "shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
+                    "hover:brightness-105 active:brightness-95",
+                    "ring-1 ring-white/10",
+                    "flex items-center justify-center",
+                  ].join(" ")}
+                  aria-label="Otvori korpu"
+                >
+                  🛒
+                  {totalItems > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-black text-[#f2b400] text-xs min-w-[22px] h-[22px] px-1 flex items-center justify-center rounded-full ring-1 ring-white/10 font-black">
+                      {totalItems}
+                    </span>
+                  )}
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={handleLogout}
-                className="ml-2 h-10 px-4 rounded-full border border-red-500/30 bg-red-500/10 text-sm font-extrabold text-red-100 hover:bg-red-500/15 hover:border-red-500/40 transition focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                onClick={() => setMobileOpen((v) => !v)}
+                className={[
+                  "h-10 w-10 rounded-2xl transition",
+                  "bg-white/10 hover:bg-white/15",
+                  "border border-white/15 hover:border-white/25",
+                  "shadow-[0_10px_40px_rgba(0,0,0,0.35)]",
+                ].join(" ")}
+                aria-label="Meni"
               >
-                Logout
+                ☰
               </button>
-            ) : null}
-
-            {!isAdminRoute ? (
-              <button
-                type="button"
-                onClick={openCart}
-                className="p-btn-gold ml-2 h-10 px-5 text-sm focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
-                aria-label="Otvori korpu"
-              >
-                Korpa
-                {totalItems > 0 ? (
-                  <span
-                    className={[
-                      "ml-2 inline-flex items-center justify-center",
-                      "min-w-6 h-6 px-2 rounded-full",
-                      "bg-black/25 ring-1 ring-black/30",
-                      "text-[12px] font-black text-black",
-                    ].join(" ")}
-                    aria-label={`${totalItems} stavki u korpi`}
-                  >
-                    {totalItems}
-                  </span>
-                ) : null}
-              </button>
-            ) : null}
-          </nav>
-
-          {/* Mobile controls */}
-          <div className="md:hidden flex items-center gap-2 ml-auto">
-            {!isAdminRoute ? (
-              <button
-                type="button"
-                onClick={openCart}
-                className="p-btn-gold h-10 px-4 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
-                aria-label="Otvori korpu"
-              >
-                Korpa
-                {totalItems > 0 ? (
-                  <span
-                    className={[
-                      "ml-2 inline-flex items-center justify-center",
-                      "min-w-6 h-6 px-2 rounded-full",
-                      "bg-black/25 ring-1 ring-black/30",
-                      "text-[12px] font-black text-black",
-                    ].join(" ")}
-                    aria-label={`${totalItems} stavki u korpi`}
-                  >
-                    {totalItems}
-                  </span>
-                ) : null}
-              </button>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={() => setMobileOpen((v) => !v)}
-              className="p-btn-ghost h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-              aria-label="Meni"
-              aria-expanded={mobileOpen}
-            >
-              {mobileOpen ? "Zatvori" : "Meni"}
-            </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Mobile menu overlay */}
-      {mobileOpen && !isAdminRoute ? (
-        <div className="md:hidden">
-          <button
-            type="button"
-            aria-label="Zatvori meni"
-            className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm"
-            onClick={() => setMobileOpen(false)}
-          />
-
-          <div className="fixed left-0 right-0 top-16 z-50 px-4">
-            <div className="p-glass-strong p-4">
-              <div className="p-eyebrow">Navigacija</div>
-
-              <div className="mt-4 grid gap-2">
+        {/* ✅ Mobile dropdown (premium, ali stari koncept) */}
+        {mobileOpen && !isAdminRoute && (
+          <div className="relative md:hidden border-t border-white/10 bg-black/80 backdrop-blur-md">
+            <div className="px-4 py-3">
+              <div className="rounded-3xl border border-white/10 bg-black/35 p-2 shadow-[0_30px_120px_rgba(0,0,0,0.6)]">
                 {links.map((l) => (
                   <button
                     key={l.id}
                     type="button"
                     onClick={() => onClickLink(l.id)}
                     className={[
-                      "w-full text-left h-12 px-4 rounded-2xl",
-                      "border transition",
-                      isActive(l.id)
-                        ? "border-white/20 bg-white/10 text-white"
-                        : "border-white/10 bg-white/5 hover:bg-white/10 text-white/85 hover:text-white",
-                      "text-sm font-extrabold",
-                      "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25",
+                      "w-full text-left px-4 py-3 rounded-2xl transition",
+                      "text-sm font-extrabold text-white/85 hover:text-white",
+                      "hover:bg-white/5",
                     ].join(" ")}
-                    aria-current={isActive(l.id) ? "page" : undefined}
                   >
                     {l.label}
                   </button>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    scrollToTop();
+                  }}
+                  className={[
+                    "w-full text-left px-4 py-3 rounded-2xl transition",
+                    "text-sm font-extrabold text-white/70 hover:text-white",
+                    "hover:bg-white/5",
+                  ].join(" ")}
+                >
+                  Nazad na vrh
+                </button>
+
+                <div className="mt-2 h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                <div className="px-4 py-3 text-[11px] tracking-[0.22em] uppercase text-white/45">
+                  Padrino • Budva
+                </div>
               </div>
-
-              <div className="mt-4 p-divider" />
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileOpen(false);
-                  setActiveId("");
-                  scrollToTop();
-                }}
-                className="mt-4 p-btn-ghost w-full h-12 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-              >
-                Nazad na vrh
-              </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
     </header>
   );
 }
