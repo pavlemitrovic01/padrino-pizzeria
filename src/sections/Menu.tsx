@@ -145,11 +145,7 @@ function buildFileCandidatesFromName(name: string): string[] {
   const noDash = withDash.replaceAll("-", "");
 
   // NOTE: ne diramo ekstenziju na drugačije — u public/menu su png
-  const candidates = [
-    `${withDash}.png`,
-    `${withSpace}.png`,
-    `${noDash}.png`,
-  ];
+  const candidates = [`${withDash}.png`, `${withSpace}.png`, `${noDash}.png`];
 
   // ubaci i verzije bez "dj" -> "d" (za slučaj da je neko ručno nazvao drugačije)
   const djToD = withDash.replaceAll("dj", "d");
@@ -319,8 +315,7 @@ export default function Menu() {
     for (const wantedName of PIZZA_ORDER) {
       const wanted = normalizeText(wantedName);
       const direct = map.get(wanted);
-      const found =
-        direct || entries.find(([k]) => k.includes(wanted) || wanted.includes(k))?.[1];
+      const found = direct || entries.find(([k]) => k.includes(wanted) || wanted.includes(k))?.[1];
 
       if (found && !usedIds.has(found.id)) {
         ordered.push(found);
@@ -375,7 +370,10 @@ export default function Menu() {
       quantity: 1,
     };
 
-    addToCart(cartItem, { openCart: false });
+    addToCart(cartItem, {
+      openDrawer: false,
+      skipScroll: true,
+    });
 
     markAdded(row.id);
 
@@ -424,16 +422,17 @@ export default function Menu() {
           <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
 
-          <div className="relative flex items-start justify-between gap-6 px-6 py-6 sm:px-8 sm:py-7">
+          {/* ✅ POLISH: mobile header u koloni (tekst puni red), tracking smiren na mobile */}
+          <div className="relative flex flex-col sm:flex-row sm:items-start justify-between gap-5 sm:gap-6 px-6 py-6 sm:px-8 sm:py-7">
             <div className="min-w-0">
               <div className="p-kicker">Meni</div>
-              <h2 className="mt-2 text-[28px] sm:text-[34px] leading-tight font-extrabold tracking-wide text-white/92">
+              <h2 className="mt-2 text-[26px] sm:text-[34px] leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-balance">
                 Iz naših srca, do vaših osmjeha.
               </h2>
               <div className="mt-4 h-px w-56 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="flex shrink-0 items-center gap-3 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={goToCart}
@@ -561,12 +560,13 @@ export default function Menu() {
                                 {row.name}
                               </div>
 
+                              {/* ✅ POLISH: sastojci veći (mobile + desktop) */}
                               {desc ? (
-                                <div className="mt-1 text-[11px] text-white/60 leading-snug">
+                                <div className="mt-1 text-[13px] sm:text-[13px] text-white/65 leading-snug">
                                   {desc}
                                 </div>
                               ) : (
-                                <div className="mt-1 text-[11px] text-white/35"> </div>
+                                <div className="mt-1 text-[13px] sm:text-[13px] text-white/35"> </div>
                               )}
 
                               <div className="mt-3">

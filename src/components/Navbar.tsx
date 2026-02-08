@@ -123,7 +123,7 @@ export default function Navbar() {
               href="/"
               onClick={onLogoClick}
               aria-label="Padrino"
-              className="flex items-center gap-3 hover:opacity-90 transition-opacity -ml-1"
+              className="flex items-center gap-3 -ml-1 transition-opacity duration-300 ease-out hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-full"
             >
               <ChefHatLogo />
             </a>
@@ -138,7 +138,8 @@ export default function Navbar() {
                     onClick={() => onClickLink(l.id)}
                     className={[
                       "px-4 py-2 rounded-2xl text-sm font-extrabold tracking-wide",
-                      "text-white/75 hover:text-white hover:bg-white/5 transition",
+                      "text-white/75 hover:text-white hover:bg-white/5 transition-all duration-300 ease-out",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
                     ].join(" ")}
                   >
                     {l.label}
@@ -152,7 +153,7 @@ export default function Navbar() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="hidden md:inline-flex h-10 px-4 rounded-full bg-red-500/15 text-red-100 ring-1 ring-red-500/25 hover:bg-red-500/20 transition font-extrabold text-sm"
+                  className="hidden md:inline-flex h-10 px-4 rounded-full bg-red-500/15 text-red-100 ring-1 ring-red-500/25 font-extrabold text-sm transition-all duration-300 ease-out hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
                   Logout
                 </button>
@@ -163,7 +164,7 @@ export default function Navbar() {
                 <button
                   type="button"
                   onClick={openCart}
-                  className="relative hidden md:inline-flex h-10 items-center gap-2 rounded-full bg-[#f2b400] text-black px-5 font-extrabold hover:brightness-105 active:brightness-95 transition shadow-[0_18px_55px_rgba(0,0,0,0.45)]"
+                  className="relative hidden md:inline-flex h-10 items-center gap-2 rounded-full bg-[#f2b400] text-black px-5 font-extrabold shadow-[0_18px_55px_rgba(0,0,0,0.45)] transition-all duration-300 ease-out hover:brightness-105 active:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                 >
                   <span className="text-base">🛒</span>
                   Korpa
@@ -181,7 +182,7 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={openCart}
-                    className="relative h-10 w-10 grid place-items-center rounded-full bg-white/10 text-white/90 hover:bg-white/15 transition ring-1 ring-white/10"
+                    className="relative h-10 w-10 grid place-items-center rounded-full bg-white/10 text-white/90 ring-1 ring-white/10 transition-all duration-300 ease-out hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     aria-label="Otvori korpu"
                   >
                     🛒
@@ -197,7 +198,7 @@ export default function Navbar() {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="h-10 px-4 rounded-full bg-red-500/15 text-red-100 ring-1 ring-red-500/25 hover:bg-red-500/20 transition font-extrabold text-sm"
+                    className="h-10 px-4 rounded-full bg-red-500/15 text-red-100 ring-1 ring-red-500/25 font-extrabold text-sm transition-all duration-300 ease-out hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
                     Logout
                   </button>
@@ -206,7 +207,7 @@ export default function Navbar() {
                 <button
                   type="button"
                   onClick={() => setMobileOpen((v) => !v)}
-                  className="h-10 w-10 grid place-items-center rounded-full bg-white/10 text-white/90 hover:bg-white/15 transition ring-1 ring-white/10"
+                  className="h-10 w-10 grid place-items-center rounded-full bg-white/10 text-white/90 ring-1 ring-white/10 transition-all duration-300 ease-out hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   aria-label="Meni"
                 >
                   ☰
@@ -238,7 +239,8 @@ export default function Navbar() {
                       className={[
                         "w-full text-left px-4 py-4 rounded-2xl",
                         "text-sm font-extrabold tracking-wide",
-                        "text-white/85 hover:text-white hover:bg-white/5 transition",
+                        "text-white/85 hover:text-white hover:bg-white/5 transition-all duration-300 ease-out",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
                       ].join(" ")}
                     >
                       {l.label}
@@ -249,13 +251,11 @@ export default function Navbar() {
                 <div className="p-divider" />
 
                 <div className="p-4 flex items-center justify-between">
-                  <div className="text-xs text-white/55">
-                    Padrino • Budva
-                  </div>
+                  <div className="text-xs text-white/55">Padrino • Budva</div>
                   <button
                     type="button"
                     onClick={() => setMobileOpen(false)}
-                    className="h-9 px-4 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition font-extrabold text-xs"
+                    className="h-9 px-4 rounded-full bg-white/10 text-white/85 font-extrabold text-xs transition-all duration-300 ease-out hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                   >
                     Zatvori
                   </button>

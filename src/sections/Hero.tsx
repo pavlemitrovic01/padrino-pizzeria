@@ -48,9 +48,9 @@ export default function Hero() {
             "inline-block",
             "px-6 py-4",
             "rounded-[28px]",
-            "bg-black/10",
-            "backdrop-blur-[2px]",
-            "border border-yellow-200/10",
+            "bg-black/15",
+            "backdrop-blur-sm",
+            "border border-white/10",
             "shadow-[0_30px_90px_rgba(0,0,0,0.55)]",
           ].join(" ")}
         >
@@ -93,9 +93,12 @@ export default function Hero() {
                 "bg-black/35 backdrop-blur-md",
                 "shadow-[0_18px_55px_rgba(0,0,0,0.55)]",
                 "hover:bg-black/45 hover:border-yellow-200/35",
-                "transition-all",
+                "active:bg-black/50",
+                "transition-all duration-300 ease-out",
+                "hover:-translate-y-[1px] active:translate-y-0",
                 "text-center",
                 "w-full md:w-auto",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
               ].join(" ")}
               aria-label="Pogledaj meni"
             >
@@ -110,8 +113,9 @@ export default function Hero() {
                   "border border-yellow-200/25",
                   "bg-yellow-200/10",
                   "text-white/85",
-                  "transition-all",
+                  "transition-all duration-300 ease-out",
                   "group-hover:bg-yellow-200/15 group-hover:border-yellow-200/35",
+                  "group-active:bg-yellow-200/20",
                 ].join(" ")}
                 aria-hidden="true"
               >
