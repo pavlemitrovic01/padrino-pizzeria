@@ -8,7 +8,8 @@ const GOOGLE_REVIEWS_URL =
 export default function About() {
   /**
    * BACKGROUND IMAGE (robustan fallback)
-   * Zadržavamo tvoju About sliku, ali ostavljamo stabilne fallback putanje.
+   * U projektu trenutno postoji: public/about/storefront.webp
+   * Zato WEBP mora biti prvi kandidat, ostalo su opcioni fallback-i.
    */
   const candidates = useMemo(
     () => [
@@ -33,7 +34,7 @@ export default function About() {
 
   /**
    * DESKTOP: “Figma feeling” px kontrola
-   * (polish: malo bolja hijerarhija + manje “tvrdih” uglova)
+   * (ne diramo layout — samo mobile glow u overlayu)
    */
   const POS = {
     titleTop: 36,
@@ -54,16 +55,21 @@ export default function About() {
           alt="Padrino lokal"
           className="h-full w-full object-cover object-center"
           draggable={false}
-          loading="eager"
           onError={() => setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
         />
 
         {/* cinematic overlays (match theme: black + soft gold) */}
-        <div className="absolute inset-0 bg-black/34" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-black/75" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/15" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.10),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_160px_rgba(0,0,0,0.88)]" />
+        {/* #3 FIX: MOBILE slabije, DESKTOP isto (sm+ vraća jače vrijednosti) */}
+        <div className="absolute inset-0 bg-black/25 sm:bg-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/15 to-black/60 sm:from-black/75 sm:via-black/25 sm:to-black/75" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10 sm:from-black/65 sm:to-black/15" />
+
+        {/* Radial glow: mobile slabiji, sm+ ostaje kao pre */}
+        <div className="absolute inset-0 sm:hidden bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.04),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.06),transparent_50%)]" />
+        <div className="absolute inset-0 hidden sm:block bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.10),transparent_50%)]" />
+
+        {/* Vinjeta: mobile blaža, desktop ostaje ista */}
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.74)] sm:shadow-[inset_0_0_160px_rgba(0,0,0,0.88)]" />
       </div>
 
       {/* STAGE */}
@@ -284,9 +290,10 @@ export default function About() {
           <div className="mx-auto max-w-xl space-y-6">
             <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noreferrer" className="block">
               <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">
-                <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-white/6 blur-3xl" />
-                <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-[#f2b400]/10 blur-3xl" />
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/30" />
+                {/* mobile: slabiji glow blobovi */}
+                <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-white/4 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-[#f2b400]/6 blur-3xl" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/25" />
 
                 <div className="relative flex items-center justify-between">
                   <div className="flex items-center gap-2 text-white/92">
@@ -303,8 +310,9 @@ export default function About() {
             </a>
 
             <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/45 backdrop-blur-md p-6 shadow-[0_30px_120px_rgba(0,0,0,0.70)]">
-              <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#f2b400]/10 blur-3xl" />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
+              {/* mobile: slabiji glow blobovi */}
+              <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#f2b400]/6 blur-3xl" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/30" />
 
               <div className="relative">
                 <h3 className="font-serif text-2xl leading-tight text-white/92">
@@ -331,8 +339,9 @@ export default function About() {
             </div>
 
             <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/45 backdrop-blur-md p-6 shadow-[0_30px_120px_rgba(0,0,0,0.70)]">
-              <div className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-white/6 blur-3xl" />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
+              {/* mobile: slabiji glow blobovi */}
+              <div className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-white/4 blur-3xl" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/30" />
 
               <div className="relative space-y-4 text-white/70 leading-relaxed text-[14px]">
                 <p>

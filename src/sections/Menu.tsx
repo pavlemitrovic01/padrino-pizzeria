@@ -194,6 +194,31 @@ function SmartMenuImage(props: { image: string | null; name: string; alt: string
   );
 }
 
+function PreviewImage(props: { candidates: string[]; alt: string; className?: string }) {
+  const { candidates, alt, className } = props;
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setIdx(0);
+  }, [candidates.join("|")]);
+
+  const src = candidates[idx] ?? null;
+
+  if (!src) {
+    return <div className={["bg-white/5 rounded-2xl", className ?? ""].join(" ")} aria-hidden="true" />;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      draggable={false}
+      onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
+    />
+  );
+}
+
 export default function Menu() {
   const { addToCart, openCart } = useCart();
 
@@ -209,6 +234,13 @@ export default function Menu() {
     subtitle: "",
   });
   const toastTimerRef = useRef<number | null>(null);
+
+  // #4: Image preview modal state
+  const [preview, setPreview] = useState<{
+    open: boolean;
+    name: string;
+    candidates: string[];
+  }>({ open: false, name: "", candidates: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -235,6 +267,7 @@ export default function Menu() {
     return () => window.removeEventListener("padrino:open-menu", onOpen);
   }, []);
 
+  // block body scroll while menu open (overlay)
   useEffect(() => {
     if (!flowOpen) return;
     const prev = document.body.style.overflow;
@@ -243,6 +276,27 @@ export default function Menu() {
       document.body.style.overflow = prev;
     };
   }, [flowOpen]);
+
+  // ESC closes preview first, then menu
+  useEffect(() => {
+    if (!flowOpen) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+
+      if (preview.open) {
+        setPreview({ open: false, name: "", candidates: [] });
+        return;
+      }
+
+      setFlowOpen(false);
+      setAddedId(null);
+      setToast((t) => ({ ...t, visible: false }));
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [flowOpen, preview.open]);
 
   useEffect(() => {
     return () => {
@@ -330,8 +384,14 @@ export default function Menu() {
     });
   }
 
+  function openPreview(row: DbMenuItem) {
+    const candidates = buildImageCandidates(row.image, row.name);
+    setPreview({ open: true, name: row.name, candidates });
+  }
+
   function closeAll() {
     setFlowOpen(false);
+    setPreview({ open: false, name: "", candidates: [] });
     setAddedId(null);
     setToast((t) => ({ ...t, visible: false }));
   }
@@ -370,6 +430,7 @@ export default function Menu() {
             <div className="min-w-0 w-full sm:w-auto">
               <div className="p-kicker">Meni</div>
 
+              {/* mobile: 2 reda max, desktop: 1 linija */}
               <h2 className="mt-2 text-[24px] sm:text-[34px] leading-[1.12] sm:leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left max-w-[22ch] mx-auto sm:mx-0 sm:max-w-none">
                 <span className="block sm:inline">Iz naših srca,</span>{" "}
                 <span className="block sm:inline">do vaših osmjeha.</span>
@@ -423,6 +484,7 @@ export default function Menu() {
                       ].join(" ")}
                       aria-label={`Dodaj ${row.name} u korpu`}
                     >
+                      {/* check */}
                       <div
                         className={[
                           "absolute right-3 top-3 z-10",
@@ -438,6 +500,7 @@ export default function Menu() {
                         ✓
                       </div>
 
+                      {/* image + “Vidi sliku” */}
                       <div className="relative">
                         <SmartMenuImage
                           image={row.image}
@@ -445,7 +508,31 @@ export default function Menu() {
                           alt={row.name}
                           className="h-[96px] w-full object-cover"
                         />
+
                         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
+
+                        {/* #4: separate CTA that DOES NOT add to cart */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openPreview(row);
+                          }}
+                          className={[
+                            "absolute left-3 bottom-3 z-10",
+                            "h-8 px-3 rounded-full",
+                            "border border-white/10",
+                            "bg-black/40 sm:bg-black/35",
+                            "backdrop-blur-none sm:backdrop-blur-md",
+                            "text-xs font-extrabold tracking-wide text-white/85",
+                            "hover:bg-black/55 sm:hover:bg-black/45",
+                            "transition",
+                          ].join(" ")}
+                          aria-label={`Vidi sliku: ${row.name}`}
+                        >
+                          Vidi sliku
+                        </button>
                       </div>
 
                       <div className="p-4">
@@ -453,10 +540,9 @@ export default function Menu() {
                           {row.name}
                         </div>
 
+                        {/* sastojci */}
                         {desc ? (
-                          <div className="mt-1 text-[14px] text-white/60 leading-snug">
-                            {desc}
-                          </div>
+                          <div className="mt-1 text-[14px] text-white/60 leading-snug">{desc}</div>
                         ) : (
                           <div className="mt-1 text-[14px] text-white/35"> </div>
                         )}
@@ -502,17 +588,9 @@ export default function Menu() {
             aria-atomic="true"
           >
             <div className="mx-auto max-w-[720px]">
-              <div
-                className={[
-                  "pointer-events-auto",
-                  "p-glass",
-                  "px-4 py-3 sm:px-5 sm:py-4",
-                  "flex items-center justify-between gap-3",
-                ].join(" ")}
-              >
+              <div className={["pointer-events-auto", "p-glass", "px-4 py-3 sm:px-5 sm:py-4", "flex items-center justify-between gap-3"].join(" ")}>
                 <div className="min-w-0">
                   <div className="text-sm sm:text-[15px] font-extrabold text-white/90">{toast.title}</div>
-
                   {toast.subtitle ? (
                     <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div>
                   ) : null}
@@ -540,6 +618,53 @@ export default function Menu() {
             </div>
           </div>
           {/* /TOAST */}
+
+          {/* #4: IMAGE PREVIEW MODAL (Vidi sliku) */}
+          {preview.open ? (
+            <div className="absolute inset-0 z-30">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/80 backdrop-blur-none sm:backdrop-blur-sm"
+                aria-label="Zatvori pregled slike"
+                onClick={() => setPreview({ open: false, name: "", candidates: [] })}
+              />
+              <div className="absolute inset-0 flex items-center justify-center px-4 py-8">
+                <div className="relative w-full max-w-[820px] overflow-hidden rounded-[26px] border border-white/10 bg-black/55 shadow-[0_40px_140px_rgba(0,0,0,0.85)]">
+                  <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
+                  <div className="relative flex items-center justify-between gap-3 px-5 py-4 border-b border-white/10">
+                    <div className="min-w-0">
+                      <div className="text-sm font-extrabold text-white/92 truncate">{preview.name}</div>
+                      <div className="mt-0.5 text-xs text-white/55">Pregled slike</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="h-10 w-10 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition"
+                      aria-label="Zatvori"
+                      onClick={() => setPreview({ open: false, name: "", candidates: [] })}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="relative p-4 sm:p-5">
+                    <div className="relative overflow-hidden rounded-2xl bg-white/5">
+                      <PreviewImage
+                        candidates={preview.candidates}
+                        alt={preview.name}
+                        className="w-full max-h-[70vh] object-contain"
+                      />
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between text-xs text-white/55">
+                      <span>ESC za zatvaranje</span>
+                      <span className="text-[#f2b400]/90">Padrino • premium</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {/* /#4 */}
         </div>
       </div>
     </section>
