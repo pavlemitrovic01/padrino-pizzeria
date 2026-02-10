@@ -187,9 +187,7 @@ function SmartMenuImage(props: { image: string | null; name: string; alt: string
       alt={alt}
       className={className}
       loading="lazy"
-      onError={() => {
-        setIdx((i) => (i < candidates.length - 1 ? i + 1 : i));
-      }}
+      onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
     />
   );
 }
@@ -200,13 +198,12 @@ function PreviewImage(props: { candidates: string[]; alt: string; className?: st
 
   useEffect(() => {
     setIdx(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidates.join("|")]);
 
   const src = candidates[idx] ?? null;
 
-  if (!src) {
-    return <div className={["bg-white/5 rounded-2xl", className ?? ""].join(" ")} aria-hidden="true" />;
-  }
+  if (!src) return <div className={["bg-white/5 rounded-2xl", className ?? ""].join(" ")} aria-hidden="true" />;
 
   return (
     <img
@@ -228,19 +225,14 @@ export default function Menu() {
   const [addedId, setAddedId] = useState<string | null>(null);
   const addedTimerRef = useRef<number | null>(null);
 
-  const [toast, setToast] = useState<ToastState>({
-    visible: false,
-    title: "",
-    subtitle: "",
-  });
+  const [toast, setToast] = useState<ToastState>({ visible: false, title: "", subtitle: "" });
   const toastTimerRef = useRef<number | null>(null);
 
-  // #4: Image preview modal state
-  const [preview, setPreview] = useState<{
-    open: boolean;
-    name: string;
-    candidates: string[];
-  }>({ open: false, name: "", candidates: [] });
+  const [preview, setPreview] = useState<{ open: boolean; name: string; candidates: string[] }>({
+    open: false,
+    name: "",
+    candidates: [],
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -257,17 +249,14 @@ export default function Menu() {
     };
   }, []);
 
-  // OTVARANJE ISKLJUČIVO NA KLIK (event iz Hero) — sada uvek otvara PIZZE (pića se dodaju iz korpe)
   useEffect(() => {
     function onOpen() {
       setFlowOpen(true);
     }
-
     window.addEventListener("padrino:open-menu", onOpen);
     return () => window.removeEventListener("padrino:open-menu", onOpen);
   }, []);
 
-  // block body scroll while menu open (overlay)
   useEffect(() => {
     if (!flowOpen) return;
     const prev = document.body.style.overflow;
@@ -277,7 +266,6 @@ export default function Menu() {
     };
   }, [flowOpen]);
 
-  // ESC closes preview first, then menu
   useEffect(() => {
     if (!flowOpen) return;
 
@@ -328,7 +316,6 @@ export default function Menu() {
       const wanted = normalizeText(wantedName);
       const direct = map.get(wanted);
       const found = direct || entries.find(([k]) => k.includes(wanted) || wanted.includes(k))?.[1];
-
       if (found && !usedIds.has(found.id)) {
         ordered.push(found);
         usedIds.add(found.id);
@@ -344,11 +331,8 @@ export default function Menu() {
 
   function showToast(next: ToastState) {
     setToast({ ...next, visible: true });
-
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => {
-      setToast((t) => ({ ...t, visible: false }));
-    }, 1800);
+    toastTimerRef.current = window.setTimeout(() => setToast((t) => ({ ...t, visible: false })), 1800);
   }
 
   function markAdded(id: string) {
@@ -374,19 +358,8 @@ export default function Menu() {
     };
 
     addToCart(cartItem, { openCart: false });
-
     markAdded(row.id);
-
-    showToast({
-      visible: true,
-      title: "Uspešno ste dodali ✅",
-      subtitle: row.name,
-    });
-  }
-
-  function openPreview(row: DbMenuItem) {
-    const candidates = buildImageCandidates(row.image, row.name);
-    setPreview({ open: true, name: row.name, candidates });
+    showToast({ visible: true, title: "Uspešno ste dodali ✅", subtitle: row.name });
   }
 
   function closeAll() {
@@ -411,7 +384,6 @@ export default function Menu() {
 
   return (
     <section id="meni">
-      {/* MOBILE PERF: blur OFF on mobile, ON from sm+ */}
       <button
         type="button"
         aria-label="Zatvori"
@@ -420,7 +392,6 @@ export default function Menu() {
       />
 
       <div className="fixed inset-0 z-50 flex justify-center items-stretch px-4 pb-14 pt-12 sm:pt-16 md:pt-20">
-        {/* MOBILE PERF: blur OFF on mobile, ON from sm+ */}
         <div className="relative w-full max-w-[1080px] h-full max-h-full flex flex-col overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/45 backdrop-blur-none sm:backdrop-blur-md">
           <div className="pointer-events-none absolute -top-36 -left-36 h-96 w-96 rounded-full bg-[#f2b400]/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
@@ -429,13 +400,10 @@ export default function Menu() {
           <div className="relative flex flex-col gap-5 px-6 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-8 sm:py-7">
             <div className="min-w-0 w-full sm:w-auto">
               <div className="p-kicker">Meni</div>
-
-              {/* mobile: 2 reda max, desktop: 1 linija */}
               <h2 className="mt-2 text-[24px] sm:text-[34px] leading-[1.12] sm:leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left max-w-[22ch] mx-auto sm:mx-0 sm:max-w-none">
                 <span className="block sm:inline">Iz naših srca,</span>{" "}
                 <span className="block sm:inline">do vaših osmjeha.</span>
               </h2>
-
               <div className="mt-4 h-px w-56 mx-auto sm:mx-0 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
             </div>
 
@@ -467,11 +435,23 @@ export default function Menu() {
                   const desc = row.description ? clampText(row.description, 78) : "";
                   const isAdded = addedId === row.id;
 
+                  const imageCandidates = buildImageCandidates(row.image, row.name);
+                  const hasPreview = imageCandidates.length > 0;
+
+                  const onCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onAdd(row);
+                    }
+                  };
+
                   const card = (
-                    <button
+                    <div
                       key={row.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => onAdd(row)}
+                      onKeyDown={onCardKeyDown}
                       className={[
                         "group text-left relative",
                         "rounded-[26px] overflow-hidden",
@@ -484,7 +464,6 @@ export default function Menu() {
                       ].join(" ")}
                       aria-label={`Dodaj ${row.name} u korpu`}
                     >
-                      {/* check */}
                       <div
                         className={[
                           "absolute right-3 top-3 z-10",
@@ -500,47 +479,39 @@ export default function Menu() {
                         ✓
                       </div>
 
-                      {/* image + “Vidi sliku” */}
                       <div className="relative">
-                        <SmartMenuImage
-                          image={row.image}
-                          name={row.name}
-                          alt={row.name}
-                          className="h-[96px] w-full object-cover"
-                        />
-
+                        <SmartMenuImage image={row.image} name={row.name} alt={row.name} className="h-[96px] w-full object-cover" />
                         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
 
-                        {/* #4: separate CTA that DOES NOT add to cart */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            openPreview(row);
-                          }}
-                          className={[
-                            "absolute left-3 bottom-3 z-10",
-                            "h-8 px-3 rounded-full",
-                            "border border-white/10",
-                            "bg-black/40 sm:bg-black/35",
-                            "backdrop-blur-none sm:backdrop-blur-md",
-                            "text-xs font-extrabold tracking-wide text-white/85",
-                            "hover:bg-black/55 sm:hover:bg-black/45",
-                            "transition",
-                          ].join(" ")}
-                          aria-label={`Vidi sliku: ${row.name}`}
-                        >
-                          Vidi sliku
-                        </button>
+                        {hasPreview ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setPreview({ open: true, name: row.name, candidates: imageCandidates });
+                            }}
+                            className={[
+                              "absolute left-3 bottom-3 z-10",
+                              "h-8 px-3 rounded-full",
+                              "border border-white/10",
+                              "bg-black/40 sm:bg-black/35",
+                              "backdrop-blur-none sm:backdrop-blur-md",
+                              "text-xs font-extrabold tracking-wide text-white/85",
+                              "hover:bg-black/55 sm:hover:bg-black/45",
+                              "transition",
+                              "sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
+                            ].join(" ")}
+                            aria-label={`Vidi sliku: ${row.name}`}
+                          >
+                            Vidi sliku
+                          </button>
+                        ) : null}
                       </div>
 
                       <div className="p-4">
-                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">
-                          {row.name}
-                        </div>
+                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">{row.name}</div>
 
-                        {/* sastojci */}
                         {desc ? (
                           <div className="mt-1 text-[14px] text-white/60 leading-snug">{desc}</div>
                         ) : (
@@ -549,16 +520,14 @@ export default function Menu() {
 
                         <div className="mt-3">
                           <div className="h-px w-10 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
-                          <div className="mt-2 text-[14px] font-extrabold text-[#f2b400]">
-                            {formatEUR(price)}
-                          </div>
+                          <div className="mt-2 text-[14px] font-extrabold text-[#f2b400]">{formatEUR(price)}</div>
                         </div>
 
                         <div className="mt-3 text-[10px] tracking-wide text-white/0 group-hover:text-white/45 transition">
                           Klikni za dodavanje
                         </div>
                       </div>
-                    </button>
+                    </div>
                   );
 
                   if (idx === 6) {
@@ -576,7 +545,6 @@ export default function Menu() {
             </div>
           </div>
 
-          {/* TOAST */}
           <div
             className={[
               "pointer-events-none absolute left-0 right-0 bottom-0 z-20",
@@ -591,9 +559,7 @@ export default function Menu() {
               <div className={["pointer-events-auto", "p-glass", "px-4 py-3 sm:px-5 sm:py-4", "flex items-center justify-between gap-3"].join(" ")}>
                 <div className="min-w-0">
                   <div className="text-sm sm:text-[15px] font-extrabold text-white/90">{toast.title}</div>
-                  {toast.subtitle ? (
-                    <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div>
-                  ) : null}
+                  {toast.subtitle ? <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div> : null}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -617,9 +583,7 @@ export default function Menu() {
               </div>
             </div>
           </div>
-          {/* /TOAST */}
 
-          {/* #4: IMAGE PREVIEW MODAL (Vidi sliku) */}
           {preview.open ? (
             <div className="absolute inset-0 z-30">
               <button
@@ -648,11 +612,7 @@ export default function Menu() {
 
                   <div className="relative p-4 sm:p-5">
                     <div className="relative overflow-hidden rounded-2xl bg-white/5">
-                      <PreviewImage
-                        candidates={preview.candidates}
-                        alt={preview.name}
-                        className="w-full max-h-[70vh] object-contain"
-                      />
+                      <PreviewImage candidates={preview.candidates} alt={preview.name} className="w-full max-h-[70vh] object-contain" />
                     </div>
 
                     <div className="mt-4 flex items-center justify-between text-xs text-white/55">
@@ -664,7 +624,6 @@ export default function Menu() {
               </div>
             </div>
           ) : null}
-          {/* /#4 */}
         </div>
       </div>
     </section>
