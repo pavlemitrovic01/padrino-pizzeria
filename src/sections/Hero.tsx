@@ -16,12 +16,16 @@ export default function Hero() {
       {/* Background */}
       <div className="absolute inset-0">
         <img
-          src="/menu/padrino.png"
+          src="/menu/padrino.webp"
           alt="Padrino"
           className="h-full w-full object-cover scale-105 opacity-60"
           draggable={false}
           loading="eager"
-          decoding="async"
+          onError={(e) => {
+            // fallback na png ako webp ne postoji
+            const target = e.currentTarget as HTMLImageElement;
+            if (!target.src.endsWith('.png')) target.src = '/menu/padrino.png';
+          }}
         />
 
         {/* Premium darkening + vignette */}

@@ -12,12 +12,16 @@ export default function About() {
    */
   const candidates = useMemo(
     () => [
+      "/about/storefront.webp",
       "/about/storefront.png",
       "/about/storefront.jpg",
+      "/about/padrino-storefront.webp",
       "/about/padrino-storefront.png",
       "/about/padrino-storefront.jpg",
+      "/about/padrino-lokal.webp",
       "/about/padrino-lokal.png",
       "/about/padrino-lokal.jpg",
+      "/about/about-bg.webp",
       "/about/about-bg.png",
       "/about/about-bg.jpg",
     ],
@@ -50,11 +54,12 @@ export default function About() {
           alt="Padrino lokal"
           className="h-full w-full object-cover object-center"
           draggable={false}
+          loading="eager"
           onError={() => setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
         />
 
         {/* cinematic overlays (match theme: black + soft gold) */}
-        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute inset-0 bg-black/34" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/25 to-black/75" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/15" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.10),transparent_50%)]" />

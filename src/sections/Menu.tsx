@@ -351,15 +351,17 @@ export default function Menu() {
 
   return (
     <section id="meni">
+      {/* MOBILE PERF: blur OFF on mobile, ON from sm+ */}
       <button
         type="button"
         aria-label="Zatvori"
-        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-none sm:backdrop-blur-sm"
         onClick={closeAll}
       />
 
-      <div className="fixed inset-0 z-50 flex justify-center px-4 pb-14 pt-12 sm:pt-16 md:pt-20">
-        <div className="relative w-full max-w-[1080px] overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/45 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex justify-center items-stretch px-4 pb-14 pt-12 sm:pt-16 md:pt-20">
+        {/* MOBILE PERF: blur OFF on mobile, ON from sm+ */}
+        <div className="relative w-full max-w-[1080px] h-full max-h-full flex flex-col overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/45 backdrop-blur-none sm:backdrop-blur-md">
           <div className="pointer-events-none absolute -top-36 -left-36 h-96 w-96 rounded-full bg-[#f2b400]/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
@@ -368,7 +370,6 @@ export default function Menu() {
             <div className="min-w-0 w-full sm:w-auto">
               <div className="p-kicker">Meni</div>
 
-              {/* mobile: 2 reda max, desktop: 1 linija */}
               <h2 className="mt-2 text-[24px] sm:text-[34px] leading-[1.12] sm:leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left max-w-[22ch] mx-auto sm:mx-0 sm:max-w-none">
                 <span className="block sm:inline">Iz naših srca,</span>{" "}
                 <span className="block sm:inline">do vaših osmjeha.</span>
@@ -397,8 +398,8 @@ export default function Menu() {
             </div>
           </div>
 
-          <div className="relative px-6 pb-8 sm:px-8">
-            <div className="max-h-[70vh] overflow-y-auto pr-2">
+          <div className="relative px-6 pb-8 sm:px-8 flex-1 min-h-0">
+            <div className="h-full overflow-y-auto pr-2 pb-24 sm:pb-4 overscroll-contain [-webkit-overflow-scrolling:touch]">
               <div className="grid grid-cols-2 gap-4 sm:gap-6 pb-3 md:grid-cols-4 lg:grid-cols-7">
                 {pizzasOrdered.map((row, idx) => {
                   const price = getSafeCents(row);
@@ -452,7 +453,6 @@ export default function Menu() {
                           {row.name}
                         </div>
 
-                        {/* sastojci: vidno veći */}
                         {desc ? (
                           <div className="mt-1 text-[14px] text-white/60 leading-snug">
                             {desc}
