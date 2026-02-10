@@ -41,6 +41,7 @@ export default function ChefHatLogo({ className, alt = "Padrino" }: ChefHatLogoP
         src={src}
         alt={alt}
         draggable={false}
+        decoding="async"
         onError={() => setImgOk(false)}
         className={[
           // ✅ manje uvećanje da stane ceo znak

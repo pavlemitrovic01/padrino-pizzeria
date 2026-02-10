@@ -20,6 +20,8 @@ export default function Hero() {
           alt="Padrino"
           className="h-full w-full object-cover scale-105 opacity-60"
           draggable={false}
+          loading="eager"
+          decoding="async"
         />
 
         {/* Premium darkening + vignette */}
