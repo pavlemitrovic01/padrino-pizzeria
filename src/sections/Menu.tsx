@@ -139,15 +139,12 @@ function buildFileCandidatesFromName(name: string): string[] {
   }
 
   // default: pokušaj “slug” varijante
-  // primer: "coca cola" -> coca-cola.png, ali i "ljuti sos" -> ljuti sos.png
   const withDash = n.replaceAll(" ", "-");
-  const withSpace = n; // već normalized (space)
+  const withSpace = n;
   const noDash = withDash.replaceAll("-", "");
 
-  // NOTE: ne diramo ekstenziju na drugačije — u public/menu su png
   const candidates = [`${withDash}.png`, `${withSpace}.png`, `${noDash}.png`];
 
-  // ubaci i verzije bez "dj" -> "d" (za slučaj da je neko ručno nazvao drugačije)
   const djToD = withDash.replaceAll("dj", "d");
   if (djToD !== withDash) candidates.push(`${djToD}.png`);
 
@@ -423,7 +420,8 @@ export default function Menu() {
             <div className="min-w-0 w-full sm:w-auto">
               <div className="p-kicker">Meni</div>
               <h2 className="mt-2 text-[26px] sm:text-[34px] leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left">
-                Iz naših srca, do vaših osmjeha.
+                <span className="block sm:inline">Iz naših srca,</span>
+                <span className="block sm:inline"> do vaših osmjeha.</span>
               </h2>
               <div className="mt-4 h-px w-56 mx-auto sm:mx-0 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
             </div>
@@ -556,12 +554,13 @@ export default function Menu() {
                                 {row.name}
                               </div>
 
+                              {/* Fokus 2: veći font “sastojaka” (desktop + mobile) */}
                               {desc ? (
-                                <div className="mt-1 text-[12px] text-white/60 leading-snug">
+                                <div className="mt-1 text-[13px] sm:text-[14px] text-white/65 leading-snug">
                                   {desc}
                                 </div>
                               ) : (
-                                <div className="mt-1 text-[12px] text-white/35"> </div>
+                                <div className="mt-1 text-[13px] sm:text-[14px] text-white/35 leading-snug"> </div>
                               )}
 
                               <div className="mt-3">
