@@ -101,7 +101,11 @@ export default function MenuItem({
       <div className="flex flex-col justify-between flex-1 min-w-0">
         <div>
           <h4 className="text-lg font-semibold text-white truncate">{name}</h4>
-          <p className="text-sm text-gray-400 mt-1 line-clamp-2">{description}</p>
+
+          {/* Fokus 2: +4px (16px -> 20px) */}
+          <p className="mt-1.5 line-clamp-2 text-[20px] leading-relaxed text-white/70">
+            {description}
+          </p>
         </div>
 
         <div className="flex items-center justify-between mt-4">

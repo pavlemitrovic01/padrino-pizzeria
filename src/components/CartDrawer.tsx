@@ -520,13 +520,11 @@ export default function CartDrawer() {
         ].join(" ")}
         onClick={props.onClick}
       >
-        {/* ambient + image-tint bg */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/10 to-black/45" />
           <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#f2b400]/10 blur-3xl" />
           <div className="absolute -left-8 -bottom-10 h-28 w-28 rounded-full bg-white/6 blur-3xl" />
 
-          {/* background image (soft) */}
           <div className="absolute -right-4 top-1/2 -translate-y-1/2 opacity-[0.16] blur-[1px] saturate-150">
             <SmartMiniAddonImage
               name={props.name}
@@ -543,7 +541,6 @@ export default function CartDrawer() {
         </div>
 
         <div className="relative shrink-0">
-          {/* bigger thumb */}
           <div className="h-12 w-12 rounded-2xl bg-white/6 ring-1 ring-white/12 overflow-hidden transition group-hover:scale-[1.02]">
             <SmartMiniAddonImage name={props.name} className="h-12 w-12 object-cover" />
           </div>
@@ -580,13 +577,11 @@ export default function CartDrawer() {
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* ambience */}
             <div className="pointer-events-none absolute -top-24 -left-28 h-72 w-72 rounded-full bg-[#f2b400]/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-white/6 blur-3xl" />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
 
-            {/* HEADER */}
-            <div className="relative border-b border-white/10 px-5 pb-4 pt-5">
+            <div className="relative border-b border-white/10 px-4 sm:px-5 pb-3 sm:pb-4 pt-4 sm:pt-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="p-eyebrow">PADRINO</div>
@@ -602,7 +597,7 @@ export default function CartDrawer() {
                   {view !== "cart" ? (
                     <button
                       onClick={backToCart}
-                      className="p-btn-ghost h-9 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                      className="p-btn-ghost h-10 sm:h-9 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
                     >
                       Nazad
                     </button>
@@ -610,7 +605,7 @@ export default function CartDrawer() {
 
                   <button
                     onClick={closeCart}
-                    className="p-btn-ghost h-9 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                    className="p-btn-ghost h-10 sm:h-9 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
                   >
                     Zatvori
                   </button>
@@ -618,9 +613,7 @@ export default function CartDrawer() {
               </div>
             </div>
 
-            {/* BODY */}
-            <div className="relative h-[calc(100%-78px)] overflow-y-auto px-5 pb-[170px]">
-              {/* SUCCESS */}
+            <div className="relative h-[calc(100%-78px)] overflow-y-auto px-4 sm:px-5 pb-[210px]">
               {view === "success" ? (
                 <div className="mt-5 p-glass p-5 p-glass-hover">
                   <p className="text-white font-extrabold text-lg">Porudžbina je poslata ✅</p>
@@ -643,7 +636,6 @@ export default function CartDrawer() {
                 </div>
               ) : null}
 
-              {/* CHECKOUT */}
               {view === "checkout" ? (
                 <div className="mt-5 space-y-5">
                   <form onSubmit={onSubmitOrder} className="space-y-4">
@@ -730,7 +722,6 @@ export default function CartDrawer() {
                 </div>
               ) : null}
 
-              {/* CART */}
               {view === "cart" ? (
                 items.length === 0 ? (
                   <div className="mt-10 text-center">
@@ -797,7 +788,7 @@ export default function CartDrawer() {
 
                                 <button
                                   onClick={() => removeFromCart(item.id)}
-                                  className="p-btn-ghost h-8 px-3 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                                  className="p-btn-ghost h-9 sm:h-8 px-3 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
                                 >
                                   Ukloni
                                 </button>
@@ -806,7 +797,7 @@ export default function CartDrawer() {
                               <div className="mt-3 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    className="h-9 w-9 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                    className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
                                     onClick={() => decrease(item.id)}
                                     aria-label="Smanji"
                                   >
@@ -816,7 +807,7 @@ export default function CartDrawer() {
                                     {(item as any).quantity}
                                   </span>
                                   <button
-                                    className="h-9 w-9 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                    className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
                                     onClick={() => increase(item.id)}
                                     aria-label="Povećaj"
                                   >
@@ -833,7 +824,7 @@ export default function CartDrawer() {
                                 <div className="mt-3 flex items-center gap-2">
                                   <button
                                     className={[
-                                      "h-9 px-4 rounded-full text-xs font-extrabold border transition",
+                                      "h-10 sm:h-9 px-4 rounded-full text-xs font-extrabold border transition",
                                       (item as any).size === "33"
                                         ? "bg-[#f2b400] text-black border-[#f2b400]"
                                         : "bg-white/10 text-white/85 border-white/10 hover:bg-white/15",
@@ -849,7 +840,7 @@ export default function CartDrawer() {
 
                                   <button
                                     className={[
-                                      "h-9 px-4 rounded-full text-xs font-extrabold border transition",
+                                      "h-10 sm:h-9 px-4 rounded-full text-xs font-extrabold border transition",
                                       (item as any).size === "50"
                                         ? "bg-[#f2b400] text-black border-[#f2b400]"
                                         : "bg-white/10 text-white/85 border-white/10 hover:bg-white/15",
@@ -871,7 +862,7 @@ export default function CartDrawer() {
                                     <div className="flex items-center justify-between gap-3">
                                       <p className="text-xs font-extrabold text-white/80">Sosevi</p>
                                       <button
-                                        className="p-btn-ghost h-9 px-4 text-xs font-extrabold"
+                                        className="p-btn-ghost h-10 sm:h-9 px-4 text-xs font-extrabold"
                                         onClick={() =>
                                           setOpenSaucesForItemId(openSaucesForItemId === item.id ? null : item.id)
                                         }
@@ -921,7 +912,6 @@ export default function CartDrawer() {
                                             key={a.id}
                                             className="group relative overflow-hidden flex items-center justify-between gap-2 rounded-2xl border border-white/12 bg-black/22 px-3 py-2"
                                           >
-                                            {/* soft bg image */}
                                             <div className="pointer-events-none absolute inset-0">
                                               <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/10 to-black/45" />
                                               <div className="absolute -right-4 top-1/2 -translate-y-1/2 opacity-[0.14] blur-[1px] saturate-150">
@@ -949,21 +939,21 @@ export default function CartDrawer() {
 
                                             <div className="relative flex items-center gap-1">
                                               <button
-                                                className="h-8 w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
                                                 onClick={() => decreaseAddonQuantity(item.id, a.id)}
                                                 aria-label="Smanji dodatak"
                                               >
                                                 −
                                               </button>
                                               <button
-                                                className="h-8 w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
                                                 onClick={() => increaseAddonQuantity(item.id, a.id)}
                                                 aria-label="Povećaj dodatak"
                                               >
                                                 +
                                               </button>
                                               <button
-                                                className="h-8 w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
                                                 onClick={() => removeAddonFromItem(item.id, a.id)}
                                                 aria-label="Ukloni dodatak"
                                               >
@@ -998,22 +988,51 @@ export default function CartDrawer() {
               ) : null}
             </div>
 
-            {/* FOOTER CTA */}
             {view === "cart" ? (
-              <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 bg-black/35 backdrop-blur-md px-5 pb-[max(18px,env(safe-area-inset-bottom))] pt-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-white/70 text-sm">Ukupno</p>
-                  <p className="text-white font-extrabold text-lg">{formatEUR(derivedTotalPrice)}</p>
+              <div
+                className={[
+                  "absolute bottom-0 left-0 right-0",
+                  "border-t border-white/10",
+                  "bg-black/28 backdrop-blur-xl",
+                  "px-4 sm:px-5 pt-5 pb-[max(18px,env(safe-area-inset-bottom))]",
+                  "shadow-[0_-28px_90px_rgba(0,0,0,0.60)]",
+                ].join(" ")}
+              >
+                <div className="pointer-events-none absolute -top-10 left-0 right-0 h-10 bg-gradient-to-t from-black/55 to-transparent" />
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute -left-10 -bottom-12 h-44 w-44 rounded-full bg-[#f2b400]/10 blur-3xl" />
+                  <div className="absolute -right-12 -bottom-16 h-52 w-52 rounded-full bg-white/6 blur-3xl" />
                 </div>
 
-                {/* ✅ ovde je fix: openCheckout se koristi */}
-                <button onClick={openCheckout} className="p-btn-gold mt-3 w-full h-12 text-sm">
+                <div className="relative flex items-end justify-between gap-3">
+                  <p className="text-white/65 text-sm font-semibold tracking-wide">Ukupno</p>
+                  <p className="text-white font-extrabold text-[20px] leading-none">
+                    {formatEUR(derivedTotalPrice)}
+                  </p>
+                </div>
+
+                {/* ✅ FIX: koristi openCheckout (nema ts unused) */}
+                <button
+                  onClick={openCheckout}
+                  className={[
+                    "relative mt-4 w-full h-14",
+                    "p-btn-gold",
+                    "text-sm font-extrabold tracking-wide",
+                    "shadow-[0_18px_55px_rgba(0,0,0,0.55)]",
+                  ].join(" ")}
+                >
                   Poruči
                 </button>
 
                 <button
                   onClick={handleGoToMenu}
-                  className="p-btn-ghost mt-2 w-full h-12 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                  className={[
+                    "relative mt-3 w-full",
+                    "text-center text-[12px] font-extrabold tracking-wide",
+                    "text-white/65 hover:text-white/85",
+                    "transition",
+                    "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25 rounded-xl py-2",
+                  ].join(" ")}
                 >
                   Nazad na meni
                 </button>

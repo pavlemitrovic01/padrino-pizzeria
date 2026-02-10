@@ -14,8 +14,6 @@ type DbMenuItem = {
   price: number | null;
 };
 
-type CategoryKey = "pizza" | "pica";
-
 const PIZZA_ORDER: string[] = [
   "Capricciosa",
   "Margherita",
@@ -34,18 +32,6 @@ const PIZZA_ORDER: string[] = [
 ];
 
 const PIZZA_ALIASES = new Set<string>(["pizza", "pizze", "pice", "pizz"]);
-const DRINKS_ALIASES = new Set<string>([
-  "pica",
-  "pice",
-  "pića",
-  "drinks",
-  "napici",
-  "napitci",
-  "sokovi",
-  "voda",
-  "gazirano",
-  "negazirano",
-]);
 
 function normalizeText(value: string) {
   return String(value ?? "")
@@ -84,21 +70,11 @@ function normalizeImagePath(image: string | null): string | null {
   return `/menu/${file}`;
 }
 
-/**
- * U public/menu imamo nekoliko “izuzetaka” gde filename nije 1:1 kao naziv artikla.
- * Ovo uklanja 90% polomljenih slika kada je DB image polje prazno ili pogrešno.
- */
 const NAME_TO_FILE: Record<string, string> = {
   // pizze
   "quattro formaggi": "quattro.png",
   "don pesto": "pesto.png",
   "don pamidoro": "pomodoro.png",
-
-  // pica / pića
-  "coca cola": "coca-cola.png",
-  "coca-cola": "coca-cola.png",
-  "coca zero": "coca-zero.png",
-  "coca-zero": "coca-zero.png",
 
   // sosevi (filename sa razmakom u public/menu)
   "ljuti sos": "ljuti sos.png",
@@ -138,7 +114,6 @@ function buildFileCandidatesFromName(name: string): string[] {
     return buildFileCandidatesFromFilename(mapped);
   }
 
-  // default: pokušaj “slug” varijante
   const withDash = n.replaceAll(" ", "-");
   const withSpace = n;
   const noDash = withDash.replaceAll("-", "");
@@ -224,8 +199,6 @@ export default function Menu() {
 
   const [items, setItems] = useState<DbMenuItem[]>([]);
   const [flowOpen, setFlowOpen] = useState(false);
-  const [flowStep, setFlowStep] = useState<"root" | "list">("root");
-  const [flowCategory, setFlowCategory] = useState<CategoryKey>("pizza");
 
   const [addedId, setAddedId] = useState<string | null>(null);
   const addedTimerRef = useRef<number | null>(null);
@@ -252,28 +225,16 @@ export default function Menu() {
     };
   }, []);
 
-  // OTVARANJE ISKLJUČIVO NA KLIK (event iz Hero)
+  // OTVARANJE ISKLJUČIVO NA KLIK (event iz Hero) — sada uvek otvara PIZZE (pića se dodaju iz korpe)
   useEffect(() => {
-    function onOpen(e: Event) {
-      const ev = e as CustomEvent<{ category?: CategoryKey }>;
-      const cat = ev.detail?.category;
-
+    function onOpen() {
       setFlowOpen(true);
-
-      if (cat === "pizza" || cat === "pica") {
-        setFlowCategory(cat);
-        setFlowStep("list");
-      } else {
-        setFlowCategory("pizza");
-        setFlowStep("root");
-      }
     }
 
     window.addEventListener("padrino:open-menu", onOpen);
     return () => window.removeEventListener("padrino:open-menu", onOpen);
   }, []);
 
-  // Lock scroll stranice kad je bubble otvoren
   useEffect(() => {
     if (!flowOpen) return;
     const prev = document.body.style.overflow;
@@ -327,14 +288,6 @@ export default function Menu() {
     return ordered;
   }, [items]);
 
-  const drinks = useMemo(() => {
-    return items.filter((i) => DRINKS_ALIASES.has(normalizeText(i.category || "")));
-  }, [items]);
-
-  const activeRows = useMemo(() => {
-    return flowCategory === "pizza" ? pizzasOrdered : drinks;
-  }, [flowCategory, pizzasOrdered, drinks]);
-
   function showToast(next: ToastState) {
     setToast({ ...next, visible: true });
 
@@ -353,7 +306,6 @@ export default function Menu() {
   function onAdd(row: DbMenuItem) {
     const cents = getSafeCents(row);
 
-    // ✅ U korpu upisujemo najstabilniji mogući image (da CartDrawer ne ostane bez slike)
     const candidates = buildImageCandidates(row.image, row.name);
     const best = candidates[0] ?? "";
 
@@ -380,8 +332,6 @@ export default function Menu() {
 
   function closeAll() {
     setFlowOpen(false);
-    setFlowStep("root");
-    setFlowCategory("pizza");
     setAddedId(null);
     setToast((t) => ({ ...t, visible: false }));
   }
@@ -398,8 +348,6 @@ export default function Menu() {
       </section>
     );
   }
-
-  const isPizza = flowCategory === "pizza";
 
   return (
     <section id="meni">
@@ -419,10 +367,13 @@ export default function Menu() {
           <div className="relative flex flex-col gap-5 px-6 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-8 sm:py-7">
             <div className="min-w-0 w-full sm:w-auto">
               <div className="p-kicker">Meni</div>
-              <h2 className="mt-2 text-[26px] sm:text-[34px] leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left">
-                <span className="block sm:inline">Iz naših srca,</span>
-                <span className="block sm:inline"> do vaših osmjeha.</span>
+
+              {/* mobile: 2 reda max, desktop: 1 linija */}
+              <h2 className="mt-2 text-[24px] sm:text-[34px] leading-[1.12] sm:leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left max-w-[22ch] mx-auto sm:mx-0 sm:max-w-none">
+                <span className="block sm:inline">Iz naših srca,</span>{" "}
+                <span className="block sm:inline">do vaših osmjeha.</span>
               </h2>
+
               <div className="mt-4 h-px w-56 mx-auto sm:mx-0 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
             </div>
 
@@ -447,225 +398,96 @@ export default function Menu() {
           </div>
 
           <div className="relative px-6 pb-8 sm:px-8">
-            {flowStep === "root" ? (
-              <div className="grid gap-6 md:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFlowCategory("pizza");
-                    setFlowStep("list");
-                  }}
-                  className={[
-                    "p-glass p-glass-hover",
-                    "p-6 text-left",
-                    "shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
-                    "transition-all duration-200",
-                    "hover:-translate-y-[3px]",
-                    "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
-                  ].join(" ")}
-                >
-                  <div className="text-3xl font-extrabold text-white/92">Pizza</div>
-                  <div className="mt-2 text-white/60">Ručno rađene • 33 cm</div>
-                </button>
+            <div className="max-h-[70vh] overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 gap-4 sm:gap-6 pb-3 md:grid-cols-4 lg:grid-cols-7">
+                {pizzasOrdered.map((row, idx) => {
+                  const price = getSafeCents(row);
+                  const desc = row.description ? clampText(row.description, 78) : "";
+                  const isAdded = addedId === row.id;
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFlowCategory("pica");
-                    setFlowStep("list");
-                  }}
-                  className={[
-                    "p-glass p-glass-hover",
-                    "p-6 text-left",
-                    "shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
-                    "transition-all duration-200",
-                    "hover:-translate-y-[3px]",
-                    "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
-                  ].join(" ")}
-                >
-                  <div className="text-3xl font-extrabold text-white/92">Pića</div>
-                  <div className="mt-2 text-white/60">Sokovi • vode</div>
-                </button>
+                  const card = (
+                    <button
+                      key={row.id}
+                      type="button"
+                      onClick={() => onAdd(row)}
+                      className={[
+                        "group text-left relative",
+                        "rounded-[26px] overflow-hidden",
+                        "p-glass p-glass-hover",
+                        "shadow-[0_20px_65px_rgba(0,0,0,0.55)]",
+                        "transition-all duration-200",
+                        "hover:-translate-y-[3px]",
+                        "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
+                        isAdded ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]" : "",
+                      ].join(" ")}
+                      aria-label={`Dodaj ${row.name} u korpu`}
+                    >
+                      <div
+                        className={[
+                          "absolute right-3 top-3 z-10",
+                          "h-7 w-7 rounded-full",
+                          "bg-emerald-500 text-black",
+                          "flex items-center justify-center font-black",
+                          "shadow-[0_10px_30px_rgba(0,0,0,0.55)]",
+                          "transition-all duration-200",
+                          isAdded ? "opacity-100 scale-100" : "opacity-0 scale-90",
+                        ].join(" ")}
+                        aria-hidden="true"
+                      >
+                        ✓
+                      </div>
+
+                      <div className="relative">
+                        <SmartMenuImage
+                          image={row.image}
+                          name={row.name}
+                          alt={row.name}
+                          className="h-[96px] w-full object-cover"
+                        />
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
+                      </div>
+
+                      <div className="p-4">
+                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">
+                          {row.name}
+                        </div>
+
+                        {/* sastojci: vidno veći */}
+                        {desc ? (
+                          <div className="mt-1 text-[14px] text-white/60 leading-snug">
+                            {desc}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-[14px] text-white/35"> </div>
+                        )}
+
+                        <div className="mt-3">
+                          <div className="h-px w-10 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
+                          <div className="mt-2 text-[14px] font-extrabold text-[#f2b400]">
+                            {formatEUR(price)}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 text-[10px] tracking-wide text-white/0 group-hover:text-white/45 transition">
+                          Klikni za dodavanje
+                        </div>
+                      </div>
+                    </button>
+                  );
+
+                  if (idx === 6) {
+                    return (
+                      <React.Fragment key={`wrap-${row.id}`}>
+                        {card}
+                        <div className="hidden lg:block col-span-full h-px my-2 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                      </React.Fragment>
+                    );
+                  }
+
+                  return card;
+                })}
               </div>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setFlowStep("root")}
-                  className="mb-6 inline-flex items-center gap-2 text-white/70 hover:text-white transition"
-                >
-                  <span aria-hidden="true">←</span> Nazad
-                </button>
-
-                <div className="max-h-[70vh] overflow-y-auto pr-2">
-                  {isPizza ? (
-                    <div className="grid grid-cols-2 gap-6 pb-3 md:grid-cols-4 lg:grid-cols-7">
-                      {activeRows.map((row, idx) => {
-                        const price = getSafeCents(row);
-                        const desc = row.description ? clampText(row.description, 78) : "";
-                        const isAdded = addedId === row.id;
-
-                        const card = (
-                          <button
-                            key={row.id}
-                            type="button"
-                            onClick={() => onAdd(row)}
-                            className={[
-                              "group text-left relative",
-                              "rounded-[26px] overflow-hidden",
-                              "p-glass p-glass-hover",
-                              "shadow-[0_20px_65px_rgba(0,0,0,0.55)]",
-                              "transition-all duration-200",
-                              "hover:-translate-y-[3px]",
-                              "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
-                              isAdded
-                                ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]"
-                                : "",
-                            ].join(" ")}
-                            aria-label={`Dodaj ${row.name} u korpu`}
-                          >
-                            <div
-                              className={[
-                                "absolute right-3 top-3 z-10",
-                                "h-7 w-7 rounded-full",
-                                "bg-emerald-500 text-black",
-                                "flex items-center justify-center font-black",
-                                "shadow-[0_10px_30px_rgba(0,0,0,0.55)]",
-                                "transition-all duration-200",
-                                isAdded ? "opacity-100 scale-100" : "opacity-0 scale-90",
-                              ].join(" ")}
-                              aria-hidden="true"
-                            >
-                              ✓
-                            </div>
-
-                            <div className="relative">
-                              <SmartMenuImage
-                                image={row.image}
-                                name={row.name}
-                                alt={row.name}
-                                className="h-[96px] w-full object-cover"
-                              />
-                              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
-                            </div>
-
-                            <div className="p-4">
-                              <div className="text-[14px] font-extrabold text-white/92 leading-tight">
-                                {row.name}
-                              </div>
-
-                              {/* Fokus 2: veći font “sastojaka” (desktop + mobile) */}
-                              {desc ? (
-                                <div className="mt-1 text-[13px] sm:text-[14px] text-white/65 leading-snug">
-                                  {desc}
-                                </div>
-                              ) : (
-                                <div className="mt-1 text-[13px] sm:text-[14px] text-white/35 leading-snug"> </div>
-                              )}
-
-                              <div className="mt-3">
-                                <div className="h-px w-10 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
-                                <div className="mt-2 text-[14px] font-extrabold text-[#f2b400]">
-                                  {formatEUR(price)}
-                                </div>
-                              </div>
-
-                              <div className="mt-3 text-[10px] tracking-wide text-white/0 group-hover:text-white/45 transition">
-                                Klikni za dodavanje
-                              </div>
-                            </div>
-                          </button>
-                        );
-
-                        if (idx === 6) {
-                          return (
-                            <React.Fragment key={`wrap-${row.id}`}>
-                              {card}
-                              <div className="hidden lg:block col-span-full h-px my-2 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                            </React.Fragment>
-                          );
-                        }
-
-                        return card;
-                      })}
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-6 pb-3 md:grid-cols-2 lg:grid-cols-3">
-                      {activeRows.map((row) => {
-                        const price = getSafeCents(row);
-                        const desc = row.description ? clampText(row.description, 90) : "";
-                        const isAdded = addedId === row.id;
-
-                        return (
-                          <button
-                            key={row.id}
-                            type="button"
-                            onClick={() => onAdd(row)}
-                            className={[
-                              "group text-left relative",
-                              "rounded-[26px] overflow-hidden",
-                              "p-glass p-glass-hover",
-                              "shadow-[0_22px_70px_rgba(0,0,0,0.55)]",
-                              "transition-all duration-200",
-                              "hover:-translate-y-[3px]",
-                              "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
-                              isAdded
-                                ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]"
-                                : "",
-                            ].join(" ")}
-                            aria-label={`Dodaj ${row.name} u korpu`}
-                          >
-                            <div
-                              className={[
-                                "absolute right-4 top-4 z-10",
-                                "h-8 w-8 rounded-full",
-                                "bg-emerald-500 text-black",
-                                "flex items-center justify-center font-black",
-                                "shadow-[0_10px_30px_rgba(0,0,0,0.55)]",
-                                "transition-all duration-200",
-                                isAdded ? "opacity-100 scale-100" : "opacity-0 scale-90",
-                              ].join(" ")}
-                              aria-hidden="true"
-                            >
-                              ✓
-                            </div>
-
-                            <div className="relative">
-                              <SmartMenuImage
-                                image={row.image}
-                                name={row.name}
-                                alt={row.name}
-                                className="h-48 w-full object-cover"
-                              />
-                              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/30" />
-                            </div>
-
-                            <div className="p-5">
-                              <div className="text-xl font-extrabold text-white/92 leading-tight">
-                                {row.name}
-                              </div>
-
-                              {desc ? <div className="mt-2 text-sm text-white/65">{desc}</div> : null}
-
-                              <div className="mt-4">
-                                <div className="h-px w-12 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
-                                <div className="mt-2 text-lg font-extrabold text-[#f2b400]">
-                                  {formatEUR(price)}
-                                </div>
-                              </div>
-
-                              <div className="mt-4 text-xs tracking-wide text-white/0 group-hover:text-white/45 transition">
-                                Klikni za dodavanje
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+            </div>
           </div>
 
           {/* TOAST */}
