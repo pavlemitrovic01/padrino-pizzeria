@@ -122,31 +122,31 @@ function stripSizeFromAnyName(name: string) {
 // ✅ tvoje realne slike u public/menu
 const NAME_TO_FILE: Record<string, string> = {
   // pizze / izuzeci
-  "quattro formaggi": "quattro.png",
-  "don pesto": "pesto.png",
-  "don pamidoro": "pomodoro.png",
+  "quattro formaggi": "quattro.webp",
+  "don pesto": "pesto.webp",
+  "don pamidoro": "pomodoro.webp",
 
   // pica
-  "coca cola": "coca-cola.png",
-  "coca-cola": "coca-cola.png",
-  "coca zero": "coca-zero.png",
-  "coca-zero": "coca-zero.png",
+  "coca cola": "coca-cola.webp",
+  "coca-cola": "coca-cola.webp",
+  "coca zero": "coca-zero.webp",
+  "coca-zero": "coca-zero.webp",
 
   // sosevi
-  "garlik": "garlik.png",
-  "kecap": "kecap.png",
-  "kečap": "kecap.png",
-  "majonez": "majonez.png",
-  "pelat": "pelat.png",
-  "slatko ljuti": "slatko ljuti.png",
-  "ljuti sos": "ljuti sos.png",
+  "garlik": "garlik.webp",
+  "kecap": "kecap.webp",
+  "kečap": "kecap.webp",
+  "majonez": "majonez.webp",
+  "pelat": "pelat.webp",
+  "slatko ljuti": "slatko ljuti.webp",
+  "ljuti sos": "ljuti sos.webp",
 
   // dodaci
-  "krofne": "krofna.png",
-  "krofna": "krofna.png",
-  "ivice punjene sirom": "rub.png",
-  "ivice punjene sir": "rub.png",
-  "punjene ivice sirom": "rub.png",
+  "krofne": "krofna.webp",
+  "krofna": "krofna.webp",
+  "ivice punjene sirom": "rub.webp",
+  "ivice punjene sir": "rub.webp",
+  "punjene ivice sirom": "rub.webp",
 };
 
 function buildFileCandidatesFromFilename(file: string): string[] {
@@ -185,10 +185,10 @@ function buildFileCandidatesFromName(name: string): string[] {
   const withSpace = n;
   const noDash = withDash.replaceAll("-", "");
 
-  const candidates = [`${withDash}.png`, `${withSpace}.png`, `${noDash}.png`];
+  const candidates = [`${withDash}.webp`, `${withSpace}.webp`, `${noDash}.webp`];
 
   const djToD = withDash.replaceAll("dj", "d");
-  if (djToD !== withDash) candidates.push(`${djToD}.png`);
+  if (djToD !== withDash) candidates.push(`${djToD}.webp`);
 
   const uniq = new Set<string>();
   for (const file of candidates) {
