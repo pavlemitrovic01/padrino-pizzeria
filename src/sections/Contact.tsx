@@ -38,7 +38,7 @@ function Contact() {
 
   return (
     <section id="contact" className="relative overflow-hidden bg-black text-white">
-      {/* BACKGROUND (final) + ambience (same language as Hero/About/Delivery/Footer) */}
+      {/* BACKGROUND (final) + ambience */}
       <div className="pointer-events-none absolute inset-0">
         <img
           src="/sections/contact.webp"
@@ -48,13 +48,13 @@ function Contact() {
           loading="lazy"
         />
 
-        {/* cinematic overlays */}
-        <div className="absolute inset-0 bg-black/25" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/65 to-black" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-black/70" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.10),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(0,0,0,0.88)]" />
+        {/* cinematic overlays (SVETLIJE ~10–15%) */}
+        <div className="absolute inset-0 bg-black/28" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/45 to-black/85" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/18 to-black/60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/14" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.12),transparent_50%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_130px_rgba(0,0,0,0.82)]" />
 
         {/* SEAMLESS GLOW (top/bottom) */}
         <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.12),transparent_60%)] blur-3xl" />
