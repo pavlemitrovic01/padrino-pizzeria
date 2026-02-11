@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabaseClient.ts";
 import { useCart } from "../context/useCart";
 import type { CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
 import { formatEUR, toSafeInt } from "../lib/money";
-import { createOrder } from "../lib/createOrder";
+import { createOrder, type CreateOrderPayload } from "../lib/createOrder";
 
 type MenuItemData = {
   id: string;
@@ -126,7 +126,7 @@ const NAME_TO_FILE: Record<string, string> = {
   "don pesto": "pesto.webp",
   "don pamidoro": "pomodoro.webp",
 
-  // pica
+  // pica (primeri; dodaj po potrebi)
   "coca cola": "coca-cola.webp",
   "coca-cola": "coca-cola.webp",
   "coca zero": "coca-zero.webp",
@@ -220,31 +220,34 @@ function buildImageCandidates(image: string | null | undefined, name: string): s
   return [...uniq];
 }
 
-function SmartCartImage(props: { image: string; name: string; alt: string }) {
+function SmartCartImage(props: { image?: string | null; name: string; alt: string }) {
   const [idx, setIdx] = useState(0);
-  const candidates = useMemo(
-    () => buildImageCandidates(props.image, props.name),
-    [props.image, props.name]
-  );
+  const candidates = useMemo(() => buildImageCandidates(props.image ?? null, props.name), [
+    props.image,
+    props.name,
+  ]);
 
   useEffect(() => setIdx(0), [props.image, props.name]);
 
   const src = candidates[idx] ?? null;
 
+  if (!src) {
+    return (
+      <div
+        className="h-16 w-16 rounded-2xl bg-white/5 ring-1 ring-white/10"
+        aria-hidden="true"
+      />
+    );
+  }
+
   return (
-    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl ring-1 ring-white/10 bg-white/5">
-      {src ? (
-        <img
-          src={src}
-          alt={props.alt}
-          className="h-full w-full object-cover"
-          loading="lazy"
-          onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
-        />
-      ) : (
-        <div className="h-full w-full" />
-      )}
-    </div>
+    <img
+      src={src}
+      alt={props.alt}
+      className="h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10"
+      loading="lazy"
+      onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
+    />
   );
 }
 
@@ -470,57 +473,141 @@ export default function CartDrawer() {
     try {
       setSubmitting(true);
 
-      const payload = {
+      const payload: CreateOrderPayload = {
         customer_name: name.trim(),
         customer_phone: phone.trim(),
         customer_address: address.trim(),
 
-        items: items.map((i) => ({
-          cart_id: String(i.id),
-          menu_item_id: (i as any).menuItemId ?? null,
-          name: i.name,
-          category: i.category,
-          quantity: i.quantity,
-          size: (i as any).size ?? null,
-          base_price: (i as any).basePrice ?? i.price,
-          note: (i as any).note ?? "",
-          addons: Array.isArray((i as any).addons)
-            ? (i as any).addons.map((a: any) => ({
-                id: a.id,
-                name: a.name,
-                price: a.price,
-                quantity: a.quantity,
-              }))
-            : [],
-        })),
+        items: items.map((i) => {
+          const addonsRaw = Array.isArray((i as any).addons) ? ((i as any).addons as any[]) : [];
+          const isDrink = isDrinkCategory(String((i as any).category ?? ""));
+          const addonsTotal = isDrink ? 0 : getPerItemAddonsTotal(addonsRaw as any);
 
-        total_eur_cents: derivedTotalPrice,
-        note: orderNote.trim(),
+          const basePrice =
+            typeof (i as any).basePrice === "number" && Number.isFinite((i as any).basePrice)
+              ? (i as any).basePrice
+              : Math.max(0, (i as any).price - addonsTotal);
+
+          const pricePerItem = Math.max(0, basePrice + addonsTotal);
+
+          const image =
+            String((i as any).image ?? "").trim() ||
+            buildImageCandidates(null, String((i as any).name ?? ""))[0] ||
+            "/menu/padrino.png";
+
+          const category = String((i as any).category ?? "").trim() || "unknown";
+
+          const rawSize = (i as any).size;
+          const size = rawSize === "33" || rawSize === "50" ? rawSize : null;
+
+          return {
+            cart_id: String((i as any).id),
+            menu_item_id: (i as any).menuItemId ? String((i as any).menuItemId) : null,
+            name: String((i as any).name ?? ""),
+            size,
+            quantity: Number((i as any).quantity ?? 1) || 1,
+            base_price: Number.isFinite(basePrice) ? basePrice : null,
+            price_per_item: pricePerItem,
+
+            addons: addonsRaw.map((a) => ({
+              id: String(a.id),
+              name: String(a.name),
+              price: Number(a.price) || 0,
+              quantity: Number(a.quantity ?? 1) || 1,
+            })),
+
+            note: (i as any).note ? String((i as any).note) : null,
+            image,
+            category,
+          };
+        }),
+
+        total_price: derivedTotalPrice,
+        total_items: totalItems,
+        note: orderNote.trim() || null,
       };
 
-      const { orderId } = await createOrder(payload);
+      const result = await createOrder(payload);
 
-      setSuccessOrderId(orderId);
-      setView("success");
       clearCart();
+      setSuccessOrderId(String(result.orderId));
+      setView("success");
     } catch (err: any) {
-      setSubmitError(err?.message ?? "Greška pri slanju porudžbine.");
+      setSubmitError(err?.message || "Došlo je do greške pri slanju porudžbine.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  const title = view === "cart" ? "Korpa" : view === "checkout" ? "Porudžbina" : "Uspješno";
-
-  const backToCart = () => {
-    setView("cart");
+  const openCheckout = () => {
     setSubmitError(null);
-  };
-
-  const goToCheckout = () => {
-    setSubmitError(null);
+    setSuccessOrderId(null);
     setView("checkout");
   };
+
+  const backToCart = () => {
+    setSubmitError(null);
+    setSubmitting(false);
+    setView("cart");
+  };
+
+  const title = view === "cart" ? "Korpa" : view === "checkout" ? "Porudžbina" : "Uspješno";
+
+  function AddonBubbleButton(props: {
+    name: string;
+    price: number;
+    onClick: () => void;
+    variant?: "sauce" | "addon";
+  }) {
+    const isSauce = props.variant === "sauce";
+
+    return (
+      <button
+        className={[
+          "group relative overflow-hidden",
+          "rounded-2xl border border-white/12",
+          "bg-black/22 hover:bg-black/28 hover:border-white/20 transition",
+          "shadow-[0_12px_28px_rgba(0,0,0,0.35)]",
+          "active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25",
+          "px-3 py-3",
+          "flex items-center justify-between gap-3",
+        ].join(" ")}
+        onClick={props.onClick}
+      >
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/10 to-black/45" />
+          <div className="absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#f2b400]/10 blur-3xl" />
+          <div className="absolute -left-8 -bottom-10 h-28 w-28 rounded-full bg-white/6 blur-3xl" />
+
+          <div className="absolute -right-4 top-1/2 -translate-y-1/2 opacity-[0.16] blur-[1px] saturate-150">
+            <SmartMiniAddonImage
+              name={props.name}
+              className="h-20 w-20 object-cover rounded-[22px] scale-[1.12]"
+            />
+          </div>
+        </div>
+
+        <div className="relative min-w-0">
+          <div className="font-extrabold text-white truncate text-[12px] leading-tight">
+            {props.name}
+          </div>
+          <div className="mt-0.5 text-white/65 text-[11px]">{formatEUR(props.price)}</div>
+        </div>
+
+        <div className="relative shrink-0">
+          <div className="h-12 w-12 rounded-2xl bg-white/6 ring-1 ring-white/12 overflow-hidden transition group-hover:scale-[1.02]">
+            <SmartMiniAddonImage name={props.name} className="h-12 w-12 object-cover" />
+          </div>
+
+          {isSauce ? (
+            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-[#f2b400] text-black text-[10px] font-black flex items-center justify-center ring-2 ring-black/45 shadow-[0_10px_20px_rgba(0,0,0,0.35)]">
+              S
+            </div>
+          ) : null}
+        </div>
+      </button>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -733,9 +820,7 @@ export default function CartDrawer() {
                                     <div className="text-sm font-extrabold text-white/90 truncate">
                                       {d.name}
                                     </div>
-                                    <div className="text-xs text-white/55">
-                                      {formatEUR(d.price)}
-                                    </div>
+                                    <div className="text-xs text-white/55">{formatEUR(d.price)}</div>
                                   </div>
                                 </div>
 
@@ -747,7 +832,8 @@ export default function CartDrawer() {
                                         id: d.id,
                                         name: d.name,
                                         price: d.price,
-                                        image: "",
+                                        image:
+                                          buildImageCandidates(null, d.imageKey)[0] ?? "/menu/padrino.png",
                                         description: "",
                                         category: d.category,
                                         quantity: 1,
@@ -803,224 +889,217 @@ export default function CartDrawer() {
                                   <p className="text-white font-extrabold leading-tight truncate">
                                     {item.name}
                                   </p>
-                                  <p className="mt-1 text-xs text-white/55">
-                                    {formatEUR(base)}{" "}
-                                    {hasAddons ? (
-                                      <span className="text-white/35">
-                                        + {formatEUR(addonsTotal)} dodaci
-                                      </span>
+
+                                  <div className="mt-1 text-xs text-white/60">
+                                    {(item as any).size ? (
+                                      <span className="text-white/70 font-semibold">{(item as any).size} cm</span>
                                     ) : null}
-                                  </p>
+                                    {(item as any).size ? <span className="mx-2 text-white/25">•</span> : null}
+                                    <span>
+                                      Osnova: <span className="text-white/80 font-semibold">{formatEUR(base)}</span>
+                                    </span>
+                                    {!hideAddons && addonsTotal > 0 ? (
+                                      <>
+                                        <span className="mx-2 text-white/25">•</span>
+                                        <span>
+                                          Dodaci:{" "}
+                                          <span className="text-white/80 font-semibold">
+                                            {formatEUR(addonsTotal)}
+                                          </span>
+                                        </span>
+                                      </>
+                                    ) : null}
+                                  </div>
                                 </div>
 
                                 <button
                                   onClick={() => removeFromCart(item.id)}
-                                  className="p-btn-ghost h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                                  className="p-btn-ghost h-9 sm:h-8 px-3 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
                                 >
                                   Ukloni
                                 </button>
                               </div>
 
-                              <div className="mt-3 flex items-center justify-between gap-3">
+                              <div className="mt-3 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <button
+                                    className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
                                     onClick={() => decrease(item.id)}
-                                    className="p-btn-ghost h-10 w-10 text-lg font-black focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                                    aria-label="Smanji"
                                   >
                                     −
                                   </button>
-                                  <div className="w-10 text-center text-white/90 font-extrabold">
-                                    {item.quantity}
-                                  </div>
+                                  <span className="text-white/85 text-sm font-extrabold w-6 text-center">
+                                    {(item as any).quantity}
+                                  </span>
                                   <button
+                                    className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
                                     onClick={() => increase(item.id)}
-                                    className="p-btn-ghost h-10 w-10 text-lg font-black focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                                    aria-label="Povećaj"
                                   >
                                     +
                                   </button>
                                 </div>
 
-                                <div className="text-white/90 font-extrabold">
+                                <div className="text-sm font-extrabold text-white">
                                   {formatEUR(getLineTotal(item))}
                                 </div>
                               </div>
 
                               {canPickSize ? (
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                  {variantsFromDb?.["33"] ? (
-                                    <button
-                                      onClick={() => changeSize(item.id, "33", variantsFromDb["33"] as PizzaVariant)}
-                                      className={[
-                                        "h-10 px-4 rounded-full border",
-                                        (item as any).size === "33"
-                                          ? "border-[#f2b400]/45 bg-[#f2b400]/10 text-white"
-                                          : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10",
-                                        "transition text-sm font-extrabold",
-                                      ].join(" ")}
-                                    >
-                                      33 cm
-                                    </button>
-                                  ) : null}
+                                <div className="mt-3 flex items-center gap-2">
+                                  <button
+                                    className={[
+                                      "h-10 sm:h-9 px-4 rounded-full text-xs font-extrabold border transition",
+                                      (item as any).size === "33"
+                                        ? "bg-[#f2b400] text-black border-[#f2b400]"
+                                        : "bg-white/10 text-white/85 border-white/10 hover:bg-white/15",
+                                    ].join(" ")}
+                                    onClick={() => {
+                                      const next = variantsFromDb?.["33"];
+                                      if (!next) return;
+                                      changeSize(item.id, "33", next);
+                                    }}
+                                  >
+                                    33 cm
+                                  </button>
 
-                                  {variantsFromDb?.["50"] ? (
-                                    <button
-                                      onClick={() => changeSize(item.id, "50", variantsFromDb["50"] as PizzaVariant)}
-                                      className={[
-                                        "h-10 px-4 rounded-full border",
-                                        (item as any).size === "50"
-                                          ? "border-[#f2b400]/45 bg-[#f2b400]/10 text-white"
-                                          : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10",
-                                        "transition text-sm font-extrabold",
-                                      ].join(" ")}
-                                    >
-                                      50 cm
-                                    </button>
-                                  ) : null}
+                                  <button
+                                    className={[
+                                      "h-10 sm:h-9 px-4 rounded-full text-xs font-extrabold border transition",
+                                      (item as any).size === "50"
+                                        ? "bg-[#f2b400] text-black border-[#f2b400]"
+                                        : "bg-white/10 text-white/85 border-white/10 hover:bg-white/15",
+                                    ].join(" ")}
+                                    onClick={() => {
+                                      const next = variantsFromDb?.["50"];
+                                      if (!next) return;
+                                      changeSize(item.id, "50", next);
+                                    }}
+                                  >
+                                    50 cm
+                                  </button>
                                 </div>
                               ) : null}
 
                               {!isDrink ? (
-                                <div className="mt-4">
-                                  <div className="flex items-center justify-between">
-                                    <div className="text-xs uppercase tracking-[0.22em] text-white/45">
-                                      Dodaci
+                                <div className="mt-4 space-y-3">
+                                  {hasSaucesControl ? (
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="text-xs font-extrabold text-white/80">Sosevi</p>
+                                      <button
+                                        className="p-btn-ghost h-10 sm:h-9 px-4 text-xs font-extrabold"
+                                        onClick={() =>
+                                          setOpenSaucesForItemId(openSaucesForItemId === item.id ? null : item.id)
+                                        }
+                                      >
+                                        {openSaucesForItemId === item.id ? "Zatvori" : "Dodaj soseve"}
+                                      </button>
                                     </div>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => setOpenSaucesForItemId(openSaucesForItemId === item.id ? null : item.id)}
-                                      className="p-btn-ghost h-9 px-4 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-                                    >
-                                      {openSaucesForItemId === item.id ? "Zatvori" : "Dodaj soseve"}
-                                    </button>
-                                  </div>
+                                  ) : null}
 
                                   {openSaucesForItemId === item.id && saucesCatalog.length > 0 ? (
-                                    <div className="mt-3 grid grid-cols-1 gap-2">
+                                    <div className="grid grid-cols-2 gap-2">
                                       {saucesCatalog.map((a) => (
-                                        <button
+                                        <AddonBubbleButton
                                           key={a.id}
-                                          type="button"
-                                          onClick={() =>
-                                            addAddonToItem(item.id, {
-                                              id: a.id,
-                                              name: a.name,
-                                              price: a.price,
-                                            })
-                                          }
-                                          className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/25 px-3 py-2 hover:bg-black/35 transition"
-                                        >
-                                          <div className="flex items-center gap-3 min-w-0">
-                                            <SmartMiniAddonImage name={a.imageKey} />
-                                            <div className="min-w-0 text-left">
-                                              <div className="text-sm font-extrabold text-white/90 truncate">
-                                                {a.name}
-                                              </div>
-                                              <div className="text-xs text-white/55">
-                                                {formatEUR(a.price)}
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          <div className="text-xs font-extrabold text-[#f2b400]">
-                                            + Dodaj
-                                          </div>
-                                        </button>
+                                          name={a.name}
+                                          price={a.price}
+                                          variant="sauce"
+                                          onClick={() => addAddonToItem(item.id, a as any)}
+                                        />
                                       ))}
                                     </div>
                                   ) : null}
 
                                   {addonsCatalog.length > 0 ? (
-                                    <div className="mt-3 grid grid-cols-1 gap-2">
-                                      {addonsCatalog.map((a) => (
-                                        <button
-                                          key={a.id}
-                                          type="button"
-                                          onClick={() =>
-                                            addAddonToItem(item.id, {
-                                              id: a.id,
-                                              name: a.name,
-                                              price: a.price,
-                                            })
-                                          }
-                                          className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/25 px-3 py-2 hover:bg-black/35 transition"
-                                        >
-                                          <div className="flex items-center gap-3 min-w-0">
-                                            <SmartMiniAddonImage name={a.imageKey} />
-                                            <div className="min-w-0 text-left">
-                                              <div className="text-sm font-extrabold text-white/90 truncate">
-                                                {a.name}
-                                              </div>
-                                              <div className="text-xs text-white/55">
-                                                {formatEUR(a.price)}
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          <div className="text-xs font-extrabold text-[#f2b400]">
-                                            + Dodaj
-                                          </div>
-                                        </button>
-                                      ))}
+                                    <div>
+                                      <p className="text-xs font-extrabold text-white/80 mb-2">Dodaci</p>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {addonsCatalog.map((a) => (
+                                          <AddonBubbleButton
+                                            key={a.id}
+                                            name={a.name}
+                                            price={a.price}
+                                            variant="addon"
+                                            onClick={() => addAddonToItem(item.id, a as any)}
+                                          />
+                                        ))}
+                                      </div>
                                     </div>
                                   ) : null}
 
                                   {hasAddons ? (
-                                    <div className="mt-4 space-y-2">
-                                      {addons.map((a: any) => (
-                                        <div
-                                          key={a.id}
-                                          className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
-                                        >
-                                          <div className="flex items-center gap-3 min-w-0">
-                                            <SmartMiniAddonImage name={a.name} />
-                                            <div className="min-w-0">
-                                              <div className="text-sm font-extrabold text-white/90 truncate">
-                                                {a.name}
-                                              </div>
-                                              <div className="text-xs text-white/55">
-                                                {formatEUR(a.price)} × {a.quantity ?? 1}
+                                    <div className="pt-1">
+                                      <p className="text-xs font-extrabold text-white/80 mb-2">Izabrano</p>
+                                      <div className="space-y-2">
+                                        {addons.map((a: any) => (
+                                          <div
+                                            key={a.id}
+                                            className="group relative overflow-hidden flex items-center justify-between gap-2 rounded-2xl border border-white/12 bg-black/22 px-3 py-2"
+                                          >
+                                            <div className="pointer-events-none absolute inset-0">
+                                              <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/10 to-black/45" />
+                                              <div className="absolute -right-4 top-1/2 -translate-y-1/2 opacity-[0.14] blur-[1px] saturate-150">
+                                                <SmartMiniAddonImage
+                                                  name={a.name}
+                                                  className="h-20 w-20 object-cover rounded-[22px] scale-[1.12]"
+                                                />
                                               </div>
                                             </div>
-                                          </div>
 
-                                          <div className="flex items-center gap-2">
-                                            <button
-                                              type="button"
-                                              onClick={() => decreaseAddonQuantity(item.id, a.id)}
-                                              className="p-btn-ghost h-9 w-9 text-lg font-black focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-                                            >
-                                              −
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => increaseAddonQuantity(item.id, a.id)}
-                                              className="p-btn-ghost h-9 w-9 text-lg font-black focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-                                            >
-                                              +
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => removeAddonFromItem(item.id, a.id)}
-                                              className="p-btn-ghost h-9 px-3 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-                                            >
-                                              Ukloni
-                                            </button>
+                                            <div className="relative min-w-0 flex items-center gap-3">
+                                              <div className="h-12 w-12 rounded-2xl bg-white/6 ring-1 ring-white/12 overflow-hidden shrink-0">
+                                                <SmartMiniAddonImage name={a.name} className="h-12 w-12 object-cover" />
+                                              </div>
+
+                                              <div className="min-w-0">
+                                                <div className="text-[12px] font-extrabold text-white truncate">
+                                                  {a.name}
+                                                </div>
+                                                <div className="text-[11px] text-white/65">
+                                                  {formatEUR(a.price)} × {a.quantity}
+                                                </div>
+                                              </div>
+                                            </div>
+
+                                            <div className="relative flex items-center gap-1">
+                                              <button
+                                                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                                onClick={() => decreaseAddonQuantity(item.id, a.id)}
+                                                aria-label="Smanji dodatak"
+                                              >
+                                                −
+                                              </button>
+                                              <button
+                                                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                                onClick={() => increaseAddonQuantity(item.id, a.id)}
+                                                aria-label="Povećaj dodatak"
+                                              >
+                                                +
+                                              </button>
+                                              <button
+                                                className="h-10 w-10 sm:h-8 sm:w-8 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35"
+                                                onClick={() => removeAddonFromItem(item.id, a.id)}
+                                                aria-label="Ukloni dodatak"
+                                              >
+                                                ×
+                                              </button>
+                                            </div>
                                           </div>
-                                        </div>
-                                      ))}
+                                        ))}
+                                      </div>
                                     </div>
                                   ) : null}
 
-                                  <div className="mt-4">
-                                    <label className="text-xs uppercase tracking-[0.22em] text-white/45">
-                                      Napomena (za ovu pizzu)
-                                    </label>
+                                  <div className="pt-1">
+                                    <p className="text-xs font-extrabold text-white/80 mb-2">Napomena za stavku</p>
                                     <textarea
                                       value={(item as any).note ?? ""}
                                       onChange={(e) => setItemNote(item.id, e.target.value)}
-                                      className="p-textarea mt-2 h-20"
-                                      placeholder="Npr. bez luka, extra pečeno…"
+                                      className="w-full rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20 focus:ring-2 focus:ring-[#f2b400]/35"
+                                      placeholder="Npr. bez luka, dobro zapečeno..."
+                                      rows={2}
                                     />
                                   </div>
                                 </div>
@@ -1035,58 +1114,55 @@ export default function CartDrawer() {
               ) : null}
             </div>
 
-            <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 p-4 sm:p-5 bg-black/50 backdrop-blur-md">
-              {view === "cart" ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-white/70 text-sm">Ukupno</p>
-                    <p className="text-white font-extrabold text-lg">{formatEUR(derivedTotalPrice)}</p>
-                  </div>
-
-                  <button onClick={goToCheckout} className="p-btn-gold w-full h-12 text-sm">
-                    Nastavi na porudžbinu
-                  </button>
-
-                  <button
-                    onClick={handleGoToMenu}
-                    className="p-btn-ghost w-full h-12 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-                  >
-                    Nazad na meni
-                  </button>
+            {view === "cart" ? (
+              <div
+                className={[
+                  "absolute bottom-0 left-0 right-0",
+                  "border-t border-white/10",
+                  "bg-black/28 backdrop-blur-xl",
+                  "px-4 sm:px-5 pt-5 pb-[max(18px,env(safe-area-inset-bottom))]",
+                  "shadow-[0_-28px_90px_rgba(0,0,0,0.60)]",
+                ].join(" ")}
+              >
+                <div className="pointer-events-none absolute -top-10 left-0 right-0 h-10 bg-gradient-to-t from-black/55 to-transparent" />
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute -left-10 -bottom-12 h-44 w-44 rounded-full bg-[#f2b400]/10 blur-3xl" />
+                  <div className="absolute -right-12 -bottom-16 h-52 w-52 rounded-full bg-white/6 blur-3xl" />
                 </div>
-              ) : null}
 
-              {view === "checkout" ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-white/70 text-sm">Ukupno</p>
-                    <p className="text-white font-extrabold text-lg">{formatEUR(derivedTotalPrice)}</p>
-                  </div>
-
-                  <button
-                    onClick={backToCart}
-                    className="p-btn-ghost w-full h-12 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-                  >
-                    Nazad na korpu
-                  </button>
+                <div className="relative flex items-end justify-between gap-3">
+                  <p className="text-white/65 text-sm font-semibold tracking-wide">Ukupno</p>
+                  <p className="text-white font-extrabold text-[20px] leading-none">
+                    {formatEUR(derivedTotalPrice)}
+                  </p>
                 </div>
-              ) : null}
 
-              {view === "success" ? (
-                <div className="space-y-3">
-                  <button onClick={handleGoToMenu} className="p-btn-gold w-full h-12 text-sm">
-                    Nazad na meni
-                  </button>
+                <button
+                  onClick={openCheckout}
+                  className={[
+                    "relative mt-4 w-full h-14",
+                    "p-btn-gold",
+                    "text-sm font-extrabold tracking-wide",
+                    "shadow-[0_18px_55px_rgba(0,0,0,0.55)]",
+                  ].join(" ")}
+                >
+                  Poruči
+                </button>
 
-                  <button
-                    onClick={closeCart}
-                    className="p-btn-ghost w-full h-12 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
-                  >
-                    Zatvori
-                  </button>
-                </div>
-              ) : null}
-            </div>
+                <button
+                  onClick={handleGoToMenu}
+                  className={[
+                    "relative mt-3 w-full",
+                    "text-center text-[12px] font-extrabold tracking-wide",
+                    "text-white/65 hover:text-white/85",
+                    "transition",
+                    "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25 rounded-xl py-2",
+                  ].join(" ")}
+                >
+                  Nazad na meni
+                </button>
+              </div>
+            ) : null}
           </motion.aside>
         </motion.div>
       )}
