@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
 import Navbar from "./components/Navbar";
 import CartDrawer from "./components/CartDrawer";
 // ✅ Checkout je izbačen sa glavne stranice (sve ide kroz korpu)
 // import Checkout from "./components/Checkout";
-import AdminOrders from "./components/AdminOrders";
-import AdminLogin from "./pages/admin/AdminLogin";
-import AdminLogs from "./pages/admin/AdminLogs";
 
 import Hero from "./sections/Hero";
 import Menu from "./sections/Menu";
@@ -29,6 +26,15 @@ function isAdminSession(session: Session | null): boolean {
       ? session.user.email.trim().toLowerCase()
       : "";
   return email.length > 0 && ADMIN_EMAILS.has(email);
+}
+
+// ✅ Admin delove učitavamo samo kad treba (bundle split)
+const AdminOrders = lazy(() => import("./components/AdminOrders"));
+const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
+
+function AdminChunkFallback() {
+  return <p className="text-white text-lg">Učitavam…</p>;
 }
 
 export default function App() {
@@ -142,7 +148,9 @@ export default function App() {
         {onlineBanner}
         <Navbar />
         <main className="bg-black min-h-screen pt-20 flex items-center justify-center">
-          <AdminLogin />
+          <Suspense fallback={<AdminChunkFallback />}>
+            <AdminLogin />
+          </Suspense>
         </main>
       </>
     );
@@ -207,7 +215,9 @@ export default function App() {
           {onlineBanner}
           <Navbar />
           <main className="bg-black min-h-screen pt-20">
-            <AdminLogs />
+            <Suspense fallback={<AdminChunkFallback />}>
+              <AdminLogs />
+            </Suspense>
           </main>
         </>
       );
@@ -218,7 +228,9 @@ export default function App() {
         {onlineBanner}
         <Navbar />
         <main className="bg-black min-h-screen pt-20">
-          <AdminOrders />
+          <Suspense fallback={<AdminChunkFallback />}>
+            <AdminOrders />
+          </Suspense>
         </main>
       </>
     );

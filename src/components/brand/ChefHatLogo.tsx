@@ -5,10 +5,12 @@ type ChefHatLogoProps = {
   alt?: string;
 };
 
+const WEBP_SRC = "/logo/chef-hat-stroke.webp";
+const PNG_SRC = "/logo/chef-hat-stroke.png";
+
 export default function ChefHatLogo({ className, alt = "Padrino" }: ChefHatLogoProps) {
   const [imgOk, setImgOk] = useState(true);
-
-  const src = "/logo/chef-hat-stroke.png";
+  const [src, setSrc] = useState<string>(WEBP_SRC);
 
   if (!imgOk) {
     return (
@@ -42,7 +44,15 @@ export default function ChefHatLogo({ className, alt = "Padrino" }: ChefHatLogoP
         alt={alt}
         draggable={false}
         decoding="async"
-        onError={() => setImgOk(false)}
+        onError={() => {
+          // 1) Ako webp ne postoji / fail-uje → probaj png
+          if (src === WEBP_SRC) {
+            setSrc(PNG_SRC);
+            return;
+          }
+          // 2) Ako i png fail-uje → tekst fallback
+          setImgOk(false);
+        }}
         className={[
           // ✅ manje uvećanje da stane ceo znak
           "h-[170px] w-auto object-contain",
