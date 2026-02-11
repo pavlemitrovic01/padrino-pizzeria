@@ -23,14 +23,37 @@ export default function Delivery() {
   ];
 
   return (
-    <section id="delivery" className="relative py-24 md:py-32">
-      <div className="mx-auto max-w-6xl px-6">
+    <section
+      id="delivery"
+      className="relative overflow-hidden bg-black py-24 md:py-32"
+    >
+      {/* BACKGROUND (final) */}
+      <div className="absolute inset-0">
+        <img
+          src="/sections/delivery.webp"
+          alt="Dostava Padrino"
+          className="h-full w-full object-cover object-center"
+          draggable={false}
+          loading="lazy"
+        />
+
+        {/* cinematic overlays (match About/Hero language) */}
+        <div className="absolute inset-0 bg-black/35" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-black/70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.10),transparent_50%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_160px_rgba(0,0,0,0.88)]" />
+
+        {/* SEAMLESS GLOW (top/bottom) */}
+        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.12),transparent_60%)] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_62%)] blur-3xl" />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-6xl px-6">
         {/* Header */}
         <div className="mb-16 text-center">
           <div className="p-kicker mb-4">Dostava</div>
-          <h2 className="p-title text-4xl md:text-5xl">
-            Brzo. Vruće. Pouzdano.
-          </h2>
+          <h2 className="p-title text-4xl md:text-5xl">Brzo. Vruće. Pouzdano.</h2>
           <p className="mt-4 text-white/65 max-w-xl mx-auto">
             Svaka narudžba se priprema svježe i stiže na vaša vrata u rekordnom
             roku — jer kvalitet ne trpi čekanje.
@@ -77,9 +100,7 @@ export default function Delivery() {
               </h3>
 
               {/* Text */}
-              <p className="text-white/65 leading-relaxed">
-                {item.text}
-              </p>
+              <p className="text-white/65 leading-relaxed">{item.text}</p>
             </motion.div>
           ))}
         </div>
@@ -97,9 +118,7 @@ export default function Delivery() {
             <div className="mt-4 text-xs tracking-[0.22em] uppercase text-white/50">
               Napomena
             </div>
-            <div className="text-white/70 mt-1">
-              Pozvati prije dolaska (ako treba)
-            </div>
+            <div className="text-white/70 mt-1">Pozvati prije dolaska (ako treba)</div>
           </div>
         </div>
       </div>

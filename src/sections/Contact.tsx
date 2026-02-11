@@ -38,11 +38,27 @@ function Contact() {
 
   return (
     <section id="contact" className="relative overflow-hidden bg-black text-white">
-      {/* ambience (same language as Hero/About/Delivery/Footer) */}
+      {/* BACKGROUND (final) + ambience (same language as Hero/About/Delivery/Footer) */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/70 to-black" />
+        <img
+          src="/sections/contact.webp"
+          alt="Kontakt Padrino"
+          className="h-full w-full object-cover object-center"
+          draggable={false}
+          loading="lazy"
+        />
+
+        {/* cinematic overlays */}
+        <div className="absolute inset-0 bg-black/25" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black via-black/65 to-black" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-black/70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.10),transparent_50%)]" />
         <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(0,0,0,0.88)]" />
+
+        {/* SEAMLESS GLOW (top/bottom) */}
+        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.12),transparent_60%)] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_62%)] blur-3xl" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6 py-28 md:py-32">
@@ -73,7 +89,8 @@ function Contact() {
                     </div>
 
                     <div className="mt-2 text-sm text-white/60">
-                      Radno vrijeme: <span className="text-white/80 font-semibold">{HOURS}</span>
+                      Radno vrijeme:{" "}
+                      <span className="text-white/80 font-semibold">{HOURS}</span>
                     </div>
                   </div>
 

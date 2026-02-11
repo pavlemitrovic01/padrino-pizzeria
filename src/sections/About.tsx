@@ -8,11 +8,10 @@ const GOOGLE_REVIEWS_URL =
 export default function About() {
   /**
    * BACKGROUND IMAGE (robustan fallback)
-   * U projektu trenutno postoji: public/about/storefront.webp
-   * Zato WEBP mora biti prvi kandidat, ostalo su opcioni fallback-i.
    */
   const candidates = useMemo(
     () => [
+      "/sections/about.webp",
       "/about/storefront.webp",
       "/about/storefront.png",
       "/about/storefront.jpg",
@@ -32,10 +31,6 @@ export default function About() {
   const [imgIdx, setImgIdx] = useState(0);
   const bgSrc = candidates[Math.min(imgIdx, candidates.length - 1)];
 
-  /**
-   * DESKTOP: “Figma feeling” px kontrola
-   * (ne diramo layout — samo mobile glow u overlayu)
-   */
   const POS = {
     titleTop: 36,
 
@@ -58,18 +53,26 @@ export default function About() {
           onError={() => setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
         />
 
-        {/* cinematic overlays (match theme: black + soft gold) */}
-        {/* #3 FIX: MOBILE slabije, DESKTOP isto (sm+ vraća jače vrijednosti) */}
-        <div className="absolute inset-0 bg-black/25 sm:bg-black/40" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/15 to-black/60 sm:from-black/75 sm:via-black/25 sm:to-black/75" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10 sm:from-black/65 sm:to-black/15" />
+        {/* cinematic overlays (SVETLIJE dodatnih ~10–15%) */}
+        {/* main veil */}
+        <div className="absolute inset-0 bg-black/12 sm:bg-black/26" />
 
-        {/* Radial glow: mobile slabiji, sm+ ostaje kao pre */}
-        <div className="absolute inset-0 sm:hidden bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.04),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.06),transparent_50%)]" />
-        <div className="absolute inset-0 hidden sm:block bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.10),transparent_50%)]" />
+        {/* side vignette gradients */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-black/45 sm:from-black/60 sm:via-black/18 sm:to-black/60" />
 
-        {/* Vinjeta: mobile blaža, desktop ostaje ista */}
-        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.74)] sm:shadow-[inset_0_0_160px_rgba(0,0,0,0.88)]" />
+        {/* top/bottom readability gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/42 via-transparent to-black/06 sm:from-black/52 sm:to-black/10" />
+
+        {/* Radial glow */}
+        <div className="absolute inset-0 sm:hidden bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 hidden sm:block bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.12),transparent_50%)]" />
+
+        {/* Vignette — malo blaža */}
+        <div className="absolute inset-0 shadow-[inset_0_0_95px_rgba(0,0,0,0.62)] sm:shadow-[inset_0_0_135px_rgba(0,0,0,0.78)]" />
+
+        {/* SEAMLESS GLOW (top/bottom) */}
+        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.11),transparent_60%)] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_62%)] blur-3xl" />
       </div>
 
       {/* STAGE */}
@@ -290,7 +293,6 @@ export default function About() {
           <div className="mx-auto max-w-xl space-y-6">
             <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noreferrer" className="block">
               <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">
-                {/* mobile: slabiji glow blobovi */}
                 <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-white/4 blur-3xl" />
                 <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-[#f2b400]/6 blur-3xl" />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/25" />
@@ -310,7 +312,6 @@ export default function About() {
             </a>
 
             <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/45 backdrop-blur-md p-6 shadow-[0_30px_120px_rgba(0,0,0,0.70)]">
-              {/* mobile: slabiji glow blobovi */}
               <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#f2b400]/6 blur-3xl" />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/30" />
 
@@ -339,7 +340,6 @@ export default function About() {
             </div>
 
             <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/45 backdrop-blur-md p-6 shadow-[0_30px_120px_rgba(0,0,0,0.70)]">
-              {/* mobile: slabiji glow blobovi */}
               <div className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-white/4 blur-3xl" />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/30" />
 
