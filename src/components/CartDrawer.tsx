@@ -126,12 +126,6 @@ const NAME_TO_FILE: Record<string, string> = {
   "don pesto": "pesto.webp",
   "don pamidoro": "pomodoro.webp",
 
-  // pica (primeri; dodaj po potrebi)
-  "coca cola": "coca-cola.webp",
-  "coca-cola": "coca-cola.webp",
-  "coca zero": "coca-zero.webp",
-  "coca-zero": "coca-zero.webp",
-
   // sosevi
   "garlik": "garlik.webp",
   "kecap": "kecap.webp",
@@ -147,6 +141,13 @@ const NAME_TO_FILE: Record<string, string> = {
   "ivice punjene sirom": "rub.webp",
   "ivice punjene sir": "rub.webp",
   "punjene ivice sirom": "rub.webp",
+
+  // pića (ako dodaš fajlove u public/menu, samo mapiraj ovdje)
+  // "coca cola": "coca-cola.webp",
+  // "coca zero": "coca-zero.webp",
+  // "fanta": "fanta.webp",
+  // "sprite": "sprite.webp",
+  // "voda": "voda.webp",
 };
 
 function buildFileCandidatesFromFilename(file: string): string[] {
@@ -251,9 +252,19 @@ function SmartCartImage(props: { image?: string | null; name: string; alt: strin
   );
 }
 
+/**
+ * ✅ FIX: fallback slika da PIĆA (i sve bez slike) uvijek pokažu makar nešto
+ * Ako nema match u public/menu, prikazaće /menu/padrino.png
+ */
 function SmartMiniAddonImage(props: { name: string; className?: string }) {
   const [idx, setIdx] = useState(0);
-  const candidates = useMemo(() => buildImageCandidates(null, props.name), [props.name]);
+
+  const candidates = useMemo(() => {
+    const fromName = buildImageCandidates(null, props.name);
+    const uniq = new Set<string>(fromName);
+    uniq.add("/menu/padrino.png");
+    return [...uniq];
+  }, [props.name]);
 
   useEffect(() => setIdx(0), [props.name]);
 
@@ -292,6 +303,7 @@ export default function CartDrawer() {
   } = useCart();
 
   const [view, setView] = useState<DrawerView>("cart");
+
   const [addonsCatalog, setAddonsCatalog] = useState<
     { id: string; name: string; price: number; imageKey: string }[]
   >([]);
@@ -387,7 +399,7 @@ export default function CartDrawer() {
             imageKey: r.name,
           }));
 
-        // Drinks (pića) — dostupno samo u korpi (ne u meniju)
+        // Drinks (pića) — dostupno samo u korpi
         const drinkRows = rows.filter((r) => isDrinkCategory(r.category ?? ""));
         const nextDrinks = drinkRows.map((r) => ({
           id: r.id,
@@ -833,7 +845,8 @@ export default function CartDrawer() {
                                         name: d.name,
                                         price: d.price,
                                         image:
-                                          buildImageCandidates(null, d.imageKey)[0] ?? "/menu/padrino.png",
+                                          buildImageCandidates(null, d.imageKey)[0] ??
+                                          "/menu/padrino.png",
                                         description: "",
                                         category: d.category,
                                         quantity: 1,
@@ -858,6 +871,7 @@ export default function CartDrawer() {
                       </div>
                     ) : null}
 
+                    {/* Ostatak korpe */}
                     {items.map((item) => {
                       const isDrink = isDrinkCategory((item as any).category ?? "");
                       const baseKey = (item as any).baseKey ?? item.name;
