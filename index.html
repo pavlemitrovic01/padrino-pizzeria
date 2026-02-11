@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- ✅ LCP: preload hero background (najveći win bez promene dizajna) -->
+    <link rel="preload" as="image" href="/sections/hero.webp" fetchpriority="high" />
+
     <!-- PRIMARY SEO -->
     <title>Padrino Pizzeria Budva · Premium Pizza Delivery</title>
     <meta
@@ -51,7 +54,8 @@
       property="og:description"
       content="Autentična pizza iz naših srca. Premium sastojci, brza dostava i savršen ukus."
     />
-    <meta property="og:image" content="/about/storefront.jpg" />
+    <!-- ✅ storefront.jpg je obrisan → koristimo postojeći webp -->
+    <meta property="og:image" content="/sections/about.webp" />
     <meta property="og:url" content="https://padrino-pizzeria.vercel.app/" />
 
     <!-- TWITTER / X -->
@@ -61,7 +65,8 @@
       name="twitter:description"
       content="Autentična pizza iz naših srca. Premium sastojci, brza dostava i savršen ukus."
     />
-    <meta name="twitter:image" content="/about/storefront.jpg" />
+    <!-- ✅ storefront.jpg je obrisan → koristimo postojeći webp -->
+    <meta name="twitter:image" content="/sections/about.webp" />
 
     <!-- FAVICON -->
     <link rel="icon" type="image/png" href="/favicon.png" />
