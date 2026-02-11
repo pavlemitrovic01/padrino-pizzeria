@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { supabase } from "../lib/supabaseClient";
 import { useCart } from "../context/useCart";
 import ChefHatLogo from "./brand/ChefHatLogo";
 
@@ -32,6 +31,7 @@ export default function Navbar() {
   const [hasSession, setHasSession] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // ✅ Supabase se učitava dinamički samo ako smo na admin rutama
   useEffect(() => {
     const path = normalizePath();
     const admin =
@@ -45,20 +45,36 @@ export default function Navbar() {
 
     if (!admin) return;
 
-    supabase.auth.getSession().then(({ data }) => {
-      setHasSession(!!data?.session);
-    });
+    let unsub: (() => void) | null = null;
+    let cancelled = false;
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_evt, session) => {
-      setHasSession(!!session);
-    });
+    (async () => {
+      try {
+        const { supabase } = await import("../lib/supabaseClient");
+        const { data } = await supabase.auth.getSession();
+        if (cancelled) return;
+        setHasSession(!!data?.session);
+
+        const { data: listener } = supabase.auth.onAuthStateChange((_evt, session) => {
+          if (cancelled) return;
+          setHasSession(!!session);
+        });
+
+        unsub = () => {
+          listener?.subscription.unsubscribe();
+        };
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("[Padrino] Navbar admin session check failed:", e);
+      }
+    })();
 
     return () => {
-      listener?.subscription.unsubscribe();
+      cancelled = true;
+      unsub?.();
     };
   }, []);
 
-  // zaključavamo: id-evi su oni koje već koristiš po sekcijama
   const links = useMemo(
     () => [
       { id: "delivery", label: "Dostava" },
@@ -69,8 +85,12 @@ export default function Navbar() {
   );
 
   async function handleLogout() {
-    await supabase.auth.signOut();
-    window.location.href = "/admin/login";
+    try {
+      const { supabase } = await import("../lib/supabaseClient");
+      await supabase.auth.signOut();
+    } finally {
+      window.location.href = "/admin/login";
+    }
   }
 
   function onClickLink(id: string) {
@@ -102,7 +122,6 @@ export default function Navbar() {
     return () => window.clearTimeout(t);
   }, []);
 
-  // lock scroll kad je mobile menu otvoren
   useEffect(() => {
     if (!mobileOpen) return;
     const prev = document.body.style.overflow;
@@ -114,11 +133,9 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40">
-      {/* top bar glass */}
       <div className="border-b border-white/10 bg-black/55 backdrop-blur-md">
         <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
           <div className="h-16 flex items-center gap-3">
-            {/* logo */}
             <a
               href="/"
               onClick={onLogoClick}
@@ -128,7 +145,6 @@ export default function Navbar() {
               <ChefHatLogo />
             </a>
 
-            {/* desktop nav */}
             <nav className="hidden md:flex items-center gap-1 ml-6">
               {!isAdminRoute &&
                 links.map((l) => (
@@ -148,7 +164,6 @@ export default function Navbar() {
             </nav>
 
             <div className="ml-auto flex items-center gap-2">
-              {/* admin logout (desktop+mobile) */}
               {isAdminRoute && hasSession ? (
                 <button
                   type="button"
@@ -159,7 +174,6 @@ export default function Navbar() {
                 </button>
               ) : null}
 
-              {/* cart (desktop) */}
               {!isAdminRoute ? (
                 <button
                   type="button"
@@ -176,7 +190,6 @@ export default function Navbar() {
                 </button>
               ) : null}
 
-              {/* mobile actions */}
               <div className="md:hidden flex items-center gap-2">
                 {!isAdminRoute ? (
                   <button
@@ -218,7 +231,6 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* mobile menu overlay */}
       {mobileOpen && !isAdminRoute ? (
         <>
           <button

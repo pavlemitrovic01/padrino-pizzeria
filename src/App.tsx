@@ -13,8 +13,6 @@ import About from "./sections/About";
 import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
 
-import { supabase } from "./lib/supabaseClient";
-
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
 // ✅ Minimalno i stabilno: admin = allowlist email-a (magic link + email check)
@@ -97,48 +95,64 @@ export default function App() {
     };
   }, []);
 
+  // ✅ VAŽNO: Supabase se sada učitava dinamički SAMO kad smo na admin rutama
   useEffect(() => {
     if (!needsAdminGuard) return;
 
     let mounted = true;
+    let unsubscribe: (() => void) | null = null;
 
     async function checkSession() {
       setGuardState("loading");
       setChecking(true);
 
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
+      try {
+        const { supabase } = await import("./lib/supabaseClient");
 
-      const session = data?.session ?? null;
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
 
-      if (!session || !session.user) {
+        const session = data?.session ?? null;
+
+        if (!session || !session.user) {
+          setGuardState("unauthenticated");
+          setChecking(false);
+          return;
+        }
+
+        setGuardState(isAdminSession(session) ? "admin" : "not-admin");
+        setChecking(false);
+
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+          if (!mounted) return;
+
+          if (!nextSession || !nextSession.user) {
+            setGuardState("unauthenticated");
+            setChecking(false);
+            return;
+          }
+
+          setGuardState(isAdminSession(nextSession) ? "admin" : "not-admin");
+          setChecking(false);
+        });
+
+        unsubscribe = () => {
+          listener?.subscription.unsubscribe();
+        };
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("[Padrino] Admin guard failed to load Supabase:", e);
+        if (!mounted) return;
         setGuardState("unauthenticated");
         setChecking(false);
-        return;
       }
-
-      setGuardState(isAdminSession(session) ? "admin" : "not-admin");
-      setChecking(false);
     }
 
     void checkSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-
-      if (!session || !session.user) {
-        setGuardState("unauthenticated");
-        setChecking(false);
-        return;
-      }
-
-      setGuardState(isAdminSession(session) ? "admin" : "not-admin");
-      setChecking(false);
-    });
-
     return () => {
       mounted = false;
-      listener?.subscription.unsubscribe();
+      unsubscribe?.();
     };
   }, [needsAdminGuard]);
 
@@ -236,19 +250,15 @@ export default function App() {
     );
   }
 
-  // ✅ Public sajt: one-page layout BEZ Checkout sekcije (checkout je sad u korpi)
   return (
     <>
       {onlineBanner}
       <Navbar />
       <main className="bg-black">
         <Hero />
-
-        {/* ✅ FIX: Navbar/Hero linkuju na #menu, pa ovo mora postojati */}
         <section id="menu">
           <Menu />
         </section>
-
         <Delivery />
         <About />
         <Contact />
