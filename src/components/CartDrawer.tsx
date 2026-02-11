@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabaseClient.ts";
 import { useCart } from "../context/useCart";
 import type { CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
@@ -83,10 +83,6 @@ function isSauceItemName(name: string) {
   return keywords.some((k) => n.includes(normalizeText(k)));
 }
 
-function getPerItemAddonsTotal(addons: CartAddon[]) {
-  return addons.reduce((sum, a) => sum + a.price * (a.quantity ?? 1), 0);
-}
-
 function parsePizzaSizeFromName(name: string): PizzaSize | null {
   const t = normalizeText(name);
   if (/\b50\s*cm\b/.test(t)) return "50";
@@ -119,7 +115,6 @@ function stripSizeFromAnyName(name: string) {
     .trim();
 }
 
-// ✅ tvoje realne slike u public/menu
 const NAME_TO_FILE: Record<string, string> = {
   // pizze / izuzeci
   "quattro formaggi": "quattro.webp",
@@ -160,7 +155,7 @@ const NAME_TO_FILE: Record<string, string> = {
   "knjaz miloš": "knjaz.webp",
   "montenegro": "montenegro.webp",
 
-  // FIX: brend + ukus (Bravo ...)
+  // spec slučajevi (brend + ukus)
   "bravo jabuka": "jabuka.webp",
   "bravo narandza": "narandza.webp",
   "bravo naranđa": "narandza.webp",
@@ -264,7 +259,6 @@ function buildImageCandidates(image: string | null | undefined, name: string): s
 
   for (const c of buildFileCandidatesFromName(name)) uniq.add(c);
 
-  // sigurni fallback
   uniq.add("/menu/padrino.webp");
   uniq.add("/menu/padrino.png");
 
@@ -334,15 +328,15 @@ export default function CartDrawer() {
     items,
     closeCart,
     removeFromCart,
-    increaseQty,
-    decreaseQty,
+    increase,
+    decrease,
+    changeSize,
     addAddonToItem,
     removeAddonFromItem,
     increaseAddonQuantity,
     decreaseAddonQuantity,
     clearCart,
     setItemNote,
-    setItemSize,
     addToCart,
   } = useCart();
 
@@ -370,9 +364,19 @@ export default function CartDrawer() {
   >([]);
 
   const [openSaucesForItemId, setOpenSaucesForItemId] = useState<string | null>(null);
-  const [openDrinks, setOpenDrinks] = useState(false);
+  const [openDrinksForItemId, setOpenDrinksForItemId] = useState<string | null>(null);
 
   const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] = useState<PizzaVariantsMap>({});
+
+  const drinksScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const setPizzaSizeSafe = (itemId: string, itemName: string, nextSize: PizzaSize) => {
+    const baseKey = stripPizzaSizeFromName(itemName);
+    const variants = pizzaVariantsByBaseKey[baseKey];
+    const next = variants?.[nextSize];
+    if (!next) return;
+    changeSize(itemId, nextSize, next);
+  };
 
   const totalItems = useMemo(() => {
     return items.reduce((sum, it) => sum + (it.quantity ?? 0), 0);
@@ -385,8 +389,8 @@ export default function CartDrawer() {
       const qty = it.quantity ?? 0;
       if (qty <= 0) continue;
 
-      const isDrink = isDrinkCategory(it.category ?? "");
-      const addons = isDrink ? [] : (it.addons ?? []);
+      const drink = isDrinkCategory(it.category ?? "");
+      const addons = drink ? [] : (it.addons ?? []);
       const addonsTotalCents = addons.reduce(
         (s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1),
         0
@@ -415,6 +419,47 @@ export default function CartDrawer() {
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const restoreDrinksScroll = (top: number) => {
+    requestAnimationFrame(() => {
+      const el1 = drinksScrollRef.current;
+      if (!el1) return;
+      el1.scrollTop = top;
+
+      requestAnimationFrame(() => {
+        const el2 = drinksScrollRef.current;
+        if (!el2) return;
+        el2.scrollTop = top;
+      });
+    });
+  };
+
+  const addDrinkToCart = (d: {
+    id: string;
+    name: string;
+    price: number;
+    imageKey: string;
+    category: string;
+  }) => {
+    const el = drinksScrollRef.current;
+    const top = el?.scrollTop ?? 0;
+
+    // NOTE: addToCart signature varies across versions; we keep it minimal.
+    addToCart({
+      id: `${d.id}-${Date.now()}`,
+      name: d.name,
+      price: d.price,
+      image: buildImageCandidates(null, d.imageKey)[0] ?? "/menu/padrino.webp",
+      description: "",
+      category: d.category,
+      quantity: 1,
+      size: null,
+      baseKey: d.name,
+      menuItemId: d.id,
+    });
+
+    restoreDrinksScroll(top);
+  };
+
   useEffect(() => {
     if (!isOpen) {
       setView("cart");
@@ -422,7 +467,7 @@ export default function CartDrawer() {
       setSubmitError(null);
       setSuccessOrderId(null);
       setOpenSaucesForItemId(null);
-      setOpenDrinks(false);
+      setOpenDrinksForItemId(null);
     }
   }, [isOpen]);
 
@@ -440,7 +485,7 @@ export default function CartDrawer() {
 
         const rows = ((data ?? []) as MenuItemData[]).filter(hasEurPrice);
 
-        // Pizza variants (33/50) map by base name
+        // Pizza variants (33/50)
         const nextPizzaVariants: PizzaVariantsMap = {};
         for (const r of rows) {
           if (!isPizzaRow(r)) continue;
@@ -486,7 +531,7 @@ export default function CartDrawer() {
             imageKey: r.name,
           }));
 
-        // Drinks (pića) — dostupno samo u korpi
+        // Drinks
         const drinkRows = rows.filter((r) => isDrinkCategory(r.category ?? ""));
         const nextDrinks = drinkRows.map((r) => ({
           id: r.id,
@@ -504,7 +549,7 @@ export default function CartDrawer() {
         setAddonsCatalog([]);
         setSaucesCatalog([]);
         setDrinksCatalog([]);
-        setOpenDrinks(false);
+        setOpenDrinksForItemId(null);
         setPizzaVariantsByBaseKey({});
       }
     }
@@ -531,8 +576,8 @@ export default function CartDrawer() {
         total_items: totalItems,
         note: orderNote.trim() || null,
         items: items.map((it) => {
-          const isDrink = isDrinkCategory(it.category ?? "");
-          const addons = isDrink ? [] : (it.addons ?? []);
+          const drink = isDrinkCategory(it.category ?? "");
+          const addons = drink ? [] : (it.addons ?? []);
 
           const addonsTotal = addons.reduce(
             (s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1),
@@ -609,9 +654,9 @@ export default function CartDrawer() {
           exit={{ x: 60 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
         >
-          <div className="relative h-full">
+          <div className="relative h-full flex flex-col">
             {/* Header */}
-            <div className="sticky top-0 z-10 border-b border-white/10 bg-black/30 px-4 sm:px-5">
+            <div className="border-b border-white/10 bg-black/30 px-4 sm:px-5">
               <div className="flex items-center justify-between py-4">
                 <div className="min-w-0">
                   <div className="p-eyebrow">KORPA</div>
@@ -645,7 +690,16 @@ export default function CartDrawer() {
               </div>
             </div>
 
-            <div className="relative h-[calc(100%-78px)] overflow-y-auto px-4 sm:px-5 pb-[210px]">
+            {/* Scrollable content */}
+            <div
+              className="flex-1 overflow-y-auto px-4 sm:px-5"
+              style={{
+                paddingBottom:
+                  view === "cart" && canSubmit
+                    ? "calc(120px + env(safe-area-inset-bottom))"
+                    : "16px",
+              }}
+            >
               {view === "success" ? (
                 <div className="mt-5 p-glass p-5 p-glass-hover">
                   <p className="text-white font-extrabold text-lg">Porudžbina je poslata ✅</p>
@@ -757,11 +811,19 @@ export default function CartDrawer() {
                   ) : (
                     <div className="space-y-3">
                       {items.map((item) => {
-                        const hideAddons = isDrinkCategory(item.category ?? "");
-                        const lineTotal =
-                          (toSafeInt(item.basePrice, toSafeInt(item.price, 0)) +
-                            (hideAddons ? 0 : toSafeInt(getPerItemAddonsTotal(item.addons ?? []) * 100, 0))) *
-                          (item.quantity ?? 1);
+                        const isDrink = isDrinkCategory(item.category ?? "");
+                        const hideAddons = isDrink;
+
+                        const addonsTotalCents = hideAddons
+                          ? 0
+                          : (item.addons ?? []).reduce(
+                              (s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1),
+                              0
+                            );
+
+                        const baseCents = toSafeInt(item.basePrice, toSafeInt(item.price, 0));
+                        const perItemCents = baseCents + addonsTotalCents;
+                        const lineTotal = perItemCents * (item.quantity ?? 1);
 
                         return (
                           <div key={item.id} className="p-glass p-4 p-glass-hover">
@@ -772,9 +834,10 @@ export default function CartDrawer() {
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="truncate text-white font-extrabold">{item.name}</div>
-                                    <div className="mt-1 text-sm text-white/70">
-                                      {formatEUR(lineTotal)}
-                                    </div>
+                                    <div className="mt-1 text-sm text-white/70">{formatEUR(lineTotal)}</div>
+                                    {isDrink ? (
+                                      <div className="mt-1 text-[11px] text-white/45">Piće</div>
+                                    ) : null}
                                   </div>
 
                                   <button
@@ -790,7 +853,7 @@ export default function CartDrawer() {
                                   <div className="flex items-center gap-2">
                                     <button
                                       type="button"
-                                      onClick={() => decreaseQty(item.id)}
+                                      onClick={() => decrease(item.id)}
                                       className="p-btn-ghost h-9 w-9 text-sm font-extrabold"
                                     >
                                       –
@@ -800,7 +863,7 @@ export default function CartDrawer() {
                                     </div>
                                     <button
                                       type="button"
-                                      onClick={() => increaseQty(item.id)}
+                                      onClick={() => increase(item.id)}
                                       className="p-btn-ghost h-9 w-9 text-sm font-extrabold"
                                     >
                                       +
@@ -811,7 +874,7 @@ export default function CartDrawer() {
                                     <div className="flex items-center gap-2">
                                       <button
                                         type="button"
-                                        onClick={() => setItemSize(item.id, "33")}
+                                        onClick={() => setPizzaSizeSafe(item.id, item.name, "33")}
                                         className={
                                           item.size === "33"
                                             ? "p-btn-gold h-9 px-3 text-xs font-extrabold"
@@ -822,7 +885,7 @@ export default function CartDrawer() {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => setItemSize(item.id, "50")}
+                                        onClick={() => setPizzaSizeSafe(item.id, item.name, "50")}
                                         className={
                                           item.size === "50"
                                             ? "p-btn-gold h-9 px-3 text-xs font-extrabold"
@@ -846,6 +909,7 @@ export default function CartDrawer() {
 
                                 {!hideAddons ? (
                                   <>
+                                    {/* Addons already on item */}
                                     {item.addons?.length ? (
                                       <div className="mt-3 space-y-2">
                                         {item.addons.map((a: CartAddon) => (
@@ -893,6 +957,7 @@ export default function CartDrawer() {
                                       </div>
                                     ) : null}
 
+                                    {/* Addons catalog */}
                                     {addonsCatalog.length > 0 ? (
                                       <div className="mt-4">
                                         <div className="p-eyebrow">DODACI</div>
@@ -921,7 +986,6 @@ export default function CartDrawer() {
                                                     id: a.id,
                                                     name: a.name,
                                                     price: a.price,
-                                                    quantity: 1,
                                                   })
                                                 }
                                                 className="p-btn-ghost h-9 px-3 text-xs font-extrabold"
@@ -934,6 +998,7 @@ export default function CartDrawer() {
                                       </div>
                                     ) : null}
 
+                                    {/* Sauces */}
                                     {saucesCatalog.length > 0 ? (
                                       <div className="mt-4">
                                         <div className="flex items-center justify-between gap-3">
@@ -979,10 +1044,74 @@ export default function CartDrawer() {
                                                       id: s.id,
                                                       name: s.name,
                                                       price: s.price,
-                                                      quantity: 1,
                                                     })
                                                   }
                                                   className="p-btn-ghost h-9 px-3 text-xs font-extrabold"
+                                                >
+                                                  Dodaj
+                                                </button>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+
+                                    {/* Drinks per item */}
+                                    {drinksCatalog.length > 0 ? (
+                                      <div className="mt-4">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <div className="min-w-0">
+                                            <div className="p-eyebrow">DODAJ</div>
+                                            <div className="mt-1 text-white/90 font-extrabold">Piće</div>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setOpenDrinksForItemId((v) => (v === item.id ? null : item.id))
+                                            }
+                                            className="p-btn-ghost h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                                          >
+                                            {openDrinksForItemId === item.id ? "Zatvori" : "Dodaj piće"}
+                                          </button>
+                                        </div>
+
+                                        {openDrinksForItemId === item.id ? (
+                                          <div
+                                            ref={drinksScrollRef}
+                                            className="mt-4 max-h-[50vh] overflow-y-auto overscroll-contain pr-1 touch-pan-y space-y-3"
+                                            style={{
+                                              WebkitOverflowScrolling: "touch",
+                                              overflowAnchor: "none",
+                                            }}
+                                          >
+                                            {drinksCatalog.map((d) => (
+                                              <div
+                                                key={d.id}
+                                                className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
+                                                style={{ overflowAnchor: "none" }}
+                                              >
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                  <SmartMiniAddonImage name={d.imageKey} />
+                                                  <div className="min-w-0">
+                                                    <div className="truncate text-sm font-extrabold text-white/90">
+                                                      {d.name}
+                                                    </div>
+                                                    <div className="text-xs text-white/55">
+                                                      {formatEUR(d.price)}
+                                                    </div>
+                                                  </div>
+                                                </div>
+
+                                                <button
+                                                  type="button"
+                                                  onMouseDown={(e) => e.preventDefault()}
+                                                  onClick={(e) => {
+                                                    (e.currentTarget as HTMLButtonElement).blur();
+                                                    addDrinkToCart(d);
+                                                  }}
+                                                  className="p-btn-gold h-10 px-4 text-sm"
                                                 >
                                                   Dodaj
                                                 </button>
@@ -1001,115 +1130,46 @@ export default function CartDrawer() {
                       })}
                     </div>
                   )}
+
+                  <div className="h-3" />
                 </div>
               ) : null}
             </div>
 
-            {/* Bottom bar */}
-            {view === "cart" && items.length > 0 ? (
-              <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 bg-black/40 backdrop-blur-xl px-4 sm:px-5 py-4">
-                {/* Drinks */}
-                {drinksCatalog.length > 0 ? (
+            {/* Locked footer */}
+            {view === "cart" && canSubmit ? (
+              <div
+                className="border-t border-white/10 bg-black/30 px-4 sm:px-5"
+                style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+              >
+                <div className="py-3">
                   <div className="p-glass p-4 p-glass-hover">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="p-eyebrow">DODAJ</div>
-                        <div className="mt-1 text-white/90 font-extrabold">Piće</div>
-                        <div className="mt-1 text-xs text-white/55">
-                          Sokovi i napici su dostupni samo u korpi.
+                        <div className="p-eyebrow">UKUPNO</div>
+                        <div className="mt-1 text-white/90 text-xl font-extrabold">
+                          {subtotalLabel}
                         </div>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => setOpenDrinks((v) => !v)}
-                        className="p-btn-ghost h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                        onClick={() => setView("checkout")}
+                        disabled={!canSubmit}
+                        className="p-btn-gold h-11 px-5 text-sm font-extrabold disabled:opacity-50"
                       >
-                        {openDrinks ? "Zatvori" : "Dodaj piće"}
+                        Poruči
                       </button>
-                    </div>
-
-                    {openDrinks ? (
-                      // ✅ SCROLL unutar liste pića (da ne moraš skrolovati cijelu korpu)
-                      <div
-                        className="mt-4 max-h-[50vh] overflow-y-auto overscroll-contain pr-1 touch-pan-y"
-                        style={{ WebkitOverflowScrolling: "touch" }}
-                      >
-                        <div className="grid grid-cols-1 gap-3">
-                          {drinksCatalog.map((d) => (
-                            <div
-                              key={d.id}
-                              className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <SmartMiniAddonImage name={d.imageKey} />
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-extrabold text-white/90">
-                                    {d.name}
-                                  </div>
-                                  <div className="text-xs text-white/55">{formatEUR(d.price)}</div>
-                                </div>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  addToCart(
-                                    {
-                                      id: d.id,
-                                      name: d.name,
-                                      price: d.price,
-                                      image:
-                                        buildImageCandidates(null, d.imageKey)[0] ?? "/menu/padrino.webp",
-                                      description: "",
-                                      category: d.category,
-                                      quantity: 1,
-                                      size: null,
-                                      baseKey: d.name,
-                                      menuItemId: d.id,
-                                      basePrice: d.price,
-                                      addons: [],
-                                      note: "",
-                                    },
-                                    { openCart: false }
-                                  )
-                                }
-                                className="p-btn-gold h-10 px-4 text-sm"
-                              >
-                                Dodaj
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="mt-4 p-glass p-4 p-glass-hover">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="p-eyebrow">UKUPNO</div>
-                      <div className="mt-1 text-white/90 text-xl font-extrabold">{subtotalLabel}</div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => setView("checkout")}
-                      disabled={!canSubmit}
-                      className="p-btn-gold h-11 px-5 text-sm font-extrabold disabled:opacity-50"
+                      onClick={handleGoToMenu}
+                      className="mt-3 p-btn-ghost h-11 w-full text-sm font-extrabold"
                     >
-                      Nastavi
+                      Nazad na meni
                     </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={handleGoToMenu}
-                    className="mt-3 p-btn-ghost h-11 w-full text-sm font-extrabold"
-                  >
-                    Nazad na meni
-                  </button>
                 </div>
               </div>
             ) : null}
