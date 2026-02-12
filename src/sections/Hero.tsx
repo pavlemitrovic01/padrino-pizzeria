@@ -16,7 +16,17 @@ export default function Hero() {
         <img
           src="/sections/hero.webp"
           alt="Padrino"
-          className="h-full w-full object-cover scale-105 opacity-60"
+          className={[
+            "h-full w-full",
+            "object-cover",
+            // ✅ FOCAL POINT: na mobile pomeramo kadar udesno da bude vizuelno bliže desktopu
+            // (desktop je “teži” desno – logo/scene)
+            "object-[72%_50%]",
+            "sm:object-[66%_50%]",
+            "md:object-[60%_50%]",
+            "lg:object-[58%_50%]",
+            "scale-105 opacity-60",
+          ].join(" ")}
           draggable={false}
           loading="eager"
           fetchPriority="high"
