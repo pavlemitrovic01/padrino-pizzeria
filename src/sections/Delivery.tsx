@@ -32,7 +32,14 @@ export default function Delivery() {
         <img
           src="/sections/delivery.webp"
           alt="Dostava Padrino"
-          className="h-full w-full object-cover object-center"
+          className={[
+            "h-full w-full object-cover",
+            // ✅ FOCAL POINT: mobile i desktop gledaju isti kadar (minimalna razlika u crop-u)
+            "object-[50%_40%]",
+            "sm:object-[50%_45%]",
+            "md:object-[50%_50%]",
+            "lg:object-[50%_50%]",
+          ].join(" ")}
           draggable={false}
           loading="lazy"
         />
