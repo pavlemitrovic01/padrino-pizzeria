@@ -2,23 +2,26 @@ import { useMemo, useState } from "react";
 
 const PHONE_DISPLAY = "+382/67-603-780";
 const PHONE_E164 = "+38267603780";
+
 const EMAIL = "padrinobudva@gmail.com";
 const ADDRESS_LINE = "Jadranski put BB (Kotorski Semafori)";
 const HOURS = "12–00";
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 
 const WHATSAPP_URL = "https://wa.me/38267603780";
-const VIBER_URL = "viber://chat?number=38267603780";
+// ✅ Viber: prazan chat, bez “share link” poruke (bitno: %2B)
+const VIBER_URL = "viber://chat?number=%2B38267603780";
 
 function Contact() {
   const [name, setName] = useState("");
   const [fromEmail, setFromEmail] = useState("");
   const [message, setMessage] = useState("");
-  const [sentHint, setSentHint] = useState<null | "ok">(null);
+  const [sentHint, setSentHint] = useState<null | "ok" | "copiedEmail" | "copiedForm">(null);
 
-  const mailtoHref = useMemo(() => {
-    const subject = `Padrino — Poruka sa sajta`;
-    const body = [
+  const formText = useMemo(() => {
+    return [
+      `Padrino — Poruka sa sajta`,
+      ``,
       `Ime: ${name || "-"}`,
       `Email: ${fromEmail || "-"}`,
       ``,
@@ -27,18 +30,50 @@ function Contact() {
       ``,
       `— Poslato sa Padrino sajta`,
     ].join("\n");
-
-    const qs = new URLSearchParams({
-      subject,
-      body,
-    });
-
-    return `mailto:${EMAIL}?${qs.toString()}`;
   }, [name, fromEmail, message]);
+
+  async function copyToClipboard(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fallback za starije browsere / permissions
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "true");
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+
+  async function onCopyEmail() {
+    const ok = await copyToClipboard(EMAIL);
+    if (ok) {
+      setSentHint("copiedEmail");
+      window.setTimeout(() => setSentHint(null), 1800);
+    }
+  }
+
+  async function onCopyForm() {
+    const ok = await copyToClipboard(formText);
+    if (ok) {
+      setSentHint("copiedForm");
+      window.setTimeout(() => setSentHint(null), 2200);
+    }
+  }
 
   return (
     <section id="contact" className="relative overflow-hidden bg-black text-white">
-      {/* BACKGROUND (final) + ambience */}
+      {/* BACKGROUND + ambience */}
       <div className="pointer-events-none absolute inset-0">
         <img
           src="/sections/contact.webp"
@@ -48,17 +83,17 @@ function Contact() {
           loading="lazy"
         />
 
-        {/* cinematic overlays (SVETLIJE ~10–15%) */}
-        <div className="absolute inset-0 bg-black/28" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/45 to-black/85" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/18 to-black/60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/14" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.12),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_130px_rgba(0,0,0,0.82)]" />
+        {/* ✅ prosvetljeno ~15% (smanjen black overlay i gradijenti) */}
+        <div className="absolute inset-0 bg-black/20" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/66 via-black/38 to-black/74" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/52 via-black/14 to-black/52" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/46 via-transparent to-black/10" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.10),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.14),transparent_50%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.78)]" />
 
-        {/* SEAMLESS GLOW (top/bottom) */}
-        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.12),transparent_60%)] blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_62%)] blur-3xl" />
+        {/* SEAMLESS GLOW */}
+        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.14),transparent_60%)] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.10),transparent_62%)] blur-3xl" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6 py-28 md:py-32">
@@ -146,21 +181,28 @@ function Contact() {
                     Otvori mape
                   </a>
 
-                  <a
-                    href={`mailto:${EMAIL}`}
+                  {/* ✅ umesto mailto: -> kopiraj email (nema Windows pop-up) */}
+                  <button
+                    type="button"
+                    onClick={onCopyEmail}
                     className="h-11 px-5 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition border border-white/10 flex items-center gap-2"
                   >
                     <span aria-hidden="true">✉️</span>
-                    Email
-                  </a>
+                    Kopiraj email
+                  </button>
                 </div>
+
+                {sentHint === "copiedEmail" ? (
+                  <div className="mt-3 text-xs text-white/65">
+                    Email je kopiran: <span className="text-white/85 font-semibold">{EMAIL}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
 
           {/* RIGHT — FORM */}
           <div className="rounded-[30px] border border-white/10 bg-black/25 backdrop-blur-md shadow-[0_28px_110px_rgba(0,0,0,0.70)] overflow-hidden">
-            {/* subtle top line */}
             <div className="h-px w-full bg-gradient-to-r from-transparent via-[#f2b400]/35 to-transparent" />
 
             <div className="p-6 sm:p-7">
@@ -173,7 +215,7 @@ function Contact() {
                     Pišite nam
                   </div>
                   <div className="mt-2 text-sm text-white/60">
-                    Forma otvara vaš email klijent sa spremnom porukom.
+                    Ne otvaramo mail aplikaciju — poruku kopirate i pošaljete iz Gmail-a/Outlook-a.
                   </div>
                 </div>
 
@@ -223,17 +265,19 @@ function Contact() {
                 </div>
 
                 <div className="pt-2">
-                  <a
-                    href={mailtoHref}
-                    onClick={() => setSentHint("ok")}
+                  {/* ✅ umesto mailto: -> kopiraj formu */}
+                  <button
+                    type="button"
+                    onClick={onCopyForm}
                     className="block w-full text-center rounded-full bg-[#f2b400] px-6 py-4 text-sm font-extrabold text-black hover:brightness-105 active:brightness-95 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
                   >
-                    Pošalji email
-                  </a>
+                    Kopiraj poruku
+                  </button>
 
-                  {sentHint === "ok" ? (
+                  {sentHint === "copiedForm" ? (
                     <div className="mt-3 rounded-2xl bg-white/5 border border-white/10 p-3 text-sm text-white/65">
-                      Otvoren je email klijent. Ako ste na telefonu, najbrže je WhatsApp/Viber.
+                      Poruka je kopirana. Zalijepite je u Gmail/Outlook i pošaljite na{" "}
+                      <span className="text-white/80 font-semibold">{EMAIL}</span>.
                     </div>
                   ) : null}
                 </div>
@@ -249,7 +293,6 @@ function Contact() {
           </div>
         </div>
 
-        {/* bottom micro detail */}
         <div className="mt-14 flex justify-center">
           <div className="h-px w-[240px] bg-gradient-to-r from-transparent via-[#f2b400]/25 to-transparent" />
         </div>
