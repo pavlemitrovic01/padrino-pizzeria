@@ -1,5 +1,3 @@
-import { motion } from "framer-motion";
-
 export default function Hero() {
   function openMenu() {
     // Otvara bubble meni (bez hash-a, bez auto-open na load)
@@ -21,6 +19,10 @@ export default function Hero() {
           className="h-full w-full object-cover scale-105 opacity-60"
           draggable={false}
           loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          width={1920}
+          height={1080}
           onError={(e) => {
             // fallback 1: ako hero.webp ne postoji
             const target = e.currentTarget as HTMLImageElement;
@@ -38,14 +40,23 @@ export default function Hero() {
           }}
         />
 
-        {/* Premium darkening + vignette */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-black/15" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_35%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_70%_25%,rgba(234,179,8,0.10),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.85)]" />
+        {/* Premium darkening + vignette (OPT: 3 layer-a -> 1 layer) */}
+        <div
+          className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.85)]"
+          style={{
+            backgroundImage: [
+              // from-black via-black/45 to-black/15 (to top)
+              "linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.45) 55%, rgba(0,0,0,0.15) 100%)",
+              // radial ambience
+              "radial-gradient(circle at 30% 35%, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 55%)",
+              "radial-gradient(circle at 70% 25%, rgba(234,179,8,0.10) 0%, rgba(234,179,8,0) 50%)",
+            ].join(", "),
+          }}
+        />
       </div>
 
       {/* Brand signature (zona 1) */}
-      <motion.div
+      <div
         className={[
           "pointer-events-none absolute z-10",
           "hidden md:block",
@@ -54,9 +65,6 @@ export default function Hero() {
           "max-w-[520px]",
           "text-right",
         ].join(" ")}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: "easeOut", delay: 0.15 }}
         aria-hidden="true"
       >
         <div
@@ -89,19 +97,16 @@ export default function Hero() {
 
           <div className="mt-3 h-px w-full bg-gradient-to-r from-transparent via-yellow-200/20 to-transparent" />
         </div>
-      </motion.div>
+      </div>
 
       {/* Content */}
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6">
         <div className="flex w-full items-center">
           {/* Left aligned on desktop, centered on mobile */}
           <div className="w-full md:w-auto md:max-w-lg">
-            <motion.button
+            <button
               type="button"
               onClick={openMenu}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, ease: "easeOut" }}
               className={[
                 "group inline-flex items-center justify-center gap-3",
                 "rounded-[22px] px-10 py-4",
@@ -137,7 +142,7 @@ export default function Hero() {
               >
                 <span className="text-xl leading-none translate-x-[1px]">›</span>
               </span>
-            </motion.button>
+            </button>
 
             {/* breathing room */}
             <div className="h-12" />
