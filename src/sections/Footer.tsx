@@ -32,6 +32,7 @@ function clearHash() {
 
 export default function Footer() {
   const [bgOk, setBgOk] = useState(true);
+  const [bgLoaded, setBgLoaded] = useState(false);
 
   const onGoHome = useCallback(() => {
     clearHash();
@@ -63,10 +64,17 @@ export default function Footer() {
           <img
             src="/sections/contact.webp"
             alt="Padrino ambience"
-            className="h-full w-full object-cover object-center"
+            className={[
+              "h-full w-full object-cover object-center",
+              bgLoaded ? "" : "hidden",
+            ].join(" ")}
             draggable={false}
             loading="lazy"
-            onError={() => setBgOk(false)}
+            onLoad={() => setBgLoaded(true)}
+            onError={() => {
+              setBgOk(false);
+              setBgLoaded(false);
+            }}
           />
         ) : null}
 
@@ -84,9 +92,7 @@ export default function Footer() {
           {/* Brand */}
           <div>
             {/* ✅ Logo potpuno uklonjen */}
-            <span className="text-xl font-extrabold tracking-wide">
-              Padrino
-            </span>
+            <span className="text-xl font-extrabold tracking-wide">Padrino</span>
 
             <p className="mt-6 max-w-sm text-white/65 leading-relaxed">
               Autentična porodična pizzeria u srcu Budve. Svaki zalogaj pravimo

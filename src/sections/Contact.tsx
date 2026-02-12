@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 const PHONE_DISPLAY = "+382/67-603-780";
 const PHONE_E164 = "+38267603780";
 
-
 const EMAIL = "padrinobudva@gmail.com";
 const ADDRESS_LINE = "Jadranski put BB (Kotorski Semafori)";
 const HOURS = "12–00";
@@ -61,7 +60,10 @@ function Contact() {
     }
   }
 
-  function flashHint(kind: "copiedEmail" | "copiedForm" | "copiedPhone", ms: number) {
+  function flashHint(
+    kind: "copiedEmail" | "copiedForm" | "copiedPhone",
+    ms: number
+  ) {
     setSentHint(kind);
     window.setTimeout(() => setSentHint(null), ms);
   }
@@ -114,7 +116,10 @@ function Contact() {
   }
 
   return (
-    <section id="contact" className="relative overflow-hidden bg-black text-white">
+    <section
+      id="contact"
+      className="relative overflow-hidden bg-black text-white scroll-mt-20"
+    >
       {/* BACKGROUND + ambience */}
       <div className="pointer-events-none absolute inset-0">
         <img
@@ -149,8 +154,8 @@ function Contact() {
             </h2>
 
             <p className="mt-6 max-w-xl text-white/65 leading-relaxed">
-              Ako imate pitanje, sugestiju ili želite narudžbu “na brzinu” — tu smo.
-              Najbrži put je poziv ili WhatsApp/Viber.
+              Ako imate pitanje, sugestiju ili želite narudžbu “na brzinu” — tu
+              smo. Najbrži put je poziv ili WhatsApp/Viber.
             </p>
 
             <div className="mt-10 grid gap-4">
@@ -167,7 +172,9 @@ function Contact() {
 
                     <div className="mt-2 text-sm text-white/60">
                       Radno vrijeme:{" "}
-                      <span className="text-white/80 font-semibold">{HOURS}</span>
+                      <span className="text-white/80 font-semibold">
+                        {HOURS}
+                      </span>
                     </div>
                   </div>
 
@@ -204,7 +211,9 @@ function Contact() {
                 {sentHint === "copiedPhone" ? (
                   <div className="mt-3 text-xs text-white/65">
                     Broj je kopiran:{" "}
-                    <span className="text-white/85 font-semibold">{PHONE_E164}</span>
+                    <span className="text-white/85 font-semibold">
+                      {PHONE_E164}
+                    </span>
                   </div>
                 ) : null}
               </div>
@@ -264,7 +273,8 @@ function Contact() {
                     Pišite nam
                   </div>
                   <div className="mt-2 text-sm text-white/60">
-                    Ne otvaramo mail aplikaciju — poruku kopirate i pošaljete iz Gmail-a/Outlook-a.
+                    Ne otvaramo mail aplikaciju — poruku kopirate i pošaljete iz
+                    Gmail-a/Outlook-a.
                   </div>
                 </div>
 
@@ -324,8 +334,12 @@ function Contact() {
 
                   {sentHint === "copiedForm" ? (
                     <div className="mt-3 rounded-2xl bg-white/5 border border-white/10 p-3 text-sm text-white/65">
-                      Poruka je kopirana. Zalijepite je u Gmail/Outlook i pošaljite na{" "}
-                      <span className="text-white/80 font-semibold">{EMAIL}</span>.
+                      Poruka je kopirana. Zalijepite je u Gmail/Outlook i
+                      pošaljite na{" "}
+                      <span className="text-white/80 font-semibold">
+                        {EMAIL}
+                      </span>
+                      .
                     </div>
                   ) : null}
                 </div>
@@ -334,7 +348,10 @@ function Contact() {
 
                 <div className="text-xs text-white/50 leading-relaxed">
                   Tip: Za narudžbe i brze izmjene — koristite{" "}
-                  <span className="text-white/70 font-semibold">WhatsApp/Viber</span>.
+                  <span className="text-white/70 font-semibold">
+                    WhatsApp/Viber
+                  </span>
+                  .
                 </div>
               </div>
             </div>

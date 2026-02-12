@@ -177,7 +177,7 @@ export default function About() {
   }, []);
 
   return (
-    <section id="o-nama" className="relative overflow-hidden bg-black">
+    <section id="o-nama" className="relative overflow-hidden bg-black scroll-mt-20">
       {/* BACKGROUND */}
       <div className="absolute inset-0">
         <img
@@ -486,4 +486,3 @@ export default function About() {
     </section>
   );
 }
-  
