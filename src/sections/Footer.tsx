@@ -3,9 +3,13 @@ import { useCallback, useState } from "react";
 const INSTAGRAM_URL = "https://www.instagram.com/padrino_budva/";
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 
+// phone
+const PHONE_E164 = "+38267603780";
+const PHONE_WA = "38267603780";
+
 // deep links (DIRECT CHAT)
-const WHATSAPP_URL = "https://wa.me/38267603780";
-const VIBER_URL = "viber://chat?number=38267603780";
+const WHATSAPP_URL = `https://wa.me/${PHONE_WA}`;
+const VIBER_DEEP_LINK = `viber://chat?number=%2B${PHONE_WA}`;
 
 function scrollToId(id: string) {
   const el = document.getElementById(id);
@@ -35,16 +39,26 @@ export default function Footer() {
   }, []);
 
   const onGoSection = useCallback((id: string) => {
-    // držimo hash čistim da nam ne “preusmerava” scroll logika
     window.history.replaceState(null, "", `/#${id}`);
     scrollToId(id);
+  }, []);
+
+  const onOpenViber = useCallback(() => {
+    try {
+      window.location.href = VIBER_DEEP_LINK;
+    } finally {
+      window.setTimeout(() => {
+        if (!document.hidden && navigator.clipboard?.writeText) {
+          navigator.clipboard.writeText(PHONE_E164).catch(() => {});
+        }
+      }, 800);
+    }
   }, []);
 
   return (
     <footer className="relative overflow-hidden bg-black text-white">
       {/* BACKGROUND + AMBIENCE */}
       <div className="pointer-events-none absolute inset-0">
-        {/* ✅ Background slika samo ako se uspešno učita (nema broken icon-a) */}
         {bgOk ? (
           <img
             src="/sections/contact.webp"
@@ -56,35 +70,27 @@ export default function Footer() {
           />
         ) : null}
 
-        {/* cinematic overlays */}
         <div className="absolute inset-0 bg-black/30" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/35 to-black/15" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-black/60" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_30%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_75%_20%,rgba(242,180,0,0.10),transparent_50%)]" />
         <div className="absolute inset-0 shadow-[inset_0_0_140px_rgba(0,0,0,0.80)]" />
 
-        {/* seamless glow (top) */}
         <div className="pointer-events-none absolute -top-28 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.10),transparent_60%)] blur-3xl" />
       </div>
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 py-20 md:py-24">
-        {/* Top */}
         <div className="grid gap-12 md:grid-cols-3 md:gap-10">
           {/* Brand */}
           <div>
-            <div className="flex items-center gap-3">
-              <img
-                src="/logo/chef-hat.png"
-                alt="Padrino"
-                className="h-10 w-10"
-                draggable={false}
-              />
-              <span className="text-xl font-extrabold tracking-wide">Padrino</span>
-            </div>
+            {/* ✅ Logo potpuno uklonjen */}
+            <span className="text-xl font-extrabold tracking-wide">
+              Padrino
+            </span>
 
             <p className="mt-6 max-w-sm text-white/65 leading-relaxed">
-              Autentična porodična pizzeria u srcu Budve. Svaki zalogaj pravimo sa
-              istom pažnjom kao prvog dana.
+              Autentična porodična pizzeria u srcu Budve. Svaki zalogaj pravimo
+              sa istom pažnjom kao prvog dana.
             </p>
           </div>
 
@@ -95,7 +101,6 @@ export default function Footer() {
             </div>
 
             <ul className="space-y-3 text-white/75">
-              {/* ✅ Početna ide na Hero/top (ne na delivery) */}
               <li>
                 <button
                   type="button"
@@ -106,8 +111,6 @@ export default function Footer() {
                 </button>
               </li>
 
-              {/* ✅ “Meni” više ne koristi #menu (koji ti je pravio problem).
-                  Najstabilnije: isti behavior kao “Početna” = vraća na top/hero. */}
               <li>
                 <button
                   type="button"
@@ -156,9 +159,13 @@ export default function Footer() {
                 WhatsApp
               </a>
 
-              <a href={VIBER_URL} className="block hover:text-white transition">
+              <button
+                type="button"
+                onClick={onOpenViber}
+                className="block hover:text-white transition text-left"
+              >
                 Viber
-              </a>
+              </button>
 
               <a
                 href={INSTAGRAM_URL}
@@ -181,10 +188,8 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Divider */}
         <div className="my-14 h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-        {/* Bottom */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/55">
           <div>© {new Date().getFullYear()} Padrino Pizzeria Budva</div>
           <div className="tracking-[0.22em] uppercase">Since 2021</div>
