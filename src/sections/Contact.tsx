@@ -9,14 +9,13 @@ const HOURS = "12–00";
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 
 const WHATSAPP_URL = "https://wa.me/38267603780";
-// ✅ Viber: prazan chat, bez “share link” poruke (bitno: %2B)
 const VIBER_URL = "viber://chat?number=%2B38267603780";
 
 function Contact() {
   const [name, setName] = useState("");
   const [fromEmail, setFromEmail] = useState("");
   const [message, setMessage] = useState("");
-  const [sentHint, setSentHint] = useState<null | "ok" | "copiedEmail" | "copiedForm">(null);
+  const [sentHint, setSentHint] = useState<null | "copiedEmail" | "copiedForm">(null);
 
   const formText = useMemo(() => {
     return [
@@ -37,7 +36,6 @@ function Contact() {
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      // fallback za starije browsere / permissions
       try {
         const ta = document.createElement("textarea");
         ta.value = text;
@@ -83,17 +81,17 @@ function Contact() {
           loading="lazy"
         />
 
-        {/* ✅ prosvetljeno ~15% (smanjen black overlay i gradijenti) */}
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/66 via-black/38 to-black/74" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/52 via-black/14 to-black/52" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/46 via-transparent to-black/10" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.10),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.14),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.78)]" />
+        {/* ✅ zatamnjeno ~7.5% u odnosu na prethodno (malo jači black + gradijenti) */}
+        <div className="absolute inset-0 bg-black/23" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/42 to-black/78" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/56 via-black/16 to-black/56" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/11" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(255,255,255,0.09),transparent_55%),radial-gradient(circle_at_78%_22%,rgba(242,180,0,0.13),transparent_50%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_125px_rgba(0,0,0,0.80)]" />
 
         {/* SEAMLESS GLOW */}
-        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.14),transparent_60%)] blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.10),transparent_62%)] blur-3xl" />
+        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.13),transparent_60%)] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.09),transparent_62%)] blur-3xl" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6 py-28 md:py-32">
@@ -181,7 +179,6 @@ function Contact() {
                     Otvori mape
                   </a>
 
-                  {/* ✅ umesto mailto: -> kopiraj email (nema Windows pop-up) */}
                   <button
                     type="button"
                     onClick={onCopyEmail}
@@ -194,7 +191,8 @@ function Contact() {
 
                 {sentHint === "copiedEmail" ? (
                   <div className="mt-3 text-xs text-white/65">
-                    Email je kopiran: <span className="text-white/85 font-semibold">{EMAIL}</span>
+                    Email je kopiran:{" "}
+                    <span className="text-white/85 font-semibold">{EMAIL}</span>
                   </div>
                 ) : null}
               </div>
@@ -265,7 +263,6 @@ function Contact() {
                 </div>
 
                 <div className="pt-2">
-                  {/* ✅ umesto mailto: -> kopiraj formu */}
                   <button
                     type="button"
                     onClick={onCopyForm}
