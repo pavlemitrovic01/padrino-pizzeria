@@ -28,103 +28,80 @@ function AboutStoryModal(props: {
           <button
             type="button"
             aria-label="Zatvori"
-            className="absolute inset-0 bg-black/80 backdrop-blur-none sm:backdrop-blur-sm"
             onClick={onClose}
+            className="absolute inset-0 bg-black/70"
           />
 
-          {/* modal */}
           <motion.div
-            className="relative w-full max-w-[980px] overflow-hidden rounded-[28px] border border-white/10 bg-black/55 shadow-[0_40px_140px_rgba(0,0,0,0.85)]"
-            initial={{ y: 16, scale: 0.985, opacity: 0 }}
+            className="relative w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/10 bg-black/70 backdrop-blur-xl shadow-[0_40px_160px_rgba(0,0,0,0.78)]"
+            initial={{ y: 10, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
-            exit={{ y: 10, scale: 0.99, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            exit={{ y: 10, scale: 0.98, opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
           >
-            {/* ambience */}
-            <div className="pointer-events-none absolute -top-32 -left-40 h-96 w-96 rounded-full bg-white/6 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-40 -right-44 h-[520px] w-[520px] rounded-full bg-[#f2b400]/10 blur-3xl" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
+            <div className="pointer-events-none absolute -top-32 -left-32 h-80 w-80 rounded-full bg-[#f2b400]/12 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-36 -right-36 h-96 w-96 rounded-full bg-white/8 blur-3xl" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/40" />
 
-            {/* header */}
-            <div className="relative flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6 sm:py-5">
-              <div className="min-w-0">
-                <div className="text-xs uppercase tracking-[0.22em] text-white/45">
-                  O nama
+            <div className="relative p-6 sm:p-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    naša priča
+                  </div>
+                  <h3 className="mt-2 font-serif text-2xl sm:text-3xl leading-tight text-white/92">
+                    Kako je sve počelo
+                  </h3>
                 </div>
-                <div className="mt-2 text-lg sm:text-xl font-extrabold text-white/92 truncate">
-                  {title}
-                </div>
-                <div className="mt-1 text-xs text-white/55">Since 2021</div>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75 hover:bg-white/10 transition"
+                >
+                  Zatvori
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-11 w-11 rounded-full bg-white/10 text-white/85 hover:bg-white/15 transition"
-                aria-label="Zatvori"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* body */}
-            <div className="relative max-h-[72vh] overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-5 py-5 sm:px-6 sm:py-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                {/* left column */}
-                <div className="space-y-4 text-white/72 leading-relaxed text-[14px] sm:text-[15px]">
-                  <p>
-                    Padrino je porodična pizzerija u Budvi, nastala 2021. godine iz
-                    čiste ljubavi prema pizzi.
-                  </p>
-                  <p>
-                    Ne iz velikog plana, već iz želje da pravimo pizzu onako kako
-                    je mi najviše volimo — domaćinski, jednostavno i od najboljih
-                    sastojaka.
-                  </p>
-                  <p>
-                    Sve je počelo u našem domu, u jednoj maloj kuhinji koju smo
-                    uredili samo za tu svrhu, radili smo isključivo dostavu. Svaka
-                    pizza izlazila je iz ruku ljudi koji vole ono što rade — i to se,
-                    izgleda, osjetilo. Gosti su prepoznali kvalitet, a vrlo brzo su
-                    počeli da dolaze i lično.
-                  </p>
-                </div>
-
-                {/* right column */}
-                <div className="space-y-4 text-white/72 leading-relaxed text-[14px] sm:text-[15px]">
-                  <p>
-                    U dvorištu smo imali svega dva stola, namijenjena onima koji su
-                    dolazili po porudžbine. Ipak, gosti su ostajali, sjedjeli,
-                    razgovarali, družili se i provodili kvalitetno vrijeme sa nama.
-                    Neki su čak mislili da dolaze u luksuzni restoran, vođeni ocenama i
-                    preporukama koje su nas iskreno iznenadile i obradovale.
-                  </p>
-
-                  <p>
-                    Od prvog dana, teta Milka koristi ljubav kao glavni sastojak za
-                    pravljenje tijesta. Vjerujemo da dobro tijesto nema tajne — samo vrijeme,
-                    pažnju i ljubav.
-                  </p>
-
-                  <p>
-                    Kako je Padrino rastao, postalo je jasno da naš mali dom više ne može da primi
-                    svu tu ljubav. Korak po korak, bez žurbe, odlučili smo da napravimo sledeći
-                    potez. Danas se nalazimo u srcu Budve, na Jadranskoj magistrali — u prostoru
-                    koji smo stvorili kao malo mjesto za sve koji cijene dobru pizzu, toplu
-                    atmosferu i porodične vrijednosti.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 rounded-[22px] border border-white/10 bg-white/5 px-5 py-4">
-                <p className="italic text-white/90">
-                  Ako jednom dođete kao gosti, vjerujemo da ćete se vratiti kao prijatelji.
+              <div className="mt-6 space-y-4 text-white/70 leading-relaxed text-[15px]">
+                <p>
+                  Padrino je porodična pizzerija u Budvi, nastala 2021. godine iz
+                  čiste ljubavi prema pizzi.
                 </p>
-              </div>
+                <p>
+                  Ne iz velikog plana, već iz želje da pravimo pizzu onako kako je
+                  mi najviše volimo — domaćinski, jednostavno i od najboljih
+                  sastojaka.
+                </p>
+                <p>
+                  Sve je počelo u našem domu, u jednoj maloj kuhinji koju smo
+                  uredili samo za tu svrhu, radili smo isključivo dostavu. Svaka
+                  pizza izlazila je iz ruku ljudi koji vole ono što rade — i to se,
+                  izgleda, osjetilo. Gosti su prepoznali kvalitet, a vrlo brzo su
+                  počeli da dolaze i lično.
+                </p>
 
-              <div className="mt-6 flex items-center justify-between text-xs text-white/55">
-                <span>ESC za zatvaranje</span>
-                <span className="text-[#f2b400]/90">Padrino • premium</span>
+                <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-4">
+                  <p className="text-white/75">
+                    Od prvog dana, teta Milka koristi ljubav kao glavni sastojak za
+                    pravljenje tijesta. Vjerujemo da dobro tijesto nema tajne —
+                    samo vrijeme, pažnju i ljubav.
+                  </p>
+                </div>
+
+                <p>
+                  Kako je Padrino rastao, postalo je jasno da naš mali dom više ne
+                  može da primi svu tu ljubav. Korak po korak, bez žurbe, odlučili
+                  smo da napravimo sledeći potez. Danas se nalazimo u srcu Budve,
+                  na Jadranskoj magistrali — u prostoru koji smo stvorili kao malo
+                  mjesto za sve koji žele dobru pizzu, toplu atmosferu i porodične
+                  vrijednosti.
+                </p>
+
+                <p className="text-white/80 font-semibold">
+                  Ako jednom dođete kao gosti, vjerujemo da ćete se vratiti kao
+                  prijatelji.
+                </p>
               </div>
             </div>
           </motion.div>
@@ -179,11 +156,11 @@ export default function About() {
   return (
     <section id="o-nama" className="relative overflow-hidden bg-black scroll-mt-20">
       {/* BACKGROUND */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 bg-black">
         <img
           src={bgSrc}
           alt="Padrino lokal"
-          className="h-full w-full object-cover object-center"
+          className="h-full w-full object-contain object-center lg:object-cover"
           draggable={false}
           onError={() => setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
         />
@@ -325,6 +302,20 @@ export default function About() {
                     počeli da dolaze i lično.
                   </p>
                 </div>
+
+                <div className="mt-7 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setStoryOpen(true)}
+                    className="inline-flex items-center justify-center rounded-full bg-[#f2b400] px-5 py-2 text-sm font-extrabold text-black shadow-[0_18px_60px_rgba(242,180,0,0.18)] hover:brightness-105 transition"
+                  >
+                    Saznaj više
+                  </button>
+
+                  <span className="text-xs text-white/55">
+                    priča o tome kako smo nastali
+                  </span>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -340,45 +331,69 @@ export default function About() {
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.35 }}
-            transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
+            transition={{ duration: 0.35, ease: "easeOut", delay: 0.02 }}
           >
             <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/45 backdrop-blur-md p-9 shadow-[0_30px_120px_rgba(0,0,0,0.70)]">
-              <div className="pointer-events-none absolute -bottom-32 -right-32 h-[420px] w-[420px] rounded-full bg-white/6 blur-3xl" />
+              <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-white/8 blur-3xl" />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
 
-              <div className="relative space-y-4 text-white/70 leading-relaxed text-[15px]">
-                <p>
-                  U dvorištu smo imali svega dva stola, namijenjena onima koji su
-                  dolazili po porudžbine. Ipak, gosti su ostajali, sjedjeli,
-                  razgovarali, družili se i provodili kvalitetno vrijeme sa nama.
-                  Neki su čak mislili da dolaze u luksuzni restoran, vođeni ocenama i
-                  preporukama koje su nas iskreno iznenadile i obradovale.
-                </p>
+              <div className="relative">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs uppercase tracking-[0.22em] text-white/45">
+                    priča
+                  </div>
+                  <div className="text-xs text-white/55">
+                    <span className="text-[#f2b400]/90">✦</span> premium • porodično • domaće
+                  </div>
+                </div>
 
-                <p>
-                  Od prvog dana, teta Milka koristi ljubav kao glavni sastojak za
-                  pravljenje tijesta. Vjerujemo da dobro tijesto nema tajne — samo vrijeme,
-                  pažnju i ljubav.
-                </p>
+                <h3 className="mt-4 font-serif text-3xl leading-tight text-white/92">
+                  U dvorištu smo imali svega dva stola,
+                  <br />
+                  namijenjena onima koji su dolazili po porudžbine.
+                </h3>
 
-                <p>
-                  Kako je Padrino rastao, postalo je jasno da naš mali dom više ne može da primi
-                  svu tu ljubav. Korak po korak, bez žurbe, odlučili smo da napravimo sledeći
-                  potez. Danas se nalazimo u srcu Budve, na Jadranskoj magistrali — u prostoru
-                  koji smo stvorili kao malo mjesto za sve koji cijene dobru pizzu, toplu
-                  atmosferu i porodične vrijednosti.
-                </p>
+                <div className="mt-5 h-px w-24 bg-gradient-to-r from-white/15 to-transparent" />
 
-                <div className="pt-5 border-t border-white/10">
-                  <p className="italic text-white/90">
-                    Ako jednom dođete kao gosti, vjerujemo da ćete se vratiti kao prijatelji.
+                <div className="mt-6 space-y-4 text-white/70 leading-relaxed text-[15px]">
+                  <p>
+                    Ipak, gosti su ostajali, sjedeli, razgovarali, družili se i
+                    provodili kvalitetno vrijeme sa nama.
+                  </p>
+                  <p>
+                    Neki su čak mislili da dolaze u luksuzni restoran, vođeni ocenama
+                    i preporukama koje su nas iskreno iznenadile i obradovale.
+                  </p>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                    <p className="text-white/75">
+                      Od prvog dana, teta Milka koristi ljubav kao glavni sastojak za
+                      pravljenje tijesta. Vjerujemo da dobro tijesto nema tajne —
+                      samo vrijeme, pažnju i ljubav.
+                    </p>
+                  </div>
+
+                  <p>
+                    Kako je Padrino rastao, postalo je jasno da naš mali dom više ne
+                    može da primi svu tu ljubav. Korak po korak, bez žurbe, odlučili
+                    smo da napravimo sledeći potez.
+                  </p>
+                  <p>
+                    Danas se nalazimo u srcu Budve, na Jadranskoj magistrali — u
+                    prostoru koji smo stvorili kao malo mjesto za sve koji žele dobru
+                    pizzu, toplu atmosferu i porodične vrijednosti.
+                  </p>
+
+                  <p className="text-white/80 font-semibold">
+                    Ako jednom dođete kao gosti, vjerujemo da ćete se vratiti kao
+                    prijatelji.
                   </p>
                 </div>
               </div>
             </div>
           </motion.div>
 
-          {/* LEFT BOTTOM SLOT — tags */}
+          {/* BOTTOM TAGS (desktop) */}
           <motion.div
             className="absolute"
             style={{
@@ -389,10 +404,10 @@ export default function About() {
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.35 }}
-            transition={{ duration: 0.35, ease: "easeOut", delay: 0.06 }}
+            transition={{ duration: 0.35, ease: "easeOut", delay: 0.03 }}
           >
-            <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/35 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.60)]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/0 via-white/0 to-black/25" />
+            <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/35 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.60)]">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/25" />
 
               <div className="relative flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
@@ -405,7 +420,7 @@ export default function About() {
                   Budva • Jadranska magistrala
                 </span>
 
-                <span className="ml-auto hidden xl:inline-flex items-center gap-2 text-xs text-white/55">
+                <span className="ml-2 hidden xl:inline-flex items-center gap-2 text-xs text-white/55">
                   <span className="h-px w-10 bg-[#f2b400]/25" />
                   premium • porodično • domaće
                 </span>
@@ -415,7 +430,7 @@ export default function About() {
         </div>
 
         {/* MOBILE: CTA ostaje, ali se spušta pri dnu sekcije */}
-        <div className="lg:hidden relative z-10 px-4 pt-44 pb-12 min-h-[920px] flex flex-col">
+        <div className="lg:hidden relative z-10 px-4 pt-[58vh] pb-12 min-h-[920px] flex flex-col">
           <div className="mx-auto max-w-xl space-y-6 w-full flex-1">
             <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noreferrer" className="block">
               <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">
@@ -469,7 +484,7 @@ export default function About() {
             <button
               type="button"
               onClick={() => setStoryOpen(true)}
-              className="w-full h-11 rounded-full bg-[#f2b400] text-black font-extrabold hover:brightness-105 active:brightness-95 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
+              className="w-full rounded-full bg-[#f2b400] px-6 py-4 text-sm font-extrabold text-black shadow-[0_22px_70px_rgba(242,180,0,0.22)] hover:brightness-105 transition"
             >
               SAZNAJ VIŠE
             </button>
@@ -477,11 +492,10 @@ export default function About() {
         </div>
       </div>
 
-      {/* STORY MODAL */}
       <AboutStoryModal
         open={storyOpen}
         onClose={() => setStoryOpen(false)}
-        title="Iz naših srca, do vaših osmjeha."
+        title="Kako je sve počelo"
       />
     </section>
   );
