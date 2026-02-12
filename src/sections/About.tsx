@@ -203,7 +203,7 @@ export default function About() {
 
       {/* STAGE */}
       <div className="relative z-10 min-h-[920px] lg:min-h-[980px]">
-        {/* TITLE + CTA (Saznaj više) */}
+        {/* TITLE (desktop CTA uklonjen) */}
         <div
           className="absolute left-1/2 -translate-x-1/2 text-center w-full px-4"
           style={{ top: POS.titleTop }}
@@ -221,28 +221,6 @@ export default function About() {
               since 2021
             </span>
             <span className="h-px w-10 bg-gradient-to-l from-transparent to-[#f2b400]/35" />
-          </div>
-
-          {/* CTA: SAZNAJ VIŠE (otvara modal) */}
-          <div className="mt-6 hidden sm:flex justify-center">
-            <button
-              type="button"
-              onClick={() => setStoryOpen(true)}
-              className={[
-                "h-11 px-6 rounded-full",
-                "border border-white/10",
-                "bg-black/30 backdrop-blur-md",
-                "text-white/90 font-extrabold tracking-wide",
-                "hover:bg-black/40 hover:border-white/15",
-                "active:bg-black/45",
-                "transition",
-                "shadow-[0_18px_60px_rgba(0,0,0,0.45)]",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/55",
-              ].join(" ")}
-              aria-label="Saznaj više"
-            >
-              SAZNAJ VIŠE
-            </button>
           </div>
         </div>
 
@@ -436,9 +414,9 @@ export default function About() {
           </motion.div>
         </div>
 
-        {/* MOBILE: sada NE prikazujemo dugačak tekst — samo CTA + reviews */}
-        <div className="lg:hidden relative z-10 px-4 pt-44 pb-12">
-          <div className="mx-auto max-w-xl space-y-6">
+        {/* MOBILE: CTA ostaje, ali se spušta pri dnu sekcije */}
+        <div className="lg:hidden relative z-10 px-4 pt-44 pb-12 min-h-[920px] flex flex-col">
+          <div className="mx-auto max-w-xl space-y-6 w-full flex-1">
             <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noreferrer" className="block">
               <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">
                 <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-white/4 blur-3xl" />
@@ -468,15 +446,6 @@ export default function About() {
                 <div className="mt-2 text-white/85 font-extrabold">
                   Porodična pizzerija • Since 2021
                 </div>
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setStoryOpen(true)}
-                    className="w-full h-11 rounded-full bg-[#f2b400] text-black font-extrabold hover:brightness-105 active:brightness-95 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
-                  >
-                    SAZNAJ VIŠE
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -493,6 +462,17 @@ export default function About() {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* MOBILE CTA — PRI DNU */}
+          <div className="mt-auto pt-6">
+            <button
+              type="button"
+              onClick={() => setStoryOpen(true)}
+              className="w-full h-11 rounded-full bg-[#f2b400] text-black font-extrabold hover:brightness-105 active:brightness-95 transition shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
+            >
+              SAZNAJ VIŠE
+            </button>
           </div>
         </div>
       </div>
