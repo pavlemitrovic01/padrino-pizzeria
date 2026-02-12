@@ -77,6 +77,7 @@ export default function Navbar() {
 
   const links = useMemo(
     () => [
+      { id: "menu", label: "Meni" },
       { id: "delivery", label: "Dostava" },
       { id: "o-nama", label: "O nama" },
       { id: "contact", label: "Kontakt" },
@@ -97,7 +98,18 @@ export default function Navbar() {
     setMobileOpen(false);
 
     if (isAdminRoute) {
-      window.location.href = `/#${id}`;
+      if (id === "menu") {
+        window.location.href = "/#";
+      } else {
+        window.location.href = `/#${id}`;
+      }
+      return;
+    }
+
+    if (id === "menu") {
+      // ✅ “Meni” uvek vraća na Hero/top (bez bacanja na delivery)
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      scrollToTop();
       return;
     }
 
@@ -118,6 +130,13 @@ export default function Navbar() {
   useEffect(() => {
     const hash = (window.location.hash || "").replace("#", "").trim();
     if (!hash) return;
+
+    // ✅ ako je hash "menu", tretiramo kao top (ne pokušavamo id="menu")
+    if (hash === "menu") {
+      const tTop = window.setTimeout(() => scrollToTop(), 50);
+      return () => window.clearTimeout(tTop);
+    }
+
     const t = window.setTimeout(() => scrollToId(hash), 50);
     return () => window.clearTimeout(t);
   }, []);

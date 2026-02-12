@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+
 const INSTAGRAM_URL = "https://www.instagram.com/padrino_budva/";
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 
@@ -5,27 +7,63 @@ const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 const WHATSAPP_URL = "https://wa.me/38267603780";
 const VIBER_URL = "viber://chat?number=38267603780";
 
-function Footer() {
+function scrollToId(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function scrollToTop() {
+  const hero = document.getElementById("top");
+  if (hero) {
+    hero.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function clearHash() {
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);
+}
+
+export default function Footer() {
+  const [bgOk, setBgOk] = useState(true);
+
+  const onGoHome = useCallback(() => {
+    clearHash();
+    scrollToTop();
+  }, []);
+
+  const onGoSection = useCallback((id: string) => {
+    // držimo hash čistim da nam ne “preusmerava” scroll logika
+    window.history.replaceState(null, "", `/#${id}`);
+    scrollToId(id);
+  }, []);
+
   return (
     <footer className="relative overflow-hidden bg-black text-white">
-      {/* BACKGROUND + AMBIENCE (SVETLIJE ~10–15%) */}
+      {/* BACKGROUND + AMBIENCE */}
       <div className="pointer-events-none absolute inset-0">
-        <img
-          src="/sections/contact.webp"
-          alt="Padrino ambience"
-          className="h-full w-full object-cover object-center"
-          draggable={false}
-          loading="lazy"
-        />
+        {/* ✅ Background slika samo ako se uspešno učita (nema broken icon-a) */}
+        {bgOk ? (
+          <img
+            src="/sections/contact.webp"
+            alt="Padrino ambience"
+            className="h-full w-full object-cover object-center"
+            draggable={false}
+            loading="lazy"
+            onError={() => setBgOk(false)}
+          />
+        ) : null}
 
-        {/* LIGHTENED cinematic overlays */}
-        <div className="absolute inset-0 bg-black/28" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/30 to-black/15" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-black/55" />
+        {/* cinematic overlays */}
+        <div className="absolute inset-0 bg-black/30" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/35 to-black/15" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-black/60" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_30%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_75%_20%,rgba(242,180,0,0.10),transparent_50%)]" />
         <div className="absolute inset-0 shadow-[inset_0_0_140px_rgba(0,0,0,0.80)]" />
 
-        {/* SEAMLESS GLOW (top) */}
+        {/* seamless glow (top) */}
         <div className="pointer-events-none absolute -top-28 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.10),transparent_60%)] blur-3xl" />
       </div>
 
@@ -41,14 +79,12 @@ function Footer() {
                 className="h-10 w-10"
                 draggable={false}
               />
-              <span className="text-xl font-extrabold tracking-wide">
-                Padrino
-              </span>
+              <span className="text-xl font-extrabold tracking-wide">Padrino</span>
             </div>
 
             <p className="mt-6 max-w-sm text-white/65 leading-relaxed">
-              Autentična porodična pizzeria u srcu Budve. Svaki zalogaj pravimo
-              sa istom pažnjom kao prvog dana.
+              Autentična porodična pizzeria u srcu Budve. Svaki zalogaj pravimo sa
+              istom pažnjom kao prvog dana.
             </p>
           </div>
 
@@ -59,25 +95,47 @@ function Footer() {
             </div>
 
             <ul className="space-y-3 text-white/75">
+              {/* ✅ Početna ide na Hero/top (ne na delivery) */}
               <li>
-                <a href="#hero" className="hover:text-white transition">
+                <button
+                  type="button"
+                  onClick={onGoHome}
+                  className="hover:text-white transition"
+                >
                   Početna
-                </a>
+                </button>
               </li>
+
+              {/* ✅ “Meni” više ne koristi #menu (koji ti je pravio problem).
+                  Najstabilnije: isti behavior kao “Početna” = vraća na top/hero. */}
               <li>
-                <a href="#menu" className="hover:text-white transition">
+                <button
+                  type="button"
+                  onClick={onGoHome}
+                  className="hover:text-white transition"
+                >
                   Meni
-                </a>
+                </button>
               </li>
+
               <li>
-                <a href="#delivery" className="hover:text-white transition">
+                <button
+                  type="button"
+                  onClick={() => onGoSection("delivery")}
+                  className="hover:text-white transition"
+                >
                   Dostava
-                </a>
+                </button>
               </li>
+
               <li>
-                <a href="#contact" className="hover:text-white transition">
+                <button
+                  type="button"
+                  onClick={() => onGoSection("contact")}
+                  className="hover:text-white transition"
+                >
                   Kontakt
-                </a>
+                </button>
               </li>
             </ul>
           </div>
@@ -97,12 +155,11 @@ function Footer() {
               >
                 WhatsApp
               </a>
-              <a
-                href={VIBER_URL}
-                className="block hover:text-white transition"
-              >
+
+              <a href={VIBER_URL} className="block hover:text-white transition">
                 Viber
               </a>
+
               <a
                 href={INSTAGRAM_URL}
                 target="_blank"
@@ -111,6 +168,7 @@ function Footer() {
               >
                 Instagram
               </a>
+
               <a
                 href={MAPS_URL}
                 target="_blank"
@@ -129,13 +187,9 @@ function Footer() {
         {/* Bottom */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/55">
           <div>© {new Date().getFullYear()} Padrino Pizzeria Budva</div>
-          <div className="tracking-[0.22em] uppercase">
-            Since 2021
-          </div>
+          <div className="tracking-[0.22em] uppercase">Since 2021</div>
         </div>
       </div>
     </footer>
   );
 }
-
-export default Footer;

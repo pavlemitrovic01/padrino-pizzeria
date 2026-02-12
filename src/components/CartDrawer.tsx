@@ -413,10 +413,17 @@ export default function CartDrawer() {
     setSubmitting(false);
   };
 
+  // ✅ JEDINA IZMENA U FAJLU: HERO SCROLL (top/hero) + fallback
   const handleGoToMenu = () => {
     closeCart();
-    const el = document.getElementById("meni") || document.getElementById("menu");
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const hero = document.getElementById("top") || document.getElementById("hero");
+    if (hero) {
+      hero.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const restoreDrinksScroll = (top: number) => {
@@ -794,7 +801,6 @@ export default function CartDrawer() {
                   </form>
                 </div>
               ) : null}
-
               {view === "cart" ? (
                 <div className="mt-5 space-y-4">
                   {items.length === 0 ? (
@@ -997,7 +1003,6 @@ export default function CartDrawer() {
                                         </div>
                                       </div>
                                     ) : null}
-
                                     {/* Sauces */}
                                     {saucesCatalog.length > 0 ? (
                                       <div className="mt-4">
