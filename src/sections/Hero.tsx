@@ -18,23 +18,30 @@ export default function Hero() {
         <img
           src="/sections/hero.webp"
           alt="Padrino"
-          className="h-full w-full object-cover scale-105 opacity-70"
+          className="h-full w-full object-cover scale-105 opacity-60"
           draggable={false}
           loading="eager"
           onError={(e) => {
-            // fallback (ako fajl nije na mestu)
+            // fallback 1: ako hero.webp ne postoji
             const target = e.currentTarget as HTMLImageElement;
-            if (!target.src.endsWith(".webp")) target.src = "/sections/hero.webp";
+
+            // probaj hero.png ako postoji
+            if (!target.src.includes("/sections/hero.png")) {
+              target.src = "/sections/hero.png";
+              return;
+            }
+
+            // fallback 2: ultimate fallback (tvoj stari asset)
+            if (!target.src.includes("/menu/padrino.png")) {
+              target.src = "/menu/padrino.png";
+            }
           }}
         />
 
-        {/* Premium darkening + vignette (SVETLIJE ~10–15%) */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-black/10" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_35%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_70%_25%,rgba(234,179,8,0.11),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_110px_rgba(0,0,0,0.78)]" />
-
-        {/* Seamless glow (bottom) */}
-        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_62%)] blur-3xl" />
+        {/* Premium darkening + vignette */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-black/15" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_35%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_70%_25%,rgba(234,179,8,0.10),transparent_50%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.85)]" />
       </div>
 
       {/* Brand signature (zona 1) */}
