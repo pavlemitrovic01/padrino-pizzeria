@@ -3,19 +3,27 @@ import { useMemo, useState } from "react";
 const PHONE_DISPLAY = "+382/67-603-780";
 const PHONE_E164 = "+38267603780";
 
+
 const EMAIL = "padrinobudva@gmail.com";
 const ADDRESS_LINE = "Jadranski put BB (Kotorski Semafori)";
 const HOURS = "12–00";
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 
-const WHATSAPP_URL = "https://wa.me/38267603780";
-const VIBER_URL = "viber://chat?number=%2B38267603780";
+// WhatsApp web fallback (radi svuda)
+const WHATSAPP_WEB_URL = "https://wa.me/38267603780";
+// WhatsApp app deep link (pokuša da otvori aplikaciju)
+const WHATSAPP_DEEP_URL = "whatsapp://send?phone=38267603780";
+
+// Viber deep link (prazan chat)
+const VIBER_DEEP_URL = "viber://chat?number=%2B38267603780";
 
 function Contact() {
   const [name, setName] = useState("");
   const [fromEmail, setFromEmail] = useState("");
   const [message, setMessage] = useState("");
-  const [sentHint, setSentHint] = useState<null | "copiedEmail" | "copiedForm">(null);
+  const [sentHint, setSentHint] = useState<
+    null | "copiedEmail" | "copiedForm" | "copiedPhone"
+  >(null);
 
   const formText = useMemo(() => {
     return [
@@ -53,20 +61,56 @@ function Contact() {
     }
   }
 
+  function flashHint(kind: "copiedEmail" | "copiedForm" | "copiedPhone", ms: number) {
+    setSentHint(kind);
+    window.setTimeout(() => setSentHint(null), ms);
+  }
+
   async function onCopyEmail() {
     const ok = await copyToClipboard(EMAIL);
-    if (ok) {
-      setSentHint("copiedEmail");
-      window.setTimeout(() => setSentHint(null), 1800);
-    }
+    if (ok) flashHint("copiedEmail", 1800);
   }
 
   async function onCopyForm() {
     const ok = await copyToClipboard(formText);
-    if (ok) {
-      setSentHint("copiedForm");
-      window.setTimeout(() => setSentHint(null), 2200);
-    }
+    if (ok) flashHint("copiedForm", 2200);
+  }
+
+  async function onCopyPhone() {
+    const ok = await copyToClipboard(PHONE_E164);
+    if (ok) flashHint("copiedPhone", 1800);
+  }
+
+  // ✅ Deep link + fallback + copy broj (bez pop-up/alert)
+  async function openWhatsApp() {
+    // uvek kopiramo broj kao fallback (ako nema app)
+    await onCopyPhone();
+
+    const start = Date.now();
+    window.location.href = WHATSAPP_DEEP_URL;
+
+    // ako deep link ne uspe, prebacujemo na web WA posle kratkog delay-a
+    window.setTimeout(() => {
+      // ako je korisnik već otišao u aplikaciju, ovo neće izvršiti (page background)
+      // ako nije, idemo na web link
+      if (Date.now() - start < 1800) {
+        window.location.href = WHATSAPP_WEB_URL;
+      }
+    }, 900);
+  }
+
+  async function openViber() {
+    // uvek kopiramo broj kao fallback
+    await onCopyPhone();
+
+    const start = Date.now();
+    window.location.href = VIBER_DEEP_URL;
+
+    // Viber nema pouzdan univerzalni web chat fallback kao WA,
+    // pa ostaje copy broj + deep link pokušaj.
+    window.setTimeout(() => {
+      void start; // no-op (samo da je jasno da je timeout nameran)
+    }, 650);
   }
 
   return (
@@ -81,7 +125,7 @@ function Contact() {
           loading="lazy"
         />
 
-        {/* ✅ zatamnjeno ~7.5% u odnosu na prethodno (malo jači black + gradijenti) */}
+        {/* zatamnjenje kao “sve ostalo” */}
         <div className="absolute inset-0 bg-black/23" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/42 to-black/78" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/56 via-black/16 to-black/56" />
@@ -138,24 +182,31 @@ function Contact() {
                 <div className="mt-4 h-px w-full bg-gradient-to-r from-[#f2b400]/25 via-white/10 to-transparent" />
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
-                  <a
-                    href={WHATSAPP_URL}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    type="button"
+                    onClick={openWhatsApp}
                     className="h-11 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition border border-white/10 flex items-center justify-center gap-2"
                   >
                     <span aria-hidden="true">WA</span>
                     WhatsApp
-                  </a>
+                  </button>
 
-                  <a
-                    href={VIBER_URL}
+                  <button
+                    type="button"
+                    onClick={openViber}
                     className="h-11 rounded-full bg-white/10 text-white/85 font-extrabold hover:bg-white/15 transition border border-white/10 flex items-center justify-center gap-2"
                   >
                     <span aria-hidden="true">VB</span>
                     Viber
-                  </a>
+                  </button>
                 </div>
+
+                {sentHint === "copiedPhone" ? (
+                  <div className="mt-3 text-xs text-white/65">
+                    Broj je kopiran:{" "}
+                    <span className="text-white/85 font-semibold">{PHONE_E164}</span>
+                  </div>
+                ) : null}
               </div>
 
               {/* address */}
