@@ -37,6 +37,62 @@ function isPizzaLike(category: string, name: string) {
   );
 }
 
+/** -------------------- STUFFED CRUST (PUNJENE IVICE) -------------------- */
+function normalizeAddonName(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replaceAll("č", "c")
+    .replaceAll("ć", "c")
+    .replaceAll("š", "s")
+    .replaceAll("ž", "z")
+    .replaceAll("đ", "dj")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isStuffedCrustAddon(addonName: string) {
+  const n = normalizeAddonName(addonName);
+
+  // Pokriva nazive iz baze + mapiranja iz projekta
+  if (n.includes("ivice punjene")) return true;
+  if (n.includes("punjene ivice")) return true;
+
+  // Ako u bazi stoji samo “rub” ili slično
+  if (n === "rub") return true;
+
+  return false;
+}
+
+function stuffedCrustPriceForSize(size: PizzaSize | null | undefined): number {
+  // EUR centi
+  return size === "50" ? 400 : 200;
+}
+
+function adjustAddonsForSize(
+  size: PizzaSize | null | undefined,
+  addons: CartAddon[]
+): CartAddon[] {
+  if (!addons.length) return addons;
+
+  const targetPrice = stuffedCrustPriceForSize(size);
+
+  let changed = false;
+  const next = addons.map((a) => {
+    if (!isStuffedCrustAddon(a.name)) return a;
+
+    const qty = Math.max(1, toSafeInt(a.quantity ?? 1, 1));
+    const currentPrice = toSafeInt(a.price ?? 0, 0);
+
+    if (currentPrice === targetPrice && qty === a.quantity) return a;
+
+    changed = true;
+    return { ...a, price: targetPrice, quantity: qty };
+  });
+
+  return changed ? next : addons;
+}
+/** ---------------------------------------------------------------------- */
+
 function computeAddonsTotal(addons?: CartAddon[]): number {
   if (!addons || addons.length === 0) return 0;
 
@@ -122,7 +178,10 @@ function normalizeIncomingItem(item: CartItem): CartItem {
   const menuItemId = chosenVariant?.menuItemId ?? incomingMenuItemId;
   const category = chosenVariant?.category ?? item.category;
 
-  const finalPrice = basePrice + computeAddonsTotal(normalizedAddons);
+  // ✅ punjene ivice moraju imati cenu u zavisnosti od veličine
+  const adjustedAddons = adjustAddonsForSize(finalSize, normalizedAddons);
+
+  const finalPrice = basePrice + computeAddonsTotal(adjustedAddons);
 
   return {
     ...item,
@@ -133,7 +192,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     menuItemId,
     variants,
     basePrice,
-    addons: normalizedAddons,
+    addons: adjustedAddons,
     price: finalPrice,
     category,
     note: item.note ?? "",
@@ -147,7 +206,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const openCart = () => setIsOpen(true);
   const closeCart = () => setIsOpen(false);
 
-  // ✅ dodali smo options, default ponašanje ostaje isto
   const addToCart = (rawItem: CartItem, options?: AddToCartOptions) => {
     const item = normalizeIncomingItem(rawItem);
 
@@ -163,7 +221,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
             ...(item.variants ?? {}),
           };
 
-          const addons = i.addons ?? [];
+          // ✅ zadrži postojeće dodatke ali osveži punjene ivice po veličini
+          const rawAddons = i.addons ?? [];
+          const addons = adjustAddonsForSize(i.size ?? null, rawAddons);
 
           const candidateSize: PizzaSize | null =
             (isPizzaLike(i.category, i.name) ? (i.size ?? null) : null) ?? null;
@@ -204,7 +264,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return [...prev, item];
     });
 
-    // ✅ samo otvori ako nije eksplicitno zabranjeno
     if (options?.openCart !== false) {
       setIsOpen(true);
     }
@@ -234,7 +293,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (!current) return prev;
 
       const baseKey = current.baseKey ?? current.name;
-      const addons = current.addons ?? [];
+      const rawAddons = current.addons ?? [];
+      // ✅ kada se promeni veličina, uskladi cenu punjenih ivica
+      const addons = adjustAddonsForSize(size, rawAddons);
 
       const mergedVariants: Partial<Record<PizzaSize, PizzaVariant>> = {
         ...(current.variants ?? {}),
@@ -271,16 +332,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (i.id !== id) return i;
 
         const existing = i.addons ?? [];
-        const found = existing.find((a) => a.id === addon.id);
+
+        // ✅ punjene ivice: cena zavisi od veličine pice
+        const normalizedAddon: Omit<CartAddon, "quantity"> = isStuffedCrustAddon(addon.name)
+          ? { ...addon, price: stuffedCrustPriceForSize(i.size ?? "33") }
+          : { ...addon, price: toSafeInt(addon.price, 0) };
+
+        const found = existing.find((a) => a.id === normalizedAddon.id);
 
         let nextAddons: CartAddon[];
         if (found) {
           nextAddons = existing.map((a) =>
-            a.id === addon.id ? { ...a, quantity: a.quantity + 1 } : a
+            a.id === normalizedAddon.id
+              ? { ...a, price: normalizedAddon.price, quantity: a.quantity + 1 }
+              : a
           );
         } else {
-          nextAddons = [...existing, { ...addon, quantity: 1 }];
+          nextAddons = [...existing, { ...normalizedAddon, quantity: 1 }];
         }
+
+        // ✅ safety: uvek drži punjene ivice u sync sa trenutnom veličinom
+        nextAddons = adjustAddonsForSize(i.size ?? null, nextAddons);
 
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
@@ -302,9 +374,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (i.id !== id) return i;
 
         const existing = i.addons ?? [];
-        const nextAddons = existing.map((a) =>
+        let nextAddons = existing.map((a) =>
           a.id === addonId ? { ...a, quantity: a.quantity + 1 } : a
         );
+
+        nextAddons = adjustAddonsForSize(i.size ?? null, nextAddons);
 
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
@@ -320,9 +394,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (i.id !== id) return i;
 
         const existing = i.addons ?? [];
-        const nextAddons = existing
+        let nextAddons = existing
           .map((a) => (a.id === addonId ? { ...a, quantity: a.quantity - 1 } : a))
           .filter((a) => a.quantity > 0);
+
+        nextAddons = adjustAddonsForSize(i.size ?? null, nextAddons);
 
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
@@ -338,7 +414,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (i.id !== id) return i;
 
         const existing = i.addons ?? [];
-        const nextAddons = existing.filter((a) => a.id !== addonId);
+        let nextAddons = existing.filter((a) => a.id !== addonId);
+
+        nextAddons = adjustAddonsForSize(i.size ?? null, nextAddons);
 
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
