@@ -160,7 +160,14 @@ export default function About() {
         <img
           src={bgSrc}
           alt="Padrino lokal"
-          className="h-full w-full object-contain object-center lg:object-cover"
+          className={[
+            "h-full w-full object-cover",
+            // ✅ FOCAL POINT: ujednači kadar na mobile vs desktop (minimalni crop, isti “centar scene”)
+            "object-[55%_50%]",
+            "sm:object-[52%_50%]",
+            "md:object-[50%_50%]",
+            "lg:object-[50%_50%]",
+          ].join(" ")}
           draggable={false}
           onError={() => setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
         />
@@ -180,7 +187,7 @@ export default function About() {
 
       {/* STAGE */}
       <div className="relative z-10 min-h-[920px] lg:min-h-[980px]">
-        {/* TITLE (desktop CTA uklonjen) */}
+        {/* TITLE */}
         <div
           className="absolute left-1/2 -translate-x-1/2 text-center w-full px-4"
           style={{ top: POS.titleTop }}
@@ -201,7 +208,7 @@ export default function About() {
           </div>
         </div>
 
-        {/* DESKTOP: postojeći layout ostaje isti */}
+        {/* DESKTOP */}
         <div className="hidden lg:block">
           {/* RIGHT TOP SLOT — Google Reviews CTA */}
           <motion.a
@@ -393,7 +400,7 @@ export default function About() {
             </div>
           </motion.div>
 
-          {/* BOTTOM TAGS (desktop) */}
+          {/* BOTTOM TAGS */}
           <motion.div
             className="absolute"
             style={{
@@ -429,8 +436,8 @@ export default function About() {
           </motion.div>
         </div>
 
-        {/* MOBILE: CTA ostaje, ali se spušta pri dnu sekcije */}
-        <div className="lg:hidden relative z-10 px-4 pt-[58vh] pb-12 min-h-[920px] flex flex-col">
+        {/* MOBILE */}
+        <div className="lg:hidden relative z-10 px-4 pt-44 pb-12 min-h-[920px] flex flex-col">
           <div className="mx-auto max-w-xl space-y-6 w-full flex-1">
             <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noreferrer" className="block">
               <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">
