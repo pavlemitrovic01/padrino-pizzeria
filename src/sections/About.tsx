@@ -146,7 +146,6 @@ export default function About() {
           className={[
             "h-full w-full object-contain sm:object-cover",
             "brightness-110 sm:brightness-100",
-            // ✅ FOCAL POINT: ujednači kadar na mobile vs desktop (minimalni crop, isti “centar scene”)
             "object-[55%_50%]",
             "sm:object-[52%_50%]",
             "md:object-[50%_50%]",
@@ -156,7 +155,7 @@ export default function About() {
           onError={() => setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
         />
 
-        {/* cinematic overlays (sadašnji “odličan” nivo) */}
+        {/* cinematic overlays (sadašnji nivo) */}
         <div className="absolute inset-0 bg-black/12 sm:bg-black/26" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-black/45 sm:from-black/60 sm:via-black/18 sm:to-black/60" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/42 via-transparent to-black/06 sm:from-black/52 sm:to-black/10" />
@@ -328,7 +327,22 @@ export default function About() {
         {/* MOBILE */}
         <div className="lg:hidden relative z-10 px-4 pt-6 pb-12 min-h-[920px] flex flex-col">
           <div className="mx-auto max-w-xl space-y-6 w-full flex-1">
-            <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noreferrer" className="block">
+            {/* ✅ NOVO: Bubble "O nama" (ide iznad Google Reviews) */}
+            <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/35 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.60)]">
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold tracking-wide text-white/85">
+                  O nama
+                </span>
+              </div>
+            </div>
+
+            {/* Google Reviews (spušteno za jedno polje) */}
+            <a
+              href={GOOGLE_REVIEWS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="block"
+            >
               <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.65)]">
                 <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-white/4 blur-3xl" />
                 <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-[#f2b400]/6 blur-3xl" />
@@ -337,7 +351,9 @@ export default function About() {
                 <div className="relative flex items-center justify-between">
                   <div className="flex items-center gap-2 text-white/92">
                     <Star className="h-4 w-4 text-[#f2b400]" />
-                    <span className="text-sm font-extrabold tracking-wide">Google Reviews</span>
+                    <span className="text-sm font-extrabold tracking-wide">
+                      Google Reviews
+                    </span>
                   </div>
                   <ExternalLink className="h-4 w-4 text-white/65" />
                 </div>
@@ -348,6 +364,7 @@ export default function About() {
               </div>
             </a>
 
+            {/* Since / pills (spušteno za jedno polje) */}
             <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/35 backdrop-blur-md p-5 shadow-[0_30px_120px_rgba(0,0,0,0.60)]">
               <div className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
@@ -365,6 +382,12 @@ export default function About() {
 
           {/* MOBILE CTA — PRI DNU */}
           <div className="mt-auto pt-6">
+            {/* ✅ NOVO: tekst iznad CTA */}
+            <p className="mb-3 text-center text-sm font-semibold text-white/80 leading-relaxed">
+              Padrino je porodična pizzerija koja je počela iz čiste ljubavi prema pizzi —
+              domaćinski, iskreno i bez kompromisa u kvalitetu.
+            </p>
+
             <button
               type="button"
               onClick={() => setStoryOpen(true)}
@@ -372,6 +395,7 @@ export default function About() {
             >
               NAŠA PRIČA
             </button>
+
             <p className="mt-3 text-center text-xs text-white/60">
               Klikni da pročitaš kako je sve počelo.
             </p>
