@@ -57,6 +57,13 @@ function stripSize(name: string) {
     .trim();
 }
 
+function detectSizeLabel(name: string): string | null {
+  const s = String(name ?? "");
+  if (/\b50\s*cm\b/i.test(s) || /\b50cm\b/i.test(s)) return "50 cm";
+  if (/\b33\s*cm\b/i.test(s) || /\b33cm\b/i.test(s)) return "33 cm";
+  return null;
+}
+
 function normalizeImagePath(image: string | null): string | null {
   if (!image) return null;
   const t = image.trim();
@@ -392,7 +399,31 @@ export default function Menu() {
       />
 
       <div className="fixed inset-0 z-50 flex justify-center items-stretch px-4 pb-14 pt-12 sm:pt-16 md:pt-20">
-        <div className="relative w-full max-w-[1080px] h-full max-h-full flex flex-col overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/45 backdrop-blur-none sm:backdrop-blur-md">
+        <div className="relative w-full max-w-[1080px] h-full max-h-full flex flex-col overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/70 backdrop-blur-none sm:backdrop-blur-md">
+          {/* Background for menu modal (prevents HERO text bleeding through) */}
+          <div className="absolute inset-0">
+            <img
+              src="/sections/menu.webp"
+              alt=""
+              className="h-full w-full object-cover opacity-55"
+              draggable={false}
+              loading="eager"
+              decoding="async"
+            />
+            <div className="absolute inset-0 bg-black/75" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/65 to-black/85" />
+          </div>
+
+          {/* Close button (top-right) */}
+          <button
+            type="button"
+            onClick={closeAll}
+            className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white/90 ring-1 ring-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.45)] hover:bg-black/65 hover:ring-white/15 transition"
+            aria-label="Zatvori"
+          >
+            ×
+          </button>
+
           <div className="pointer-events-none absolute -top-36 -left-36 h-96 w-96 rounded-full bg-[#f2b400]/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
@@ -415,20 +446,13 @@ export default function Menu() {
               >
                 Idi na korpu
               </button>
-
-              <button
-                type="button"
-                onClick={closeAll}
-                className="h-11 w-11 rounded-full bg-white/10 text-white/90 hover:bg-white/15 transition"
-                aria-label="Zatvori"
-              >
-                ×
-              </button>
             </div>
           </div>
 
           <div className="relative px-6 pb-8 sm:px-8 flex-1 min-h-0">
-            <div className="h-full overflow-y-auto pr-2 pb-24 sm:pb-4 overscroll-contain [-webkit-overflow-scrolling:touch]">
+            <div className="pointer-events-none absolute inset-0 rounded-[26px] bg-black/25" />
+
+            <div className="relative h-full overflow-y-auto pr-2 pb-24 sm:pb-4 overscroll-contain [-webkit-overflow-scrolling:touch]">
               <div className="grid grid-cols-2 gap-4 sm:gap-6 pb-3 md:grid-cols-4 lg:grid-cols-7">
                 {pizzasOrdered.map((row, idx) => {
                   const price = getSafeCents(row);
@@ -510,7 +534,7 @@ export default function Menu() {
                       </div>
 
                       <div className="p-4">
-                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">{row.name}</div>
+                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">{stripSize(row.name)}</div>
 
                         {desc ? (
                           <div className="mt-1 text-[14px] text-white/60 leading-snug">{desc}</div>
@@ -520,7 +544,14 @@ export default function Menu() {
 
                         <div className="mt-3">
                           <div className="h-px w-10 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
-                          <div className="mt-2 text-[14px] font-extrabold text-[#f2b400]">{formatEUR(price)}</div>
+                          <div className="mt-2 flex items-baseline justify-start gap-2">
+                            <div className="text-[14px] font-extrabold text-[#f2b400]">{formatEUR(price)}</div>
+                            {detectSizeLabel(row.name) ? (
+                              <div className="text-[12px] font-extrabold tracking-wide text-white/55">
+                                {detectSizeLabel(row.name)}
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
 
                         <div className="mt-3 text-[10px] tracking-wide text-white/0 group-hover:text-white/45 transition">
@@ -556,7 +587,14 @@ export default function Menu() {
             aria-atomic="true"
           >
             <div className="mx-auto max-w-[720px]">
-              <div className={["pointer-events-auto", "p-glass", "px-4 py-3 sm:px-5 sm:py-4", "flex items-center justify-between gap-3"].join(" ")}>
+              <div
+                className={[
+                  "pointer-events-auto",
+                  "p-glass",
+                  "px-4 py-3 sm:px-5 sm:py-4",
+                  "flex items-center justify-between gap-3",
+                ].join(" ")}
+              >
                 <div className="min-w-0">
                   <div className="text-sm sm:text-[15px] font-extrabold text-white/90">{toast.title}</div>
                   {toast.subtitle ? <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div> : null}
