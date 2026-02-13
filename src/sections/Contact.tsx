@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-const PHONE_DISPLAY = "+382 67 603 780"; // ✅ razmak umesto crtica
+const PHONE_DISPLAY = "+382 67 603 780";
 const PHONE_E164 = "+38267603780";
 
 const EMAIL = "padrinobudva@gmail.com";
@@ -8,32 +8,15 @@ const ADDRESS_LINE = "Jadranski put BB (Kotorski Semafori)";
 const HOURS = "12–00";
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
 
-// WhatsApp web fallback (radi svuda)
 const WHATSAPP_WEB_URL = "https://wa.me/38267603780";
-
-// Viber deeplink (bez predefinisane poruke/linka)
 const VIBER_URL = `viber://chat?number=${PHONE_E164.replace("+", "")}`;
 
 export default function Contact() {
-  const [copied, setCopied] = useState<null | "phone">(null);
-
   const social = useMemo(
     () => [
-      {
-        label: "WhatsApp",
-        href: WHATSAPP_WEB_URL,
-        hint: "Otvori chat",
-      },
-      {
-        label: "Viber",
-        href: VIBER_URL,
-        hint: "Otvori chat",
-      },
-      {
-        label: "Google Maps",
-        href: MAPS_URL,
-        hint: "Otvori lokaciju",
-      },
+      { label: "WhatsApp", href: WHATSAPP_WEB_URL, hint: "Otvori chat" },
+      { label: "Viber", href: VIBER_URL, hint: "Otvori chat" },
+      { label: "Google Maps", href: MAPS_URL, hint: "Otvori lokaciju" },
     ],
     []
   );
@@ -64,7 +47,6 @@ export default function Contact() {
         <div className="text-center">
           <div className="p-kicker mb-4">Kontakt</div>
           <h2 className="p-title text-4xl md:text-5xl">Tu smo za vas</h2>
-
           <p className="mt-4 text-white/65 max-w-2xl mx-auto leading-relaxed">
             Pozovite, pišite ili nas posetite uživo — odgovaramo brzo i sa
             osmijehom.
@@ -75,37 +57,29 @@ export default function Contact() {
           {/* LEFT */}
           <div className="p-glass p-glass-hover p-8 sm:p-10">
             <div className="space-y-6">
-              {/* PHONE */}
+              {/* TELEFON */}
               <div>
                 <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                   Telefon
                 </div>
 
                 <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="text-white/92 font-semibold text-lg">
+                    {PHONE_DISPLAY}
+                  </div>
+
                   <a
                     href={`tel:${PHONE_E164}`}
-                    className="text-white/92 font-semibold text-lg hover:text-[#f2b400] transition"
+                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-[#f2b400] px-5 py-2 text-sm font-extrabold text-black hover:brightness-105 transition"
                   >
-                    {PHONE_DISPLAY}
+                    Pozovi
                   </a>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(PHONE_DISPLAY);
-                      setCopied("phone");
-                      window.setTimeout(() => setCopied(null), 1200);
-                    }}
-                    className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-extrabold text-white/85 hover:bg-white/10 transition"
-                  >
-                    {copied === "phone" ? "Kopirano" : "Kopiraj"}
-                  </button>
                 </div>
               </div>
 
               <div className="h-px w-full bg-white/10" />
 
-              {/* EMAIL — vraćen mailto */}
+              {/* EMAIL */}
               <div>
                 <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                   Email
@@ -130,7 +104,7 @@ export default function Contact() {
 
               <div className="h-px w-full bg-white/10" />
 
-              {/* ADDRESS */}
+              {/* ADRESA */}
               <div>
                 <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                   Adresa
@@ -140,7 +114,7 @@ export default function Contact() {
                 </div>
               </div>
 
-              {/* HOURS */}
+              {/* RADNO VREME */}
               <div>
                 <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                   Radno vreme
