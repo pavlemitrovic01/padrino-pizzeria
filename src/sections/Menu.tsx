@@ -78,12 +78,9 @@ function normalizeImagePath(image: string | null): string | null {
 }
 
 const NAME_TO_FILE: Record<string, string> = {
-  // pizze
   "quattro formaggi": "quattro.png",
   "don pesto": "pesto.png",
   "don pamidoro": "pomodoro.png",
-
-  // sosevi (filename sa razmakom u public/menu)
   "ljuti sos": "ljuti sos.png",
   "slatko ljuti": "slatko ljuti.png",
 };
@@ -117,9 +114,7 @@ function buildFileCandidatesFromName(name: string): string[] {
   if (!n) return [];
 
   const mapped = NAME_TO_FILE[n];
-  if (mapped) {
-    return buildFileCandidatesFromFilename(mapped);
-  }
+  if (mapped) return buildFileCandidatesFromFilename(mapped);
 
   const withDash = n.replaceAll(" ", "-");
   const withSpace = n;
@@ -134,7 +129,6 @@ function buildFileCandidatesFromName(name: string): string[] {
   for (const file of candidates) {
     for (const c of buildFileCandidatesFromFilename(file)) uniq.add(c);
   }
-
   return [...uniq];
 }
 
@@ -146,7 +140,6 @@ function buildImageCandidates(image: string | null, name: string): string[] {
     const file = base.replace("/menu/", "");
     for (const c of buildFileCandidatesFromFilename(file)) uniq.add(c);
   }
-
   for (const c of buildFileCandidatesFromName(name)) uniq.add(c);
 
   return [...uniq];
@@ -166,27 +159,17 @@ function getSafeCents(row: DbMenuItem): number {
       : 0;
 }
 
-type ToastState = {
-  visible: boolean;
-  title: string;
-  subtitle?: string;
-};
+type ToastState = { visible: boolean; title: string; subtitle?: string };
 
 function SmartMenuImage(props: { image: string | null; name: string; alt: string; className: string }) {
   const { image, name, alt, className } = props;
-
   const candidates = useMemo(() => buildImageCandidates(image, name), [image, name]);
   const [idx, setIdx] = useState(0);
 
-  useEffect(() => {
-    setIdx(0);
-  }, [image, name]);
+  useEffect(() => setIdx(0), [image, name]);
 
   const src = candidates[idx] ?? null;
-
-  if (!src) {
-    return <div className={className + " bg-white/5"} aria-hidden="true" />;
-  }
+  if (!src) return <div className={className + " bg-white/5"} aria-hidden="true" />;
 
   return (
     <img
@@ -194,6 +177,7 @@ function SmartMenuImage(props: { image: string | null; name: string; alt: string
       alt={alt}
       className={className}
       loading="lazy"
+      decoding="async"
       onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
     />
   );
@@ -203,13 +187,9 @@ function PreviewImage(props: { candidates: string[]; alt: string; className?: st
   const { candidates, alt, className } = props;
   const [idx, setIdx] = useState(0);
 
-  useEffect(() => {
-    setIdx(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candidates.join("|")]);
+  useEffect(() => setIdx(0), [candidates.join("|")]);
 
   const src = candidates[idx] ?? null;
-
   if (!src) return <div className={["bg-white/5 rounded-2xl", className ?? ""].join(" ")} aria-hidden="true" />;
 
   return (
@@ -218,6 +198,7 @@ function PreviewImage(props: { candidates: string[]; alt: string; className?: st
       alt={alt}
       className={className}
       draggable={false}
+      decoding="async"
       onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
     />
   );
@@ -243,13 +224,11 @@ export default function Menu() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       const { data } = await supabase.from("menu_items").select("*");
       if (cancelled) return;
       setItems((data ?? []) as DbMenuItem[]);
     }
-
     load();
     return () => {
       cancelled = true;
@@ -350,7 +329,6 @@ export default function Menu() {
 
   function onAdd(row: DbMenuItem) {
     const cents = getSafeCents(row);
-
     const candidates = buildImageCandidates(row.image, row.name);
     const best = candidates[0] ?? "";
 
@@ -399,46 +377,48 @@ export default function Menu() {
       />
 
       <div className="fixed inset-0 z-50 flex justify-center items-stretch px-4 pb-14 pt-12 sm:pt-16 md:pt-20">
-        <div className="relative w-full max-w-[1080px] h-full max-h-full flex flex-col overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/70 backdrop-blur-none sm:backdrop-blur-md">
-          {/* Background for menu modal (prevents HERO text bleeding through) */}
+        <div className="relative w-full max-w-[1080px] h-full max-h-full flex flex-col overflow-hidden rounded-[30px] ring-1 ring-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.70)] bg-black/20 backdrop-blur-none sm:backdrop-blur-md">
+          {/* Background image (prosvetljeno, da se vidi menu.webp) */}
           <div className="absolute inset-0">
             <img
               src="/sections/menu.webp"
               alt=""
-              className="h-full w-full object-cover opacity-55"
+              className="h-full w-full object-cover opacity-85"
               draggable={false}
               loading="eager"
               decoding="async"
             />
-            <div className="absolute inset-0 bg-black/75" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/65 to-black/85" />
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/30 to-black/50" />
           </div>
 
-          {/* Close button (top-right) */}
+          <div className="pointer-events-none absolute -top-36 -left-36 h-96 w-96 rounded-full bg-[#f2b400]/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/25" />
+
+          {/* X (top-right) */}
           <button
             type="button"
             onClick={closeAll}
-            className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white/90 ring-1 ring-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.45)] hover:bg-black/65 hover:ring-white/15 transition"
+            className="absolute right-4 top-4 z-20 h-11 w-11 rounded-full bg-white/10 text-white/90 hover:bg-white/15 transition flex items-center justify-center"
             aria-label="Zatvori"
           >
             ×
           </button>
 
-          <div className="pointer-events-none absolute -top-36 -left-36 h-96 w-96 rounded-full bg-[#f2b400]/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-44 -right-44 h-[520px] w-[520px] rounded-full bg-white/6 blur-3xl" />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
-
-          <div className="relative flex flex-col gap-5 px-6 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-8 sm:py-7">
-            <div className="min-w-0 w-full sm:w-auto">
+          {/* Header (FIX: ne sužava naslov) */}
+          <div className="relative flex flex-col gap-5 px-6 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-8 sm:px-8 sm:py-7">
+            {/* Left becomes flex-1 so it keeps width; title is single text node (no forced line breaks) */}
+            <div className="min-w-0 w-full sm:flex-1">
               <div className="p-kicker">Meni</div>
-              <h2 className="mt-2 text-[24px] sm:text-[34px] leading-[1.12] sm:leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left max-w-[22ch] mx-auto sm:mx-0 sm:max-w-none">
-                <span className="block sm:inline">Iz naših srca,</span>{" "}
-                <span className="block sm:inline">do vaših osmjeha.</span>
+              <h2 className="mt-2 text-[24px] sm:text-[34px] leading-[1.12] sm:leading-tight font-extrabold tracking-normal sm:tracking-wide text-white/92 text-center sm:text-left">
+                Iz naših srca, do vaših osmjeha.
               </h2>
               <div className="mt-4 h-px w-56 mx-auto sm:mx-0 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
             </div>
 
-            <div className="flex w-full shrink-0 items-center justify-center gap-3 sm:w-auto sm:justify-end">
+            {/* CTA: pomeren ulevo bez skupljanja levog bloka */}
+            <div className="flex w-full shrink-0 items-center justify-center sm:w-auto sm:justify-end sm:mr-14">
               <button
                 type="button"
                 onClick={goToCart}
@@ -450,7 +430,7 @@ export default function Menu() {
           </div>
 
           <div className="relative px-6 pb-8 sm:px-8 flex-1 min-h-0">
-            <div className="pointer-events-none absolute inset-0 rounded-[26px] bg-black/25" />
+            <div className="pointer-events-none absolute inset-0 rounded-[26px] bg-black/10" />
 
             <div className="relative h-full overflow-y-auto pr-2 pb-24 sm:pb-4 overscroll-contain [-webkit-overflow-scrolling:touch]">
               <div className="grid grid-cols-2 gap-4 sm:gap-6 pb-3 md:grid-cols-4 lg:grid-cols-7">
@@ -461,6 +441,9 @@ export default function Menu() {
 
                   const imageCandidates = buildImageCandidates(row.image, row.name);
                   const hasPreview = imageCandidates.length > 0;
+
+                  const sizeLabel = detectSizeLabel(row.name);
+                  const displayName = stripSize(row.name);
 
                   const onCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -486,7 +469,7 @@ export default function Menu() {
                         "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
                         isAdded ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]" : "",
                       ].join(" ")}
-                      aria-label={`Dodaj ${row.name} u korpu`}
+                      aria-label={`Dodaj ${displayName} u korpu`}
                     >
                       <div
                         className={[
@@ -504,7 +487,12 @@ export default function Menu() {
                       </div>
 
                       <div className="relative">
-                        <SmartMenuImage image={row.image} name={row.name} alt={row.name} className="h-[96px] w-full object-cover" />
+                        <SmartMenuImage
+                          image={row.image}
+                          name={row.name}
+                          alt={displayName}
+                          className="h-[96px] w-full object-cover"
+                        />
                         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/0 via-black/0 to-black/35" />
 
                         {hasPreview ? (
@@ -513,20 +501,20 @@ export default function Menu() {
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setPreview({ open: true, name: row.name, candidates: imageCandidates });
+                              setPreview({ open: true, name: displayName, candidates: imageCandidates });
                             }}
                             className={[
                               "absolute left-3 bottom-3 z-10",
                               "h-8 px-3 rounded-full",
                               "border border-white/10",
-                              "bg-black/40 sm:bg-black/35",
+                              "bg-black/35 sm:bg-black/30",
                               "backdrop-blur-none sm:backdrop-blur-md",
                               "text-xs font-extrabold tracking-wide text-white/85",
-                              "hover:bg-black/55 sm:hover:bg-black/45",
+                              "hover:bg-black/45 sm:hover:bg-black/40",
                               "transition",
                               "sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
                             ].join(" ")}
-                            aria-label={`Vidi sliku: ${row.name}`}
+                            aria-label={`Vidi sliku: ${displayName}`}
                           >
                             Vidi sliku
                           </button>
@@ -534,7 +522,9 @@ export default function Menu() {
                       </div>
 
                       <div className="p-4">
-                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">{stripSize(row.name)}</div>
+                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">
+                          {displayName}
+                        </div>
 
                         {desc ? (
                           <div className="mt-1 text-[14px] text-white/60 leading-snug">{desc}</div>
@@ -544,12 +534,12 @@ export default function Menu() {
 
                         <div className="mt-3">
                           <div className="h-px w-10 bg-gradient-to-r from-[#f2b400]/35 to-transparent" />
-                          <div className="mt-2 flex items-baseline justify-start gap-2">
+
+                          {/* Cena + size ispod cene (belo, bold) */}
+                          <div className="mt-2">
                             <div className="text-[14px] font-extrabold text-[#f2b400]">{formatEUR(price)}</div>
-                            {detectSizeLabel(row.name) ? (
-                              <div className="text-[12px] font-extrabold tracking-wide text-white/55">
-                                {detectSizeLabel(row.name)}
-                              </div>
+                            {sizeLabel ? (
+                              <div className="mt-1 text-[14px] font-extrabold text-white/92">{sizeLabel}</div>
                             ) : null}
                           </div>
                         </div>
@@ -597,7 +587,9 @@ export default function Menu() {
               >
                 <div className="min-w-0">
                   <div className="text-sm sm:text-[15px] font-extrabold text-white/90">{toast.title}</div>
-                  {toast.subtitle ? <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div> : null}
+                  {toast.subtitle ? (
+                    <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div>
+                  ) : null}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
