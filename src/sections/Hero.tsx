@@ -115,7 +115,7 @@ export default function Hero() {
               aria-label="Pogledaj meni"
             >
               <span className="text-[22px] font-semibold tracking-wide text-white/90">
-                Pogledaj meni
+                Poruči odmah
               </span>
 
               <span

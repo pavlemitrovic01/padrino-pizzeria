@@ -340,6 +340,20 @@ export default function CartDrawer() {
     addToCart,
   } = useCart();
 
+  // Action color system (premium, consistent)
+  const BTN_NEUTRAL =
+    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/85 transition";
+  const BTN_DANGER =
+    "inline-flex items-center justify-center rounded-full border border-red-500/25 bg-red-500/10 hover:bg-red-500/15 text-red-200 transition";
+  const BTN_SUCCESS =
+    "inline-flex items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 transition";
+
+  // Phase 2: subtle card polish (no layout changes, only cosmetics)
+  const CARD =
+    "p-glass p-4 sm:p-5 p-glass-hover ring-1 ring-white/5";
+  const ROW =
+    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 px-3 py-2.5";
+
   const [view, setView] = useState<DrawerView>("cart");
 
   const [name, setName] = useState("");
@@ -413,7 +427,6 @@ export default function CartDrawer() {
     setSubmitting(false);
   };
 
-  // ✅ JEDINA IZMENA U FAJLU: HERO SCROLL (top/hero) + fallback
   const handleGoToMenu = () => {
     closeCart();
 
@@ -450,7 +463,6 @@ export default function CartDrawer() {
     const el = drinksScrollRef.current;
     const top = el?.scrollTop ?? 0;
 
-    // NOTE: addToCart signature varies across versions; we keep it minimal.
     addToCart({
       id: `${d.id}-${Date.now()}`,
       name: d.name,
@@ -492,7 +504,6 @@ export default function CartDrawer() {
 
         const rows = ((data ?? []) as MenuItemData[]).filter(hasEurPrice);
 
-        // Pizza variants (33/50)
         const nextPizzaVariants: PizzaVariantsMap = {};
         for (const r of rows) {
           if (!isPizzaRow(r)) continue;
@@ -514,7 +525,6 @@ export default function CartDrawer() {
         }
         setPizzaVariantsByBaseKey(nextPizzaVariants);
 
-        // Addons + Sauces
         const addonRows = rows.filter((r) => normalizeCategory(r.category ?? "") === "dodaci");
         const sauceRows = rows.filter(
           (r) => isSauceCategory(r.category ?? "") || isSauceItemName(r.name)
@@ -538,7 +548,6 @@ export default function CartDrawer() {
             imageKey: r.name,
           }));
 
-        // Drinks
         const drinkRows = rows.filter((r) => isDrinkCategory(r.category ?? ""));
         const nextDrinks = drinkRows.map((r) => ({
           id: r.id,
@@ -688,16 +697,16 @@ export default function CartDrawer() {
                   ) : null}
 
                   <button
+                    type="button"
                     onClick={closeCart}
-                    className="p-btn-ghost h-10 sm:h-9 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                    aria-label="Zatvori korpu"
+                    className="h-11 w-11 rounded-full border border-red-500/40 text-red-400 bg-black/40 hover:bg-red-500/15 hover:border-red-400 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center"
                   >
-                    Zatvori
+                    <span className="text-[20px] leading-none">×</span>
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Scrollable content */}
+            </div>            {/* Scrollable content */}
             <div
               className="flex-1 overflow-y-auto px-4 sm:px-5"
               style={{
@@ -711,7 +720,9 @@ export default function CartDrawer() {
                 <div className="mt-5 p-glass p-5 p-glass-hover">
                   <p className="text-white font-extrabold text-lg">Porudžbina je poslata ✅</p>
                   <p className="mt-2 text-sm text-white/70">
-                    {successOrderId ? `ID porudžbine: ${successOrderId}` : "Porudžbina je evidentirana."}
+                    {successOrderId
+                      ? `ID porudžbine: ${successOrderId}`
+                      : "Porudžbina je evidentirana."}
                   </p>
 
                   <div className="mt-5 grid grid-cols-1 gap-3">
@@ -720,8 +731,9 @@ export default function CartDrawer() {
                     </button>
 
                     <button
+                      type="button"
                       onClick={closeCart}
-                      className="p-btn-ghost w-full h-12 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                      className={[BTN_DANGER, "w-full h-12 text-sm font-extrabold"].join(" ")}
                     >
                       Zatvori
                     </button>
@@ -801,8 +813,9 @@ export default function CartDrawer() {
                   </form>
                 </div>
               ) : null}
+
               {view === "cart" ? (
-                <div className="mt-5 space-y-4">
+                <div className="mt-6 space-y-5">
                   {items.length === 0 ? (
                     <div className="p-glass p-5 p-glass-hover text-center">
                       <p className="text-white font-extrabold text-lg">Korpa je prazna</p>
@@ -810,12 +823,15 @@ export default function CartDrawer() {
                         Dodaj picu iz menija, pa se vrati ovdje.
                       </p>
 
-                      <button onClick={handleGoToMenu} className="mt-5 p-btn-gold w-full h-12 text-sm">
+                      <button
+                        onClick={handleGoToMenu}
+                        className="mt-5 p-btn-gold w-full h-12 text-sm"
+                      >
                         Nazad na meni
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {items.map((item) => {
                         const isDrink = isDrinkCategory(item.category ?? "");
                         const hideAddons = isDrink;
@@ -832,15 +848,20 @@ export default function CartDrawer() {
                         const lineTotal = perItemCents * (item.quantity ?? 1);
 
                         return (
-                          <div key={item.id} className="p-glass p-4 p-glass-hover">
-                            <div className="flex gap-3">
+                          <div key={item.id} className={CARD}>
+                            <div className="flex gap-4">
                               <SmartCartImage image={item.image} name={item.name} alt={item.name} />
 
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    <div className="truncate text-white font-extrabold">{item.name}</div>
-                                    <div className="mt-1 text-sm text-white/70">{formatEUR(lineTotal)}</div>
+                                    <div className="truncate text-white font-extrabold text-[15px] sm:text-base">
+                                      {item.name}
+                                    </div>
+                                    <div className="mt-1 text-base font-semibold text-white/80">
+
+                                      {formatEUR(lineTotal)}
+                                    </div>
                                     {isDrink ? (
                                       <div className="mt-1 text-[11px] text-white/45">Piće</div>
                                     ) : null}
@@ -849,28 +870,32 @@ export default function CartDrawer() {
                                   <button
                                     type="button"
                                     onClick={() => removeFromCart(item.id)}
-                                    className="p-btn-ghost h-9 px-3 text-xs font-extrabold"
+                                    className={[BTN_DANGER, "h-9 px-3 text-xs font-extrabold"].join(" ")}
                                   >
                                     Ukloni
                                   </button>
                                 </div>
 
-                                <div className="mt-3 flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-2">
+                                <div className="mt-4 flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3">
                                     <button
                                       type="button"
                                       onClick={() => decrease(item.id)}
-                                      className="p-btn-ghost h-9 w-9 text-sm font-extrabold"
+                                      className={[BTN_DANGER, "h-10 w-10 text-base font-extrabold"].join(" ")}
+                                      aria-label="Smanji količinu"
                                     >
                                       –
                                     </button>
-                                    <div className="min-w-[28px] text-center text-sm font-extrabold text-white/85">
+
+                                    <div className="min-w-[32px] text-center text-base font-extrabold text-white/90">
                                       {item.quantity ?? 1}
                                     </div>
+
                                     <button
                                       type="button"
                                       onClick={() => increase(item.id)}
-                                      className="p-btn-ghost h-9 w-9 text-sm font-extrabold"
+                                      className={[BTN_SUCCESS, "h-10 w-10 text-base font-extrabold"].join(" ")}
+                                      aria-label="Povećaj količinu"
                                     >
                                       +
                                     </button>
@@ -884,7 +909,7 @@ export default function CartDrawer() {
                                         className={
                                           item.size === "33"
                                             ? "p-btn-gold h-9 px-3 text-xs font-extrabold"
-                                            : "p-btn-ghost h-9 px-3 text-xs font-extrabold"
+                                            : [BTN_NEUTRAL, "h-9 px-3 text-xs font-extrabold"].join(" ")
                                         }
                                       >
                                         33cm
@@ -895,7 +920,7 @@ export default function CartDrawer() {
                                         className={
                                           item.size === "50"
                                             ? "p-btn-gold h-9 px-3 text-xs font-extrabold"
-                                            : "p-btn-ghost h-9 px-3 text-xs font-extrabold"
+                                            : [BTN_NEUTRAL, "h-9 px-3 text-xs font-extrabold"].join(" ")
                                         }
                                       >
                                         50cm
@@ -904,27 +929,23 @@ export default function CartDrawer() {
                                   ) : null}
                                 </div>
 
-                                <div className="mt-3">
+                                <div className="mt-4">
                                   <textarea
                                     value={item.note ?? ""}
                                     onChange={(e) => setItemNote(item.id, e.target.value)}
-                                    className="p-input min-h-[70px] resize-none"
+                                    className="p-input min-h-[80px] resize-none"
                                     placeholder="Napomena (npr. bez maslina)"
                                   />
                                 </div>
-
                                 {!hideAddons ? (
                                   <>
                                     {/* Addons already on item */}
                                     {item.addons?.length ? (
-                                      <div className="mt-3 space-y-2">
+                                      <div className="mt-4 space-y-2">
                                         {item.addons.map((a: CartAddon) => (
-                                          <div
-                                            key={a.id}
-                                            className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
-                                          >
+                                          <div key={a.id} className={ROW}>
                                             <div className="min-w-0">
-                                              <div className="truncate text-xs font-extrabold text-white/80">
+                                              <div className="truncate text-xs font-extrabold text-white/85">
                                                 {a.name}
                                               </div>
                                               <div className="text-[11px] text-white/50">
@@ -936,26 +957,29 @@ export default function CartDrawer() {
                                               <button
                                                 type="button"
                                                 onClick={() => decreaseAddonQuantity(item.id, a.id)}
-                                                className="p-btn-ghost h-8 w-8 text-sm font-extrabold"
+                                                className={[BTN_DANGER, "h-9 w-9 text-base font-extrabold"].join(" ")}
+                                                aria-label="Smanji dodatak"
                                               >
                                                 –
                                               </button>
-                                              <div className="min-w-[22px] text-center text-xs font-extrabold text-white/80">
+                                              <div className="min-w-[24px] text-center text-xs font-extrabold text-white/85">
                                                 {a.quantity ?? 1}
                                               </div>
                                               <button
                                                 type="button"
                                                 onClick={() => increaseAddonQuantity(item.id, a.id)}
-                                                className="p-btn-ghost h-8 w-8 text-sm font-extrabold"
+                                                className={[BTN_SUCCESS, "h-9 w-9 text-base font-extrabold"].join(" ")}
+                                                aria-label="Povećaj dodatak"
                                               >
                                                 +
                                               </button>
                                               <button
                                                 type="button"
                                                 onClick={() => removeAddonFromItem(item.id, a.id)}
-                                                className="p-btn-ghost h-8 px-2 text-[11px] font-extrabold"
+                                                className={[BTN_DANGER, "h-9 w-9 text-base font-extrabold"].join(" ")}
+                                                aria-label="Ukloni dodatak"
                                               >
-                                                X
+                                                ×
                                               </button>
                                             </div>
                                           </div>
@@ -965,14 +989,11 @@ export default function CartDrawer() {
 
                                     {/* Addons catalog */}
                                     {addonsCatalog.length > 0 ? (
-                                      <div className="mt-4">
+                                      <div className="mt-5">
                                         <div className="p-eyebrow">DODACI</div>
                                         <div className="mt-3 grid grid-cols-1 gap-3">
                                           {addonsCatalog.map((a) => (
-                                            <div
-                                              key={a.id}
-                                              className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
-                                            >
+                                            <div key={a.id} className={ROW}>
                                               <div className="flex items-center gap-3 min-w-0">
                                                 <SmartMiniAddonImage name={a.imageKey} />
                                                 <div className="min-w-0">
@@ -994,7 +1015,7 @@ export default function CartDrawer() {
                                                     price: a.price,
                                                   })
                                                 }
-                                                className="p-btn-ghost h-9 px-3 text-xs font-extrabold"
+                                                className={[BTN_SUCCESS, "h-9 px-4 text-xs font-extrabold"].join(" ")}
                                               >
                                                 Dodaj
                                               </button>
@@ -1003,9 +1024,10 @@ export default function CartDrawer() {
                                         </div>
                                       </div>
                                     ) : null}
+
                                     {/* Sauces */}
                                     {saucesCatalog.length > 0 ? (
-                                      <div className="mt-4">
+                                      <div className="mt-5">
                                         <div className="flex items-center justify-between gap-3">
                                           <div className="min-w-0">
                                             <div className="p-eyebrow">DODAJ</div>
@@ -1017,7 +1039,10 @@ export default function CartDrawer() {
                                             onClick={() =>
                                               setOpenSaucesForItemId((v) => (v === item.id ? null : item.id))
                                             }
-                                            className="p-btn-ghost h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                                            className={[
+                                              openSaucesForItemId === item.id ? BTN_DANGER : BTN_SUCCESS,
+                                              "h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25",
+                                            ].join(" ")}
                                           >
                                             {openSaucesForItemId === item.id ? "Zatvori" : "Dodaj soseve"}
                                           </button>
@@ -1026,19 +1051,14 @@ export default function CartDrawer() {
                                         {openSaucesForItemId === item.id ? (
                                           <div className="mt-4 grid grid-cols-1 gap-3">
                                             {saucesCatalog.map((s) => (
-                                              <div
-                                                key={s.id}
-                                                className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
-                                              >
+                                              <div key={s.id} className={ROW}>
                                                 <div className="flex items-center gap-3 min-w-0">
                                                   <SmartMiniAddonImage name={s.imageKey} />
                                                   <div className="min-w-0">
                                                     <div className="truncate text-sm font-extrabold text-white/90">
                                                       {s.name}
                                                     </div>
-                                                    <div className="text-xs text-white/55">
-                                                      {formatEUR(s.price)}
-                                                    </div>
+                                                    <div className="text-xs text-white/55">{formatEUR(s.price)}</div>
                                                   </div>
                                                 </div>
 
@@ -1051,7 +1071,7 @@ export default function CartDrawer() {
                                                       price: s.price,
                                                     })
                                                   }
-                                                  className="p-btn-ghost h-9 px-3 text-xs font-extrabold"
+                                                  className={[BTN_SUCCESS, "h-9 px-4 text-xs font-extrabold"].join(" ")}
                                                 >
                                                   Dodaj
                                                 </button>
@@ -1064,7 +1084,7 @@ export default function CartDrawer() {
 
                                     {/* Drinks per item */}
                                     {drinksCatalog.length > 0 ? (
-                                      <div className="mt-4">
+                                      <div className="mt-5">
                                         <div className="flex items-center justify-between gap-3">
                                           <div className="min-w-0">
                                             <div className="p-eyebrow">DODAJ</div>
@@ -1076,7 +1096,10 @@ export default function CartDrawer() {
                                             onClick={() =>
                                               setOpenDrinksForItemId((v) => (v === item.id ? null : item.id))
                                             }
-                                            className="p-btn-ghost h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                                            className={[
+                                              openDrinksForItemId === item.id ? BTN_DANGER : BTN_SUCCESS,
+                                              "h-10 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25",
+                                            ].join(" ")}
                                           >
                                             {openDrinksForItemId === item.id ? "Zatvori" : "Dodaj piće"}
                                           </button>
@@ -1094,7 +1117,7 @@ export default function CartDrawer() {
                                             {drinksCatalog.map((d) => (
                                               <div
                                                 key={d.id}
-                                                className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2"
+                                                className={ROW}
                                                 style={{ overflowAnchor: "none" }}
                                               >
                                                 <div className="flex items-center gap-3 min-w-0">
@@ -1103,9 +1126,7 @@ export default function CartDrawer() {
                                                     <div className="truncate text-sm font-extrabold text-white/90">
                                                       {d.name}
                                                     </div>
-                                                    <div className="text-xs text-white/55">
-                                                      {formatEUR(d.price)}
-                                                    </div>
+                                                    <div className="text-xs text-white/55">{formatEUR(d.price)}</div>
                                                   </div>
                                                 </div>
 
@@ -1153,7 +1174,9 @@ export default function CartDrawer() {
                       <div className="min-w-0">
                         <div className="p-eyebrow">UKUPNO</div>
                         <div className="mt-1 text-white/90 text-xl font-extrabold">
-                          {subtotalLabel}
+                          <div className="mt-1 text-white text-2xl font-extrabold tracking-tight">
+                            {subtotalLabel}
+                          </div>
                         </div>
                       </div>
 
@@ -1161,7 +1184,7 @@ export default function CartDrawer() {
                         type="button"
                         onClick={() => setView("checkout")}
                         disabled={!canSubmit}
-                        className="p-btn-gold h-11 px-5 text-sm font-extrabold disabled:opacity-50"
+                        className="h-11 px-6 text-sm font-extrabold rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out disabled:opacity-50 disabled:hover:scale-100"
                       >
                         Poruči
                       </button>
@@ -1170,7 +1193,7 @@ export default function CartDrawer() {
                     <button
                       type="button"
                       onClick={handleGoToMenu}
-                      className="mt-3 p-btn-ghost h-11 w-full text-sm font-extrabold"
+                      className="h-11 w-full text-sm font-extrabold rounded-full border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white transition-all duration-200"
                     >
                       Nazad na meni
                     </button>
@@ -1184,3 +1207,4 @@ export default function CartDrawer() {
     </AnimatePresence>
   );
 }
+
