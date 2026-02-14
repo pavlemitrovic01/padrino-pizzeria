@@ -25,73 +25,37 @@ function scrollToTop() {
 }
 
 export default function Navbar() {
+  // ✅ FIX: CartContextType ima totalItems + openCart (ne totalQty + setIsOpen)
   const { totalItems, openCart } = useCart();
 
-  const [isAdminRoute, setIsAdminRoute] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
+  const [isSticky, setIsSticky] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // ✅ Supabase se učitava dinamički samo ako smo na admin rutama
-  useEffect(() => {
-    const path = normalizePath();
-    const admin =
-      path === "/admin" ||
-      path === "/admin/" ||
-      path === "/admin/login" ||
-      path.startsWith("/admin/login/") ||
-      path === "/admin/logs" ||
-      path === "/admin/logs/";
-    setIsAdminRoute(admin);
-
-    if (!admin) return;
-
-    let unsub: (() => void) | null = null;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { supabase } = await import("../lib/supabaseClient");
-        const { data } = await supabase.auth.getSession();
-        if (cancelled) return;
-        setHasSession(!!data?.session);
-
-        const { data: listener } = supabase.auth.onAuthStateChange((_evt, session) => {
-          if (cancelled) return;
-          setHasSession(!!session);
-        });
-
-        unsub = () => {
-          listener?.subscription.unsubscribe();
-        };
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[Padrino] Navbar admin session check failed:", e);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      unsub?.();
-    };
-  }, []);
+  const path = normalizePath();
+  const isAdminRoute = useMemo(() => path.startsWith("/admin"), [path]);
 
   const links = useMemo(
     () => [
       { id: "menu", label: "Meni" },
       { id: "delivery", label: "Dostava" },
-      { id: "o-nama", label: "O nama" },
-      { id: "contact", label: "Kontakt" },
+      { id: "about", label: "O nama" },
+      { id: "kontakt", label: "Kontakt" },
     ],
     []
   );
 
-  async function handleLogout() {
-    try {
-      const { supabase } = await import("../lib/supabaseClient");
-      await supabase.auth.signOut();
-    } finally {
-      window.location.href = "/admin/login";
+  useEffect(() => {
+    function onScroll() {
+      setIsSticky(window.scrollY > 20);
     }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function onClickCart(e: MouseEvent) {
+    e.preventDefault();
+    openCart();
   }
 
   function onClickLink(id: string) {
@@ -107,9 +71,9 @@ export default function Navbar() {
     }
 
     if (id === "menu") {
-      // ✅ “Meni” uvek vraća na Hero/top (bez bacanja na delivery)
+      // ✅ “Meni” otvara isti flow kao HERO CTA “Pogledaj meni”
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
-      scrollToTop();
+      window.dispatchEvent(new Event("padrino:open-menu"));
       return;
     }
 
@@ -117,185 +81,142 @@ export default function Navbar() {
     scrollToId(id);
   }
 
-  function onLogoClick(e: MouseEvent<HTMLAnchorElement>) {
-    setMobileOpen(false);
-
-    if (isAdminRoute) return;
-
-    e.preventDefault();
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    scrollToTop();
-  }
-
-  useEffect(() => {
-    const hash = (window.location.hash || "").replace("#", "").trim();
-    if (!hash) return;
-
-    // ✅ ako je hash "menu", tretiramo kao top (ne pokušavamo id="menu")
-    if (hash === "menu") {
-      const tTop = window.setTimeout(() => scrollToTop(), 50);
-      return () => window.clearTimeout(tTop);
-    }
-
-    const t = window.setTimeout(() => scrollToId(hash), 50);
-    return () => window.clearTimeout(t);
-  }, []);
-
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [mobileOpen]);
-
   return (
-    <header className="fixed top-0 left-0 right-0 z-40">
-      <div className="border-b border-white/10 bg-black/55 backdrop-blur-md">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-          <div className="h-16 flex items-center gap-3">
-            <a
-              href="/"
-              onClick={onLogoClick}
-              aria-label="Padrino"
-              className="flex items-center gap-3 -ml-1 transition-opacity duration-300 ease-out hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded-full"
-            >
-              <ChefHatLogo />
-            </a>
+    <header
+      className={[
+        "fixed top-0 left-0 right-0 z-50",
+        "transition-all duration-300",
+        isSticky ? "backdrop-blur-md bg-black/50 border-b border-white/10" : "bg-transparent",
+      ].join(" ")}
+    >
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="flex h-20 items-center justify-between">
+          {/* Logo */}
+          <a
+            href="/#"
+            className="flex items-center gap-3 select-none"
+            onClick={(e) => {
+              e.preventDefault();
+              setMobileOpen(false);
+              if (isAdminRoute) {
+                window.location.href = "/#";
+                return;
+              }
+              window.history.replaceState(null, "", window.location.pathname + window.location.search);
+              scrollToTop();
+            }}
+            aria-label="Padrino početna"
+          >
+            <ChefHatLogo className="h-9 w-9" />
+            <span className="sr-only">Padrino</span>
+          </a>
 
-            <nav className="hidden md:flex items-center gap-1 ml-6">
-              {!isAdminRoute &&
-                links.map((l) => (
+          {/* Desktop links */}
+          <nav className="hidden md:flex items-center gap-10">
+            {links.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                className="text-sm font-extrabold tracking-wide text-white/80 hover:text-white transition"
+                onClick={() => onClickLink(l.id)}
+              >
+                {l.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Right controls */}
+          <div className="flex items-center gap-3">
+            {/* Cart */}
+            <button
+              type="button"
+              onClick={onClickCart}
+              className={[
+                "inline-flex items-center gap-2 rounded-full",
+                "bg-[#f2b400] text-black",
+                "px-5 py-2.5 text-sm font-extrabold",
+                "hover:brightness-105 transition",
+                "shadow-[0_10px_35px_rgba(0,0,0,0.45)]",
+              ].join(" ")}
+              aria-label="Otvori korpu"
+            >
+              <span className="inline-flex items-center justify-center">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 7h15l-1.5 9h-12L6 7Z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M6 7 5 3H2"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                  <path d="M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" fill="currentColor" />
+                  <path d="M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" fill="currentColor" />
+                </svg>
+              </span>
+              <span>Korpa</span>
+              <span className="ml-1 inline-flex items-center justify-center rounded-full bg-black/15 px-2 py-0.5 text-[12px] font-extrabold">
+                {totalItems}
+              </span>
+            </button>
+
+            {/* Mobile menu */}
+            <button
+              type="button"
+              className="md:hidden inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/30 hover:bg-black/40 transition"
+              aria-label="Otvori meni"
+              onClick={() => setMobileOpen((v) => !v)}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 7h16M4 12h16M4 17h16"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile dropdown */}
+        {mobileOpen ? (
+          <div className="md:hidden pb-4">
+            <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md p-3">
+              <div className="flex flex-col">
+                {links.map((l) => (
                   <button
                     key={l.id}
                     type="button"
+                    className="px-3 py-3 text-left text-sm font-extrabold tracking-wide text-white/85 hover:text-white transition"
                     onClick={() => onClickLink(l.id)}
-                    className={[
-                      "px-4 py-2 rounded-2xl text-sm font-extrabold tracking-wide",
-                      "text-white/75 hover:text-white hover:bg-white/5 transition-all duration-300 ease-out",
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
-                    ].join(" ")}
                   >
                     {l.label}
                   </button>
                 ))}
-            </nav>
-
-            <div className="ml-auto flex items-center gap-2">
-              {isAdminRoute && hasSession ? (
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="hidden md:inline-flex h-10 px-4 rounded-full bg-red-500/15 text-red-100 ring-1 ring-red-500/25 font-extrabold text-sm transition-all duration-300 ease-out hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                >
-                  Logout
-                </button>
-              ) : null}
-
-              {!isAdminRoute ? (
-                <button
-                  type="button"
-                  onClick={openCart}
-                  className="relative hidden md:inline-flex h-10 items-center gap-2 rounded-full bg-[#f2b400] text-black px-5 font-extrabold shadow-[0_18px_55px_rgba(0,0,0,0.45)] transition-all duration-300 ease-out hover:brightness-105 active:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                >
-                  <span className="text-base">🛒</span>
-                  Korpa
-                  {totalItems > 0 ? (
-                    <span className="absolute -top-2 -right-2 h-6 min-w-6 px-2 rounded-full bg-black text-[#f2b400] text-xs font-extrabold grid place-items-center ring-1 ring-white/10">
-                      {totalItems}
-                    </span>
-                  ) : null}
-                </button>
-              ) : null}
-
-              <div className="md:hidden flex items-center gap-2">
-                {!isAdminRoute ? (
-                  <button
-                    type="button"
-                    onClick={openCart}
-                    className="relative h-10 w-10 grid place-items-center rounded-full bg-white/10 text-white/90 ring-1 ring-white/10 transition-all duration-300 ease-out hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                    aria-label="Otvori korpu"
-                  >
-                    🛒
-                    {totalItems > 0 ? (
-                      <span className="absolute -top-2 -right-2 h-5 min-w-5 px-1 rounded-full bg-[#f2b400] text-black text-[11px] font-extrabold grid place-items-center">
-                        {totalItems}
-                      </span>
-                    ) : null}
-                  </button>
-                ) : null}
-
-                {isAdminRoute && hasSession ? (
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="h-10 px-4 rounded-full bg-red-500/15 text-red-100 ring-1 ring-red-500/25 font-extrabold text-sm transition-all duration-300 ease-out hover:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/35 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  >
-                    Logout
-                  </button>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen((v) => !v)}
-                  className="h-10 w-10 grid place-items-center rounded-full bg-white/10 text-white/90 ring-1 ring-white/10 transition-all duration-300 ease-out hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  aria-label="Meni"
-                >
-                  ☰
-                </button>
               </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </div>
-
-      {mobileOpen && !isAdminRoute ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
-            aria-label="Zatvori meni"
-            onClick={() => setMobileOpen(false)}
-          />
-          <div className="fixed left-0 right-0 top-16 z-50">
-            <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-              <div className="p-glass overflow-hidden">
-                <div className="p-3">
-                  {links.map((l) => (
-                    <button
-                      key={l.id}
-                      type="button"
-                      onClick={() => onClickLink(l.id)}
-                      className={[
-                        "w-full text-left px-4 py-4 rounded-2xl",
-                        "text-sm font-extrabold tracking-wide",
-                        "text-white/85 hover:text-white hover:bg-white/5 transition-all duration-300 ease-out",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black",
-                      ].join(" ")}
-                    >
-                      {l.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="p-divider" />
-
-                <div className="p-4 flex items-center justify-between">
-                  <div className="text-xs text-white/55">Padrino • Budva</div>
-                  <button
-                    type="button"
-                    onClick={() => setMobileOpen(false)}
-                    className="h-9 px-4 rounded-full bg-white/10 text-white/85 font-extrabold text-xs transition-all duration-300 ease-out hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2b400]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-                  >
-                    Zatvori
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      ) : null}
     </header>
   );
 }

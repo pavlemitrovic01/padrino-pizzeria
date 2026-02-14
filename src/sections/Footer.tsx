@@ -39,6 +39,11 @@ export default function Footer() {
     scrollToTop();
   }, []);
 
+  const onOpenMenu = useCallback(() => {
+    clearHash();
+    window.dispatchEvent(new Event("padrino:open-menu"));
+  }, []);
+
   const onGoSection = useCallback((id: string) => {
     window.history.replaceState(null, "", `/#${id}`);
     scrollToId(id);
@@ -87,10 +92,10 @@ export default function Footer() {
         <div className="pointer-events-none absolute -top-28 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.10),transparent_60%)] blur-3xl" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-7xl px-6 py-20 md:py-24">
+      <div className="relative z-10 mx-auto max-w-7xl px-6 pt-10 pb-14 md:py-24">
         <div className="grid gap-12 md:grid-cols-3 md:gap-10">
           {/* Brand */}
-          <div>
+          <div className="hidden md:block">
             {/* ✅ Logo potpuno uklonjen */}
             <span className="text-xl font-extrabold tracking-wide">Padrino</span>
 
@@ -120,7 +125,7 @@ export default function Footer() {
               <li>
                 <button
                   type="button"
-                  onClick={onGoHome}
+                  onClick={onOpenMenu}
                   className="hover:text-white transition"
                 >
                   Meni
@@ -140,7 +145,7 @@ export default function Footer() {
               <li>
                 <button
                   type="button"
-                  onClick={() => onGoSection("contact")}
+                  onClick={() => onGoSection("kontakt")}
                   className="hover:text-white transition"
                 >
                   Kontakt
@@ -149,56 +154,68 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Contact quick */}
+          {/* Contact */}
           <div>
             <div className="text-xs uppercase tracking-[0.22em] text-white/45 mb-4">
               Kontakt
             </div>
 
-            <div className="space-y-3 text-white/75">
-              <a
-                href={WHATSAPP_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="block hover:text-white transition"
-              >
-                WhatsApp
-              </a>
+            <ul className="space-y-3">
+              <li>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-white/75 hover:text-white transition"
+                >
+                  WhatsApp
+                </a>
+              </li>
 
-              <button
-                type="button"
-                onClick={onOpenViber}
-                className="block hover:text-white transition text-left"
-              >
-                Viber
-              </button>
+              <li>
+                <button
+                  type="button"
+                  onClick={onOpenViber}
+                  className="text-white/75 hover:text-white transition"
+                >
+                  Viber
+                </button>
+              </li>
 
-              <a
-                href={INSTAGRAM_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="block hover:text-white transition"
-              >
-                Instagram
-              </a>
+              <li>
+                <a
+                  href={INSTAGRAM_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-white/75 hover:text-white transition"
+                >
+                  Instagram
+                </a>
+              </li>
 
-              <a
-                href={MAPS_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="block hover:text-white transition"
-              >
-                Google Maps
-              </a>
-            </div>
+              <li>
+                <a
+                  href={MAPS_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-white/75 hover:text-white transition"
+                >
+                  Google Maps
+                </a>
+              </li>
+            </ul>
           </div>
         </div>
 
-        <div className="my-14 h-px w-full bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+        {/* Divider */}
+        <div className="mt-14 h-px w-full bg-white/10" />
 
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/55">
-          <div>© {new Date().getFullYear()} Padrino Pizzeria Budva</div>
-          <div className="tracking-[0.22em] uppercase">Since 2021</div>
+        {/* Bottom row */}
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-white/50 text-sm">© 2026 Padrino Pizzeria Budva</div>
+          <div className="text-white/40 text-xs tracking-[0.28em] uppercase">
+            Since 2021
+          </div>
         </div>
       </div>
     </footer>

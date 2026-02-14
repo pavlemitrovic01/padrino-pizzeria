@@ -101,7 +101,7 @@ export default function Contact() {
         <div className="absolute inset-0 shadow-[inset_0_0_180px_rgba(0,0,0,0.9)]" />
       </div>
 
-      <div className="relative z-10 mx-auto max-w-6xl px-6 py-24 md:py-28">
+      <div className="relative z-10 mx-auto max-w-6xl px-6 pt-24 pb-14 md:py-28">
         <div className="text-center">
           <div className="p-kicker mb-4">Kontakt</div>
           <h2 className="p-title text-4xl md:text-5xl">Tu smo za vas</h2>
@@ -140,41 +140,41 @@ export default function Contact() {
               </div>
 
               <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <a
-                  href={`mailto:${EMAIL}`}
-                  className="text-white/92 font-semibold text-lg hover:text-[#f2b400] transition"
-                >
-                  {EMAIL}
-                </a>
+                <div className="text-white/92 font-semibold text-lg">{EMAIL}</div>
 
-                <a href={`mailto:${EMAIL}`} className={yellowBubble}>
-                  E-mail
+                <a
+                  href={`mailto:${EMAIL}?subject=Porudžbina%20-%20Padrino%20Pizzeria%20Budva&body=Zdravo%2C%0A%0AŽelim%20da%20poručim%3A%0A-%20%0A%0AAdresa%3A%20%0ATelefon%3A%20%0A%0AHvala!`}
+                  className={yellowBubble}
+                >
+                  Pošalji mail
                 </a>
               </div>
             </div>
 
             <div className="h-px w-full bg-white/10" />
 
-            {/* ADRESA */}
+            {/* ADDRESS */}
             <div>
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                 Adresa
               </div>
-              <div className="mt-2 text-white/85 font-semibold">
+              <div className="mt-2 text-white/92 font-semibold text-lg">
                 {ADDRESS_LINE}
               </div>
             </div>
 
-            {/* RADNO VREME */}
+            <div className="h-px w-full bg-white/10" />
+
+            {/* HOURS */}
             <div>
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                 Radno vreme
               </div>
-              <div className="mt-2 text-white/85 font-semibold">{HOURS}</div>
+              <div className="mt-2 text-white/92 font-semibold text-lg">{HOURS}</div>
             </div>
           </div>
 
-          {/* RIGHT — SOCIAL GLASS (BRAND GLOW) */}
+          {/* RIGHT */}
           <div className="space-y-4">
             {social.map((s) => (
               <a
@@ -182,82 +182,44 @@ export default function Contact() {
                 href={s.href}
                 target="_blank"
                 rel="noreferrer"
-                className={[
-                  "group relative overflow-hidden",
-                  "flex items-center justify-between",
-                  "px-6 py-5",
-                  "rounded-[28px]",
-                  "border border-white/10",
-                  "bg-black/40 backdrop-blur-xl",
-                  "shadow-[0_25px_90px_rgba(0,0,0,0.75)]",
-                  "transition-all duration-300",
-                  "hover:-translate-y-[1px]",
-                ].join(" ")}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                    `${s.accentHex}66`;
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.borderColor =
-                    "rgba(255,255,255,0.10)";
+                className="group relative p-glass p-glass-hover overflow-hidden"
+                style={{
+                  backgroundImage: s.glowBg,
                 }}
               >
-                {/* BRAND GLOW LAYER (hover) */}
-                <div
-                  className="pointer-events-none absolute inset-0 rounded-[28px] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                  style={{ backgroundImage: s.glowBg }}
-                />
-                {/* INNER VIGNETTE */}
-                <div className="pointer-events-none absolute inset-0 rounded-[28px] shadow-[inset_0_0_120px_rgba(0,0,0,0.78)]" />
-
-                <div className="relative flex items-center gap-4">
-                  {/* ICON BUBBLE */}
-                  <div
-                    className={[
-                      "h-12 w-12 rounded-full grid place-items-center",
-                      "bg-white/5",
-                      "border border-white/10",
-                      "shadow-[0_14px_40px_rgba(0,0,0,0.55)]",
-                      "transition-all duration-300",
-                      "group-hover:bg-white/6",
-                    ].join(" ")}
-                  >
-                    <span
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <div className="relative flex items-center justify-between p-6 sm:p-7">
+                  <div className="flex items-center gap-4">
+                    <div
                       className={[
+                        "h-10 w-10 rounded-full border border-white/10 bg-black/35 grid place-items-center",
                         s.iconClass,
-                        "transition-all duration-300",
                       ].join(" ")}
-                      style={{
-                        filter:
-                          "drop-shadow(0 0 14px rgba(0,0,0,0.22))",
-                      }}
-                      aria-hidden="true"
                     >
                       {s.icon}
-                    </span>
+                    </div>
+
+                    <div className="text-white/92 font-extrabold">{s.label}</div>
                   </div>
 
-                  <span className="text-white/92 font-semibold text-lg">
-                    {s.label}
-                  </span>
-                </div>
-
-                {/* CHEVRON BUBBLE */}
-                <div
-                  className={[
-                    "relative",
-                    "h-10 w-10 rounded-full grid place-items-center",
-                    "bg-white/5",
-                    "border border-white/10",
-                    "text-white/70",
-                    "transition-all duration-300",
-                    "group-hover:bg-white/6",
-                  ].join(" ")}
-                  aria-hidden="true"
-                >
-                  <span className="text-xl leading-none translate-x-[1px]">
-                    ›
-                  </span>
+                  <div className="h-10 w-10 rounded-full border border-white/10 bg-black/35 grid place-items-center text-white/70 group-hover:text-white transition">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M9 6l6 6-6 6"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
                 </div>
               </a>
             ))}
