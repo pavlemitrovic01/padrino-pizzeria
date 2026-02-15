@@ -125,6 +125,134 @@ async function notifyTelegramBestEffort(req: any, orderId: string) {
   }
 }
 
+/** -------------------- SERVER-SIDE PRICING + DELIVERY (HARDENING) -------------------- */
+
+type DeliveryZoneKey =
+  | "budva"
+  | "becici"
+  | "rafailovici"
+  | "przno"
+  | "sveti-stefan"
+  | "seoce"
+  | "jaz"
+  | "lastva";
+
+type DeliveryZone = { key: DeliveryZoneKey; label: string; minCents: number; feeCents: number };
+
+const DELIVERY_ZONES: DeliveryZone[] = [
+  { key: "budva", label: "Budva", minCents: 0, feeCents: 0 },
+  { key: "becici", label: "Bečići", minCents: 1500, feeCents: 300 },
+  { key: "rafailovici", label: "Rafailovići", minCents: 2000, feeCents: 500 },
+  { key: "przno", label: "Pržno", minCents: 2500, feeCents: 500 },
+  { key: "sveti-stefan", label: "Sveti Stefan", minCents: 2500, feeCents: 500 },
+  { key: "seoce", label: "Seoce", minCents: 2000, feeCents: 500 },
+  { key: "jaz", label: "Jaz", minCents: 2500, feeCents: 500 },
+  { key: "lastva", label: "Lastva", minCents: 3000, feeCents: 500 },
+];
+
+function normalizeText(input: string): string {
+  return String(input ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseZoneAndFeeFromNote(note: string): {
+  zone: DeliveryZone | null;
+  requestedFeeCents: number | null;
+} {
+  const n = String(note ?? "").trim();
+  if (!n) return { zone: null, requestedFeeCents: null };
+
+  // Expect a line like: "Zona: <label>, Dostava: <0€ / 3€ / 5€>"
+  // but be tolerant to encoding issues and spacing.
+  const lines = n
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  let zonePart = "";
+  let feePart = "";
+
+  for (const line of lines) {
+    const norm = normalizeText(line);
+    if (norm.includes("zona:") && norm.includes("dostava:")) {
+      const mZone = line.match(/Zona\s*:\s*([^,]+)\s*,?/i);
+      const mFee =
+        line.match(/Dostava\s*:\s*([^\s]+)\s*€/i) || line.match(/Dostava\s*:\s*([^,\s]+)/i);
+      if (mZone) zonePart = String(mZone[1] ?? "").trim();
+      if (mFee) feePart = String(mFee[1] ?? "").trim();
+      break;
+    }
+  }
+
+  const zoneNorm = normalizeText(zonePart);
+  const zone = DELIVERY_ZONES.find((z) => normalizeText(z.label) === zoneNorm) ?? null;
+
+  let requestedFeeCents: number | null = null;
+  if (feePart) {
+    const num = Number(String(feePart).replace(",", ".").replace(/[^0-9.]/g, ""));
+    if (Number.isFinite(num)) requestedFeeCents = Math.round(num * 100);
+  }
+
+  return { zone, requestedFeeCents };
+}
+
+function getLegacyOrderNote(body: any, rawItems: any[]): string {
+  const direct =
+    toTrimmedString(body?.note) || toTrimmedString(body?.order_note) || toTrimmedString(body?.orderNote);
+
+  if (direct) return direct;
+
+  const meta = rawItems.find((it) => looksLikeLegacyMetaItem(it));
+  if (meta) {
+    return toTrimmedString(meta.order_note) || toTrimmedString(meta.note) || "";
+  }
+
+  return "";
+}
+
+function safeInt(v: any): number {
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.trunc(n);
+}
+
+async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>> {
+  const uniq = Array.from(new Set(ids.filter((s) => typeof s === "string" && s.trim().length > 0)));
+  const map = new Map<string, number>();
+  if (uniq.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select("id, price_eur_cents, price")
+    .in("id", uniq);
+
+  if (error) {
+    console.error("[create-order] menu_items fetch error:", error);
+    throw new Error("Menu pricing lookup failed");
+  }
+
+  for (const r of (data ?? []) as any[]) {
+    const id = toTrimmedString(r?.id);
+    const price_eur_cents = r?.price_eur_cents;
+    const price = r?.price;
+
+    let cents = 0;
+    if (typeof price_eur_cents === "number" && Number.isFinite(price_eur_cents)) {
+      cents = Math.round(price_eur_cents);
+    } else if (typeof price === "number" && Number.isFinite(price)) {
+      cents = Math.round(price * 100);
+    }
+
+    if (id) map.set(id, cents);
+  }
+
+  return map;
+}
+
 export default async function handler(req: any, res: any) {
   setCors(req, res);
 
@@ -180,22 +308,97 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Invalid item structure" });
     }
 
-    // SOURCE OF TRUTH: total_eur_cents računamo na serveru
-    let total_eur_cents = 0;
+    // Pricing hardening: ignore client prices and fetch authoritative prices from DB
+    const idsToFetch: string[] = [];
+
+    for (const it of calcItems) {
+      const menu_item_id = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
+      if (menu_item_id) idsToFetch.push(menu_item_id);
+
+      const addons = Array.isArray(it.addons) ? it.addons : [];
+      for (const a of addons) {
+        if (!isPlainObject(a)) continue;
+        const addonId = toTrimmedString(a.id);
+        if (addonId) idsToFetch.push(addonId);
+      }
+    }
+
+    const priceMap = await fetchMenuPricesCents(idsToFetch);
+
+    // SOURCE OF TRUTH: subtotal_eur_cents računamo na serveru iz DB cena
+    let subtotal_eur_cents = 0;
 
     for (const item of calcItems) {
-      const quantity = item.quantity;
-      const price_per_item = item.price_per_item ?? item.pricePerItem;
+      const quantity = safeInt(item.quantity);
+      const menu_item_id = toTrimmedString(item.menu_item_id) || toTrimmedString(item.menuItemId);
 
-      if (!Number.isFinite(quantity) || !Number.isFinite(price_per_item)) {
-        return json(res, 400, { ok: false, error: "Invalid item values" });
-      }
-      if (quantity <= 0 || price_per_item < 0) {
+      if (!menu_item_id) {
         return json(res, 400, { ok: false, error: "Invalid item values" });
       }
 
-      total_eur_cents += Math.round(quantity * price_per_item);
+      const baseCents = priceMap.get(menu_item_id);
+      if (typeof baseCents !== "number" || !Number.isFinite(baseCents)) {
+        return json(res, 400, { ok: false, error: "Invalid menu item id" });
+      }
+
+      if (quantity <= 0) {
+        return json(res, 400, { ok: false, error: "Invalid item values" });
+      }
+
+      let perItemCents = Math.max(0, Math.round(baseCents));
+
+      const addons = Array.isArray(item.addons) ? item.addons : [];
+      for (const a of addons) {
+        if (!isPlainObject(a)) {
+          return json(res, 400, { ok: false, error: "Invalid addon structure" });
+        }
+        const addonId = toTrimmedString(a.id);
+        if (!addonId) {
+          return json(res, 400, { ok: false, error: "Invalid addon structure" });
+        }
+
+        const addonCents = priceMap.get(addonId);
+        if (typeof addonCents !== "number" || !Number.isFinite(addonCents)) {
+          return json(res, 400, { ok: false, error: "Invalid addon id" });
+        }
+
+        const aq = safeInt(a.quantity);
+        const addonQty = aq > 0 ? aq : 1;
+
+        perItemCents += Math.max(0, Math.round(addonCents)) * addonQty;
+      }
+
+      subtotal_eur_cents += Math.round(quantity * perItemCents);
     }
+
+    if (!Number.isFinite(subtotal_eur_cents) || subtotal_eur_cents <= 0) {
+      return json(res, 400, { ok: false, error: "Total price must be greater than zero" });
+    }
+
+    // Delivery hardening: parse zone + requested fee from note (no new payload fields)
+    const rawNote = getLegacyOrderNote(body, rawItems);
+    const parsed = parseZoneAndFeeFromNote(rawNote);
+
+    if (!parsed.zone) {
+      return json(res, 400, { ok: false, error: "Missing delivery zone" });
+    }
+
+    const zone = parsed.zone;
+    const qualifiesFree = subtotal_eur_cents >= zone.minCents;
+    const expectedFeeCents = qualifiesFree ? 0 : zone.feeCents;
+
+    // If the client asked for a fee (via "Doplati"), accept only if it matches expected for zone.
+    // If client sent 0 while not qualifying, we enforce expectedFeeCents.
+    // If client sent a different fee, reject.
+    if (parsed.requestedFeeCents !== null) {
+      if (parsed.requestedFeeCents !== 0 && parsed.requestedFeeCents !== zone.feeCents) {
+        return json(res, 400, { ok: false, error: "Invalid delivery fee" });
+      }
+    }
+
+    const delivery_fee_cents = expectedFeeCents;
+
+    const total_eur_cents = subtotal_eur_cents + delivery_fee_cents;
 
     if (!Number.isFinite(total_eur_cents) || total_eur_cents <= 0) {
       return json(res, 400, { ok: false, error: "Total price must be greater than zero" });
@@ -213,11 +416,7 @@ export default async function handler(req: any, res: any) {
       total_price: total_eur_cents / 100,
     };
 
-    const { data, error } = await supabase
-      .from("orders")
-      .insert(insertRow)
-      .select("id")
-      .single();
+    const { data, error } = await supabase.from("orders").insert(insertRow).select("id").single();
 
     if (error) {
       console.error("Supabase insert error:", error);

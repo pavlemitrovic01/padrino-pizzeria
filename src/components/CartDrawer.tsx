@@ -403,6 +403,30 @@ export default function CartDrawer() {
   const [address, setAddress] = useState("");
   const [orderNote, setOrderNote] = useState("");
 
+  const nameTrim = name.trim();
+  const phoneTrim = phone.trim();
+  const addressTrim = address.trim();
+
+  const isNameValid = useMemo(() => {
+    if (!nameTrim) return false;
+    if (nameTrim.length < 2) return false;
+    if (/[0-9]/.test(nameTrim)) return false;
+    return /^[\p{L}][\p{L}\s.'-]*$/u.test(nameTrim);
+  }, [nameTrim]);
+
+  const isPhoneValid = useMemo(() => {
+    if (!phoneTrim) return false;
+    if (!/^[0-9+()\-\s]+$/.test(phoneTrim)) return false;
+    const digits = (phoneTrim.match(/[0-9]/g) ?? []).length;
+    return digits >= 6;
+  }, [phoneTrim]);
+
+  const isAddressValid = useMemo(() => {
+    if (!addressTrim) return false;
+    return addressTrim.length >= 5;
+  }, [addressTrim]);
+
+
   // Delivery zone (required in checkout; no default)
   const [deliveryZoneKey, setDeliveryZoneKey] = useState<DeliveryZoneKey | "">("");
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState(false);
@@ -415,6 +439,16 @@ export default function CartDrawer() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
+
+  const [successSummary, setSuccessSummary] = useState<
+    | {
+        totalCents: number;
+        zoneLabel: string;
+        feeCents: number;
+      }
+    | null
+  >(null);
+
 
   const [addonsCatalog, setAddonsCatalog] = useState<
     { id: string; name: string; price: number; imageKey: string }[]
@@ -510,6 +544,9 @@ export default function CartDrawer() {
 
   const canConfirmOrder =
     canSubmit &&
+    isNameValid &&
+    isPhoneValid &&
+    isAddressValid &&
     !!selectedDeliveryZone &&
     (selectedDeliveryZone.feeCents <= 0 || qualifiesForFreeDelivery || deliveryFeeOverride);
 
@@ -584,6 +621,7 @@ export default function CartDrawer() {
       setSubmitting(false);
       setSubmitError(null);
       setSuccessOrderId(null);
+      setSuccessSummary(null);
       setOpenSaucesForItemId(null);
       setOpenDrinksForItemId(null);
       setIsZoneOpen(false);
@@ -718,9 +756,25 @@ export default function CartDrawer() {
     };
   }, []);
 
-  async function onSubmitOrder(e: FormEvent) {
-    e.preventDefault();
+  async function submitOrder() {
     if (!canSubmit) return;
+
+    if (!nameTrim || !phoneTrim || !addressTrim) {
+      setSubmitError("Popuni sva obavezna polja pre potvrde porudžbine.");
+      return;
+    }
+    if (!isNameValid) {
+      setSubmitError("Unesi ispravno ime i prezime (bez brojeva).");
+      return;
+    }
+    if (!isPhoneValid) {
+      setSubmitError("Unesi ispravan broj telefona (samo brojevi, +, razmak ili -).");
+      return;
+    }
+    if (!isAddressValid) {
+      setSubmitError("Unesi ispravnu adresu (minimum 5 karaktera).");
+      return;
+    }
 
     if (!selectedDeliveryZone) {
       setSubmitError("Izaberi zonu dostave ili pozovi nas za lokacije van liste.");
@@ -739,9 +793,9 @@ export default function CartDrawer() {
 
     try {
       const payload: CreateOrderPayload = {
-        customer_name: name.trim(),
-        customer_phone: phone.trim(),
-        customer_address: address.trim(),
+        customer_name: nameTrim,
+        customer_phone: phoneTrim,
+        customer_address: addressTrim,
         total_price: effectiveTotalCents,
         total_items: totalItems,
         note: (() => {
@@ -792,6 +846,7 @@ export default function CartDrawer() {
       };
 
       const res = await createOrder(payload);
+      setSuccessSummary({ totalCents: effectiveTotalCents, zoneLabel: selectedDeliveryZone.label, feeCents: deliveryFeeCents });
       setSuccessOrderId(res.orderId ?? null);
 
       clearCart();
@@ -801,6 +856,11 @@ export default function CartDrawer() {
     } finally {
       setSubmitting(false);
     }
+    }
+
+function onSubmitOrder(e: FormEvent) {
+    e.preventDefault();
+    void submitOrder();
   }
 
   if (!isOpen) return null;
@@ -902,6 +962,32 @@ export default function CartDrawer() {
                       "Porudžbina je evidentirana."
                     )}
                   </p>
+
+                {successSummary ? (
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs font-semibold text-white/70">UKUPNO</div>
+                      <div className="text-sm font-extrabold text-white/90">
+                        {formatEUR(successSummary.totalCents)}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="text-xs font-semibold text-white/70">Zona</div>
+                      <div className="text-sm font-extrabold text-white/85">
+                        {successSummary.zoneLabel}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="text-xs font-semibold text-white/70">Dostava</div>
+                      <div className="text-sm font-extrabold text-white/85">
+                        {formatFeeEurShort(successSummary.feeCents)}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
 
                   <div className="mt-5 grid grid-cols-1 gap-3">
                     <button
@@ -1187,8 +1273,21 @@ export default function CartDrawer() {
                     </div>
 
                     {submitError ? (
-                      <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                        {submitError}
+                      <div className="space-y-3">
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                          {submitError}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => void submitOrder()}
+                          className={[
+                            BTN_NEUTRAL,
+                            "w-full h-12 text-sm font-extrabold border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-white/5 disabled:hover:scale-100",
+                          ].join(" ")}
+                        >
+                          Pokušaj ponovo
+                        </button>
                       </div>
                     ) : null}
 
@@ -1425,8 +1524,7 @@ export default function CartDrawer() {
                                                   id: a.id,
                                                   name: a.name,
                                                   price: a.price,
-                                                  quantity: 1,
-                                                } as CartAddon)
+} as CartAddon)
                                               }
                                               className="p-btn-gold h-10 px-4 text-sm"
                                             >
@@ -1525,8 +1623,7 @@ export default function CartDrawer() {
                                                           id: s.id,
                                                           name: s.name,
                                                           price: s.price,
-                                                          quantity: 1,
-                                                        } as CartAddon)
+} as CartAddon)
                                                       }
                                                       className="p-btn-gold h-10 px-4 text-sm"
                                                     >
