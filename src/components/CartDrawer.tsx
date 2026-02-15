@@ -732,14 +732,21 @@ export default function CartDrawer() {
               {view === "success" ? (
                 <div className="mt-5 p-glass p-5 p-glass-hover">
                   <p className="text-white font-extrabold text-lg">Porudžbina je poslata ✅</p>
+                  <div className="mt-1 text-sm font-semibold text-white/75">Hvala na poverenju &lt;3</div>
                   <p className="mt-2 text-sm text-white/70">
                     {successOrderId
-                      ? `ID porudžbine: ${successOrderId}`
+                      ? <>
+                          ID porudžbine:
+                          <span className="ml-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-mono text-[12px] text-white/80">{successOrderId}</span>
+                        </>
                       : "Porudžbina je evidentirana."}
                   </p>
 
                   <div className="mt-5 grid grid-cols-1 gap-3">
-                    <button onClick={handleGoToMenu} className="p-btn-gold w-full h-12 text-sm">
+                    <button
+                      onClick={handleGoToMenu}
+                      className="w-full h-12 text-sm font-extrabold rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out disabled:opacity-50 disabled:hover:scale-100"
+                    >
                       Nazad na meni
                     </button>
 
@@ -841,9 +848,19 @@ export default function CartDrawer() {
                     <button
                       type="submit"
                       disabled={submitting || !canSubmit}
-                      className="w-full h-12 text-sm font-extrabold rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out disabled:opacity-50 disabled:hover:scale-100"
+                      className="w-full h-12 text-sm font-extrabold rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out disabled:opacity-50 disabled:hover:scale-100 inline-flex items-center justify-center gap-2"
                     >
-                      {submitting ? "Šaljem..." : `Potvrdi porudžbinu • ${subtotalLabel}`}
+                      {submitting ? (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            className="h-4 w-4 rounded-full border-2 border-black/30 border-t-black animate-spin"
+                          />
+                          Šaljem...
+                        </>
+                      ) : (
+                        `Potvrdi porudžbinu • ${subtotalLabel}`
+                      )}
                     </button>
                   </form>
                 </div>
