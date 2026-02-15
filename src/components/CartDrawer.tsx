@@ -114,6 +114,8 @@ function isSauceItemName(name: string) {
     "sweet chili",
     "slatko ljuti",
     "pavlaka",
+    "pelat",
+    "garlik",
   ];
 
   return keywords.some((k) => n.includes(normalizeText(k)));
@@ -427,11 +429,17 @@ export default function CartDrawer() {
   >([]);
 
   const [openSaucesForItemId, setOpenSaucesForItemId] = useState<string | null>(null);
+
+  // Re-use this state for drinks catalog accordion (no new state).
   const [openDrinksForItemId, setOpenDrinksForItemId] = useState<string | null>(null);
 
   const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] = useState<PizzaVariantsMap>({});
 
   const drinksScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const sauceIdSet = useMemo(() => {
+    return new Set<string>((saucesCatalog ?? []).map((s) => s.id));
+  }, [saucesCatalog]);
 
   const setPizzaSizeSafe = (itemId: string, itemName: string, nextSize: PizzaSize) => {
     const baseKey = stripPizzaSizeFromName(itemName);
@@ -1248,8 +1256,8 @@ export default function CartDrawer() {
 
                         const isPizza = normalizeCategory(it.category ?? "").includes("pizza");
 
-                        const sauceAddons = (addons ?? []).filter((a) => isSauceItemName(a.name));
-                        const regularAddons = (addons ?? []).filter((a) => !isSauceItemName(a.name));
+                        const sauceAddons = (addons ?? []).filter((a) => sauceIdSet.has(a.id));
+                        const regularAddons = (addons ?? []).filter((a) => !sauceIdSet.has(a.id));
 
                         return (
                           <div key={it.id} className={CARD}>
@@ -1341,7 +1349,7 @@ export default function CartDrawer() {
                               </button>
                             </div>
 
-                            {/* Addons */}
+                            {/* Addons & Sauces only for non-drinks */}
                             {!drink ? (
                               <div className="mt-4 space-y-3">
                                 <div className="flex items-center justify-between gap-3">
@@ -1553,81 +1561,79 @@ export default function CartDrawer() {
                                 </div>
                               </div>
                             ) : null}
-
-                            {/* Pića */}
-                            {drink ? (
-                              <div className="mt-4">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setOpenDrinksForItemId((prev) => (prev === it.id ? null : it.id))
-                                  }
-                                  className={[
-                                    BTN_NEUTRAL,
-                                    "h-11 w-full text-sm font-extrabold justify-between px-4",
-                                  ].join(" ")}
-                                >
-                                  <span>Pića</span>
-                                  <span className="text-white/60 text-xs">
-                                    {openDrinksForItemId === it.id ? "Zatvori" : "Otvori"}
-                                  </span>
-                                </button>
-
-                                {openDrinksForItemId === it.id ? (
-                                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/15">
-                                    <div
-                                      ref={drinksScrollRef}
-                                      className="max-h-[260px] overflow-y-auto overscroll-contain p-3 space-y-2"
-                                    >
-                                      {drinksCatalog.length ? (
-                                        <>
-                                          {drinksCatalog.map((d) => (
-                                            <div
-                                              key={d.id}
-                                              className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
-                                            >
-                                              <div className="flex items-center gap-3 min-w-0">
-                                                <SmartMiniAddonImage
-                                                  name={d.name}
-                                                  className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/10"
-                                                />
-                                                <div className="min-w-0">
-                                                  <div className="text-white/90 font-extrabold leading-tight">
-                                                    {d.name}
-                                                  </div>
-                                                  <div className="text-xs text-white/60">
-                                                    {formatEUR(d.price)}
-                                                  </div>
-                                                </div>
-                                              </div>
-
-                                              <button
-                                                type="button"
-                                                onMouseDown={(e) => e.preventDefault()}
-                                                onClick={(e) => {
-                                                  (e.currentTarget as HTMLButtonElement).blur();
-                                                  addDrinkToCart(d);
-                                                }}
-                                                className="p-btn-gold h-10 px-4 text-sm"
-                                              >
-                                                Dodaj
-                                              </button>
-                                            </div>
-                                          ))}
-                                        </>
-                                      ) : (
-                                        <div className="text-sm text-white/60">
-                                          Nema dostupnih pića.
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
                           </div>
                         );
                       })}
+
+                      {/* ✅ PIĆE SEKCIJA (VRAĆENO) */}
+                      <div className={CARD}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenDrinksForItemId((prev) =>
+                              prev === "__catalog__" ? null : "__catalog__"
+                            )
+                          }
+                          className={[
+                            BTN_NEUTRAL,
+                            "h-11 w-full text-sm font-extrabold justify-between px-4",
+                          ].join(" ")}
+                        >
+                          <span>Piće</span>
+                          <span className="text-white/60 text-xs">
+                            {openDrinksForItemId === "__catalog__" ? "Zatvori" : "Otvori"}
+                          </span>
+                        </button>
+
+                        {openDrinksForItemId === "__catalog__" ? (
+                          <div className="mt-3 rounded-2xl border border-white/10 bg-black/15">
+                            <div
+                              ref={drinksScrollRef}
+                              className="max-h-[300px] overflow-y-auto overscroll-contain p-3 space-y-2"
+                            >
+                              {drinksCatalog.length ? (
+                                <>
+                                  {drinksCatalog.map((d) => (
+                                    <div
+                                      key={d.id}
+                                      className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
+                                    >
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <SmartMiniAddonImage
+                                          name={d.name}
+                                          className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/10"
+                                        />
+                                        <div className="min-w-0">
+                                          <div className="text-white/90 font-extrabold leading-tight">
+                                            {d.name}
+                                          </div>
+                                          <div className="text-xs text-white/60">
+                                            {formatEUR(d.price)}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={(e) => {
+                                          (e.currentTarget as HTMLButtonElement).blur();
+                                          addDrinkToCart(d);
+                                        }}
+                                        className="p-btn-gold h-10 px-4 text-sm"
+                                      >
+                                        Dodaj
+                                      </button>
+                                    </div>
+                                  ))}
+                                </>
+                              ) : (
+                                <div className="text-sm text-white/60">Nema dostupnih pića.</div>
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
 
