@@ -344,15 +344,15 @@ export default function CartDrawer() {
   const BTN_NEUTRAL =
     "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/85 transition";
   const BTN_DANGER =
-    "inline-flex items-center justify-center rounded-full border border-red-500/25 bg-red-500/10 hover:bg-red-500/15 text-red-200 transition";
+    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/75 hover:text-white transition";
   const BTN_SUCCESS =
-    "inline-flex items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-200 transition";
+    "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out";
 
   // Phase 2: subtle card polish (no layout changes, only cosmetics)
   const CARD =
-    "p-glass p-4 sm:p-5 p-glass-hover ring-1 ring-white/5";
+    "p-glass p-4 sm:p-5 p-glass-hover ring-1 ring-white/5 transition-all duration-200 hover:bg-white/7 hover:ring-white/10 md:hover:-translate-y-[1px] active:translate-y-0";
   const ROW =
-    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 px-3 py-2.5";
+    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 px-3 py-2.5 transition-all duration-200 hover:bg-white/7 hover:border-white/15 hover:ring-1 hover:ring-white/10";
 
   const [view, setView] = useState<DrawerView>("cart");
 
@@ -670,7 +670,20 @@ export default function CartDrawer() {
           exit={{ x: 60 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
         >
-          <div className="relative h-full flex flex-col">
+          {/* Background image and overlays, applies to whole panel */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            <img
+              src="/sections/menu.webp"
+              alt=""
+              className="h-full w-full object-cover opacity-85"
+              draggable={false}
+              loading="eager"
+              decoding="async"
+            />
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/30 to-black/50" />
+          </div>
+          <div className="relative h-full flex flex-col z-10">
             {/* Header */}
             <div className="border-b border-white/10 bg-black/30 px-4 sm:px-5">
               <div className="flex items-center justify-between py-4">
@@ -690,7 +703,7 @@ export default function CartDrawer() {
                   {view !== "cart" ? (
                     <button
                       onClick={backToCart}
-                      className="p-btn-ghost h-10 sm:h-9 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-[#f2b400]/25"
+                      className={[BTN_NEUTRAL, "h-10 sm:h-9 px-4 text-sm font-extrabold focus:outline-none focus:ring-2 focus:ring-white/25 backdrop-blur-md bg-white/10"].join(" ")}
                     >
                       Nazad
                     </button>
@@ -745,6 +758,7 @@ export default function CartDrawer() {
                 <div className="mt-5 space-y-5">
                   <form onSubmit={onSubmitOrder} className="space-y-4">
                     <div className="p-glass p-4 p-glass-hover">
+                      {/* Ime i prezime */}
                       <div>
                         <label className="mb-2 block text-sm font-semibold text-white/80">
                           Ime i prezime
@@ -752,12 +766,19 @@ export default function CartDrawer() {
                         <input
                           value={name}
                           onChange={(e) => setName(e.target.value)}
-                          className="p-input"
+                          className={["p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                            submitError && !name.trim() ? "border-red-500 focus:border-red-500" : "",
+                            submitError && name.trim() ? "border-emerald-500 focus:border-emerald-500" : ""
+                          ].join(" ")}
                           placeholder="Npr. Pavle Mitrović"
                           autoComplete="name"
                         />
+                        {submitError && !name.trim() && (
+                          <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>
+                        )}
                       </div>
 
+                      {/* Telefon */}
                       <div className="mt-4">
                         <label className="mb-2 block text-sm font-semibold text-white/80">
                           Telefon
@@ -765,12 +786,19 @@ export default function CartDrawer() {
                         <input
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          className="p-input"
+                          className={["p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                            submitError && !phone.trim() ? "border-red-500 focus:border-red-500" : "",
+                            submitError && phone.trim() ? "border-emerald-500 focus:border-emerald-500" : ""
+                          ].join(" ")}
                           placeholder="+382..."
                           autoComplete="tel"
                         />
+                        {submitError && !phone.trim() && (
+                          <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>
+                        )}
                       </div>
 
+                      {/* Adresa */}
                       <div className="mt-4">
                         <label className="mb-2 block text-sm font-semibold text-white/80">
                           Adresa
@@ -778,12 +806,19 @@ export default function CartDrawer() {
                         <input
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
-                          className="p-input"
+                          className={["p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                            submitError && !address.trim() ? "border-red-500 focus:border-red-500" : "",
+                            submitError && address.trim() ? "border-emerald-500 focus:border-emerald-500" : ""
+                          ].join(" ")}
                           placeholder="Ulica i broj"
                           autoComplete="street-address"
                         />
+                        {submitError && !address.trim() && (
+                          <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>
+                        )}
                       </div>
 
+                      {/* Napomena */}
                       <div className="mt-4">
                         <label className="mb-2 block text-sm font-semibold text-white/80">
                           Napomena (opciono)
@@ -791,7 +826,7 @@ export default function CartDrawer() {
                         <textarea
                           value={orderNote}
                           onChange={(e) => setOrderNote(e.target.value)}
-                          className="p-input min-h-[90px] resize-none"
+                          className="p-input min-h-[90px] resize-none border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
                           placeholder="Npr. pozovi kad si ispred..."
                         />
                       </div>
@@ -806,7 +841,7 @@ export default function CartDrawer() {
                     <button
                       type="submit"
                       disabled={submitting || !canSubmit}
-                      className="p-btn-gold w-full h-12 text-sm disabled:opacity-50"
+                      className="w-full h-12 text-sm font-extrabold rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out disabled:opacity-50 disabled:hover:scale-100"
                     >
                       {submitting ? "Šaljem..." : `Potvrdi porudžbinu • ${subtotalLabel}`}
                     </button>
@@ -858,12 +893,11 @@ export default function CartDrawer() {
                                     <div className="truncate text-white font-extrabold text-[15px] sm:text-base">
                                       {item.name}
                                     </div>
-                                    <div className="mt-1 text-base font-semibold text-white/80">
-
+                                    <div className="mt-1 text-base font-extrabold text-white/90 tracking-tight">
                                       {formatEUR(lineTotal)}
                                     </div>
                                     {isDrink ? (
-                                      <div className="mt-1 text-[11px] text-white/45">Piće</div>
+                                      <div className="mt-2 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/70">Piće</div>
                                     ) : null}
                                   </div>
 
@@ -881,7 +915,7 @@ export default function CartDrawer() {
                                     <button
                                       type="button"
                                       onClick={() => decrease(item.id)}
-                                      className={[BTN_DANGER, "h-10 w-10 text-base font-extrabold"].join(" ")}
+                                      className={[BTN_NEUTRAL, "h-10 w-10 text-base font-extrabold"].join(" ")}
                                       aria-label="Smanji količinu"
                                     >
                                       –
@@ -957,7 +991,7 @@ export default function CartDrawer() {
                                               <button
                                                 type="button"
                                                 onClick={() => decreaseAddonQuantity(item.id, a.id)}
-                                                className={[BTN_DANGER, "h-9 w-9 text-base font-extrabold"].join(" ")}
+                                                className={[BTN_NEUTRAL, "h-9 w-9 text-base font-extrabold"].join(" ")}
                                                 aria-label="Smanji dodatak"
                                               >
                                                 –
@@ -1173,10 +1207,8 @@ export default function CartDrawer() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="p-eyebrow">UKUPNO</div>
-                        <div className="mt-1 text-white/90 text-xl font-extrabold">
-                          <div className="mt-1 text-white text-2xl font-extrabold tracking-tight">
-                            {subtotalLabel}
-                          </div>
+                        <div className="mt-1 text-white text-2xl font-extrabold tracking-tight">
+                          {subtotalLabel}
                         </div>
                       </div>
 
@@ -1193,7 +1225,7 @@ export default function CartDrawer() {
                     <button
                       type="button"
                       onClick={handleGoToMenu}
-                      className="h-11 w-full text-sm font-extrabold rounded-full border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white transition-all duration-200"
+                      className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold"].join(" ")}
                     >
                       Nazad na meni
                     </button>
