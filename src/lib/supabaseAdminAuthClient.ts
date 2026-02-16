@@ -19,5 +19,6 @@ export const supabaseAdminAuth = createClient(url, anon, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: "pkce",
+    storageKey: "padrino-admin-auth",
   },
 });

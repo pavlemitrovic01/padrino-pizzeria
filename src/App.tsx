@@ -58,24 +58,8 @@ export default function App() {
     return (
       <div className="fixed top-0 left-0 right-0 z-[60]">
         <div className="mx-auto max-w-5xl px-4">
-          <div className="mt-3 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 backdrop-blur">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div className="min-w-0">
-                <p className="text-sm font-extrabold text-yellow-200">Nema interneta</p>
-                <p className="text-xs text-yellow-200/80 mt-0.5">
-                  Proveri konekciju. Porudžbine / admin osvježavanje mogu privremeno
-                  da ne rade.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="shrink-0 rounded-2xl bg-yellow-500 px-4 py-2 text-xs font-extrabold text-black hover:bg-yellow-400"
-                title="Osveži stranicu"
-              >
-                Osveži
-              </button>
-            </div>
+          <div className="mt-3 rounded-xl border border-white/10 bg-black/70 px-4 py-2 text-sm text-white/80">
+            Offline ste — admin provera sesije može kasniti.
           </div>
         </div>
       </div>
@@ -95,7 +79,8 @@ export default function App() {
     };
   }, []);
 
-  // ✅ VAŽNO: Supabase se sada učitava dinamički SAMO kad smo na admin rutama
+  // ✅ VAŽNO: Admin guard MORA koristiti supabaseAdminAuth (persistSession=true),
+  // a NE public supabaseClient (persistSession=false) koji je namerno “hardenovan” za checkout.
   useEffect(() => {
     if (!needsAdminGuard) return;
 
@@ -107,9 +92,9 @@ export default function App() {
       setChecking(true);
 
       try {
-        const { supabase } = await import("./lib/supabaseClient");
+        const { supabaseAdminAuth } = await import("./lib/supabaseAdminAuthClient");
 
-        const { data } = await supabase.auth.getSession();
+        const { data } = await supabaseAdminAuth.auth.getSession();
         if (!mounted) return;
 
         const session = data?.session ?? null;
@@ -123,18 +108,20 @@ export default function App() {
         setGuardState(isAdminSession(session) ? "admin" : "not-admin");
         setChecking(false);
 
-        const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-          if (!mounted) return;
+        const { data: listener } = supabaseAdminAuth.auth.onAuthStateChange(
+          (_event, nextSession) => {
+            if (!mounted) return;
 
-          if (!nextSession || !nextSession.user) {
-            setGuardState("unauthenticated");
+            if (!nextSession || !nextSession.user) {
+              setGuardState("unauthenticated");
+              setChecking(false);
+              return;
+            }
+
+            setGuardState(isAdminSession(nextSession) ? "admin" : "not-admin");
             setChecking(false);
-            return;
           }
-
-          setGuardState(isAdminSession(nextSession) ? "admin" : "not-admin");
-          setChecking(false);
-        });
+        );
 
         unsubscribe = () => {
           listener?.subscription.unsubscribe();
@@ -156,40 +143,29 @@ export default function App() {
     };
   }, [needsAdminGuard]);
 
+  // ADMIN ROUTES
   if (isAdminLoginRoute) {
     return (
-      <>
-        {onlineBanner}
-        <Navbar />
-        <main className="bg-black min-h-screen pt-20 flex items-center justify-center">
-          <Suspense fallback={<AdminChunkFallback />}>
-            <AdminLogin />
-          </Suspense>
-        </main>
-      </>
+      <Suspense fallback={<AdminChunkFallback />}>
+        <AdminLogin />
+      </Suspense>
     );
   }
 
   if (needsAdminGuard) {
-    if (guardState === "loading" || checking) {
+    if (checking || guardState === "loading") {
       return (
-        <>
-          {onlineBanner}
-          <Navbar />
-          <main className="bg-black min-h-screen pt-20 flex items-center justify-center">
-            <p className="text-white text-lg">Provjeravam pristup…</p>
-          </main>
-        </>
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <p className="text-white/80">Provjeravam admin sesiju…</p>
+        </div>
       );
     }
 
     if (guardState === "unauthenticated") {
       return (
-        <>
-          {onlineBanner}
-          <Navbar />
-          <main className="bg-black min-h-screen pt-20 flex flex-col items-center justify-center">
-            <p className="text-white text-lg mb-6">Prijavite se kao admin.</p>
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-white mb-4">Prijavite se kao admin.</p>
             <button
               className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
               onClick={() => {
@@ -198,18 +174,16 @@ export default function App() {
             >
               Prijava
             </button>
-          </main>
-        </>
+          </div>
+        </div>
       );
     }
 
     if (guardState === "not-admin") {
       return (
-        <>
-          {onlineBanner}
-          <Navbar />
-          <main className="bg-black min-h-screen pt-20 flex flex-col items-center justify-center">
-            <p className="text-white text-lg mb-6">Nemate pristup.</p>
+        <div className="min-h-screen bg-black flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-white mb-4">Nemate admin pristup.</p>
             <button
               className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
               onClick={() => {
@@ -218,53 +192,44 @@ export default function App() {
             >
               Nazad na meni
             </button>
-          </main>
-        </>
+          </div>
+        </div>
       );
     }
 
-    if (pathname === "/admin/logs" || pathname === "/admin/logs/") {
+    // guardState === "admin"
+    if (isAdminLogsRoute) {
       return (
-        <>
-          {onlineBanner}
-          <Navbar />
-          <main className="bg-black min-h-screen pt-20">
-            <Suspense fallback={<AdminChunkFallback />}>
-              <AdminLogs />
-            </Suspense>
-          </main>
-        </>
+        <Suspense fallback={<AdminChunkFallback />}>
+          <AdminLogs />
+        </Suspense>
       );
     }
 
+    // default admin page
     return (
-      <>
-        {onlineBanner}
-        <Navbar />
-        <main className="bg-black min-h-screen pt-20">
-          <Suspense fallback={<AdminChunkFallback />}>
-            <AdminOrders />
-          </Suspense>
-        </main>
-      </>
+      <Suspense fallback={<AdminChunkFallback />}>
+        <AdminOrders />
+      </Suspense>
     );
   }
 
+  // PUBLIC SITE
   return (
-    <>
+    <div className="min-h-screen bg-black text-white">
       {onlineBanner}
       <Navbar />
-      <main className="bg-black">
+      <CartDrawer />
+
+      <main>
         <Hero />
-        <section id="menu">
-          <Menu />
-        </section>
+        <Menu />
         <Delivery />
         <About />
         <Contact />
-        <Footer />
       </main>
-      <CartDrawer />
-    </>
+
+      <Footer />
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 
 export default function AdminMagicLinkCallback() {
   const [status, setStatus] = useState<"working" | "ok" | "error">("working");
@@ -10,10 +10,16 @@ export default function AdminMagicLinkCallback() {
 
     async function run() {
       try {
-        // PKCE magic link flow: Supabase dodaje ?code=... na redirect_to URL
-        const url = window.location.href;
+        const url = new URL(window.location.href);
+        const code = url.searchParams.get("code");
 
-        const { data, error } = await supabase.auth.exchangeCodeForSession(url);
+        if (!code) {
+          setStatus("error");
+          setMessage("Nedostaje code parametar u URL-u. Otvori magic link ponovo.");
+          return;
+        }
+
+        const { error } = await supabaseAdminAuth.auth.exchangeCodeForSession(code);
 
         if (cancelled) return;
 
@@ -23,19 +29,19 @@ export default function AdminMagicLinkCallback() {
           return;
         }
 
-        // data.session može biti null u nekim edge slučajevima; zato dodatno proverimo
-        const session = data?.session ?? (await supabase.auth.getSession()).data.session;
+        const { data } = await supabaseAdminAuth.auth.getSession();
+        const session = data?.session ?? null;
 
         if (!session) {
           setStatus("error");
-          setMessage("Sesija nije kreirana. Proveri Redirect URLs u Supabase i da li link vodi na /admin/login.");
+          setMessage(
+            "Sesija nije kreirana. Proveri Redirect URLs u Supabase i da li link vodi na /admin/login."
+          );
           return;
         }
 
         setStatus("ok");
-        setMessage("Uspešno! Prebacujem na admin...");
-
-        // hard redirect da bi se app osvežio sa novim session stanjem
+        setMessage("Uspešno! Prebacujem na admin…");
         window.location.replace("/admin");
       } catch (e) {
         if (cancelled) return;
@@ -45,7 +51,7 @@ export default function AdminMagicLinkCallback() {
       }
     }
 
-    run();
+    void run();
     return () => {
       cancelled = true;
     };
@@ -60,13 +66,14 @@ export default function AdminMagicLinkCallback() {
 
         {status === "error" && (
           <div className="mt-4 text-xs text-white/60">
-            <p className="mb-2">
-              Ako vidiš ovu grešku, 99% je problem:
-            </p>
+            <p className="mb-2">Ako vidiš ovu grešku, najčešće je problem:</p>
             <ul className="list-disc text-left pl-5 space-y-1">
-              <li>Supabase Authentication → URL Configuration → Redirect URLs ne sadrži <b>http://localhost:5173/admin/login</b></li>
-              <li>Magic link se šalje sa pogrešnim <b>redirectTo</b></li>
-              <li>Otvaraš link u drugom browser profilu gde nemaš lokalni storage (inkognito)</li>
+              <li>
+                Supabase Authentication → URL Configuration → Redirect URLs ne sadrži{" "}
+                <b>http://localhost:5173/admin/login</b>
+              </li>
+              <li>Magic link se šalje sa pogrešnim <b>emailRedirectTo</b></li>
+              <li>Otvaraš link u inkognito/profilu bez localStorage</li>
             </ul>
           </div>
         )}
@@ -74,3 +81,4 @@ export default function AdminMagicLinkCallback() {
     </div>
   );
 }
+    

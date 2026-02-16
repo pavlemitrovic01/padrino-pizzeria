@@ -112,8 +112,9 @@ export const supabase = createClient(url, anon, {
   // Ne forsiramo ovdje Authorization; dokazali smo HAR-om da browser često ne šalje.
   // Server-side insert je stabilno rješenje.
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-  },
+  persistSession: false,
+  autoRefreshToken: false,
+  detectSessionInUrl: false,
+  storageKey: "padrino-public-auth",
+},
 });
