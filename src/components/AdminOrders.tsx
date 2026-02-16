@@ -160,6 +160,8 @@ export default function AdminOrders() {
   const [busyTelegramById, setBusyTelegramById] = useState<Record<string, boolean>>({});
   const [toastById, setToastById] = useState<Record<string, string>>({});
 
+  const [signingOut, setSigningOut] = useState(false);
+
   async function loadOrders() {
     setLoading(true);
     setErrorMsg(null);
@@ -179,6 +181,22 @@ export default function AdminOrders() {
     }
 
     setLoading(false);
+  }
+
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+
+    try {
+      await supabaseAdminAuth.auth.signOut();
+    } finally {
+      try {
+        localStorage.removeItem("padrino-admin-auth");
+      } catch {
+        // ignore
+      }
+      window.location.replace("/admin/login");
+    }
   }
 
   useEffect(() => {
@@ -253,13 +271,25 @@ export default function AdminOrders() {
             ) : null}
           </div>
 
-          <button
-            className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-extrabold text-white hover:border-white/20"
-            onClick={() => void loadOrders()}
-            title="Refresh orders"
-          >
-            Osveži listu
-          </button>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+            <button
+              className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-extrabold text-white hover:border-white/20 disabled:opacity-60"
+              onClick={() => void loadOrders()}
+              title="Refresh orders"
+              disabled={loading}
+            >
+              Osveži listu
+            </button>
+
+            <button
+              className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-xs font-extrabold text-red-200 hover:border-red-500/30 disabled:opacity-60"
+              onClick={() => void signOut()}
+              disabled={signingOut}
+              title="Odjava admin sesije"
+            >
+              {signingOut ? "Odjavljujem…" : "Odjavi se"}
+            </button>
+          </div>
         </div>
 
         <div className="mt-8">
@@ -410,7 +440,9 @@ export default function AdminOrders() {
                                 </div>
 
                                 <div className="text-right shrink-0">
-                                  <p className="text-white font-bold">{eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}</p>
+                                  <p className="text-white font-bold">
+                                    {eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}
+                                  </p>
                                 </div>
                               </div>
                             </div>
