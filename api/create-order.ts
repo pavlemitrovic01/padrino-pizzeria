@@ -34,7 +34,6 @@ function buildSupabaseAdmin() {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  // poznati bug: razmaci/pogrešan URL -> malformed
   try {
     const u = new URL(SUPABASE_URL);
     if (!u.hostname.endsWith(".supabase.co")) {
@@ -72,8 +71,34 @@ function looksLikeLegacyMetaItem(v: any) {
   return keys.every((k) => allowed.has(k));
 }
 
+/**
+ * NOVO: “META” item koji frontend šalje kao “pravi item”
+ * (cart_id/meta, category/meta, name/META), ima note, ali nema menu_item_id
+ */
+function looksLikeCartMetaItem(v: any) {
+  if (!isPlainObject(v)) return false;
+
+  const cartId = toTrimmedString(v.cart_id);
+  const name = toTrimmedString(v.name);
+  const category = toTrimmedString(v.category);
+
+  if (cartId.toLowerCase() === "meta") return true;
+  if (category.toLowerCase() === "meta") return true;
+  if (name.toUpperCase() === "META") return true;
+
+  // fallback: menu_item_id null + price_per_item 0 je vrlo verovatno meta
+  const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
+  const p = v.price_per_item ?? v.pricePerItem;
+  if (!menuItemId && typeof p === "number" && p === 0) return true;
+
+  return false;
+}
+
 function looksLikeRealItemButInvalid(v: any) {
   if (!isPlainObject(v)) return false;
+
+  // META item ne smemo tretirati kao “invalid real item”
+  if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
 
   const hasItemIdentity =
     "name" in v || "menu_item_id" in v || "cart_id" in v || "menuItemId" in v;
@@ -125,7 +150,7 @@ async function notifyTelegramBestEffort(req: any, orderId: string) {
   }
 }
 
-/** -------------------- SERVER-SIDE PRICING + DELIVERY (HARDENING) -------------------- */
+/** -------------------- DELIVERY (HARDENING) -------------------- */
 
 type DeliveryZoneKey =
   | "budva"
@@ -166,8 +191,6 @@ function parseZoneAndFeeFromNote(note: string): {
   const n = String(note ?? "").trim();
   if (!n) return { zone: null, requestedFeeCents: null };
 
-  // Expect a line like: "Zona: <label>, Dostava: <0€ / 3€ / 5€>"
-  // but be tolerant to encoding issues and spacing.
   const lines = n
     .split(/\r?\n/)
     .map((s) => s.trim())
@@ -200,15 +223,24 @@ function parseZoneAndFeeFromNote(note: string): {
   return { zone, requestedFeeCents };
 }
 
-function getLegacyOrderNote(body: any, rawItems: any[]): string {
+function getMetaNote(body: any, rawItems: any[]): string {
   const direct =
-    toTrimmedString(body?.note) || toTrimmedString(body?.order_note) || toTrimmedString(body?.orderNote);
+    toTrimmedString(body?.note) ||
+    toTrimmedString(body?.order_note) ||
+    toTrimmedString(body?.orderNote);
 
   if (direct) return direct;
 
-  const meta = rawItems.find((it) => looksLikeLegacyMetaItem(it));
+  // legacy meta
+  const legacy = rawItems.find((it) => looksLikeLegacyMetaItem(it));
+  if (legacy) {
+    return toTrimmedString(legacy.order_note) || toTrimmedString(legacy.note) || "";
+  }
+
+  // cart meta (naš)
+  const meta = rawItems.find((it) => looksLikeCartMetaItem(it));
   if (meta) {
-    return toTrimmedString(meta.order_note) || toTrimmedString(meta.note) || "";
+    return toTrimmedString(meta.note) || "";
   }
 
   return "";
@@ -286,21 +318,19 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Invalid payload" });
     }
 
-    // Reject item koji liči na pravi item ali mu fale polja
     for (const it of rawItems) {
       if (looksLikeRealItemButInvalid(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
     }
 
-    // Za obračun koristimo samo real iteme
+    // samo real itemi, bez meta (legacy + cart meta)
     const calcItems = rawItems.filter((it: any) => {
-      if (looksLikeLegacyMetaItem(it)) return false;
       if (!isPlainObject(it)) return false;
+      if (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)) return false;
 
       const q = it.quantity;
       const p = it.price_per_item ?? it.pricePerItem;
-
       return typeof q === "number" && typeof p === "number";
     });
 
@@ -308,9 +338,8 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Invalid item structure" });
     }
 
-    // Pricing hardening: ignore client prices and fetch authoritative prices from DB
+    // pricing from DB (base + addons)
     const idsToFetch: string[] = [];
-
     for (const it of calcItems) {
       const menu_item_id = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
       if (menu_item_id) idsToFetch.push(menu_item_id);
@@ -325,7 +354,6 @@ export default async function handler(req: any, res: any) {
 
     const priceMap = await fetchMenuPricesCents(idsToFetch);
 
-    // SOURCE OF TRUTH: subtotal_eur_cents računamo na serveru iz DB cena
     let subtotal_eur_cents = 0;
 
     for (const item of calcItems) {
@@ -352,6 +380,7 @@ export default async function handler(req: any, res: any) {
         if (!isPlainObject(a)) {
           return json(res, 400, { ok: false, error: "Invalid addon structure" });
         }
+
         const addonId = toTrimmedString(a.id);
         if (!addonId) {
           return json(res, 400, { ok: false, error: "Invalid addon structure" });
@@ -364,7 +393,6 @@ export default async function handler(req: any, res: any) {
 
         const aq = safeInt(a.quantity);
         const addonQty = aq > 0 ? aq : 1;
-
         perItemCents += Math.max(0, Math.round(addonCents)) * addonQty;
       }
 
@@ -375,8 +403,7 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Total price must be greater than zero" });
     }
 
-    // Delivery hardening: parse zone + requested fee from note (no new payload fields)
-    const rawNote = getLegacyOrderNote(body, rawItems);
+    const rawNote = getMetaNote(body, rawItems);
     const parsed = parseZoneAndFeeFromNote(rawNote);
 
     if (!parsed.zone) {
@@ -387,9 +414,7 @@ export default async function handler(req: any, res: any) {
     const qualifiesFree = subtotal_eur_cents >= zone.minCents;
     const expectedFeeCents = qualifiesFree ? 0 : zone.feeCents;
 
-    // If the client asked for a fee (via "Doplati"), accept only if it matches expected for zone.
-    // If client sent 0 while not qualifying, we enforce expectedFeeCents.
-    // If client sent a different fee, reject.
+    // zaštita od manipulacije fee-a
     if (parsed.requestedFeeCents !== null) {
       if (parsed.requestedFeeCents !== 0 && parsed.requestedFeeCents !== zone.feeCents) {
         return json(res, 400, { ok: false, error: "Invalid delivery fee" });
@@ -397,7 +422,6 @@ export default async function handler(req: any, res: any) {
     }
 
     const delivery_fee_cents = expectedFeeCents;
-
     const total_eur_cents = subtotal_eur_cents + delivery_fee_cents;
 
     if (!Number.isFinite(total_eur_cents) || total_eur_cents <= 0) {
@@ -408,7 +432,7 @@ export default async function handler(req: any, res: any) {
       customer_name,
       customer_phone,
       customer_address,
-      items: rawItems, // čuvamo tačno kako je došlo (meta + itemi)
+      items: rawItems,
       currency,
       status,
       total_eur_cents,
@@ -423,7 +447,6 @@ export default async function handler(req: any, res: any) {
       return json(res, 500, { ok: false, error: "Database insert failed" });
     }
 
-    // ✅ Telegram notify (best-effort)
     const telegram = await notifyTelegramBestEffort(req, data.id);
 
     return json(res, 200, { ok: true, id: data.id, telegram });
