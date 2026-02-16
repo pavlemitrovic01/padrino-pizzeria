@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { supabase } from "../../lib/supabaseClient.ts";
+import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 
 type AdminRoleState = "checking" | "none" | "admin" | "not-admin";
 
@@ -15,6 +15,7 @@ function isAdminEmail(email: unknown): boolean {
 }
 
 function cleanUrl() {
+  // ukloni ?code=... ili ?error=...
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
@@ -48,13 +49,12 @@ export default function AdminLogin() {
     if (submitting) return false;
     if (cooldownSeconds > 0) return false;
     if (!cleanedEmail) return false;
-    // ✅ ključ stabilnosti: samo allowlist email može da šalje OTP
-    if (!emailIsAdmin) return false;
+    if (!emailIsAdmin) return false; // allowlist guard
     return true;
   }, [submitting, cooldownSeconds, cleanedEmail, emailIsAdmin]);
 
   async function getRoleStateFromSession(): Promise<AdminRoleState> {
-    const { data } = await supabase.auth.getSession();
+    const { data } = await supabaseAdminAuth.auth.getSession();
     const session = data?.session;
     if (!session || !session.user) return "none";
     return isAdminEmail(session.user.email) ? "admin" : "not-admin";
@@ -73,9 +73,14 @@ export default function AdminLogin() {
       const code = params.get("code");
       const hasError = params.has("error") || params.has("error_description");
 
+      // Ako Supabase vrati error kroz URL
       if (hasError) {
+        const msg =
+          params.get("error_description") ||
+          params.get("error") ||
+          "Greška pri prijavi. Pokušajte ponovo.";
         if (!mounted) return;
-        setError("Greška pri prijavi. Pokušajte ponovo.");
+        setError(msg);
         cleanUrl();
         const rs = await getRoleStateFromSession();
         if (!mounted) return;
@@ -83,9 +88,10 @@ export default function AdminLogin() {
         return;
       }
 
+      // PKCE code flow (najčešći za SPA)
       if (code) {
         try {
-          const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+          const { error: exErr } = await supabaseAdminAuth.auth.exchangeCodeForSession(code);
           if (exErr) throw exErr;
         } catch (e) {
           if (!mounted) return;
@@ -116,6 +122,7 @@ export default function AdminLogin() {
         return;
       }
 
+      // Nema code parametra → proveri postojeću sesiju (persistSession=true)
       const rs = await getRoleStateFromSession();
       if (!mounted) return;
 
@@ -129,7 +136,7 @@ export default function AdminLogin() {
 
     void bootstrap();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabaseAdminAuth.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
 
       if (!session || !session.user) {
@@ -167,7 +174,6 @@ export default function AdminLogin() {
 
     if (!cleanedEmail) return;
 
-    // ✅ ključ stabilnosti: ne šalji otp ako nije admin email
     if (!emailIsAdmin) {
       setError("Ovaj e-mail nema admin pristup.");
       return;
@@ -177,7 +183,7 @@ export default function AdminLogin() {
 
     setSubmitting(true);
     try {
-      const { error: signErr } = await supabase.auth.signInWithOtp({
+      const { error: signErr } = await supabaseAdminAuth.auth.signInWithOtp({
         email: cleanedEmail,
         options: {
           emailRedirectTo: window.location.origin + "/admin/login",
@@ -188,7 +194,6 @@ export default function AdminLogin() {
         const msg = extractSupabaseErrorMessage(signErr);
         setError(msg);
 
-        // ✅ ako je rate limit, stavi duži cooldown (10 min) da se ne udara dalje
         if (msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("too many")) {
           setCooldownSeconds((s) => Math.max(s, 600));
         } else {
@@ -264,9 +269,7 @@ export default function AdminLogin() {
             Ovaj e-mail nije na admin allowlist-i. (Ne šaljem magic link da ne bi udarao rate limit.)
           </p>
         ) : (
-          <p className="text-xs text-white/50">
-            Magic link se šalje samo na admin e-mail.
-          </p>
+          <p className="text-xs text-white/50">Magic link se šalje samo na admin e-mail.</p>
         )}
 
         <button

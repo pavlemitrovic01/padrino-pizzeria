@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabaseAdminAuth } from "../lib/supabaseAdminAuthClient";
 import { formatEUR, formatRSD, toSafeInt } from "../lib/money";
 
 type OrderStatus = "pending" | "preparing" | "done" | "cancelled";
@@ -12,10 +12,8 @@ type OrderRow = {
   customer_phone: string;
   customer_address: string;
 
-  // legacy (stare porudžbine)
   total_price: number | null;
 
-  // EUR migracija (nove porudžbine)
   currency: string | null;
   total_eur_cents: number | null;
   fx_rsd_per_eur: number | null;
@@ -132,12 +130,6 @@ function pillClass(status: OrderStatus) {
   }
 }
 
-/**
- * VAŽNO:
- * - U Vite dev-u (`localhost:5173`) ne postoji `/api/*` → 404.
- * - Zato u DEV-u gađamo PRODUCTION Vercel endpoint direktno.
- * - U PROD-u gađamo relativno `/api/...` (isti origin).
- */
 const TELEGRAM_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
 
 async function postTelegram(orderId: string): Promise<TelegramResponse> {
@@ -172,7 +164,7 @@ export default function AdminOrders() {
     setLoading(true);
     setErrorMsg(null);
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdminAuth
       .from("orders")
       .select(
         "id, created_at, customer_name, customer_phone, customer_address, total_price, currency, total_eur_cents, fx_rsd_per_eur, items, status"
@@ -213,7 +205,7 @@ export default function AdminOrders() {
 
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: next } : o)));
 
-    const { error } = await supabase.from("orders").update({ status: next }).eq("id", orderId);
+    const { error } = await supabaseAdminAuth.from("orders").update({ status: next }).eq("id", orderId);
 
     if (error) {
       setToastById((m) => ({ ...m, [orderId]: `Greška: ${error.message ?? "update failed"}` }));
@@ -253,9 +245,7 @@ export default function AdminOrders() {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
-            <p className="mt-2 text-white/70">
-              Nove porudžbine su u EUR (cents), stare ostaju u RSD (fallback).
-            </p>
+            <p className="mt-2 text-white/70">Nove porudžbine su u EUR (cents), stare ostaju u RSD (fallback).</p>
             {import.meta.env.DEV ? (
               <p className="mt-1 text-xs text-white/50">
                 DEV: Resend Telegram koristi production endpoint (nema /api na localhost:5173).
@@ -288,8 +278,7 @@ export default function AdminOrders() {
                     ? safeInt(parsed.meta.total_items, 0)
                     : null;
 
-                const computedCount =
-                  metaTotalItems ?? parsed.items.reduce((s, it) => s + it.quantity, 0);
+                const computedCount = metaTotalItems ?? parsed.items.reduce((s, it) => s + it.quantity, 0);
 
                 const eur = isEurOrder(o);
                 const isExpanded = expandedId === o.id;
@@ -304,9 +293,7 @@ export default function AdminOrders() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <p className="text-sm text-white/60">{safeDateTime(o.created_at)}</p>
-                        <p className="mt-1 text-lg font-extrabold text-white truncate">
-                          {o.customer_name}
-                        </p>
+                        <p className="mt-1 text-lg font-extrabold text-white truncate">{o.customer_name}</p>
                         <p className="mt-1 text-sm text-white/70 truncate">{o.customer_phone}</p>
                         <p className="mt-1 text-sm text-white/70 truncate">{o.customer_address}</p>
 
@@ -394,9 +381,7 @@ export default function AdminOrders() {
                                 <div className="min-w-0">
                                   <p className="text-white font-semibold truncate">
                                     {it.name}{" "}
-                                    {it.size ? (
-                                      <span className="text-white/60 font-normal">({it.size})</span>
-                                    ) : null}
+                                    {it.size ? <span className="text-white/60 font-normal">({it.size})</span> : null}
                                   </p>
                                   <p className="text-xs text-white/60 mt-1">x{qty}</p>
 
@@ -407,16 +392,11 @@ export default function AdminOrders() {
                                         const addonLabel = `+ ${a.name} ${aq > 1 ? `x${aq}` : ""}`;
 
                                         return (
-                                          <div
-                                            key={`${idx}-${j}`}
-                                            className="flex items-center justify-between text-xs"
-                                          >
+                                          <div key={`${idx}-${j}`} className="flex items-center justify-between text-xs">
                                             <span className="text-white/70">{addonLabel}</span>
 
                                             {eur ? (
-                                              <span className="text-gray-400">
-                                                {formatEUR(safeInt(a.price, 0) * aq)}
-                                              </span>
+                                              <span className="text-gray-400">{formatEUR(safeInt(a.price, 0) * aq)}</span>
                                             ) : (
                                               <span className="text-gray-500">—</span>
                                             )}
@@ -426,15 +406,11 @@ export default function AdminOrders() {
                                     </div>
                                   )}
 
-                                  {it.note ? (
-                                    <p className="mt-2 text-xs text-white/60">Napomena: {it.note}</p>
-                                  ) : null}
+                                  {it.note ? <p className="mt-2 text-xs text-white/60">Napomena: {it.note}</p> : null}
                                 </div>
 
                                 <div className="text-right shrink-0">
-                                  <p className="text-white font-bold">
-                                    {eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}
-                                  </p>
+                                  <p className="text-white font-bold">{eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}</p>
                                 </div>
                               </div>
                             </div>
