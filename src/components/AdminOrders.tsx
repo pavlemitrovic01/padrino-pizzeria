@@ -86,8 +86,7 @@ function parseOrderItems(itemsRaw: unknown[] | null): { meta: any | null; items:
 
   const [first, ...rest] = itemsRaw;
 
-  const meta =
-    first && typeof first === "object" && !Array.isArray(first) ? (first as any) : null;
+  const meta = first && typeof first === "object" && !Array.isArray(first) ? (first as any) : null;
 
   const items: ParsedItem[] = rest
     .filter((x) => x && typeof x === "object" && !Array.isArray(x))
@@ -131,6 +130,43 @@ function pillClass(status: OrderStatus) {
 }
 
 const TELEGRAM_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
+
+const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
+
+type AdminStatusUpdateResponse =
+  | { ok: true; status: OrderStatus }
+  | { ok: false; error: string };
+
+async function adminUpdateOrderStatus(orderId: string, next: OrderStatus): Promise<AdminStatusUpdateResponse> {
+  const { data } = await supabaseAdminAuth.auth.getSession();
+  const token = data?.session?.access_token;
+
+  if (!token) return { ok: false, error: "Missing admin session token" };
+
+  const url = `${ADMIN_API_BASE}/api/admin-update-order-status`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ order_id: orderId, next_status: next }),
+  });
+
+  const json = (await res.json().catch(() => null)) as any;
+
+  if (!res.ok) {
+    const msg = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : `HTTP ${res.status}`;
+    return { ok: false, error: msg };
+  }
+
+  if (json && json.ok === true && typeof json.status === "string") {
+    return { ok: true, status: json.status as OrderStatus };
+  }
+
+  return { ok: false, error: "Unexpected response from admin-update-order-status" };
+}
 
 async function postTelegram(orderId: string): Promise<TelegramResponse> {
   const url = `${TELEGRAM_API_BASE}/api/telegram-new-order`;
@@ -221,15 +257,17 @@ export default function AdminOrders() {
     setToastById((m) => ({ ...m, [orderId]: "" }));
     setBusyStatusById((m) => ({ ...m, [orderId]: true }));
 
+    // optimistic UI
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: next } : o)));
 
-    const { error } = await supabaseAdminAuth.from("orders").update({ status: next }).eq("id", orderId);
+    const r = await adminUpdateOrderStatus(orderId, next);
 
-    if (error) {
-      setToastById((m) => ({ ...m, [orderId]: `Greška: ${error.message ?? "update failed"}` }));
+    if (!r.ok) {
+      setToastById((m) => ({ ...m, [orderId]: `Greška: ${r.error}` }));
       await loadOrders();
     } else {
-      setToastById((m) => ({ ...m, [orderId]: `Status: ${next}` }));
+      const devHint = import.meta.env.DEV ? " (DEV → prod endpoint)" : "";
+      setToastById((m) => ({ ...m, [orderId]: `Status: ${r.status}${devHint}` }));
     }
 
     setBusyStatusById((m) => ({ ...m, [orderId]: false }));

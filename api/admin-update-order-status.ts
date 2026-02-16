@@ -10,17 +10,23 @@ function setCors(req: any, res: any) {
 }
 
 function json(res: any, status: number, body: any) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.send(JSON.stringify(body));
+  res.status(status).setHeader("content-type", "application/json; charset=utf-8");
+  res.end(JSON.stringify(body));
 }
 
 function toTrimmedString(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
+  if (typeof v === "string") return v.trim();
+  if (v == null) return "";
+  try {
+    return String(v).trim();
+  } catch {
+    return "";
+  }
 }
 
 function getEnv(name: string): string {
-  return toTrimmedString((process.env as any)?.[name]);
+  const v = (process.env as any)?.[name];
+  return typeof v === "string" ? v : "";
 }
 
 function buildSupabaseAdmin() {
@@ -44,8 +50,8 @@ function buildSupabaseAdmin() {
   }
 
   return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/admin-update-order-status" } },
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { "x-client-info": "padrino-vercel-api/admin-update-order-status" } },
   });
 }
 
@@ -131,42 +137,31 @@ export default async function handler(req: any, res: any) {
     if (!orderId) return json(res, 400, { ok: false, error: "Missing order_id" });
     if (!isOrderStatus(nextRaw)) return json(res, 400, { ok: false, error: "Invalid next_status" });
 
-    const nextStatus: OrderStatus = nextRaw;
+    const nextStatus = nextRaw as OrderStatus;
 
-    const { data: existing, error: readErr } = await supabase
+    // Read current status from DB (server-side source of truth)
+    const { data: row, error: readErr } = await supabase
       .from("orders")
-      .select("id, status")
+      .select("status")
       .eq("id", orderId)
-      .single();
+      .maybeSingle();
 
-    if (readErr || !existing) {
-      return json(res, 404, { ok: false, error: "Order not found" });
+    if (readErr) return json(res, 500, { ok: false, error: readErr.message || "DB read failed" });
+    if (!row) return json(res, 404, { ok: false, error: "Order not found" });
+
+    const current = currentOrDefault(row.status);
+
+    if (!isAllowedTransition(current, nextStatus)) {
+      return json(res, 409, { ok: false, error: `Invalid transition: ${current} -> ${nextStatus}` });
     }
 
-    const currentStatus = currentOrDefault((existing as any).status);
+    const { error: upErr } = await supabase.from("orders").update({ status: nextStatus }).eq("id", orderId);
 
-    if (!isAllowedTransition(currentStatus, nextStatus)) {
-      return json(res, 400, {
-        ok: false,
-        error: `Invalid transition: ${currentStatus} -> ${nextStatus}`,
-      });
-    }
+    if (upErr) return json(res, 500, { ok: false, error: upErr.message || "DB update failed" });
 
-    const { data: updated, error: updErr } = await supabase
-      .from("orders")
-      .update({ status: nextStatus })
-      .eq("id", orderId)
-      .select("id, status")
-      .single();
-
-    if (updErr || !updated) {
-      console.error("[admin-update-order-status] update error:", updErr);
-      return json(res, 500, { ok: false, error: "Update failed" });
-    }
-
-    return json(res, 200, { ok: true, id: (updated as any).id, status: (updated as any).status });
-  } catch (err: any) {
-    console.error("admin-update-order-status fatal error:", err);
-    return json(res, 500, { ok: false, error: "Internal server error" });
+    return json(res, 200, { ok: true, status: nextStatus });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return json(res, 500, { ok: false, error: msg || "Unknown error" });
   }
 }
