@@ -42,6 +42,11 @@ export default function AdminLogin() {
   const [submitting, setSubmitting] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
+  // Anti Gmail preview: code se NE exchange-uje automatski.
+  // Umesto toga, čuvamo ga u state i tražimo eksplicitni klik korisnika.
+  const [pendingCode, setPendingCode] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
   const cleanedEmail = useMemo(() => normalizeEmail(email), [email]);
   const emailIsAdmin = useMemo(() => isAdminEmail(cleanedEmail), [cleanedEmail]);
 
@@ -88,22 +93,15 @@ export default function AdminLogin() {
         return;
       }
 
-      // PKCE code flow (najčešći za SPA)
+      // Ako imamo PKCE code u URL-u:
+      // - NE radimo exchange automatski (Gmail preview ume da "pojede" link)
+      // - stavljamo code u state i tražimo eksplicitni klik ("Potvrdi prijavu")
       if (code) {
-        try {
-          const { error: exErr } = await supabaseAdminAuth.auth.exchangeCodeForSession(code);
-          if (exErr) throw exErr;
-        } catch (e) {
-          if (!mounted) return;
-          setError(extractSupabaseErrorMessage(e));
-          cleanUrl();
-          const rs = await getRoleStateFromSession();
-          if (!mounted) return;
-          setRoleState(rs);
-          return;
-        }
-
+        if (!mounted) return;
+        setPendingCode(code);
         cleanUrl();
+
+        // I dalje proveri sesiju (ako je već uspostavljena iz nekog razloga)
         const rs = await getRoleStateFromSession();
         if (!mounted) return;
 
@@ -112,12 +110,12 @@ export default function AdminLogin() {
           return;
         }
 
+        // Ako je sesija već tu ali nije admin, odmah pokaži poruku
         if (rs === "not-admin") {
           setRoleState("not-admin");
           return;
         }
 
-        setError("Prijava nije uspjela. Pokušajte ponovo.");
         setRoleState("none");
         return;
       }
@@ -167,6 +165,41 @@ export default function AdminLogin() {
 
     return () => window.clearInterval(t);
   }, [cooldownSeconds]);
+
+  async function handleConfirm() {
+    if (!pendingCode) return;
+    if (confirming) return;
+
+    setConfirming(true);
+    setError(null);
+
+    try {
+      const { error: exErr } = await supabaseAdminAuth.auth.exchangeCodeForSession(pendingCode);
+      if (exErr) throw exErr;
+
+      const rs = await getRoleStateFromSession();
+
+      if (rs === "admin") {
+        window.location.replace("/admin");
+        return;
+      }
+
+      if (rs === "not-admin") {
+        setRoleState("not-admin");
+        return;
+      }
+
+      setError("Prijava nije uspjela. Pokušajte ponovo.");
+      setRoleState("none");
+      return;
+    } catch (e) {
+      setError(extractSupabaseErrorMessage(e));
+      // pendingCode ostaje, korisnik može da proba još jednom
+      return;
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -229,6 +262,44 @@ export default function AdminLogin() {
         >
           Nazad na meni
         </button>
+      </div>
+    );
+  }
+
+  // Callback ekran (ima pendingCode) – eksplicitna potvrda sprečava Gmail preview da "potroši" code.
+  if (pendingCode) {
+    return (
+      <div className="p-6 max-w-sm mx-auto">
+        <h1 className="text-2xl font-bold mb-2 text-white">Potvrdi admin prijavu</h1>
+        <p className="text-white/80 text-sm">
+          Neki email klijenti (npr. Gmail) automatski otvore magic link (preview/safe browsing) i time potroše
+          jednokratni kod. Zato se prijava završava tek kad ti ručno klikneš dugme ispod.
+        </p>
+
+        <button
+          type="button"
+          disabled={confirming}
+          className={[
+            "w-full mt-4 font-semibold px-4 py-2 rounded-full transition",
+            confirming ? "bg-yellow-500/50 text-black/60" : "bg-yellow-500 hover:bg-yellow-400 text-black",
+          ].join(" ")}
+          onClick={handleConfirm}
+        >
+          {confirming ? "Potvrđujem…" : "Potvrdi prijavu"}
+        </button>
+
+        <button
+          type="button"
+          className="w-full mt-2 text-white/80 hover:text-white underline text-sm"
+          onClick={() => {
+            setPendingCode(null);
+            setError(null);
+          }}
+        >
+          Otkaži i idi na prijavu
+        </button>
+
+        {error && <p className="text-red-400 text-sm mt-3">{error}</p>}
       </div>
     );
   }
