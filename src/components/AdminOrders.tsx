@@ -130,7 +130,6 @@ function pillClass(status: OrderStatus) {
 }
 
 const TELEGRAM_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
-
 const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
 
 type AdminStatusUpdateResponse =
@@ -168,6 +167,39 @@ async function adminUpdateOrderStatus(orderId: string, next: OrderStatus): Promi
   return { ok: false, error: "Unexpected response from admin-update-order-status" };
 }
 
+type AdminOrdersResponse =
+  | { ok: true; orders: OrderRow[] }
+  | { ok: false; error: string };
+
+async function adminFetchOrders(limit = 200): Promise<AdminOrdersResponse> {
+  const { data } = await supabaseAdminAuth.auth.getSession();
+  const token = data?.session?.access_token;
+
+  if (!token) return { ok: false, error: "Missing admin session token" };
+
+  const url = `${ADMIN_API_BASE}/api/admin-orders?limit=${encodeURIComponent(String(limit))}`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  });
+
+  const json = (await res.json().catch(() => null)) as any;
+
+  if (!res.ok) {
+    const msg = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : `HTTP ${res.status}`;
+    return { ok: false, error: msg };
+  }
+
+  if (json && json.ok === true && Array.isArray(json.orders)) {
+    return { ok: true, orders: json.orders as OrderRow[] };
+  }
+
+  return { ok: false, error: "Unexpected response from admin-orders" };
+}
+
 async function postTelegram(orderId: string): Promise<TelegramResponse> {
   const url = `${TELEGRAM_API_BASE}/api/telegram-new-order`;
 
@@ -202,20 +234,16 @@ export default function AdminOrders() {
     setLoading(true);
     setErrorMsg(null);
 
-    const { data, error } = await supabaseAdminAuth
-      .from("orders")
-      .select(
-        "id, created_at, customer_name, customer_phone, customer_address, total_price, currency, total_eur_cents, fx_rsd_per_eur, items, status"
-      )
-      .order("created_at", { ascending: false });
+    const r = await adminFetchOrders(200);
 
-    if (error) {
+    if (!r.ok) {
       setOrders([]);
-      setErrorMsg(error.message ?? "Greška pri učitavanju.");
-    } else {
-      setOrders((data ?? []) as OrderRow[]);
+      setErrorMsg(r.error);
+      setLoading(false);
+      return;
     }
 
+    setOrders(r.orders);
     setLoading(false);
   }
 
@@ -301,11 +329,9 @@ export default function AdminOrders() {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
-            <p className="mt-2 text-white/70">Nove porudžbine su u EUR (cents), stare ostaju u RSD (fallback).</p>
+            <p className="mt-2 text-white/70">Admin koristi server-side API (service role) za SELECT/UPDATE.</p>
             {import.meta.env.DEV ? (
-              <p className="mt-1 text-xs text-white/50">
-                DEV: Resend Telegram koristi production endpoint (nema /api na localhost:5173).
-              </p>
+              <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na production endpoint.</p>
             ) : null}
           </div>
 
