@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <!-- Google Analytics (GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3F77D682TB"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      window.gtag = gtag;
+      gtag('js', new Date());
+
+      // IMPORTANT: SPA app — page_view šaljemo iz src/lib/analytics.ts (single source of truth)
+      gtag('config', 'G-3F77D682TB', { send_page_view: false });
+    </script>
+
     <!-- ✅ LCP: preload hero background (najveći win bez promene dizajna) -->
     <link rel="preload" as="image" href="/sections/hero.webp" fetchpriority="high" />
 
@@ -46,6 +58,9 @@
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#000000" />
 
+    <!-- ✅ Canonical (bitno za Google: da ne rangira Vercel preview) -->
+    <link rel="canonical" href="https://padrinobudva.com/" />
+
     <!-- OPEN GRAPH -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Padrino Pizzeria Budva" />
@@ -55,8 +70,8 @@
       content="Autentična pizza iz naših srca. Premium sastojci, brza dostava i savršen ukus."
     />
     <!-- ✅ storefront.jpg je obrisan → koristimo postojeći webp -->
-    <meta property="og:image" content="/sections/about.webp" />
-    <meta property="og:url" content="https://padrino-pizzeria.vercel.app/" />
+    <meta property="og:image" content="https://padrinobudva.com/sections/about.webp" />
+    <meta property="og:url" content="https://padrinobudva.com/" />
 
     <!-- TWITTER / X -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -65,8 +80,7 @@
       name="twitter:description"
       content="Autentična pizza iz naših srca. Premium sastojci, brza dostava i savršen ukus."
     />
-    <!-- ✅ storefront.jpg je obrisan → koristimo postojeći webp -->
-    <meta name="twitter:image" content="/sections/about.webp" />
+    <meta name="twitter:image" content="https://padrinobudva.com/sections/about.webp" />
 
     <!-- FAVICON -->
     <link rel="icon" type="image/png" href="/favicon.png" />

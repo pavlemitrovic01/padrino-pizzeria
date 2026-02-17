@@ -5,6 +5,7 @@ import { CartProvider } from "./context/CartProvider";
 import { AuthProvider } from "./auth/AuthProvider";
 import "./index.css";
 import { initClientMonitoring, logError } from "./lib/logger";
+import { initAnalytics } from "./lib/analytics";
 
 // Minimal ErrorBoundary: bez novih biblioteka, TS strict-safe.
 // Cilj: spreči "white screen" na runtime greškama i da admin/kupac dobije recovery UI.
@@ -19,76 +20,45 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return { hasError: true, message: msg };
   }
 
-  componentDidCatch(err: unknown, info: unknown) {
-    // Centralizovano logovanje (console + localStorage ring buffer)
-    logError("ErrorBoundary.componentDidCatch", err, {
-      reactComponentStack:
-        typeof info === "object" && info !== null && "componentStack" in (info as any)
-          ? (info as any).componentStack
-          : undefined,
-    });
-
-    // eslint-disable-next-line no-console
-    console.error("Unhandled UI error:", err, info);
+  componentDidCatch(err: unknown): void {
+    logError("ErrorBoundary", err);
   }
 
-  private onReload = () => {
-    window.location.reload();
-  };
+  render(): React.ReactNode {
+    if (!this.state.hasError) return this.props.children;
 
-  private onTryAgain = () => {
-    this.setState({ hasError: false, message: undefined });
-  };
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
-          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#121212] p-6">
-            <h1 className="text-xl font-extrabold">Došlo je do greške</h1>
-            <p className="text-sm text-gray-400 mt-2">
-              Aplikacija je naišla na neočekivan problem. Možeš da pokušaš ponovo ili da osvežiš
-              stranicu.
-            </p>
-
-            {this.state.message ? (
-              <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/[0.06] p-3">
-                <p className="text-xs font-bold text-red-200">Detalji</p>
-                <p className="text-xs text-red-200/80 mt-1 break-words">{this.state.message}</p>
-              </div>
-            ) : null}
-
-            <div className="mt-5 flex flex-col sm:flex-row gap-2">
-              <button
-                type="button"
-                onClick={this.onTryAgain}
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-black"
-              >
-                Pokušaj ponovo
-              </button>
-              <button
-                type="button"
-                onClick={this.onReload}
-                className="rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm font-extrabold text-white hover:border-white/25"
-              >
-                Osveži stranicu
-              </button>
-            </div>
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-white/10 bg-white/5 p-6">
+          <div className="text-xl font-semibold">Došlo je do greške</div>
+          <div className="mt-2 text-sm text-white/70">
+            Pokušaj osvežavanje stranice. Ako problem ostane, javi nam.
           </div>
+          {this.state.message ? (
+            <pre className="mt-4 text-xs text-white/50 whitespace-pre-wrap break-words">
+              {this.state.message}
+            </pre>
+          ) : null}
+          <button
+            className="mt-6 w-full rounded-xl bg-white text-black font-semibold py-2"
+            onClick={() => window.location.reload()}
+          >
+            Osveži stranicu
+          </button>
         </div>
-      );
-    }
-
-    return this.props.children;
+      </div>
+    );
   }
 }
 
-// Monitoring inicijalizujemo TAČNO JEDNOM, pre render-a.
-// Ne vezujemo ga za komponente/providere da se ne bi duplirao u StrictMode re-renderima.
+// Client monitoring init: koristi se i za error log i za operativnu dijagnostiku.
+// Ovo je pozvano ovde pre svih komponente/providere da se ne bi duplirao u StrictMode re-renderima.
 initClientMonitoring({
   appTag: "padrino-web",
   version: "unknown",
 });
+
+initAnalytics();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
