@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Admin nije za indeksiranje
+Disallow: /admin
+Disallow: /admin/
+
+# (Opciono) Ako ikad dodaš neke privremene test rute, ovde ih blokiraš
+
+Sitemap: https://padrinobudva.com/sitemap.xml
