@@ -31,12 +31,6 @@ type ParsedItem = {
   note: string | null;
 };
 
-type TelegramResponse = {
-  ok: boolean;
-  telegram?: "sent" | "failed";
-  error?: string;
-};
-
 function safeString(v: unknown): string {
   if (typeof v === "string") return v.trim();
   if (v == null) return "";
@@ -73,9 +67,7 @@ function isEurOrder(o: OrderRow) {
 function getOrderTotalLabel(o: OrderRow) {
   if (isEurOrder(o)) {
     const cents =
-      typeof o.total_eur_cents === "number"
-        ? safeInt(o.total_eur_cents, 0)
-        : safeInt(o.total_price, 0);
+      typeof o.total_eur_cents === "number" ? safeInt(o.total_eur_cents, 0) : safeInt(o.total_price, 0);
     return formatEUR(cents);
   }
   return formatRSD(o.total_price ?? 0);
@@ -129,12 +121,9 @@ function pillClass(status: OrderStatus) {
   }
 }
 
-const TELEGRAM_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
 const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
 
-type AdminStatusUpdateResponse =
-  | { ok: true; status: OrderStatus }
-  | { ok: false; error: string };
+type AdminStatusUpdateResponse = { ok: true; status: OrderStatus } | { ok: false; error: string };
 
 async function adminUpdateOrderStatus(orderId: string, next: OrderStatus): Promise<AdminStatusUpdateResponse> {
   const { data } = await supabaseAdminAuth.auth.getSession();
@@ -167,9 +156,7 @@ async function adminUpdateOrderStatus(orderId: string, next: OrderStatus): Promi
   return { ok: false, error: "Unexpected response from admin-update-order-status" };
 }
 
-type AdminOrdersResponse =
-  | { ok: true; orders: OrderRow[] }
-  | { ok: false; error: string };
+type AdminOrdersResponse = { ok: true; orders: OrderRow[] } | { ok: false; error: string };
 
 async function adminFetchOrders(limit = 200): Promise<AdminOrdersResponse> {
   const { data } = await supabaseAdminAuth.auth.getSession();
@@ -200,22 +187,37 @@ async function adminFetchOrders(limit = 200): Promise<AdminOrdersResponse> {
   return { ok: false, error: "Unexpected response from admin-orders" };
 }
 
-async function postTelegram(orderId: string): Promise<TelegramResponse> {
-  const url = `${TELEGRAM_API_BASE}/api/telegram-new-order`;
+type AdminResendTelegramResponse = { ok: true; telegram: "sent" } | { ok: false; error: string };
+
+async function adminResendTelegram(orderId: string): Promise<AdminResendTelegramResponse> {
+  const { data } = await supabaseAdminAuth.auth.getSession();
+  const token = data?.session?.access_token;
+
+  if (!token) return { ok: false, error: "Missing admin session token" };
+
+  const url = `${ADMIN_API_BASE}/api/admin-resend-telegram`;
 
   const res = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ order_id: orderId }),
   });
 
-  const json = (await res.json().catch(() => null)) as TelegramResponse | null;
+  const json = (await res.json().catch(() => null)) as any;
 
   if (!res.ok) {
-    return { ok: false, error: json?.error || `HTTP ${res.status}` };
+    const msg = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : `HTTP ${res.status}`;
+    return { ok: false, error: msg };
   }
 
-  return json ?? { ok: true };
+  if (json && json.ok === true) {
+    return { ok: true, telegram: "sent" };
+  }
+
+  return { ok: false, error: "Unexpected response from admin-resend-telegram" };
 }
 
 export default function AdminOrders() {
@@ -306,15 +308,15 @@ export default function AdminOrders() {
     setBusyTelegramById((m) => ({ ...m, [orderId]: true }));
 
     try {
-      const r = await postTelegram(orderId);
+      const r = await adminResendTelegram(orderId);
 
       if (!r.ok) {
-        setToastById((m) => ({ ...m, [orderId]: `Telegram error: ${r.error ?? "failed"}` }));
-      } else {
-        const s = r.telegram ? ` (${r.telegram})` : "";
-        const devHint = import.meta.env.DEV ? " (DEV → prod endpoint)" : "";
-        setToastById((m) => ({ ...m, [orderId]: `Telegram: ok${s}${devHint}` }));
+        setToastById((m) => ({ ...m, [orderId]: `Telegram error: ${r.error}` }));
+        return;
       }
+
+      const devHint = import.meta.env.DEV ? " (DEV → prod endpoint)" : "";
+      setToastById((m) => ({ ...m, [orderId]: `Telegram: sent${devHint}` }));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setToastById((m) => ({ ...m, [orderId]: `Telegram error: ${msg}` }));
@@ -368,9 +370,7 @@ export default function AdminOrders() {
               {renderedOrders.map((o) => {
                 const parsed = parseOrderItems(o.items);
                 const metaTotalItems =
-                  parsed.meta && typeof parsed.meta.total_items === "number"
-                    ? safeInt(parsed.meta.total_items, 0)
-                    : null;
+                  parsed.meta && typeof parsed.meta.total_items === "number" ? safeInt(parsed.meta.total_items, 0) : null;
 
                 const computedCount = metaTotalItems ?? parsed.items.reduce((s, it) => s + it.quantity, 0);
 
@@ -504,9 +504,7 @@ export default function AdminOrders() {
                                 </div>
 
                                 <div className="text-right shrink-0">
-                                  <p className="text-white font-bold">
-                                    {eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}
-                                  </p>
+                                  <p className="text-white font-bold">{eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}</p>
                                 </div>
                               </div>
                             </div>

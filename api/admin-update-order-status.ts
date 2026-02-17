@@ -91,19 +91,25 @@ function currentOrDefault(v: unknown): OrderStatus {
 }
 
 /**
- * Minimal state machine:
+ * Minimal state machine (restaurant-safe):
  * - pending -> preparing | cancelled
  * - preparing -> done | cancelled
- * - done -> done (no changes)
- * - cancelled -> cancelled (no changes)
+ * - done -> preparing (admin "reopen" if marked done by mistake)
+ * - cancelled -> pending (admin "reopen" if cancelled by mistake)
+ *
+ * NOTE:
+ * We intentionally do NOT allow:
+ * - done -> cancelled
+ * - cancelled -> done/preparing
+ * to avoid turning terminal states into arbitrary toggles.
  */
 function isAllowedTransition(current: OrderStatus, next: OrderStatus) {
   if (current === next) return true;
 
   if (current === "pending") return next === "preparing" || next === "cancelled";
   if (current === "preparing") return next === "done" || next === "cancelled";
-  if (current === "done") return false;
-  if (current === "cancelled") return false;
+  if (current === "done") return next === "preparing";
+  if (current === "cancelled") return next === "pending";
 
   return false;
 }
