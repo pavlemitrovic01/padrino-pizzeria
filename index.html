@@ -4,19 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Google Analytics (GA4) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3F77D682TB"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      window.gtag = gtag;
-      gtag('js', new Date());
-
-      // IMPORTANT: SPA app — page_view šaljemo iz src/lib/analytics.ts (single source of truth)
-      gtag('config', 'G-3F77D682TB', { send_page_view: false });
-    </script>
-
-    <!-- ✅ LCP: preload hero background (najveći win bez promene dizajna) -->
+    <!-- LCP preload -->
     <link rel="preload" as="image" href="/sections/hero.webp" fetchpriority="high" />
 
     <!-- PRIMARY SEO -->
@@ -25,55 +13,22 @@
       name="description"
       content="Autentična pizza iz naših srca. Padrino Pizzeria Budva – premium sastojci, brza dostava i savršen ukus."
     />
-
-    <!-- KEYWORDS (secondary signal, clean) -->
-    <meta
-      name="keywords"
-      content="
-      pizza,
-      pica,
-      pizza budva,
-      pizzeria budva,
-      dostava pice budva,
-      hrana,
-      food,
-      fast food budva,
-      italijanska pizza,
-      testo,
-      sveže testo,
-      premium pizza,
-      domaća pizza,
-      ljubav prema hrani,
-      restoran budva,
-      dostava hrane,
-      online poručivanje hrane,
-      večera,
-      ručak,
-      takeaway pizza,
-      pica za poneti,
-      pica dostava
-      "
-    />
-
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#000000" />
-
-    <!-- ✅ Canonical (bitno za Google: da ne rangira Vercel preview) -->
     <link rel="canonical" href="https://padrinobudva.com/" />
 
     <!-- OPEN GRAPH -->
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content="restaurant" />
     <meta property="og:site_name" content="Padrino Pizzeria Budva" />
     <meta property="og:title" content="Padrino Pizzeria Budva · Premium Pizza Delivery" />
     <meta
       property="og:description"
       content="Autentična pizza iz naših srca. Premium sastojci, brza dostava i savršen ukus."
     />
-    <!-- ✅ storefront.jpg je obrisan → koristimo postojeći webp -->
     <meta property="og:image" content="https://padrinobudva.com/sections/about.webp" />
     <meta property="og:url" content="https://padrinobudva.com/" />
 
-    <!-- TWITTER / X -->
+    <!-- TWITTER -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Padrino Pizzeria Budva · Premium Pizza Delivery" />
     <meta
@@ -85,9 +40,45 @@
     <!-- FAVICON -->
     <link rel="icon" type="image/png" href="/favicon.png" />
 
-    <!-- PRECONNECTS -->
+    <!-- PRECONNECT -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- 🔥 LOCAL BUSINESS STRUCTURED DATA -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        "@id": "https://padrinobudva.com/#restaurant",
+        "name": "Padrino Pizzeria Budva",
+        "image": "https://padrinobudva.com/sections/about.webp",
+        "url": "https://padrinobudva.com/",
+        "telephone": "+38267603780",
+        "servesCuisine": "Italian, Pizza",
+        "priceRange": "€€",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "Jadranski put BB",
+          "addressLocality": "Budva",
+          "addressRegion": "Budva",
+          "postalCode": "85310",
+          "addressCountry": "ME"
+        },
+        "areaServed": {
+          "@type": "City",
+          "name": "Budva"
+        },
+        "hasOfferCatalog": {
+          "@type": "OfferCatalog",
+          "name": "Pizza Menu",
+          "url": "https://padrinobudva.com/"
+        },
+        "sameAs": [
+          "https://www.instagram.com/padrino_budva/",
+          "https://www.facebook.com/padrinobudva"
+        ]
+      }
+    </script>
   </head>
 
   <body class="bg-black text-white antialiased">

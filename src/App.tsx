@@ -3,12 +3,11 @@ import type { Session } from "@supabase/supabase-js";
 
 import Navbar from "./components/Navbar";
 import CartDrawer from "./components/CartDrawer";
-// ✅ Checkout je izbačen sa glavne stranice (sve ide kroz korpu)
-// import Checkout from "./components/Checkout";
 
 import Hero from "./sections/Hero";
 import Menu from "./sections/Menu";
 import Delivery from "./sections/Delivery";
+import Faq from "./sections/Faq";
 import About from "./sections/About";
 import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
@@ -225,6 +224,7 @@ export default function App() {
         <Hero />
         <Menu />
         <Delivery />
+        <Faq />
         <About />
         <Contact />
       </main>

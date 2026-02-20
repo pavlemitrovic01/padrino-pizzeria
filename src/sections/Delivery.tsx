@@ -26,15 +26,15 @@ export default function Delivery() {
     <section
       id="delivery"
       className="relative overflow-hidden bg-black py-24 md:py-32"
+      aria-labelledby="delivery-title"
     >
-      {/* BACKGROUND (final) */}
+      {/* BACKGROUND */}
       <div className="absolute inset-0">
         <img
           src="/sections/delivery.webp"
-          alt="Dostava Padrino"
+          alt="Dostava pizze u Budvi - Padrino Pizzeria"
           className={[
             "h-full w-full object-cover",
-            // ✅ FOCAL POINT: mobile i desktop gledaju isti kadar (minimalna razlika u crop-u)
             "object-[50%_40%]",
             "sm:object-[50%_45%]",
             "md:object-[50%_50%]",
@@ -42,16 +42,19 @@ export default function Delivery() {
           ].join(" ")}
           draggable={false}
           loading="lazy"
+          decoding="async"
+          width={1920}
+          height={1080}
         />
 
-        {/* cinematic overlays (match About/Hero language) */}
+        {/* cinematic overlays */}
         <div className="absolute inset-0 bg-black/35" />
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/20 to-black/70" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.06),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.10),transparent_50%)]" />
         <div className="absolute inset-0 shadow-[inset_0_0_160px_rgba(0,0,0,0.88)]" />
 
-        {/* SEAMLESS GLOW (top/bottom) */}
+        {/* SEAMLESS GLOW */}
         <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.12),transparent_60%)] blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_62%)] blur-3xl" />
       </div>
@@ -60,10 +63,22 @@ export default function Delivery() {
         {/* Header */}
         <div className="mb-16 text-center">
           <div className="p-kicker mb-4">Dostava</div>
-          <h2 className="p-title text-4xl md:text-5xl">Brzo. Vruće. Pouzdano.</h2>
-          <p className="mt-4 text-white/65 max-w-xl mx-auto">
+
+          <h2 id="delivery-title" className="p-title text-4xl md:text-5xl">
+            Brzo. Vruće. Pouzdano.
+          </h2>
+
+          <p className="mt-4 text-white/65 max-w-2xl mx-auto leading-relaxed">
             Svaka narudžba se priprema svježe i stiže na vaša vrata u rekordnom
             roku — jer kvalitet ne trpi čekanje.
+          </p>
+
+          {/* SEO-rich, but still natural + premium */}
+          <p className="mt-4 text-white/55 max-w-3xl mx-auto leading-relaxed">
+            Ako tražite <span className="text-white/70">dostavu pizze u Budvi</span>{" "}
+            koja je brza i tačna — Padrino Pizzeria donosi toplu, svježe pečenu
+            pizzu na vašu adresu u Budvi i okolini. Poručivanje je jednostavno,
+            a sve informacije o dostavi i zoni su jasno istaknute.
           </p>
         </div>
 
@@ -97,6 +112,7 @@ export default function Delivery() {
                   "transition-all duration-300 ease-out",
                   "group-hover:bg-black/40 group-hover:border-white/20",
                 ].join(" ")}
+                aria-hidden="true"
               >
                 {item.icon}
               </div>
@@ -114,7 +130,7 @@ export default function Delivery() {
 
         {/* Bottom info */}
         <div className="mt-16">
-          <div className="p-glass px-6 py-6 text-center">
+          <div className="p-glass px-6 py-7 text-center">
             <div className="text-xs tracking-[0.22em] uppercase text-white/50 mb-2">
               Zona dostave
             </div>
@@ -122,10 +138,18 @@ export default function Delivery() {
               Budva • centar • okolina
             </div>
 
-            <div className="mt-4 text-xs tracking-[0.22em] uppercase text-white/50">
+            <p className="mt-3 text-sm text-white/55 max-w-2xl mx-auto leading-relaxed">
+              Dostava je organizovana tako da porudžbina stigne brzo i bez
+              konfuzije — ukoliko ste na lokaciji koju nismo obuhvatili, najbolje
+              je da nas pozovete i dogovorimo sve za minut.
+            </p>
+
+            <div className="mt-5 text-xs tracking-[0.22em] uppercase text-white/50">
               Napomena
             </div>
-            <div className="text-white/70 mt-1">Pozvati prije dolaska (ako treba)</div>
+            <div className="text-white/70 mt-1">
+              Pozvati prije dolaska (ako treba)
+            </div>
           </div>
         </div>
       </div>
