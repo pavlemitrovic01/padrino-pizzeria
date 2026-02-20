@@ -44,6 +44,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
+    <!-- ✅ GA4 (perf-safe, SPA-friendly)
+         send_page_view:false jer page_view šaljemo ručno iz src/lib/analytics.ts -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3F77D682TB"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        window.dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-3F77D682TB", { send_page_view: false });
+    </script>
+
     <!-- 🔥 LOCAL BUSINESS STRUCTURED DATA -->
     <script type="application/ld+json">
       {

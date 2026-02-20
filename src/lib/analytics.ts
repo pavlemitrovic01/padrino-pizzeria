@@ -11,6 +11,16 @@ declare global {
   }
 }
 
+function shouldTrackNow(): boolean {
+  if (typeof window === "undefined") return false;
+
+  // Stabilno: ne pratimo admin da ne “zagađuje” GA metrikom.
+  // (Ako ikad poželiš da pratimo i admin, samo uklonimo ovaj uslov.)
+  if (window.location.pathname.startsWith("/admin")) return false;
+
+  return true;
+}
+
 function safeGtag(...args: unknown[]): void {
   if (typeof window === "undefined") return;
 
@@ -19,6 +29,7 @@ function safeGtag(...args: unknown[]): void {
     return;
   }
 
+  // Ako gtag nije spreman (npr. blocker), fallback na dataLayer (ne ruši app).
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push(args);
 }
@@ -26,11 +37,12 @@ function safeGtag(...args: unknown[]): void {
 export type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined>;
 
 export function trackEvent(eventName: string, params?: AnalyticsEventParams): void {
+  if (!shouldTrackNow()) return;
   safeGtag("event", eventName, params || {});
 }
 
 export function trackPageView(pathname?: string): void {
-  if (typeof window === "undefined") return;
+  if (!shouldTrackNow()) return;
 
   const page_path = pathname ?? window.location.pathname + window.location.search;
 

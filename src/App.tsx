@@ -1,5 +1,4 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
 
 import Navbar from "./components/Navbar";
 import CartDrawer from "./components/CartDrawer";
@@ -14,10 +13,20 @@ import Footer from "./sections/Footer";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
+/**
+ * Minimalan shape sesije koji nam treba (email check).
+ * Ne oslanjamo se na Supabase Session tip da izbegnemo version/type mismatch probleme.
+ */
+type SessionLike = {
+  user?: {
+    email?: string | null;
+  } | null;
+} | null;
+
 // ✅ Minimalno i stabilno: admin = allowlist email-a (magic link + email check)
 const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
-function isAdminSession(session: Session | null): boolean {
+function isAdminSession(session: SessionLike): boolean {
   const email =
     typeof session?.user?.email === "string"
       ? session.user.email.trim().toLowerCase()
@@ -32,6 +41,51 @@ const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
 
 function AdminChunkFallback() {
   return <p className="text-white text-lg">Učitavam…</p>;
+}
+
+/**
+ * Supabase auth compat layer:
+ * - v2: auth.getSession() + auth.onAuthStateChange()
+ * - v1 (ili tip mismatch): auth.session() + auth.onAuthStateChange()
+ * Ovaj sloj radi i kad TS ne vidi metode (koristimo feature-detection).
+ */
+async function readSessionFromAuth(auth: unknown): Promise<SessionLike> {
+  const a = auth as {
+    getSession?: () => Promise<{ data?: { session?: SessionLike } }>;
+    session?: () => SessionLike;
+  };
+
+  if (typeof a.getSession === "function") {
+    const res = await a.getSession();
+    return res?.data?.session ?? null;
+  }
+
+  if (typeof a.session === "function") {
+    return a.session() ?? null;
+  }
+
+  return null;
+}
+
+function subscribeAuthChanges(
+  auth: unknown,
+  onSession: (next: SessionLike) => void
+): (() => void) | null {
+  const a = auth as {
+    onAuthStateChange?: (
+      cb: (event: unknown, session: SessionLike) => void
+    ) => { data?: { subscription?: { unsubscribe?: () => void } } };
+  };
+
+  if (typeof a.onAuthStateChange !== "function") return null;
+
+  const { data } = a.onAuthStateChange((_event, nextSession) => {
+    onSession(nextSession ?? null);
+  });
+
+  return () => {
+    data?.subscription?.unsubscribe?.();
+  };
 }
 
 export default function App() {
@@ -93,10 +147,8 @@ export default function App() {
       try {
         const { supabaseAdminAuth } = await import("./lib/supabaseAdminAuthClient");
 
-        const { data } = await supabaseAdminAuth.auth.getSession();
+        const session = await readSessionFromAuth(supabaseAdminAuth.auth);
         if (!mounted) return;
-
-        const session = data?.session ?? null;
 
         if (!session || !session.user) {
           setGuardState("unauthenticated");
@@ -107,8 +159,8 @@ export default function App() {
         setGuardState(isAdminSession(session) ? "admin" : "not-admin");
         setChecking(false);
 
-        const { data: listener } = supabaseAdminAuth.auth.onAuthStateChange(
-          (_event, nextSession) => {
+        unsubscribe =
+          subscribeAuthChanges(supabaseAdminAuth.auth, (nextSession) => {
             if (!mounted) return;
 
             if (!nextSession || !nextSession.user) {
@@ -119,12 +171,7 @@ export default function App() {
 
             setGuardState(isAdminSession(nextSession) ? "admin" : "not-admin");
             setChecking(false);
-          }
-        );
-
-        unsubscribe = () => {
-          listener?.subscription.unsubscribe();
-        };
+          }) ?? null;
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[Padrino] Admin guard failed to load Supabase:", e);
