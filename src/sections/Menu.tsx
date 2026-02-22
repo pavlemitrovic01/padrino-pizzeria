@@ -163,10 +163,14 @@ type ToastState = { visible: boolean; title: string; subtitle?: string };
 
 function SmartMenuImage(props: { image: string | null; name: string; alt: string; className: string }) {
   const { image, name, alt, className } = props;
-  const candidates = useMemo(() => buildImageCandidates(image, name), [image, name]);
-  const [idx, setIdx] = useState(0);
 
-  useEffect(() => setIdx(0), [image, name]);
+  // ESLint (react-hooks/set-state-in-effect) safe reset:
+  // we keep idx alongside a "key" derived from inputs.
+  const candidates = useMemo(() => buildImageCandidates(image, name), [image, name]);
+  const key = `${image ?? ""}|${name}`;
+
+  const [state, setState] = useState<{ key: string; idx: number }>({ key, idx: 0 });
+  const idx = state.key === key ? state.idx : 0;
 
   const src = candidates[idx] ?? null;
   if (!src) return <div className={className + " bg-white/5"} aria-hidden="true" />;
@@ -178,16 +182,25 @@ function SmartMenuImage(props: { image: string | null; name: string; alt: string
       className={className}
       loading="lazy"
       decoding="async"
-      onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
+      onError={() =>
+        setState((s) => {
+          const current = s.key === key ? s : { key, idx: 0 };
+          return { key, idx: current.idx < candidates.length - 1 ? current.idx + 1 : current.idx };
+        })
+      }
     />
   );
 }
 
 function PreviewImage(props: { candidates: string[]; alt: string; className?: string }) {
   const { candidates, alt, className } = props;
-  const [idx, setIdx] = useState(0);
 
-  useEffect(() => setIdx(0), [candidates.join("|")]);
+  // ESLint (react-hooks/set-state-in-effect) safe reset:
+  // reset idx when candidates list changes (tracked via key).
+  const key = useMemo(() => candidates.join("|"), [candidates]);
+
+  const [state, setState] = useState<{ key: string; idx: number }>({ key, idx: 0 });
+  const idx = state.key === key ? state.idx : 0;
 
   const src = candidates[idx] ?? null;
   if (!src) return <div className={["bg-white/5 rounded-2xl", className ?? ""].join(" ")} aria-hidden="true" />;
@@ -199,7 +212,12 @@ function PreviewImage(props: { candidates: string[]; alt: string; className?: st
       className={className}
       draggable={false}
       decoding="async"
-      onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
+      onError={() =>
+        setState((s) => {
+          const current = s.key === key ? s : { key, idx: 0 };
+          return { key, idx: current.idx < candidates.length - 1 ? current.idx + 1 : current.idx };
+        })
+      }
     />
   );
 }
@@ -522,9 +540,7 @@ export default function Menu() {
                       </div>
 
                       <div className="p-4">
-                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">
-                          {displayName}
-                        </div>
+                        <div className="text-[15px] font-extrabold text-white/92 leading-tight">{displayName}</div>
 
                         {desc ? (
                           <div className="mt-1 text-[14px] text-white/60 leading-snug">{desc}</div>
@@ -587,9 +603,7 @@ export default function Menu() {
               >
                 <div className="min-w-0">
                   <div className="text-sm sm:text-[15px] font-extrabold text-white/90">{toast.title}</div>
-                  {toast.subtitle ? (
-                    <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div>
-                  ) : null}
+                  {toast.subtitle ? <div className="mt-1 text-xs sm:text-sm text-white/60 truncate">{toast.subtitle}</div> : null}
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -642,7 +656,11 @@ export default function Menu() {
 
                   <div className="relative p-4 sm:p-5">
                     <div className="relative overflow-hidden rounded-2xl bg-white/5">
-                      <PreviewImage candidates={preview.candidates} alt={preview.name} className="w-full max-h-[70vh] object-contain" />
+                      <PreviewImage
+                        candidates={preview.candidates}
+                        alt={preview.name}
+                        className="w-full max-h-[70vh] object-contain"
+                      />
                     </div>
 
                     <div className="mt-4 flex items-center justify-between text-xs text-white/55">
