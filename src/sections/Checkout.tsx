@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartProvider";
 import { formatEUR } from "../lib/money";
-import { createOrder } from "../lib/createOrder";
+import { createOrder, type CreateOrderPayload } from "../lib/createOrder";
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -16,10 +16,7 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalItems = useMemo(
-    () => items.reduce((acc, i) => acc + (i.quantity || 0), 0),
-    [items]
-  );
+  const totalItems = useMemo(() => items.reduce((acc, i) => acc + (i.quantity || 0), 0), [items]);
 
   const canSubmit = useMemo(() => {
     if (!name.trim() || !phone.trim() || !address.trim()) return false;
@@ -29,22 +26,21 @@ export default function Checkout() {
     return true;
   }, [name, phone, address, items.length, totalItems, totalPrice]);
 
-  async function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
     try {
       setSubmitting(true);
 
-      const payload = {
+      // Bez `any`: koristimo postojeće tipove iz src/lib/createOrder.ts
+      const payload: CreateOrderPayload = {
         customer_name: name.trim(),
         customer_phone: phone.trim(),
         customer_address: address.trim(),
-
-        // createOrder normalizuje, ali mu pošalji što više smislenih polja
         items: items.map((i) => ({
           cart_id: String(i.id),
-          menu_item_id: (i as any).menuItemId ?? null,
+          menu_item_id: i.menuItemId ?? null,
           name: i.name,
           size: i.size ?? null,
           quantity: i.quantity || 1,
@@ -55,18 +51,18 @@ export default function Checkout() {
           image: i.image,
           category: i.category,
         })),
-
         total_price: totalPrice,
         total_items: totalItems,
         note: note.trim() || null,
       };
 
-      const result = await createOrder(payload as any);
+      const result = await createOrder(payload);
 
       clearCart();
       navigate(`/checkout/success?id=${encodeURIComponent(result.orderId)}`);
-    } catch (err: any) {
-      setError(err?.message || "Došlo je do greške pri slanju porudžbine.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Došlo je do greške pri slanju porudžbine.";
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -84,7 +80,7 @@ export default function Checkout() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
-              placeholder="Npr. Pavle Mitrović"
+              placeholder="Npr. Marko Markovic"
               autoComplete="name"
             />
           </div>
@@ -97,6 +93,7 @@ export default function Checkout() {
               className="w-full rounded-2xl bg-white/5 px-4 py-3 text-white outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]"
               placeholder="Npr. 06X XXX XXX"
               autoComplete="tel"
+              inputMode="tel"
             />
           </div>
 
@@ -121,21 +118,32 @@ export default function Checkout() {
             />
           </div>
 
-          {error ? <div className="rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">{error}</div> : null}
+          {error ? (
+            <div className="rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">{error}</div>
+          ) : null}
 
           <button
             type="submit"
             disabled={!canSubmit || submitting}
             className={[
-              "w-full rounded-2xl px-5 py-3 text-sm font-extrabold text-black transition",
+              "w-full rounded-2xl px-5 py-3 text-sm font-extrabold text-black transition flex items-center justify-center gap-2",
               !canSubmit || submitting ? "bg-[#f2b400]/50" : "bg-[#f2b400] hover:brightness-95",
             ].join(" ")}
           >
-            {submitting ? "Šaljem…" : "Potvrdi porudžbinu"}
+            {submitting ? (
+              <>
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                Šaljem…
+              </>
+            ) : (
+              "Potvrdi porudžbinu"
+            )}
           </button>
 
           {!canSubmit && !submitting ? (
-            <div className="text-xs text-white/50">Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.</div>
+            <div className="text-xs text-white/50">
+              Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.
+            </div>
           ) : null}
         </form>
 
@@ -144,7 +152,8 @@ export default function Checkout() {
 
           <div className="space-y-3">
             {items.map((i) => {
-              const unit = typeof i.price === "number" ? i.price : typeof i.basePrice === "number" ? i.basePrice : 0;
+              const unit =
+                typeof i.price === "number" ? i.price : typeof i.basePrice === "number" ? i.basePrice : 0;
               const qty = i.quantity || 1;
               const lineTotal = unit * qty;
 
@@ -179,6 +188,8 @@ export default function Checkout() {
             <div className="text-sm font-bold text-white/70">Ukupno</div>
             <div className="text-2xl font-extrabold text-white">{formatEUR(totalPrice)}</div>
           </div>
+
+          <div className="mt-3 text-xs text-white/55">Plaćanje: gotovina (kartice uskoro).</div>
         </aside>
       </div>
     </section>
