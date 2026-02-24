@@ -11,7 +11,7 @@
     <title>Padrino Budva | Picerija i Dostava Pizze u Budvi</title>
     <meta
       name="description"
-      content="Padrino Budva – premium pica i brza dostava u Budvi. Jadranski put BB (Kotorski semafori). Poruči online ili pozovi 067 603 780."
+      content="Padrino Budva – premium pica i brza dostava u Budvi. Jadranski put BB (Kotorski semafor). Poruči online ili pozovi 067 603 780."
     />
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#000000" />
@@ -23,7 +23,7 @@
     <meta property="og:title" content="Padrino Budva | Picerija i Dostava Pizze u Budvi" />
     <meta
       property="og:description"
-      content="Premium pica i brza dostava u Budvi. Jadranski put BB (Kotorski semafori). Poruči online ili pozovi 067 603 780."
+      content="Premium pica i brza dostava u Budvi. Jadranski put BB (Kotorski semafor). Poruči online ili pozovi 067 603 780."
     />
     <meta property="og:image" content="https://padrinobudva.com/sections/about.webp" />
     <meta property="og:url" content="https://padrinobudva.com/" />
@@ -57,32 +57,47 @@
       gtag("config", "G-3F77D682TB", { send_page_view: false });
     </script>
 
-    <!-- 🔥 LOCAL BUSINESS STRUCTURED DATA -->
+    <!-- 🔥 LOCAL BUSINESS / RESTAURANT STRUCTURED DATA (Google-friendly) -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Restaurant",
+        "@type": ["Restaurant", "LocalBusiness"],
         "@id": "https://padrinobudva.com/#restaurant",
         "name": "Padrino Budva",
-        "image": "https://padrinobudva.com/sections/about.webp",
         "url": "https://padrinobudva.com/",
+        "image": "https://padrinobudva.com/sections/hero.webp",
         "telephone": "+38267603780",
         "email": "padrinobudva@gmail.com",
-        "servesCuisine": "Pizza",
         "priceRange": "€",
+        "servesCuisine": ["Pizza", "Italian"],
+        "paymentAccepted": ["Cash", "Credit Card", "Debit Card"],
         "address": {
           "@type": "PostalAddress",
-          "streetAddress": "Jadranski put BB (Kotorski semafori)",
+          "streetAddress": "Jadranski put BB (kotorski semafor)",
           "addressLocality": "Budva",
-          "addressRegion": "Budva",
           "postalCode": "85310",
           "addressCountry": "ME"
         },
-        "openingHours": "Mo-Su 12:00-00:00",
-        "areaServed": {
-          "@type": "City",
-          "name": "Budva"
-        },
+        "openingHoursSpecification": [
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday",
+              "Saturday",
+              "Sunday"
+            ],
+            "opens": "12:00",
+            "closes": "00:00"
+          }
+        ],
+        "areaServed": [
+          { "@type": "City", "name": "Budva" },
+          { "@type": "Country", "name": "Montenegro" }
+        ],
         "hasOfferCatalog": {
           "@type": "OfferCatalog",
           "name": "Menu",
