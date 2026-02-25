@@ -7,6 +7,58 @@ import "./index.css";
 import { initClientMonitoring, logError } from "./lib/logger";
 import { initAnalytics } from "./lib/analytics";
 
+/**
+ * Hash scroll (SPA-friendly)
+ * - radi na initial load: /#kontakt
+ * - radi na hashchange i back/forward
+ * - retry par puta dok se sekcije ne mountuju
+ */
+function getHashId(): string {
+  const raw = window.location.hash ?? "";
+  const id = raw.replace("#", "").trim();
+  return id;
+}
+
+function tryScrollToId(id: string): boolean {
+  if (!id) return true;
+
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
+  }
+
+  const byData = document.querySelector(`[data-section="${id}"]`);
+  if (byData instanceof HTMLElement) {
+    byData.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
+  }
+
+  return false;
+}
+
+function runHashScrollWithRetry() {
+  const id = getHashId();
+  if (!id) return;
+
+  let tries = 0;
+  const maxTries = 20; // ~ 20 * 80ms = 1.6s max retry
+
+  const tick = () => {
+    tries += 1;
+
+    const ok = tryScrollToId(id);
+    if (ok) return;
+
+    if (tries < maxTries) {
+      window.setTimeout(tick, 80);
+    }
+  };
+
+  // mali delay da React mount krene
+  window.setTimeout(tick, 60);
+}
+
 // Minimal ErrorBoundary: bez novih biblioteka, TS strict-safe.
 // Cilj: spreči "white screen" na runtime greškama i da admin/kupac dobije recovery UI.
 type ErrorBoundaryProps = { children: React.ReactNode };
@@ -60,6 +112,10 @@ initClientMonitoring({
 
 initAnalytics();
 
+// Hash listeners (single place)
+window.addEventListener("hashchange", runHashScrollWithRetry);
+window.addEventListener("popstate", runHashScrollWithRetry);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -71,3 +127,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+// Initial load hash scroll
+runHashScrollWithRetry();
