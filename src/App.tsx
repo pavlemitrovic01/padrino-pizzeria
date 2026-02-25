@@ -11,6 +11,8 @@ import About from "./sections/About";
 import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
 
+import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
+
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
 /**
@@ -88,8 +90,58 @@ function subscribeAuthChanges(
   };
 }
 
+function getPathname(): string {
+  if (typeof window === "undefined") return "/";
+  return window.location.pathname || "/";
+}
+
 export default function App() {
-  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  // ✅ pratimo pathname (SPA + direct load /menu)
+  const [pathname, setPathname] = useState<string>(() => getPathname());
+
+  useEffect(() => {
+    const onPopState = () => setPathname(getPathname());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // ✅ SEO: canonical/title/robots/og:url dinamički po ruti
+  useEffect(() => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://padrinobudva.com";
+
+    const isAdmin =
+      pathname === "/admin" ||
+      pathname === "/admin/" ||
+      pathname.startsWith("/admin/") ||
+      pathname === "/admin/login" ||
+      pathname.startsWith("/admin/login") ||
+      pathname === "/admin/logs" ||
+      pathname.startsWith("/admin/logs");
+
+    if (isAdmin) {
+      // Admin ne treba u indexu (robots.txt disallow je OK, ali ovo daje jasan signal).
+      setRobots("noindex, nofollow");
+      setCanonical(`${origin}/`);
+      setOgUrl(`${origin}/`);
+      setTitle("Admin | Padrino Budva");
+      return;
+    }
+
+    // Public
+    setRobots("index, follow");
+
+    if (pathname === "/menu" || pathname === "/menu/") {
+      setCanonical(`${origin}/menu`);
+      setOgUrl(`${origin}/menu`);
+      setTitle("Meni | Padrino Budva");
+      return;
+    }
+
+    // default: home
+    setCanonical(`${origin}/`);
+    setOgUrl(`${origin}/`);
+    setTitle("Padrino Budva | Pićerija i Dostava Pizze u Budvi");
+  }, [pathname]);
 
   const isAdminLoginRoute =
     pathname === "/admin/login" || pathname.startsWith("/admin/login/");
@@ -173,7 +225,7 @@ export default function App() {
             setChecking(false);
           }) ?? null;
       } catch (e) {
-        // eslint-disable-next-line no-console
+
         console.error("[Padrino] Admin guard failed to load Supabase:", e);
         if (!mounted) return;
         setGuardState("unauthenticated");
