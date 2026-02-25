@@ -19,7 +19,7 @@ const VIBER_URL = `viber://chat?number=${PHONE_E164.replace("+", "")}`;
 type SocialItem = {
   label: string;
   href: string;
-  icon: ReactNode; // ✅ FIX: ne koristimo JSX.Element
+  icon: ReactNode;
   accentHex: string;
   iconClass: string;
   glowBg: string; // CSS background-image string
@@ -93,6 +93,25 @@ export default function Contact() {
           className="h-full w-full object-cover object-[55%_45%] sm:object-[52%_50%] md:object-[50%_50%]"
           draggable={false}
           loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            // Stabilan fallback chain (bez nagađanja koji fajl postoji)
+            const target = e.currentTarget as HTMLImageElement;
+
+            if (!target.src.includes("/sections/contact.jpg")) {
+              target.src = "/sections/contact.jpg";
+              return;
+            }
+
+            if (!target.src.includes("/sections/contact.png")) {
+              target.src = "/sections/contact.png";
+              return;
+            }
+
+            if (!target.src.includes("/sections/contact.jpeg")) {
+              target.src = "/sections/contact.jpeg";
+            }
+          }}
         />
 
         <div className="absolute inset-0 bg-black/25" />
@@ -140,7 +159,9 @@ export default function Contact() {
               </div>
 
               <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="text-white/92 font-semibold text-lg">{EMAIL}</div>
+                <div className="text-white/92 font-semibold text-lg">
+                  {EMAIL}
+                </div>
 
                 <a
                   href={`mailto:${EMAIL}?subject=Porudžbina%20-%20Padrino%20Pizzeria%20Budva&body=Zdravo%2C%0A%0AŽelim%20da%20poručim%3A%0A-%20%0A%0AAdresa%3A%20%0ATelefon%3A%20%0A%0AHvala!`}
@@ -170,7 +191,9 @@ export default function Contact() {
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                 Radno vreme
               </div>
-              <div className="mt-2 text-white/92 font-semibold text-lg">{HOURS}</div>
+              <div className="mt-2 text-white/92 font-semibold text-lg">
+                {HOURS}
+              </div>
             </div>
           </div>
 
@@ -199,7 +222,9 @@ export default function Contact() {
                       {s.icon}
                     </div>
 
-                    <div className="text-white/92 font-extrabold">{s.label}</div>
+                    <div className="text-white/92 font-extrabold">
+                      {s.label}
+                    </div>
                   </div>
 
                   <div className="h-10 w-10 rounded-full border border-white/10 bg-black/35 grid place-items-center text-white/70 group-hover:text-white transition">
