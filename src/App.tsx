@@ -97,6 +97,44 @@ function getPathname(): string {
   return window.location.pathname || "/";
 }
 
+function SeoAnchorBlock() {
+  return (
+    <section className="relative">
+      <div className="mx-auto w-full max-w-6xl px-6">
+        <div className="mt-6 md:mt-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm p-6 md:p-8">
+          <h2 className="text-xl md:text-2xl font-semibold text-white/90">
+            Pizza Budva — dostava i takeaway
+          </h2>
+
+          <p className="mt-3 text-white/75 leading-relaxed">
+            Ako tražiš <strong>pizza Budva</strong> sa pouzdanom dostavom i stabilnim
+            kvalitetom, Padrino Budva je praktična opcija za brz obrok, ekipu ili porodičnu večeru.
+            Poručivanje je jednostavno: izabereš pizzu, dodaš u korpu i potvrdiš.
+          </p>
+
+          <p className="mt-3 text-white/70 leading-relaxed">
+            Za detaljnije informacije i lokalni kontekst, pogledaj našu stranicu{" "}
+            <a
+              href="/pizza-budva"
+              className="underline underline-offset-4 decoration-white/30 hover:decoration-white/60 hover:text-white"
+            >
+              Pizza Budva
+            </a>
+            . Za porudžbinu odmah, otvori{" "}
+            <a
+              href="/#meni"
+              className="underline underline-offset-4 decoration-white/30 hover:decoration-white/60 hover:text-white"
+            >
+              meni
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   // ✅ pratimo pathname (SPA + direct load /menu)
   const [pathname, setPathname] = useState<string>(() => getPathname());
@@ -340,6 +378,7 @@ export default function App() {
 
       <main>
         <Hero />
+        <SeoAnchorBlock />
         <Menu />
         <Delivery />
         <Faq />
