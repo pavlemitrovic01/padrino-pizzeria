@@ -1,13 +1,126 @@
 import { useEffect } from "react";
 import { setCanonical, setOgUrl, setRobots, setTitle } from "../lib/seo";
 
+const PAGE_URL = "https://padrinobudva.com/pizza-budva";
+const SITE_URL = "https://padrinobudva.com";
+
+function upsertJsonLd(id: string, json: unknown) {
+  if (typeof document === "undefined") return;
+
+  const prev = document.getElementById(id);
+  if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+
+  const script = document.createElement("script");
+  script.id = id;
+  script.type = "application/ld+json";
+  script.text = JSON.stringify(json);
+  document.head.appendChild(script);
+}
+
 export default function PizzaBudvaPage() {
   useEffect(() => {
     // ✅ SEO for landing page (runtime, bez diranja index.html source-of-truth)
     setTitle("Pizza Budva | Padrino Budva — Dostava & Takeaway");
-    setCanonical("https://padrinobudva.com/pizza-budva");
-    setOgUrl("https://padrinobudva.com/pizza-budva");
+    setCanonical(PAGE_URL);
+    setOgUrl(PAGE_URL);
     setRobots("index, follow");
+
+    // ✅ Structured data (JSON-LD): Breadcrumbs + FAQ + Restaurant signal
+    // Ne izmišljamo adresu/telefon/working hours — samo ono što znamo tačno.
+    upsertJsonLd("ld-breadcrumb-pizza-budva", {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Padrino Budva",
+          item: SITE_URL,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: "Pizza Budva",
+          item: PAGE_URL,
+        },
+      ],
+    });
+
+    upsertJsonLd("ld-faq-pizza-budva", {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: [
+        {
+          "@type": "Question",
+          name: "Da li radite dostavu pizze u Budvi?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Da. Dostava je dostupna u Budvi i najčešćim zonama oko Budve. Tačne uslove (minimalni iznos i fee) vidiš u checkout-u pre potvrde porudžbine.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Da li mogu da poručim online ili je potrebno da zovem?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Možeš da poručiš online direktno na sajtu. Ako si van zone dostave ili imaš specifičan zahtev, najbolje je da nas pozoveš preko Kontakt sekcije.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Gde mogu da vidim meni i cene?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Meni je dostupan na sajtu. Klikni na “Pogledaj meni” ili idi na sekciju Meni na početnoj stranici.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Da li je ovo fast food opcija u Budvi?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Ako tražiš brz i siguran obrok, pizza je odličan izbor. Padrino je praktična fast food opcija u Budvi — poruči online ili preuzmi za poneti.",
+          },
+        },
+      ],
+    });
+
+    upsertJsonLd("ld-restaurant-pizza-budva", {
+      "@context": "https://schema.org",
+      "@type": "Restaurant",
+      name: "Padrino Budva",
+      url: SITE_URL,
+      // Ne stavljamo address/telephone bez potvrde iz source-of-truth podataka.
+      // Stavljamo signal recenzija koji korisnik eksplicitno navodi.
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: "4.9",
+        reviewCount: "1000",
+      },
+      // Lokalni signal (servisne zone) — tekstualno
+      areaServed: [
+        "Budva",
+        "Bečići",
+        "Rafailovići",
+        "Pržno",
+        "Sveti Stefan",
+        "Seoce",
+        "Jaz",
+        "Lastva",
+      ],
+      hasMenu: `${SITE_URL}/#meni`,
+      priceRange: "€€",
+      image: `${SITE_URL}/sections/hero.webp`,
+    });
+
+    return () => {
+      // cleanup
+      if (typeof document === "undefined") return;
+      ["ld-breadcrumb-pizza-budva", "ld-faq-pizza-budva", "ld-restaurant-pizza-budva"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      });
+    };
   }, []);
 
   return (
@@ -48,6 +161,12 @@ export default function PizzaBudvaPage() {
                 Kontakt i lokacija
               </a>
             </div>
+
+            {/* Small trust signal (ne izmišljamo brojeve) */}
+            <div className="pt-2 text-sm text-white/60">
+              Lokalno poverenje: <span className="text-white/80 font-semibold">4.9</span> ocena na{" "}
+              <span className="text-white/80 font-semibold">1000+</span> recenzija.
+            </div>
           </header>
         </div>
       </section>
@@ -58,7 +177,9 @@ export default function PizzaBudvaPage() {
           {/* Main text */}
           <article className="lg:col-span-2 space-y-6">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
-              <h2 className="text-xl md:text-2xl font-semibold">Zašto Padrino kada kucaš “pizza Budva”?</h2>
+              <h2 className="text-xl md:text-2xl font-semibold">
+                Zašto Padrino kada kucaš “pizza Budva”?
+              </h2>
               <p className="mt-4 text-white/75 leading-relaxed">
                 U lokalnoj pretrazi ljudi obično žele jednu stvar: da brzo pronađu pouzdanu opciju.
                 Naša prednost je u tome što smo fokusirani na konzistentnost — da ista pizza bude
@@ -67,8 +188,8 @@ export default function PizzaBudvaPage() {
                 iznenađenja.
               </p>
               <p className="mt-4 text-white/75 leading-relaxed">
-                Ako si turista, verovatno tražiš najbolju pizzu u Budvi bez gubljenja vremena.
-                Ako si lokalac, želiš mesto koje je “siguran izbor” za ekipu, porodicu ili brz obrok.
+                Ako si turista, verovatno tražiš najbolju pizzu u Budvi bez gubljenja vremena. Ako
+                si lokalac, želiš mesto koje je “siguran izbor” za ekipu, porodicu ili brz obrok.
                 Zato ovu stranicu pravimo kao jasan odgovor na upite poput{" "}
                 <strong>padrino budva</strong>, <strong>pizza budva</strong> i{" "}
                 <strong>fast food budva</strong> — da sve informacije budu na jednom mestu.
@@ -76,30 +197,34 @@ export default function PizzaBudvaPage() {
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
-              <h2 className="text-xl md:text-2xl font-semibold">Dostava pizze u Budvi i okolini</h2>
+              <h2 className="text-xl md:text-2xl font-semibold">
+                Dostava pizze u Budvi i okolini
+              </h2>
               <p className="mt-4 text-white/75 leading-relaxed">
-                Dostava je praktična kada želiš da ostaneš kod kuće, u apartmanu ili na poslu.
-                Da bi iskustvo bilo stabilno, najvažnije je da su zone i uslovi jasni.
-                Najbrži način je da otvoriš meni i napraviš porudžbinu direktno na sajtu.
-                Ako si van zone, uvek postoji opcija da nas pozoveš i proveriš najbolju varijantu.
+                Dostava je praktična kada želiš da ostaneš kod kuće, u apartmanu ili na poslu. Da bi
+                iskustvo bilo stabilno, najvažnije je da su zone i uslovi jasni. Najbrži način je da
+                otvoriš meni i napraviš porudžbinu direktno na sajtu. Ako si van zone, uvek postoji
+                opcija da nas pozoveš i proveriš najbolju varijantu.
               </p>
 
               <div className="mt-5 rounded-2xl border border-white/10 bg-black/30 p-5">
-                <h3 className="font-semibold">Zone dostave (najčešće)</h3>
+                <h3 className="font-semibold">Zone dostave</h3>
                 <p className="mt-2 text-white/75 leading-relaxed">
-                  Budva, Bečići, Rafailovići, Pržno, Sveti Stefan, Seoce, Jaz, Lastva.
-                  (Tačni uslovi dostave i minimalni iznosi su prikazani u checkout-u, pre potvrde porudžbine.)
+                  Budva, Bečići, Rafailovići, Pržno, Sveti Stefan, Seoce, Jaz, Lastva. (Tačni uslovi
+                  dostave i minimalni iznosi su prikazani u checkout-u, pre potvrde porudžbine.)
                 </p>
               </div>
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
-              <h2 className="text-xl md:text-2xl font-semibold">Kvalitet i ukus — bez marketing magle</h2>
+              <h2 className="text-xl md:text-2xl font-semibold">
+                Kvalitet i ukus — bez marketing magle
+              </h2>
               <p className="mt-4 text-white/75 leading-relaxed">
-                Dobra pizza je jednostavna kada je osnova dobra: testo, sos, sir i pečenje.
-                Naš fokus je da dobiješ pizzu koja je ukusna i kada je pojedeš odmah, ali i kada
-                stigne na dostavu. Zato u meniju držimo jasne opcije, a porudžbina na sajtu je
-                napravljena da bude brza: izabereš, dodaš u korpu, potvrdiš — gotovo.
+                Dobra pizza je jednostavna kada je osnova dobra: testo, sos, sir i pečenje. Naš
+                fokus je da dobiješ pizzu koja je ukusna i kada je pojedeš odmah, ali i kada stigne
+                na dostavu. Zato u meniju držimo jasne opcije, a porudžbina na sajtu je napravljena
+                da bude brza: izabereš, dodaš u korpu, potvrdiš — gotovo.
               </p>
               <p className="mt-4 text-white/75 leading-relaxed">
                 Ako tražiš “fast food Budva” jer želiš nešto brzo, pizza je često najbolji balans:
@@ -139,6 +264,36 @@ export default function PizzaBudvaPage() {
                 </a>
               </div>
             </div>
+
+            {/* FAQ block (human-readable; JSON-LD je gore) */}
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
+              <h2 className="text-xl md:text-2xl font-semibold">FAQ</h2>
+
+              <div className="mt-4 space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <div className="font-semibold">Da li radite dostavu u Budvi?</div>
+                  <div className="mt-2 text-white/75">
+                    Da. Dostava je dostupna u Budvi i najčešćim zonama oko Budve. Tačne uslove vidiš u
+                    checkout-u pre potvrde porudžbine.
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <div className="font-semibold">Da li mogu da poručim online?</div>
+                  <div className="mt-2 text-white/75">
+                    Možeš. Poruči direktno na sajtu. Ako si van zone ili imaš specifičan zahtev, pozovi nas
+                    preko Kontakt sekcije.
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
+                  <div className="font-semibold">Gde je meni i cene?</div>
+                  <div className="mt-2 text-white/75">
+                    Meni je na sajtu — klikni “Pogledaj meni” ili idi na sekciju Meni na početnoj stranici.
+                  </div>
+                </div>
+              </div>
+            </div>
           </article>
 
           {/* Sidebar */}
@@ -146,16 +301,28 @@ export default function PizzaBudvaPage() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <div className="text-sm text-white/60">Brzi linkovi</div>
               <div className="mt-4 flex flex-col gap-3">
-                <a className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40" href="/#meni">
+                <a
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40"
+                  href="/#meni"
+                >
                   Meni
                 </a>
-                <a className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40" href="/#delivery">
+                <a
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40"
+                  href="/#delivery"
+                >
                   Dostava
                 </a>
-                <a className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40" href="/#faq">
+                <a
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40"
+                  href="/#faq"
+                >
                   FAQ
                 </a>
-                <a className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40" href="/#kontakt">
+                <a
+                  className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40"
+                  href="/#kontakt"
+                >
                   Kontakt
                 </a>
               </div>
@@ -164,9 +331,16 @@ export default function PizzaBudvaPage() {
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <div className="text-sm text-white/60">Napomena</div>
               <p className="mt-3 text-white/75 leading-relaxed">
-                Ova stranica je napravljena da bude jasna ulazna tačka za lokalne pretrage
-                (“pizza budva”, “picerija budva”, “padrino budva”). Za kompletan meni i porudžbinu,
-                koristi link “Meni”.
+                Ova stranica je napravljena kao ulazna tačka za lokalne pretrage (“pizza budva”, “picerija
+                budva”, “padrino budva”). Za porudžbinu i kompletan meni koristi “Meni”.
+              </p>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="text-sm text-white/60">SEO signal</div>
+              <p className="mt-3 text-white/75 leading-relaxed">
+                Stranica ima strukturirane podatke (FAQ + breadcrumbs + restaurant signal) kako bi Google
+                lakše razumeo temu i relevantnost za “pizza Budva”.
               </p>
             </div>
           </aside>

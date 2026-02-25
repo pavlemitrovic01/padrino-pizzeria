@@ -6,6 +6,12 @@
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
     { "source": "/robots.txt", "destination": "/robots.txt" },
+
+   
+    { "source": "/pizza-budva", "destination": "/pizza-budva.html" },
+    { "source": "/pizza-budva/", "destination": "/pizza-budva.html" },
+    { "source": "/pizza-budva.html", "destination": "/pizza-budva.html" },
+
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

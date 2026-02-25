@@ -11,6 +11,8 @@ import About from "./sections/About";
 import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
 
+import PizzaBudvaPage from "./seo/PizzaBudvaPage";
+
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
@@ -107,7 +109,10 @@ export default function App() {
 
   // ✅ SEO: canonical/title/robots/og:url dinamički po ruti
   useEffect(() => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "https://padrinobudva.com";
+    const origin =
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "https://padrinobudva.com";
 
     const isAdmin =
       pathname === "/admin" ||
@@ -130,6 +135,13 @@ export default function App() {
     // Public
     setRobots("index, follow");
 
+    if (pathname === "/pizza-budva" || pathname === "/pizza-budva/") {
+      setCanonical(`${origin}/pizza-budva`);
+      setOgUrl(`${origin}/pizza-budva`);
+      setTitle("Pizza Budva | Padrino Budva — Dostava & Takeaway");
+      return;
+    }
+
     if (pathname === "/menu" || pathname === "/menu/") {
       setCanonical(`${origin}/menu`);
       setOgUrl(`${origin}/menu`);
@@ -145,7 +157,8 @@ export default function App() {
 
   const isAdminLoginRoute =
     pathname === "/admin/login" || pathname.startsWith("/admin/login/");
-  const isAdminLogsRoute = pathname === "/admin/logs" || pathname === "/admin/logs/";
+  const isAdminLogsRoute =
+    pathname === "/admin/logs" || pathname === "/admin/logs/";
   const isAdminRoute = pathname === "/admin" || pathname === "/admin/";
 
   const needsAdminGuard = isAdminRoute || isAdminLogsRoute;
@@ -197,7 +210,9 @@ export default function App() {
       setChecking(true);
 
       try {
-        const { supabaseAdminAuth } = await import("./lib/supabaseAdminAuthClient");
+        const { supabaseAdminAuth } = await import(
+          "./lib/supabaseAdminAuthClient"
+        );
 
         const session = await readSessionFromAuth(supabaseAdminAuth.auth);
         if (!mounted) return;
@@ -225,7 +240,6 @@ export default function App() {
             setChecking(false);
           }) ?? null;
       } catch (e) {
-
         console.error("[Padrino] Admin guard failed to load Supabase:", e);
         if (!mounted) return;
         setGuardState("unauthenticated");
@@ -310,6 +324,11 @@ export default function App() {
         <AdminOrders />
       </Suspense>
     );
+  }
+
+  // SEO LANDING ROUTES (public)
+  if (pathname === "/pizza-budva" || pathname === "/pizza-budva/") {
+    return <PizzaBudvaPage />;
   }
 
   // PUBLIC SITE

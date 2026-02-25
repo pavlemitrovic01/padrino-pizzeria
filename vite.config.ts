@@ -1,10 +1,16 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react()],
   build: {
     rollupOptions: {
+      // ✅ Multi-page entry (pravi HTML za SEO landing)
+      input: {
+        main: resolve(__dirname, "index.html"),
+        pizzaBudva: resolve(__dirname, "pizza-budva.html"),
+      },
       output: {
         // ✅ Stabilno chunkovanje bez menjanja aplikacije/dizajna
         // Cilj: smanjiti i ubrzati parse/execute glavnog "index" chunka na mobile
