@@ -25,7 +25,7 @@ function scrollToTop() {
 }
 
 export default function Navbar() {
-  // ✅ FIX: CartContextType ima totalItems + openCart (ne totalQty + setIsOpen)
+  // ✅ CartContextType: totalItems + openCart
   const { totalItems, openCart } = useCart();
 
   const [isSticky, setIsSticky] = useState(false);
@@ -34,11 +34,16 @@ export default function Navbar() {
   const path = normalizePath();
   const isAdminRoute = useMemo(() => path.startsWith("/admin"), [path]);
 
+  // ✅ SOURCE OF TRUTH (iz ZIP-a): stvarni section id-jevi su:
+  // Menu.tsx -> id="meni"
+  // Delivery.tsx -> id="delivery"
+  // About.tsx -> id="o-nama"
+  // Contact.tsx -> id="kontakt"
   const links = useMemo(
     () => [
-      { id: "menu", label: "Meni" },
+      { id: "meni", label: "Meni" },
       { id: "delivery", label: "Dostava" },
-      { id: "about", label: "O nama" },
+      { id: "o-nama", label: "O nama" },
       { id: "kontakt", label: "Kontakt" },
     ],
     []
@@ -61,18 +66,19 @@ export default function Navbar() {
   function onClickLink(id: string) {
     setMobileOpen(false);
 
+    // ✅ ESLint immutability: ne koristimo window.location.href = ...
     if (isAdminRoute) {
-      if (id === "menu") {
-        window.location.href = "/#";
+      if (id === "meni") {
+        window.location.assign("/#");
       } else {
-        window.location.href = `/#${id}`;
+        window.location.assign(`/#${id}`);
       }
       return;
     }
 
-    if (id === "menu") {
-      // ✅ “Meni” otvara isti flow kao HERO CTA “Pogledaj meni”
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (id === "meni") {
+      // ✅ “Meni” otvara isti flow kao HERO CTA
+      window.history.replaceState(null, "", "/#meni");
       window.dispatchEvent(new Event("padrino:open-menu"));
       return;
     }
@@ -98,16 +104,19 @@ export default function Navbar() {
             onClick={(e) => {
               e.preventDefault();
               setMobileOpen(false);
+
               if (isAdminRoute) {
-                window.location.href = "/#";
+                window.location.assign("/#");
                 return;
               }
+
               window.history.replaceState(null, "", window.location.pathname + window.location.search);
               scrollToTop();
             }}
             aria-label="Padrino početna"
           >
-            <ChefHatLogo className="h-9 w-9" />
+            {/* ✅ Spustamo logo malo dole da ne sece gornju liniju */}
+            <ChefHatLogo className="h-9 w-9 translate-y-[2px]" />
             <span className="sr-only">Padrino</span>
           </a>
 
