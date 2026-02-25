@@ -15,48 +15,61 @@ import { initAnalytics } from "./lib/analytics";
  */
 function getHashId(): string {
   const raw = window.location.hash ?? "";
-  const id = raw.replace("#", "").trim();
-  return id;
+  const noHash = raw.startsWith("#") ? raw.slice(1) : raw;
+
+  // Bezbedan decode (ako je hash URL-encoded)
+  try {
+    return decodeURIComponent(noHash).trim();
+  } catch {
+    return noHash.trim();
+  }
 }
 
-function tryScrollToId(id: string): boolean {
+function tryScrollToId(id: string, behavior: ScrollBehavior): boolean {
   if (!id) return true;
 
   const el = document.getElementById(id);
   if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.scrollIntoView({ behavior, block: "start" });
     return true;
   }
 
   const byData = document.querySelector(`[data-section="${id}"]`);
   if (byData instanceof HTMLElement) {
-    byData.scrollIntoView({ behavior: "smooth", block: "start" });
+    byData.scrollIntoView({ behavior, block: "start" });
     return true;
   }
 
   return false;
 }
 
-function runHashScrollWithRetry() {
+function runHashScrollWithRetry(opts?: { behavior?: ScrollBehavior }) {
   const id = getHashId();
   if (!id) return;
 
+  const behavior: ScrollBehavior = opts?.behavior ?? "auto";
+
   let tries = 0;
-  const maxTries = 20; // ~ 20 * 80ms = 1.6s max retry
+  const maxTries = 24; // ~ 24 * 80ms = ~1.9s max retry
 
   const tick = () => {
     tries += 1;
 
-    const ok = tryScrollToId(id);
+    const ok = tryScrollToId(id, behavior);
     if (ok) return;
 
     if (tries < maxTries) {
-      window.setTimeout(tick, 80);
+      // Kombinacija rAF + timeout radi stabilnije dok se React mountuje
+      window.requestAnimationFrame(() => {
+        window.setTimeout(tick, 80);
+      });
     }
   };
 
-  // mali delay da React mount krene
-  window.setTimeout(tick, 60);
+  // Mali delay da React mount krene
+  window.setTimeout(() => {
+    window.requestAnimationFrame(tick);
+  }, 60);
 }
 
 // Minimal ErrorBoundary: bez novih biblioteka, TS strict-safe.
@@ -113,8 +126,8 @@ initClientMonitoring({
 initAnalytics();
 
 // Hash listeners (single place)
-window.addEventListener("hashchange", runHashScrollWithRetry);
-window.addEventListener("popstate", runHashScrollWithRetry);
+window.addEventListener("hashchange", () => runHashScrollWithRetry({ behavior: "smooth" }));
+window.addEventListener("popstate", () => runHashScrollWithRetry({ behavior: "smooth" }));
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
@@ -128,5 +141,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </React.StrictMode>
 );
 
-// Initial load hash scroll
-runHashScrollWithRetry();
+// Initial load hash scroll (bez smooth da ne izgleda kao glitch)
+runHashScrollWithRetry({ behavior: "auto" });
