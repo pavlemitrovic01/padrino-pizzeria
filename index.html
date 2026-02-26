@@ -13,7 +13,7 @@
       name="description"
       content="Padrino Budva – premium pica i brza dostava u Budvi i okolini. Jadranski put BB (Kotorski semafor). Poruči online ili pozovi 067 603 780. Prihvatamo kartice."
     />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
     <meta name="theme-color" content="#000000" />
     <link rel="canonical" href="https://padrinobudva.com/" />
 
@@ -25,7 +25,12 @@
       property="og:description"
       content="Premium pica i brza dostava u Budvi i okolini. Poruči online ili pozovi 067 603 780."
     />
-    <meta property="og:image" content="https://padrinobudva.com/sections/hero.webp" />
+    <!-- ✅ Social preview image (1200x630) -->
+    <meta property="og:image" content="https://padrinobudva.com/hero.jpg" />
+    <meta property="og:image:secure_url" content="https://padrinobudva.com/hero.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:url" content="https://padrinobudva.com/" />
     <meta property="og:locale" content="sr_RS" />
 
@@ -36,7 +41,9 @@
       name="twitter:description"
       content="Premium pica i brza dostava u Budvi i okolini. Poruči online ili pozovi 067 603 780."
     />
-    <meta name="twitter:image" content="https://padrinobudva.com/sections/hero.webp" />
+    <!-- ✅ Social preview image (1200x630) -->
+    <meta name="twitter:image" content="https://padrinobudva.com/hero.jpg" />
+    <meta name="twitter:image:alt" content="Padrino Budva - Pizza i dostava" />
 
     <!-- FAVICON -->
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -45,8 +52,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- ✅ GA4 (perf-safe, SPA-friendly)
-         send_page_view:false jer page_view šaljemo ručno iz src/lib/analytics.ts -->
+    <!-- GA4 -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-3F77D682TB"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -57,7 +63,7 @@
       gtag("config", "G-3F77D682TB", { send_page_view: false });
     </script>
 
-    <!-- 🔥 LOCAL BUSINESS / RESTAURANT STRUCTURED DATA (Google-friendly) -->
+    <!-- RESTAURANT / LOCAL BUSINESS -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -65,56 +71,64 @@
         "@id": "https://padrinobudva.com/#restaurant",
         "name": "Padrino Budva",
         "url": "https://padrinobudva.com/",
-        "image": "https://padrinobudva.com/sections/hero.webp",
+        "image": ["https://padrinobudva.com/hero.jpg", "https://padrinobudva.com/sections/hero.webp"],
         "telephone": "+38267603780",
         "email": "padrinobudva@gmail.com",
         "priceRange": "€",
         "servesCuisine": ["Pizza", "Italian"],
         "paymentAccepted": ["Cash", "Credit Card", "Debit Card"],
         "currenciesAccepted": "EUR",
-        "acceptsReservations": "False",
+        "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "1094" },
         "address": {
           "@type": "PostalAddress",
           "streetAddress": "Jadranski put BB (Kotorski semafor)",
           "addressLocality": "Budva",
           "postalCode": "85310",
           "addressCountry": "ME"
-        },
-        "openingHoursSpecification": [
-          {
-            "@type": "OpeningHoursSpecification",
-            "dayOfWeek": [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday"
-            ],
-            "opens": "12:00",
-            "closes": "00:00"
-          }
-        ],
-        "areaServed": [
-          { "@type": "City", "name": "Budva" },
-          { "@type": "City", "name": "Becici" },
-          { "@type": "City", "name": "Rafailovici" },
-          { "@type": "City", "name": "Przno" },
-          { "@type": "City", "name": "Sveti Stefan" },
-          { "@type": "City", "name": "Seoce" },
-          { "@type": "City", "name": "Jaz" },
-          { "@type": "City", "name": "Lastva" },
-          { "@type": "Country", "name": "Montenegro" }
-        ],
-        "hasOfferCatalog": {
-          "@type": "OfferCatalog",
-          "name": "Menu",
-          "url": "https://padrinobudva.com/"
-        },
-        "sameAs": [
-          "https://www.instagram.com/padrino_budva/",
-          "https://www.facebook.com/padrinobudva"
+        }
+      }
+    </script>
+
+    <!-- ORGANIZATION (Brand entity signal) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "@id": "https://padrinobudva.com/#organization",
+        "name": "Padrino Budva",
+        "url": "https://padrinobudva.com/",
+        "logo": { "@type": "ImageObject", "url": "https://padrinobudva.com/favicon.png" },
+        "sameAs": ["https://www.instagram.com/padrino_budva/", "https://www.facebook.com/padrinobudva"]
+      }
+    </script>
+
+    <!-- WEBSITE (SearchAction signal) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "@id": "https://padrinobudva.com/#website",
+        "url": "https://padrinobudva.com/",
+        "name": "Padrino Budva",
+        "publisher": { "@id": "https://padrinobudva.com/#organization" },
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://padrinobudva.com/?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
+
+    <!-- BREADCRUMBS (Home structure signal) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "@id": "https://padrinobudva.com/#breadcrumbs",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Padrino Budva", "item": "https://padrinobudva.com/" },
+          { "@type": "ListItem", "position": 2, "name": "Meni", "item": "https://padrinobudva.com/#meni" },
+          { "@type": "ListItem", "position": 3, "name": "Kontakt", "item": "https://padrinobudva.com/#kontakt" }
         ]
       }
     </script>

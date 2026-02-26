@@ -17,17 +17,12 @@ import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
-/**
- * Minimalan shape sesije koji nam treba (email check).
- * Ne oslanjamo se na Supabase Session tip da izbegnemo version/type mismatch probleme.
- */
 type SessionLike = {
   user?: {
     email?: string | null;
   } | null;
 } | null;
 
-// ✅ Minimalno i stabilno: admin = allowlist email-a (magic link + email check)
 const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
 function isAdminSession(session: SessionLike): boolean {
@@ -38,7 +33,6 @@ function isAdminSession(session: SessionLike): boolean {
   return email.length > 0 && ADMIN_EMAILS.has(email);
 }
 
-// ✅ Admin delove učitavamo samo kad treba (bundle split)
 const AdminOrders = lazy(() => import("./components/AdminOrders"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
@@ -47,12 +41,6 @@ function AdminChunkFallback() {
   return <p className="text-white text-lg">Učitavam…</p>;
 }
 
-/**
- * Supabase auth compat layer:
- * - v2: auth.getSession() + auth.onAuthStateChange()
- * - v1 (ili tip mismatch): auth.session() + auth.onAuthStateChange()
- * Ovaj sloj radi i kad TS ne vidi metode (koristimo feature-detection).
- */
 async function readSessionFromAuth(auth: unknown): Promise<SessionLike> {
   const a = auth as {
     getSession?: () => Promise<{ data?: { session?: SessionLike } }>;
@@ -97,6 +85,25 @@ function getPathname(): string {
   return window.location.pathname || "/";
 }
 
+function upsertJsonLd(id: string, json: unknown) {
+  if (typeof document === "undefined") return;
+
+  const prev = document.getElementById(id);
+  if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+
+  const script = document.createElement("script");
+  script.id = id;
+  script.type = "application/ld+json";
+  script.text = JSON.stringify(json);
+  document.head.appendChild(script);
+}
+
+function removeJsonLd(id: string) {
+  if (typeof document === "undefined") return;
+  const el = document.getElementById(id);
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
 function SeoAnchorBlock() {
   return (
     <section className="relative">
@@ -136,7 +143,6 @@ function SeoAnchorBlock() {
 }
 
 export default function App() {
-  // ✅ pratimo pathname (SPA + direct load /menu)
   const [pathname, setPathname] = useState<string>(() => getPathname());
 
   useEffect(() => {
@@ -145,7 +151,6 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // ✅ SEO: canonical/title/robots/og:url dinamički po ruti
   useEffect(() => {
     const origin =
       typeof window !== "undefined"
@@ -161,33 +166,55 @@ export default function App() {
       pathname === "/admin/logs" ||
       pathname.startsWith("/admin/logs");
 
+    // Breadcrumb JSON-LD samo za /menu; u svim drugim slučajevima čistimo
+    const isMenu = pathname === "/menu" || pathname === "/menu/";
+    if (!isMenu) removeJsonLd("ld-breadcrumb-menu");
+
     if (isAdmin) {
-      // Admin ne treba u indexu (robots.txt disallow je OK, ali ovo daje jasan signal).
-      setRobots("noindex, nofollow");
+      setRobots("noindex,nofollow");
       setCanonical(`${origin}/`);
       setOgUrl(`${origin}/`);
       setTitle("Admin | Padrino Budva");
       return;
     }
 
-    // Public
-    setRobots("index, follow");
-
     if (pathname === "/pizza-budva" || pathname === "/pizza-budva/") {
+      setRobots("index,follow,max-image-preview:large");
       setCanonical(`${origin}/pizza-budva`);
       setOgUrl(`${origin}/pizza-budva`);
       setTitle("Pizza Budva | Padrino Budva — Dostava & Takeaway");
       return;
     }
 
-    if (pathname === "/menu" || pathname === "/menu/") {
+    if (isMenu) {
+      setRobots("index,follow,max-image-preview:large");
       setCanonical(`${origin}/menu`);
       setOgUrl(`${origin}/menu`);
       setTitle("Meni | Padrino Budva");
+
+      upsertJsonLd("ld-breadcrumb-menu", {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Padrino Budva",
+            item: `${origin}/`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "Meni",
+            item: `${origin}/menu`,
+          },
+        ],
+      });
+
       return;
     }
 
-    // default: home
+    setRobots("index,follow,max-image-preview:large");
     setCanonical(`${origin}/`);
     setOgUrl(`${origin}/`);
     setTitle("Padrino Budva | Pićerija i Dostava Pizze u Budvi");
@@ -235,8 +262,6 @@ export default function App() {
     };
   }, []);
 
-  // ✅ VAŽNO: Admin guard MORA koristiti supabaseAdminAuth (persistSession=true),
-  // a NE public supabaseClient (persistSession=false) koji je namerno “hardenovan” za checkout.
   useEffect(() => {
     if (!needsAdminGuard) return;
 
@@ -248,9 +273,7 @@ export default function App() {
       setChecking(true);
 
       try {
-        const { supabaseAdminAuth } = await import(
-          "./lib/supabaseAdminAuthClient"
-        );
+        const { supabaseAdminAuth } = await import("./lib/supabaseAdminAuthClient");
 
         const session = await readSessionFromAuth(supabaseAdminAuth.auth);
         if (!mounted) return;
@@ -293,7 +316,6 @@ export default function App() {
     };
   }, [needsAdminGuard]);
 
-  // ADMIN ROUTES
   if (isAdminLoginRoute) {
     return (
       <Suspense fallback={<AdminChunkFallback />}>
@@ -347,7 +369,6 @@ export default function App() {
       );
     }
 
-    // guardState === "admin"
     if (isAdminLogsRoute) {
       return (
         <Suspense fallback={<AdminChunkFallback />}>
@@ -356,7 +377,6 @@ export default function App() {
       );
     }
 
-    // default admin page
     return (
       <Suspense fallback={<AdminChunkFallback />}>
         <AdminOrders />
@@ -364,12 +384,10 @@ export default function App() {
     );
   }
 
-  // SEO LANDING ROUTES (public)
   if (pathname === "/pizza-budva" || pathname === "/pizza-budva/") {
     return <PizzaBudvaPage />;
   }
 
-  // PUBLIC SITE
   return (
     <div className="min-h-screen bg-black text-white">
       {onlineBanner}

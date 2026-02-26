@@ -1,10 +1,11 @@
 User-agent: *
 Allow: /
 
-# Admin nije za indeksiranje
 Disallow: /admin
 Disallow: /admin/
-
-# (Opciono) Ako ikad dodaš neke privremene test rute, ovde ih blokiraš
+Disallow: /admin/login
+Disallow: /admin/login/
+Disallow: /admin/logs
+Disallow: /admin/logs/
 
 Sitemap: https://padrinobudva.com/sitemap.xml
