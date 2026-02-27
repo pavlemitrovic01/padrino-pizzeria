@@ -104,6 +104,26 @@ function removeJsonLd(id: string) {
   if (el && el.parentNode) el.parentNode.removeChild(el);
 }
 
+/**
+ * GA4 SPA page_view
+ * index.html ima send_page_view:false, pa moramo ručno slati page_view na svaku promenu rute.
+ */
+function ga4PageView(pathname: string) {
+  if (typeof window === "undefined") return;
+
+  const w = window as typeof window & {
+    gtag?: (...args: unknown[]) => void;
+  };
+
+  if (typeof w.gtag !== "function") return;
+
+  w.gtag("event", "page_view", {
+    page_location: window.location.href,
+    page_path: pathname,
+    page_title: document.title,
+  });
+}
+
 function SeoAnchorBlock() {
   return (
     <section className="relative">
@@ -218,6 +238,11 @@ export default function App() {
     setCanonical(`${origin}/`);
     setOgUrl(`${origin}/`);
     setTitle("Padrino Budva | Pićerija i Dostava Pizze u Budvi");
+  }, [pathname]);
+
+  // ✅ GA4 SPA page_view (ručno, jer je send_page_view:false u index.html)
+  useEffect(() => {
+    ga4PageView(pathname);
   }, [pathname]);
 
   const isAdminLoginRoute =
