@@ -85,6 +85,11 @@ function getPathname(): string {
   return window.location.pathname || "/";
 }
 
+function getHash(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.hash || "";
+}
+
 function upsertJsonLd(id: string, json: unknown) {
   if (typeof document === "undefined") return;
 
@@ -108,7 +113,7 @@ function removeJsonLd(id: string) {
  * GA4 SPA page_view
  * index.html ima send_page_view:false, pa moramo ručno slati page_view na svaku promenu rute.
  */
-function ga4PageView(pathname: string) {
+function ga4PageView(path: string) {
   if (typeof window === "undefined") return;
 
   const w = window as typeof window & {
@@ -119,7 +124,7 @@ function ga4PageView(pathname: string) {
 
   w.gtag("event", "page_view", {
     page_location: window.location.href,
-    page_path: pathname,
+    page_path: path,
     page_title: document.title,
   });
 }
@@ -164,11 +169,24 @@ function SeoAnchorBlock() {
 
 export default function App() {
   const [pathname, setPathname] = useState<string>(() => getPathname());
+  const [hash, setHash] = useState<string>(() => getHash());
 
   useEffect(() => {
-    const onPopState = () => setPathname(getPathname());
+    const syncLocation = () => {
+      setPathname(getPathname());
+      setHash(getHash());
+    };
+
+    const onPopState = () => syncLocation();
+    const onHashChange = () => syncLocation();
+
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onHashChange);
+
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onHashChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -241,9 +259,11 @@ export default function App() {
   }, [pathname]);
 
   // ✅ GA4 SPA page_view (ručno, jer je send_page_view:false u index.html)
+  // Sada pratimo i hash navigaciju (/#meni, /#dostava...) tako što šaljemo page_path = pathname + hash
   useEffect(() => {
-    ga4PageView(pathname);
-  }, [pathname]);
+    const pathWithHash = `${pathname}${hash || ""}`;
+    ga4PageView(pathWithHash);
+  }, [pathname, hash]);
 
   const isAdminLoginRoute =
     pathname === "/admin/login" || pathname.startsWith("/admin/login/");

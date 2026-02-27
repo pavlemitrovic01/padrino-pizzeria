@@ -51,6 +51,53 @@ export type AddToCartOptions = {
   openCart?: boolean;
 };
 
+/** -------------------- ORDER / PAYMENT (PRE-NLB PREP) -------------------- */
+/**
+ * Namerno je minimalno i generičko: NLB detalje dodajemo tek kad stignu podaci.
+ * Ovo služi da stabilno “zaključamo” order lifecycle i snapshot pre payment-a.
+ */
+export type PaymentMethod = "cash" | "card";
+
+export type OrderStatus =
+  | "draft"
+  | "pending_payment"
+  | "paid"
+  | "failed"
+  | "cancelled";
+
+export type OrderSnapshot = {
+  id: string; // client-side ID (npr. uuid) — server može kasnije da mapira
+  createdAt: string; // ISO string
+  items: CartItem[];
+  totalItems: number;
+  totalPrice: number;
+
+  paymentMethod: PaymentMethod;
+  status: OrderStatus;
+
+  // Placeholder polja za NLB / gateway reference (popunjavamo kasnije)
+  gateway?: {
+    provider: "NLB" | "UNKNOWN";
+    transactionId?: string;
+    sessionId?: string;
+    raw?: Record<string, unknown>;
+  };
+
+  note?: string;
+};
+
+export type CheckoutState = {
+  paymentMethod: PaymentMethod;
+  status: OrderStatus;
+
+  // poslednji “zaključani” snapshot (ako postoji)
+  snapshot?: OrderSnapshot | null;
+
+  // error poruka za UI
+  error?: string | null;
+};
+/** ----------------------------------------------------------------------- */
+
 export type CartContextType = {
   items: CartItem[];
   isOpen: boolean;
@@ -76,6 +123,28 @@ export type CartContextType = {
 
   clearCart: () => void;
   resetCart: () => void;
+
+  /**
+   * ✅ Pre-payment priprema (NLB dolazi kasnije).
+   * Ova polja su OPTIONAL da ne razbiju build dok ne završimo CartProvider u sledećem koraku.
+   */
+  checkout?: CheckoutState;
+
+  setPaymentMethod?: (method: PaymentMethod) => void;
+  setCheckoutStatus?: (status: OrderStatus) => void;
+  setCheckoutError?: (message: string | null) => void;
+
+  /**
+   * Zaključava trenutnu korpu u snapshot (id/createdAt/totals + status).
+   * Tipično pozivaš kad user klikne “Nastavi na plaćanje”.
+   */
+  createOrderSnapshot?: () => OrderSnapshot;
+
+  /**
+   * Resetuje checkout flow (status/error/snapshot) bez brisanja korpe,
+   * ili kao priprema za novi checkout pokušaj.
+   */
+  resetCheckout?: () => void;
 };
 
 export const CartContext = createContext<CartContextType | null>(null);

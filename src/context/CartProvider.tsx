@@ -9,6 +9,10 @@ import {
   CartAddon,
   CartContext,
   CartItem,
+  CheckoutState,
+  OrderSnapshot,
+  OrderStatus,
+  PaymentMethod,
   PizzaSize,
   PizzaVariant,
   isPizzaSize,
@@ -194,9 +198,34 @@ function normalizeIncomingItem(item: CartItem): CartItem {
   };
 }
 
+/** -------------------- ORDER / PAYMENT (PRE-NLB PREP) -------------------- */
+function safeUuid(): string {
+  try {
+    const c = globalThis.crypto as Crypto | undefined;
+    if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  } catch {
+    // ignore
+  }
+  // fallback: dovoljno dobro za client-side draft ID
+  return `order_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+/** ---------------------------------------------------------------------- */
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+
+  // ✅ Checkout state (default A = cash)
+  const [checkout, setCheckout] = useState<CheckoutState>(() => ({
+    paymentMethod: "cash",
+    status: "draft",
+    snapshot: null,
+    error: null,
+  }));
 
   const openCart = () => setIsOpen(true);
   const closeCart = () => setIsOpen(false);
@@ -357,7 +386,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (i.id !== id) return i;
 
         const existing = i.addons ?? [];
-        let nextAddons = existing.map((a) => (a.id === addonId ? { ...a, quantity: a.quantity + 1 } : a));
+        let nextAddons = existing.map((a) =>
+          a.id === addonId ? { ...a, quantity: a.quantity + 1 } : a
+        );
         nextAddons = adjustAddonsForSize(i.size ?? null, nextAddons);
 
         const basePrice = getBasePrice(i);
@@ -419,6 +450,67 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [items]
   );
 
+  /** -------------------- CHECKOUT API (PRE-NLB) -------------------- */
+  const setPaymentMethod = (method: PaymentMethod) => {
+    setCheckout((prev) => ({
+      ...prev,
+      paymentMethod: method,
+      // kad promeni metod, resetujemo error ali snapshot ostaje dok user eksplicitno ne resetuje
+      error: null,
+    }));
+  };
+
+  const setCheckoutStatus = (status: OrderStatus) => {
+    setCheckout((prev) => ({ ...prev, status }));
+  };
+
+  const setCheckoutError = (message: string | null) => {
+    setCheckout((prev) => ({ ...prev, error: message }));
+  };
+
+  const resetCheckout = () => {
+    setCheckout({
+      paymentMethod: "cash",
+      status: "draft",
+      snapshot: null,
+      error: null,
+    });
+  };
+
+  const createOrderSnapshot = (): OrderSnapshot => {
+    const method = checkout.paymentMethod ?? "cash";
+    const nextStatus: OrderStatus = method === "card" ? "pending_payment" : "draft";
+
+    const snapshot: OrderSnapshot = {
+      id: safeUuid(),
+      createdAt: nowIso(),
+      items: items.map((i) => ({
+        ...i,
+        // normalizujemo note da UI uvek ima string
+        note: i.note ?? "",
+      })),
+      totalItems,
+      totalPrice,
+      paymentMethod: method,
+      status: nextStatus,
+      note: "",
+      gateway: {
+        provider: "UNKNOWN",
+      },
+    };
+
+    // zaključavamo snapshot u checkout state i sinhronizujemo status
+    setCheckout((prev) => ({
+      ...prev,
+      status: nextStatus,
+      snapshot,
+      error: null,
+    }));
+
+    return snapshot;
+  };
+  /** -------------------------------------------------------------- */
+
   return (
     <CartContext.Provider
       value={{
@@ -440,6 +532,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItemNote,
         clearCart,
         resetCart,
+
+        // ✅ checkout (pre NLB)
+        checkout,
+        setPaymentMethod,
+        setCheckoutStatus,
+        setCheckoutError,
+        createOrderSnapshot,
+        resetCheckout,
       }}
     >
       {children}
