@@ -1,5 +1,4 @@
-/// <reference path="../deno.d.ts" />
-
+import type {} from "../deno.d.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 type InsertOrderPayload = {
@@ -32,6 +31,25 @@ type WebhookBody =
       old_record?: unknown;
     }
   | InsertOrderPayload;
+
+type CartAddon = {
+  name?: unknown;
+  quantity?: unknown;
+};
+
+type CartItem = {
+  cart_id?: unknown;
+  name?: unknown;
+  category?: unknown;
+  quantity?: unknown;
+  size?: unknown;
+  addons?: unknown;
+  note?: unknown;
+};
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
 
 function safeString(v: unknown): string {
   if (typeof v === "string") return v.trim();
@@ -66,10 +84,13 @@ function isDrinkCategory(category: string) {
   return c.includes("pica") || c.includes("pice") || c.includes("napici") || c.includes("napitci");
 }
 
-function isMetaRow(it: any) {
-  const cartId = normalizeText(safeString(it?.cart_id));
-  const name = normalizeText(safeString(it?.name));
-  const cat = normalizeText(safeString(it?.category));
+function isMetaRow(it: unknown) {
+  if (!isRecord(it)) return false;
+
+  const cartId = normalizeText(safeString(it["cart_id"]));
+  const name = normalizeText(safeString(it["name"]));
+  const cat = normalizeText(safeString(it["category"]));
+
   return cartId === "meta" || name === "meta" || cat === "meta";
 }
 
@@ -90,27 +111,29 @@ function formatTotalEURFromCents(cents: number) {
   return (safe / 100).toFixed(2);
 }
 
-function parseItems(raw: unknown): any[] {
-  if (Array.isArray(raw)) return raw;
+function parseItems(raw: unknown): CartItem[] {
+  if (Array.isArray(raw)) return raw as CartItem[];
+
   if (typeof raw === "string") {
     try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as CartItem[]) : [];
     } catch {
       return [];
     }
   }
+
   return [];
 }
 
-function extractOrderNote(order: InsertOrderPayload, items: any[]) {
+function extractOrderNote(order: InsertOrderPayload, items: CartItem[]) {
   // 1) prefer order.note ako postoji
   const direct = safeString(order?.note);
   if (direct) return direct;
 
   // 2) meta stavka (createOrder ubaci META sa note)
-  const meta = items.find((it) => it && typeof it === "object" && isMetaRow(it));
-  const metaNote = meta ? safeString(meta?.note) : "";
+  const meta = items.find((it) => isMetaRow(it));
+  const metaNote = meta ? safeString(meta.note) : "";
   return metaNote;
 }
 
@@ -124,7 +147,10 @@ function formatTelegramMessage(order: InsertOrderPayload) {
   const orderNote = extractOrderNote(order, itemsAll);
 
   // pravi items bez META
-  const items = itemsAll.filter((it) => it && typeof it === "object" && safeString(it?.cart_id) && !isMetaRow(it));
+  const items = itemsAll.filter((it) => {
+    const cartId = safeString(it?.cart_id);
+    return Boolean(cartId) && !isMetaRow(it);
+  });
 
   const pizzas = items.filter((it) => !isDrinkCategory(safeString(it?.category)));
   const drinks = items.filter((it) => isDrinkCategory(safeString(it?.category)));
@@ -148,7 +174,9 @@ function formatTelegramMessage(order: InsertOrderPayload) {
 
     lines.push(`🍕 ● ${qty}x ${nm}${sizeSuffix}`);
 
-    const addons = Array.isArray(it?.addons) ? it.addons : [];
+    const addonsRaw = it?.addons;
+    const addons: CartAddon[] = Array.isArray(addonsRaw) ? (addonsRaw as CartAddon[]) : [];
+
     if (addons.length > 0) {
       lines.push("🍄● Dodaci:");
       for (const a of addons) {
@@ -212,11 +240,23 @@ async function sendTelegramMessage(text: string) {
       }),
     });
 
-    const json = await res.json().catch(() => null);
+    const json: unknown = await res.json().catch(() => null);
     return { ok: res.ok, status: res.status, json };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+function extractOrderFromWebhookBody(payload: WebhookBody): InsertOrderPayload | null {
+  // Supabase webhook body: { record: {...} } ili direktno record
+  if (!isRecord(payload)) return null;
+
+  const maybeRecord = payload["record"];
+  if (isRecord(maybeRecord)) {
+    return maybeRecord as InsertOrderPayload;
+  }
+
+  return payload as InsertOrderPayload;
 }
 
 serve(async (req) => {
@@ -233,10 +273,8 @@ serve(async (req) => {
       }
     }
 
-    const body: WebhookBody = await req.json().catch(() => ({} as any));
-
-    // Supabase webhook body: { record: {...} } ili direktno record
-    const order: InsertOrderPayload = (body as any)?.record ?? (body as any);
+    const payload: WebhookBody = (await req.json().catch(() => ({}))) as WebhookBody;
+    const order = extractOrderFromWebhookBody(payload);
 
     if (!order || !order.id) {
       return new Response(JSON.stringify({ ok: false, error: "Missing order in payload" }), {

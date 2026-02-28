@@ -1,5 +1,8 @@
 import { toSafeInt } from "./money";
 import { getApiBase } from "./apiBase";
+import { supabase } from "./supabaseClient";
+
+type PaymentMethod = "cash" | "card";
 
 export type OrderItemAddonPayload = {
   id: string;
@@ -41,6 +44,9 @@ export type CreateOrderPayload = {
   total_items: number;
 
   note?: string | null;
+
+  // checkout state (opciono)
+  payment_method?: PaymentMethod;
 };
 
 function normalizeString(value: string) {
@@ -56,17 +62,59 @@ function isValidSize(size: unknown): size is "33" | "50" {
   return size === "33" || size === "50";
 }
 
-function formatHttpError(status: number, body: any) {
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function formatHttpError(status: number, body: unknown) {
   const parts: string[] = [];
-  if (body?.error) parts.push(String(body.error));
-  if (body?.code) parts.push(`Kod: ${String(body.code)}`);
+
+  if (isRecord(body)) {
+    const err = body.error;
+    const code = body.code;
+
+    if (typeof err === "string" && err.trim()) parts.push(err.trim());
+    if (typeof code === "string" && code.trim()) parts.push(`Kod: ${code.trim()}`);
+  }
+
   if (parts.length) return parts.join(" — ");
   return `Greška pri slanju porudžbine. HTTP ${status}`;
 }
 
+function inferPaymentMethodFromNote(note: string | null | undefined): PaymentMethod {
+  const raw = String(note ?? "");
+  const n = raw.toLowerCase();
+
+  if (n.includes("plaćanje") || n.includes("placanje")) {
+    if (n.includes("kartica") || n.includes("card")) return "card";
+    if (n.includes("gotovina") || n.includes("cash")) return "cash";
+  }
+
+  return "cash";
+}
+
+async function createPaymentSessionBestEffort(orderId: string, method: PaymentMethod) {
+  try {
+    const { data, error } = await supabase.functions.invoke("payments-create-session", {
+      body: { order_id: orderId, payment_method: method },
+    });
+
+    if (error) {
+      console.error("[payments] create-session failed:", { orderId, method, error });
+      return;
+    }
+
+    if (isRecord(data) && typeof data.ok === "boolean" && data.ok !== true) {
+      console.error("[payments] create-session returned non-ok:", { orderId, method, data });
+    }
+  } catch (e) {
+    console.error("[payments] create-session error:", { orderId, method, e });
+  }
+}
+
 async function notifyTelegramBestEffort(orderId: string) {
   // DEV: ne šaljemo da ne spamuje (i da ne pravi šum dok testiraš lokalno)
-  if ((import.meta as any).env?.DEV) return;
+  if (import.meta.env.DEV) return;
 
   try {
     const res = await fetch("/api/telegram-new-order", {
@@ -76,12 +124,10 @@ async function notifyTelegramBestEffort(orderId: string) {
     });
 
     if (!res.ok) {
-      const j = await res.json().catch(() => null);
-      // eslint-disable-next-line no-console
+      const j: unknown = await res.json().catch(() => null);
       console.error("[telegram] notify failed:", res.status, j);
     }
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.error("[telegram] notify error:", e);
   }
 }
@@ -126,12 +172,12 @@ export async function createOrder(payload: CreateOrderPayload) {
 
     const note = it.note ? normalizeString(String(it.note)) : null;
 
-    const addonsRaw = Array.isArray(it.addons) ? it.addons : [];
+    const addonsRaw: OrderItemAddonPayload[] = Array.isArray(it.addons) ? it.addons : [];
     const addons: OrderItemAddonPayload[] = addonsRaw.map((a) => {
       const id = normalizeString(String(a.id ?? ""));
       const aname = normalizeString(String(a.name ?? ""));
-      const price = safeInt((a as any).price, 0);
-      const aq = safeInt((a as any).quantity, 1);
+      const price = safeInt(a.price, 0);
+      const aq = safeInt(a.quantity, 1);
 
       if (!id || !aname || price < 0 || aq <= 0) {
         throw new Error("Invalid item structure");
@@ -162,24 +208,25 @@ export async function createOrder(payload: CreateOrderPayload) {
     throw new Error("Invalid total");
   }
 
-  // meta-stavka na početak (kompatibilno sa backendom ako očekuje)
-  const meta = {
-    cart_id: "meta",
-    menu_item_id: null,
-    name: "META",
-    size: null,
-    quantity: 1,
-    base_price: null,
-    price_per_item: 0,
-    addons: [],
-    note: payload.note ?? null,
-    image: "",
-    category: "meta",
-  } as unknown as OrderItemPayload;
-
-  // ubaci meta samo ako ima napomene
+  // META (za zonu/dostavu/payment note)
   const hasMetaNote = typeof payload.note === "string" && payload.note.trim().length > 0;
-  if (hasMetaNote) normalizedItems.unshift(meta);
+  if (hasMetaNote) {
+    const meta: OrderItemPayload = {
+      cart_id: "meta",
+      menu_item_id: null,
+      name: "META",
+      size: null,
+      quantity: 1,
+      base_price: null,
+      price_per_item: 0,
+      addons: [],
+      note: payload.note ?? null,
+      image: "",
+      category: "meta",
+    };
+
+    normalizedItems.unshift(meta);
+  }
 
   const apiBody = {
     customer_name,
@@ -201,14 +248,19 @@ export async function createOrder(payload: CreateOrderPayload) {
     body: JSON.stringify(apiBody),
   });
 
-  const json = await res.json().catch(() => null);
+  const jsonBody: unknown = await res.json().catch(() => null);
 
-  if (!res.ok || !json?.ok) {
-    throw new Error(formatHttpError(res.status, json));
+  if (!res.ok || !isRecord(jsonBody) || jsonBody.ok !== true) {
+    throw new Error(formatHttpError(res.status, jsonBody));
   }
 
-  const orderId = String(json?.id ?? "").trim();
+  const orderId = normalizeString(String(jsonBody.id ?? ""));
   if (!orderId) throw new Error("Porudžbina je poslata, ali ID nije vraćen.");
+
+  const method: PaymentMethod = payload.payment_method ?? inferPaymentMethodFromNote(payload.note);
+
+  // best-effort (ne blokira flow, order je već kreiran)
+  void createPaymentSessionBestEffort(orderId, method);
 
   void notifyTelegramBestEffort(orderId);
 
