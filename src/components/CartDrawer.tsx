@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabaseClient.ts";
 import { useCart } from "../context/useCart";
-import type { CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
+import type { PizzaSize, PizzaVariant, PaymentMethod } from "../context/CartContext";
 import { formatEUR, toSafeInt } from "../lib/money";
 import { createOrder, type CreateOrderPayload } from "../lib/createOrder";
 
@@ -121,6 +121,39 @@ function isSauceItemName(name: string) {
   return keywords.some((k) => n.includes(normalizeText(k)));
 }
 
+/** -------------------- STUFFED CRUST (UI PRICE) -------------------- */
+function normalizeAddonName(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replaceAll("č", "c")
+    .replaceAll("ć", "c")
+    .replaceAll("š", "s")
+    .replaceAll("ž", "z")
+    .replaceAll("đ", "dj")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isStuffedCrustAddonName(addonName: string) {
+  const n = normalizeAddonName(addonName);
+  if (!n) return false;
+
+  if (n.includes("ivice punjene")) return true;
+  if (n.includes("punjene ivice")) return true;
+  if (n.includes("ivica punjena")) return true;
+  if (n.includes("punjena ivica")) return true;
+
+  if (n === "rub") return true;
+
+  return false;
+}
+
+function stuffedCrustPriceForSize(size: PizzaSize | string | number | null | undefined): number {
+  const s = String(size ?? "").toLowerCase();
+  return s.includes("50") ? 400 : 200;
+}
+/** ------------------------------------------------------------------ */
+
 function parsePizzaSizeFromName(name: string): PizzaSize | null {
   const t = normalizeText(name);
   if (/\b50\s*cm\b/.test(t)) return "50";
@@ -160,18 +193,18 @@ const NAME_TO_FILE: Record<string, string> = {
   "don pamidoro": "pomodoro.webp",
 
   // sosevi
-  "garlik": "garlik.webp",
-  "kecap": "kecap.webp",
+  garlik: "garlik.webp",
+  kecap: "kecap.webp",
   "kečap": "kecap.webp",
-  "majonez": "majonez.webp",
-  "pelat": "pelat.webp",
+  majonez: "majonez.webp",
+  pelat: "pelat.webp",
   "slatko ljuti": "slatko ljuti.webp",
   "ljuti sos": "ljuti sos.webp",
-  "bbq": "bbq.webp",
+  bbq: "bbq.webp",
 
   // dodaci
-  "krofne": "krofna.webp",
-  "krofna": "krofna.webp",
+  krofne: "krofna.webp",
+  krofna: "krofna.webp",
   "ivice punjene sirom": "rub.webp",
   "ivice punjene sir": "rub.webp",
   "punjene ivice sirom": "rub.webp",
@@ -182,16 +215,16 @@ const NAME_TO_FILE: Record<string, string> = {
   "coca cola zero": "coca-zero.webp",
   "coca zero": "coca-zero.webp",
   "coca-cola zero": "coca-zero.webp",
-  "fanta": "fanta.webp",
-  "sprite": "sprite.webp",
-  "heineken": "heineken.webp",
-  "jabuka": "jabuka.webp",
-  "narandza": "narandza.webp",
+  fanta: "fanta.webp",
+  sprite: "sprite.webp",
+  heineken: "heineken.webp",
+  jabuka: "jabuka.webp",
+  narandza: "narandza.webp",
   "naranđa": "narandza.webp",
-  "knjaz": "knjaz.webp",
+  knjaz: "knjaz.webp",
   "knjaz milos": "knjaz.webp",
   "knjaz miloš": "knjaz.webp",
-  "montenegro": "montenegro.webp",
+  montenegro: "montenegro.webp",
 
   // spec slučajevi (brend + ukus)
   "bravo jabuka": "jabuka.webp",
@@ -200,7 +233,7 @@ const NAME_TO_FILE: Record<string, string> = {
   "knjaz kisela": "knjaz.webp",
   "knjaz kisela voda": "knjaz.webp",
   "rosa voda": "rosa.webp",
-  "rosa": "rosa.webp",
+  rosa: "rosa.webp",
 };
 
 function buildFileCandidatesFromFilename(file: string): string[] {
@@ -304,20 +337,26 @@ function buildImageCandidates(image: string | null | undefined, name: string): s
 }
 
 function SmartCartImage(props: { image?: string | null; name: string; alt: string }) {
-  // ESLint: react-hooks/set-state-in-effect
-  // Reset idx by remounting inner component when key changes, not by setState in effect.
-  const resetKey = useMemo(() => `${props.image ?? ""}__${props.name ?? ""}`, [props.image, props.name]);
+  const resetKey = useMemo(() => `${props.image ?? ""}__${props.name ?? ""}`, [
+    props.image,
+    props.name,
+  ]);
   return <SmartCartImageInner key={resetKey} {...props} />;
 }
 
 function SmartCartImageInner(props: { image?: string | null; name: string; alt: string }) {
   const [idx, setIdx] = useState(0);
-  const candidates = useMemo(() => buildImageCandidates(props.image ?? null, props.name), [props.image, props.name]);
+  const candidates = useMemo(
+    () => buildImageCandidates(props.image ?? null, props.name),
+    [props.image, props.name]
+  );
 
   const src = candidates[idx] ?? null;
 
   if (!src) {
-    return <div className="h-16 w-16 rounded-2xl bg-white/5 ring-1 ring-white/10" aria-hidden="true" />;
+    return (
+      <div className="h-16 w-16 rounded-2xl bg-white/5 ring-1 ring-white/10" aria-hidden="true" />
+    );
   }
 
   return (
@@ -332,8 +371,6 @@ function SmartCartImageInner(props: { image?: string | null; name: string; alt: 
 }
 
 function SmartMiniAddonImage(props: { name: string; className?: string }) {
-  // ESLint: react-hooks/set-state-in-effect
-  // Reset idx by remounting inner component when key changes.
   return <SmartMiniAddonImageInner key={props.name} {...props} />;
 }
 
@@ -364,7 +401,6 @@ function SmartMiniAddonImageInner(props: { name: string; className?: string }) {
 }
 /** -------------------------------------------------------------------------- */
 
-
 export default function CartDrawer() {
   const {
     isOpen,
@@ -381,21 +417,28 @@ export default function CartDrawer() {
     clearCart,
     setItemNote,
     addToCart,
+
+    checkout,
+    setPaymentMethod,
+    createOrderSnapshot,
+    resetCheckout,
   } = useCart();
 
-  // Action color system (premium, consistent)
   const BTN_NEUTRAL =
     "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/85 transition";
   const BTN_DANGER =
     "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/75 hover:text-white transition";
   const BTN_SUCCESS =
     "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out";
+  const BTN_GOLD_ACTIVE =
+    "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_25px_rgba(242,180,0,0.45)] transition";
 
-  // Contact (used for "van zone" call-to-order note)
+  // ✅ NLB not ready — disable card payments until we get integration details
+  const CARD_PAYMENTS_ENABLED = false;
+
   const PHONE_DISPLAY = "+382 67 603 780";
   const PHONE_E164 = "+38267603780";
 
-  // Phase 2: subtle card polish (no layout changes, only cosmetics)
   const CARD =
     "p-glass p-4 sm:p-5 p-glass-hover ring-1 ring-white/5 transition-all duration-200 hover:bg-white/7 hover:ring-white/10 md:hover:-translate-y-[1px] active:translate-y-0";
   const ROW =
@@ -431,12 +474,27 @@ export default function CartDrawer() {
     return addressTrim.length >= 5;
   }, [addressTrim]);
 
+  const paymentMethod: PaymentMethod = checkout?.paymentMethod ?? "cash";
+  const [successPaymentMethod, setSuccessPaymentMethod] = useState<PaymentMethod>("cash");
+  const paymentLabel = (m: PaymentMethod) => (m === "card" ? "kartica" : "gotovina");
 
-  // Delivery zone (required in checkout; no default)
+  const handleSetPaymentMethod = (m: PaymentMethod) => {
+    if (m === "card" && !CARD_PAYMENTS_ENABLED) return;
+    setPaymentMethod?.(m);
+  };
+
+  // ✅ Safety: if old state somehow has "card", force back to cash when entering checkout.
+  useEffect(() => {
+    if (view !== "checkout") return;
+    if (CARD_PAYMENTS_ENABLED) return;
+    if (paymentMethod !== "card") return;
+    setPaymentMethod?.("cash");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
   const [deliveryZoneKey, setDeliveryZoneKey] = useState<DeliveryZoneKey | "">("");
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState(false);
 
-  // Custom dropdown (premium) state/refs
   const [isZoneOpen, setIsZoneOpen] = useState(false);
   const zoneBtnRef = useRef<HTMLButtonElement | null>(null);
   const zonePanelRef = useRef<HTMLDivElement | null>(null);
@@ -457,9 +515,7 @@ export default function CartDrawer() {
     | null
   >(null);
 
-
   useEffect(() => {
-    // reset "copied" indicator when a new order id is set
     setSuccessCopied(false);
   }, [successOrderId]);
 
@@ -475,7 +531,6 @@ export default function CartDrawer() {
     try {
       await navigator.clipboard.writeText(successOrderId);
     } catch {
-      // Fallback for older browsers / insecure contexts
       const ta = document.createElement("textarea");
       ta.value = successOrderId;
       ta.setAttribute("readonly", "true");
@@ -509,8 +564,6 @@ export default function CartDrawer() {
   >([]);
 
   const [openSaucesForItemId, setOpenSaucesForItemId] = useState<string | null>(null);
-
-  // Re-use this state for drinks catalog accordion (no new state).
   const [openDrinksForItemId, setOpenDrinksForItemId] = useState<string | null>(null);
 
   const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] = useState<PizzaVariantsMap>({});
@@ -581,8 +634,6 @@ export default function CartDrawer() {
     if (!selectedDeliveryZone) return 0;
     if (selectedDeliveryZone.feeCents <= 0) return 0;
     if (qualifiesForFreeDelivery) return 0;
-
-    // Below minimum: fee is applied only after explicit confirmation ("Doplati")
     return deliveryFeeOverride ? selectedDeliveryZone.feeCents : 0;
   }, [selectedDeliveryZone, qualifiesForFreeDelivery, deliveryFeeOverride]);
 
@@ -602,8 +653,21 @@ export default function CartDrawer() {
     setSubmitting(false);
   };
 
-  const handleGoToMenu = () => {
+  const handleCloseDrawer = () => {
+    resetCheckout?.();
+    setView("cart");
+    setSubmitting(false);
+    setSubmitError(null);
+    setSuccessOrderId(null);
+    setSuccessSummary(null);
+    setOpenSaucesForItemId(null);
+    setOpenDrinksForItemId(null);
+    setIsZoneOpen(false);
     closeCart();
+  };
+
+  const handleGoToMenu = () => {
+    handleCloseDrawer();
 
     const hero = document.getElementById("top") || document.getElementById("hero");
     if (hero) {
@@ -635,13 +699,7 @@ export default function CartDrawer() {
     });
   };
 
-  const addDrinkToCart = (d: {
-    id: string;
-    name: string;
-    price: number;
-    imageKey: string;
-    category: string;
-  }) => {
+  const addDrinkToCart = (d: { id: string; name: string; price: number; imageKey: string; category: string }) => {
     const el = drinksScrollRef.current;
     const top = el?.scrollTop ?? 0;
 
@@ -663,6 +721,7 @@ export default function CartDrawer() {
 
   useEffect(() => {
     if (!isOpen) {
+      resetCheckout?.();
       setView("cart");
       setSubmitting(false);
       setSubmitError(null);
@@ -672,15 +731,14 @@ export default function CartDrawer() {
       setOpenDrinksForItemId(null);
       setIsZoneOpen(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   useEffect(() => {
-    // Changing zone resets the "pay delivery" choice.
     setDeliveryFeeOverride(false);
   }, [deliveryZoneKey]);
 
   useEffect(() => {
-    // If the cart reaches the minimum, delivery becomes free automatically.
     if (qualifiesForFreeDelivery) setDeliveryFeeOverride(false);
   }, [qualifiesForFreeDelivery]);
 
@@ -752,27 +810,15 @@ export default function CartDrawer() {
         setPizzaVariantsByBaseKey(nextPizzaVariants);
 
         const addonRows = rows.filter((r) => normalizeCategory(r.category ?? "") === "dodaci");
-        const sauceRows = rows.filter(
-          (r) => isSauceCategory(r.category ?? "") || isSauceItemName(r.name)
-        );
+        const sauceRows = rows.filter((r) => isSauceCategory(r.category ?? "") || isSauceItemName(r.name));
 
         const nextAddons = addonRows
           .filter((r) => !isSaucesPlaceholder(r.name))
-          .map((r) => ({
-            id: r.id,
-            name: r.name,
-            price: toSafeInt(r.price_eur_cents, 0),
-            imageKey: r.name,
-          }));
+          .map((r) => ({ id: r.id, name: r.name, price: toSafeInt(r.price_eur_cents, 0), imageKey: r.name }));
 
         const nextSauces = sauceRows
           .filter((r) => !isSaucesPlaceholder(r.name))
-          .map((r) => ({
-            id: r.id,
-            name: r.name,
-            price: toSafeInt(r.price_eur_cents, 0),
-            imageKey: r.name,
-          }));
+          .map((r) => ({ id: r.id, name: r.name, price: toSafeInt(r.price_eur_cents, 0), imageKey: r.name }));
 
         const drinkRows = rows.filter((r) => isDrinkCategory(r.category ?? ""));
         const nextDrinks = drinkRows.map((r) => ({
@@ -802,6 +848,12 @@ export default function CartDrawer() {
     };
   }, []);
 
+  const proceedToCheckout = () => {
+    createOrderSnapshot?.();
+    setView("checkout");
+    setSubmitError(null);
+  };
+
   async function submitOrder() {
     if (!canSubmit) return;
 
@@ -828,9 +880,7 @@ export default function CartDrawer() {
     }
 
     if (selectedDeliveryZone.feeCents > 0 && !qualifiesForFreeDelivery && !deliveryFeeOverride) {
-      setSubmitError(
-        'Za izabranu zonu moraš ili dopuniti korpu do minimuma, ili kliknuti "Doplati" za dostavu.'
-      );
+      setSubmitError('Za izabranu zonu moraš ili dopuniti korpu do minimuma, ili kliknuti "Doplati" za dostavu.');
       return;
     }
 
@@ -846,29 +896,24 @@ export default function CartDrawer() {
         total_items: totalItems,
         note: (() => {
           const base = orderNote.trim();
+          const paymentLine = `Plaćanje: ${paymentLabel(paymentMethod)}`;
           const deliveryLine = `Zona: ${selectedDeliveryZone.label}, Dostava: ${formatFeeEurShort(deliveryFeeCents)}`;
-          const merged = base ? `${base}\n${deliveryLine}` : deliveryLine;
-          return merged.trim() ? merged : null;
+          const parts = [base, paymentLine, deliveryLine].filter((x) => String(x ?? "").trim());
+          const merged = parts.join("\n").trim();
+          return merged ? merged : null;
         })(),
         items: items.map((it) => {
           const drink = isDrinkCategory(it.category ?? "");
           const addons = drink ? [] : (it.addons ?? []);
 
-          const addonsTotal = addons.reduce(
-            (s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1),
-            0
-          );
-
+          const addonsTotal = addons.reduce((s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1), 0);
           const basePrice = toSafeInt(it.basePrice, toSafeInt(it.price, 0));
           const pricePerItem = basePrice + addonsTotal;
 
           const rawSize = it.size ?? null;
           const size: "33" | "50" | null = rawSize === "33" || rawSize === "50" ? rawSize : null;
 
-          const image =
-            String(it.image ?? "").trim() ||
-            buildImageCandidates(null, it.name)[0] ||
-            "/menu/padrino.webp";
+          const image = String(it.image ?? "").trim() || buildImageCandidates(null, it.name)[0] || "/menu/padrino.webp";
 
           return {
             cart_id: it.id,
@@ -891,20 +936,23 @@ export default function CartDrawer() {
         }),
       };
 
+      setSuccessPaymentMethod(paymentMethod);
+
       const res = await createOrder(payload);
       setSuccessSummary({ totalCents: effectiveTotalCents, zoneLabel: selectedDeliveryZone.label, feeCents: deliveryFeeCents });
       setSuccessOrderId(res.orderId ?? null);
 
       clearCart();
+      resetCheckout?.();
       setView("success");
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Došlo je do greške.");
     } finally {
       setSubmitting(false);
     }
-    }
+  }
 
-function onSubmitOrder(e: FormEvent) {
+  function onSubmitOrder(e: FormEvent) {
     e.preventDefault();
     void submitOrder();
   }
@@ -916,18 +964,8 @@ function onSubmitOrder(e: FormEvent) {
 
   return (
     <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 z-[80]"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
-        <button
-          type="button"
-          aria-label="Close cart"
-          className="absolute inset-0 bg-black/70"
-          onClick={closeCart}
-        />
+      <motion.div className="fixed inset-0 z-[80]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+        <button type="button" aria-label="Close cart" className="absolute inset-0 bg-black/70" onClick={handleCloseDrawer} />
 
         <motion.div
           className="absolute right-0 top-0 h-full w-full max-w-[520px] overflow-hidden border-l border-white/10 bg-black/60 backdrop-blur-xl"
@@ -936,31 +974,19 @@ function onSubmitOrder(e: FormEvent) {
           exit={{ x: 60 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
         >
-          {/* Background image and overlays, applies to whole panel */}
           <div className="absolute inset-0 z-0 pointer-events-none">
-            <img
-              src="/sections/menu.webp"
-              alt=""
-              className="h-full w-full object-cover opacity-85"
-              draggable={false}
-              loading="eager"
-              decoding="async"
-            />
+            <img src="/sections/menu.webp" alt="" className="h-full w-full object-cover opacity-85" draggable={false} loading="eager" decoding="async" />
             <div className="absolute inset-0 bg-black/40" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/30 to-black/50" />
           </div>
+
           <div className="relative h-full flex flex-col z-10">
-            {/* Header */}
             <div className="border-b border-white/10 bg-black/30 px-4 sm:px-5">
               <div className="flex items-center justify-between py-4">
                 <div className="min-w-0">
                   <div className="p-eyebrow">KORPA</div>
                   <div className="text-white/90 font-extrabold">
-                    {view === "checkout"
-                      ? "Plaćanje"
-                      : view === "success"
-                        ? "Porudžbina"
-                        : "Vaša porudžbina"}
+                    {view === "checkout" ? "Plaćanje" : view === "success" ? "Porudžbina" : "Vaša porudžbina"}
                   </div>
                   <div className="mt-1 text-xs text-white/60">Stavki: {totalItems}</div>
                 </div>
@@ -980,7 +1006,7 @@ function onSubmitOrder(e: FormEvent) {
 
                   <button
                     type="button"
-                    onClick={closeCart}
+                    onClick={handleCloseDrawer}
                     aria-label="Zatvori korpu"
                     className="h-11 w-11 rounded-full border border-red-500/40 text-red-400 bg-black/40 hover:bg-red-500/15 hover:border-red-400 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center"
                   >
@@ -990,25 +1016,21 @@ function onSubmitOrder(e: FormEvent) {
               </div>
             </div>
 
-            {/* Body */}
             <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4">
               {view === "success" ? (
                 <div className="mt-5 p-glass p-5 p-glass-hover relative overflow-hidden">
-                  {/* subtle golden glow */}
                   <div className="pointer-events-none absolute -top-24 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-[#f2b400]/20 blur-3xl" />
                   <div className="pointer-events-none absolute -bottom-28 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#f2b400]/10 blur-3xl" />
 
-                  {/* in-card close (matches success mock) */}
                   <button
                     type="button"
-                    onClick={closeCart}
+                    onClick={handleCloseDrawer}
                     aria-label="Zatvori"
                     className="absolute right-4 top-4 z-10 h-10 w-10 rounded-full border border-[#f2b400]/25 bg-black/35 text-[#f2b400] hover:bg-black/45 hover:border-[#f2b400]/35 transition flex items-center justify-center"
                   >
                     <span className="text-[18px] leading-none">×</span>
                   </button>
 
-                  {/* check badge */}
                   <div className="flex justify-center">
                     <div className="relative mt-1 mb-4">
                       <div className="absolute inset-0 rounded-full bg-[#f2b400]/35 blur-xl" aria-hidden="true" />
@@ -1020,12 +1042,9 @@ function onSubmitOrder(e: FormEvent) {
                     </div>
                   </div>
 
-                  <p className="text-white/95 font-extrabold text-[22px] text-center leading-tight">
-                    Porudžbina je poslata
-                  </p>
+                  <p className="text-white/95 font-extrabold text-[22px] text-center leading-tight">Porudžbina je poslata</p>
                   <div className="mt-1 text-sm font-semibold text-white/70 text-center">Hvala na poverenju &lt;3</div>
 
-                  {/* Order ID row */}
                   {successOrderId ? (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
@@ -1044,14 +1063,7 @@ function onSubmitOrder(e: FormEvent) {
                             {successCopied ? (
                               <span className="text-[14px] text-[#f2b400] font-black">✓</span>
                             ) : (
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="text-white/80"
-                              >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-white/80">
                                 <path
                                   d="M9 9V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"
                                   stroke="currentColor"
@@ -1076,7 +1088,6 @@ function onSubmitOrder(e: FormEvent) {
                     <p className="mt-3 text-sm text-white/65 text-center">Porudžbina je evidentirana.</p>
                   )}
 
-                  {/* Summary */}
                   {successSummary ? (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4">
                       <div className="flex items-center justify-between gap-3">
@@ -1095,7 +1106,7 @@ function onSubmitOrder(e: FormEvent) {
                       </div>
 
                       <div className="mt-3 h-px bg-white/10" />
-                      <div className="mt-3 text-xs text-white/65">Plaćanje: gotovina (kartice uskoro).</div>
+                      <div className="mt-3 text-xs text-white/65">Plaćanje: {paymentLabel(successPaymentMethod)}</div>
                     </div>
                   ) : null}
 
@@ -1109,7 +1120,7 @@ function onSubmitOrder(e: FormEvent) {
 
                     <button
                       type="button"
-                      onClick={closeCart}
+                      onClick={handleCloseDrawer}
                       className="w-full h-12 text-sm font-extrabold rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/85 transition"
                     >
                       Zatvori
@@ -1122,82 +1133,56 @@ function onSubmitOrder(e: FormEvent) {
                 <div className="mt-5 space-y-5">
                   <form onSubmit={onSubmitOrder} className="space-y-4">
                     <div className="p-glass p-4 p-glass-hover">
-                      {/* Ime i prezime */}
                       <div>
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Ime i prezime
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Ime i prezime</label>
                         <input
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className={[
                             "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
                             submitError && !name.trim() ? "border-red-500 focus:border-red-500" : "",
-                            submitError && name.trim()
-                              ? "border-emerald-500 focus:border-emerald-500"
-                              : "",
+                            submitError && name.trim() ? "border-emerald-500 focus:border-emerald-500" : "",
                           ].join(" ")}
                           placeholder="Npr. Pavle Mitrović"
                           autoComplete="name"
                         />
-                        {submitError && !name.trim() && (
-                          <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>
-                        )}
+                        {submitError && !name.trim() && <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>}
                       </div>
 
-                      {/* Telefon */}
                       <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Telefon
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Telefon</label>
                         <input
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           className={[
                             "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
                             submitError && !phone.trim() ? "border-red-500 focus:border-red-500" : "",
-                            submitError && phone.trim()
-                              ? "border-emerald-500 focus:border-emerald-500"
-                              : "",
+                            submitError && phone.trim() ? "border-emerald-500 focus:border-emerald-500" : "",
                           ].join(" ")}
                           placeholder="+382..."
                           autoComplete="tel"
                         />
-                        {submitError && !phone.trim() && (
-                          <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>
-                        )}
+                        {submitError && !phone.trim() && <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>}
                       </div>
 
-                      {/* Adresa */}
                       <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Adresa
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Adresa</label>
                         <input
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
                           className={[
                             "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                            submitError && !address.trim()
-                              ? "border-red-500 focus:border-red-500"
-                              : "",
-                            submitError && address.trim()
-                              ? "border-emerald-500 focus:border-emerald-500"
-                              : "",
+                            submitError && !address.trim() ? "border-red-500 focus:border-red-500" : "",
+                            submitError && address.trim() ? "border-emerald-500 focus:border-emerald-500" : "",
                           ].join(" ")}
                           placeholder="Ulica i broj"
                           autoComplete="street-address"
                         />
-                        {submitError && !address.trim() && (
-                          <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>
-                        )}
+                        {submitError && !address.trim() && <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>}
                       </div>
 
-                      {/* Zona dostave */}
                       <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Zona dostave
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Zona dostave</label>
 
                         <div className="relative">
                           <button
@@ -1208,26 +1193,14 @@ function onSubmitOrder(e: FormEvent) {
                             aria-expanded={isZoneOpen}
                             className={[
                               "p-input w-full text-left border border-white/10 bg-black/20 text-white/90 hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/20 focus:border-[#f2b400]/40 transition flex items-center justify-between gap-3",
-                              submitError && !deliveryZoneKey
-                                ? "border-red-500 focus:border-red-500"
-                                : "",
-                              submitError && deliveryZoneKey
-                                ? "border-emerald-500 focus:border-emerald-500"
-                                : "",
+                              submitError && !deliveryZoneKey ? "border-red-500 focus:border-red-500" : "",
+                              submitError && deliveryZoneKey ? "border-emerald-500 focus:border-emerald-500" : "",
                             ].join(" ")}
                           >
                             <span className="min-w-0 truncate">
-                              {deliveryZoneKey && selectedDeliveryZone
-                                ? selectedDeliveryZone.label
-                                : "Izaberi zonu..."}
+                              {deliveryZoneKey && selectedDeliveryZone ? selectedDeliveryZone.label : "Izaberi zonu..."}
                             </span>
-                            <span
-                              aria-hidden="true"
-                              className={[
-                                "shrink-0 text-white/60 transition-transform duration-200",
-                                isZoneOpen ? "rotate-180" : "",
-                              ].join(" ")}
-                            >
+                            <span aria-hidden="true" className={["shrink-0 text-white/60 transition-transform duration-200", isZoneOpen ? "rotate-180" : ""].join(" ")}>
                               ▼
                             </span>
                           </button>
@@ -1250,17 +1223,11 @@ function onSubmitOrder(e: FormEvent) {
                                       onClick={() => handleSelectZone(z.key)}
                                       className={[
                                         "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-extrabold transition",
-                                        selected
-                                          ? "bg-white/10 ring-1 ring-[#f2b400]/25 text-white"
-                                          : "text-white/85 hover:bg-white/10",
+                                        selected ? "bg-white/10 ring-1 ring-[#f2b400]/25 text-white" : "text-white/85 hover:bg-white/10",
                                       ].join(" ")}
                                     >
                                       <span className="truncate">{z.label}</span>
-                                      {selected ? (
-                                        <span className="shrink-0 text-[#f2b400] text-base leading-none">
-                                          ✓
-                                        </span>
-                                      ) : null}
+                                      {selected ? <span className="shrink-0 text-[#f2b400] text-base leading-none">✓</span> : null}
                                     </button>
                                   );
                                 })}
@@ -1273,11 +1240,8 @@ function onSubmitOrder(e: FormEvent) {
                           Ako tvoje lokacije nema na listi — online porudžbina nije dostupna. Pozovi nas.
                         </div>
 
-                        {/* Van zone: call-to-order note (premium) */}
                         <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                          <div className="text-xs font-semibold text-white/70">
-                            Za porudžbine van zone dostave pozvati na broj
-                          </div>
+                          <div className="text-xs font-semibold text-white/70">Za porudžbine van zone dostave pozvati na broj</div>
                           <a
                             href={`tel:${PHONE_E164}`}
                             className="mt-2 inline-flex items-center justify-center rounded-full bg-[#f2b400] px-4 py-2 text-sm font-extrabold text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_25px_rgba(242,180,0,0.45)] active:scale-[0.98] transition"
@@ -1286,26 +1250,17 @@ function onSubmitOrder(e: FormEvent) {
                           </a>
                         </div>
 
-                        {submitError && !deliveryZoneKey ? (
-                          <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>
-                        ) : null}
+                        {submitError && !deliveryZoneKey ? <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div> : null}
 
                         {deliveryZoneKey && selectedDeliveryZone ? (
                           <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <div className="text-sm font-extrabold text-white/90">
-                                  Pravila dostave
-                                </div>
-                                {selectedDeliveryZone.feeCents <= 0 ||
-                                selectedDeliveryZone.minCents <= 0 ? (
-                                  <div className="mt-1 text-xs text-white/70">
-                                    Dostava je besplatna za ovu zonu.
-                                  </div>
+                                <div className="text-sm font-extrabold text-white/90">Pravila dostave</div>
+                                {selectedDeliveryZone.feeCents <= 0 || selectedDeliveryZone.minCents <= 0 ? (
+                                  <div className="mt-1 text-xs text-white/70">Dostava je besplatna za ovu zonu.</div>
                                 ) : (
-                                  <div className="mt-1 text-xs text-white/70">
-                                    Besplatna dostava od {formatEUR(selectedDeliveryZone.minCents)}
-                                  </div>
+                                  <div className="mt-1 text-xs text-white/70">Besplatna dostava od {formatEUR(selectedDeliveryZone.minCents)}</div>
                                 )}
                               </div>
 
@@ -1317,8 +1272,7 @@ function onSubmitOrder(e: FormEvent) {
                             {selectedDeliveryZone.feeCents > 0 && !qualifiesForFreeDelivery ? (
                               <div className="mt-3">
                                 <div className="text-sm font-semibold text-white/85">
-                                  Nedostaje još {formatEUR(missingToFreeDeliveryCents)} do besplatne
-                                  dostave
+                                  Nedostaje još {formatEUR(missingToFreeDeliveryCents)} do besplatne dostave
                                 </div>
 
                                 <button
@@ -1332,47 +1286,57 @@ function onSubmitOrder(e: FormEvent) {
                                   Doplati {formatFeeEurShort(selectedDeliveryZone.feeCents)} za dostavu
                                 </button>
 
-                                <div className="mt-2 text-xs text-white/60">
-                                  Ili dodaj još u korpu da bi dostava postala besplatna.
-                                </div>
+                                <div className="mt-2 text-xs text-white/60">Ili dodaj još u korpu da bi dostava postala besplatna.</div>
                               </div>
                             ) : null}
 
                             <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
                               <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                                <div className="text-[11px] font-semibold text-white/60">
-                                  SUBTOTAL
-                                </div>
-                                <div className="mt-0.5 font-extrabold text-white/90">
-                                  {subtotalLabel}
-                                </div>
+                                <div className="text-[11px] font-semibold text-white/60">SUBTOTAL</div>
+                                <div className="mt-0.5 font-extrabold text-white/90">{subtotalLabel}</div>
                               </div>
                               <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                                <div className="text-[11px] font-semibold text-white/60">
-                                  DOSTAVA
-                                </div>
-                                <div className="mt-0.5 font-extrabold text-white/90">
-                                  {formatFeeEurShort(deliveryFeeCents)}
-                                </div>
+                                <div className="text-[11px] font-semibold text-white/60">DOSTAVA</div>
+                                <div className="mt-0.5 font-extrabold text-white/90">{formatFeeEurShort(deliveryFeeCents)}</div>
                               </div>
                               <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                                <div className="text-[11px] font-semibold text-white/60">
-                                  UKUPNO
-                                </div>
-                                <div className="mt-0.5 font-extrabold text-white/90">
-                                  {effectiveTotalLabel}
-                                </div>
+                                <div className="text-[11px] font-semibold text-white/60">UKUPNO</div>
+                                <div className="mt-0.5 font-extrabold text-white/90">{effectiveTotalLabel}</div>
                               </div>
                             </div>
                           </div>
                         ) : null}
                       </div>
 
-                      {/* Napomena */}
+                      {/* ✅ Način plaćanja (Kartica disabled dok ne dobijemo NLB) */}
                       <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">
-                          Napomena (opciono)
-                        </label>
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Način plaćanja</label>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSetPaymentMethod("cash")}
+                            className={[paymentMethod === "cash" ? BTN_GOLD_ACTIVE : BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold"].join(" ")}
+                          >
+                            Gotovina
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={!CARD_PAYMENTS_ENABLED}
+                            onClick={() => handleSetPaymentMethod("card")}
+                            title="Kartice uskoro (NLB integracija)"
+                            className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold", "opacity-45 cursor-not-allowed hover:bg-white/5"].join(" ")}
+                          >
+                            Kartica
+                          </button>
+                        </div>
+
+                        <div className="mt-2 text-xs text-white/60">Gotovina je dostupna sada. Kartice uskoro — čeka se NLB integracija.</div>
+                      </div>
+
+                      <div className="mt-4">
+                        <label className="mb-2 block text-sm font-semibold text-white/80">Napomena (opciono)</label>
                         <textarea
                           value={orderNote}
                           onChange={(e) => setOrderNote(e.target.value)}
@@ -1384,17 +1348,12 @@ function onSubmitOrder(e: FormEvent) {
 
                     {submitError ? (
                       <div className="space-y-3">
-                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                          {submitError}
-                        </div>
+                        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{submitError}</div>
                         <button
                           type="button"
                           disabled={submitting}
                           onClick={() => void submitOrder()}
-                          className={[
-                            BTN_NEUTRAL,
-                            "w-full h-12 text-sm font-extrabold border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-white/5 disabled:hover:scale-100",
-                          ].join(" ")}
+                          className={[BTN_NEUTRAL, "w-full h-12 text-sm font-extrabold border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-white/5 disabled:hover:scale-100"].join(" ")}
                         >
                           Pokušaj ponovo
                         </button>
@@ -1404,17 +1363,11 @@ function onSubmitOrder(e: FormEvent) {
                     <button
                       type="submit"
                       disabled={submitting || !canConfirmOrder}
-                      className={[
-                        BTN_SUCCESS,
-                        "w-full h-12 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100 inline-flex items-center justify-center gap-2",
-                      ].join(" ")}
+                      className={[BTN_SUCCESS, "w-full h-12 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100 inline-flex items-center justify-center gap-2"].join(" ")}
                     >
                       {submitting ? (
                         <>
-                          <span
-                            aria-hidden="true"
-                            className="h-4 w-4 rounded-full border-2 border-black/30 border-t-black animate-spin"
-                          />
+                          <span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
                           Šaljem...
                         </>
                       ) : (
@@ -1430,18 +1383,9 @@ function onSubmitOrder(e: FormEvent) {
                   {!canSubmit ? (
                     <div className="p-glass p-5 p-glass-hover">
                       <div className="text-white/90 font-extrabold text-lg">Korpa je prazna</div>
-                      <div className="mt-2 text-sm text-white/70">
-                        Dodaj nešto iz menija da nastaviš.
-                      </div>
+                      <div className="mt-2 text-sm text-white/70">Dodaj nešto iz menija da nastaviš.</div>
                       <div className="mt-4">
-                        <button
-                          type="button"
-                          onClick={handleGoToMenu}
-                          className={[
-                            BTN_SUCCESS,
-                            "w-full h-12 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100",
-                          ].join(" ")}
-                        >
+                        <button type="button" onClick={handleGoToMenu} className={[BTN_SUCCESS, "w-full h-12 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100"].join(" ")}>
                           Idi na meni
                         </button>
                       </div>
@@ -1454,17 +1398,12 @@ function onSubmitOrder(e: FormEvent) {
                         const drink = isDrinkCategory(it.category ?? "");
                         const addons = drink ? [] : (it.addons ?? []);
 
-                        const addonsTotalCents = addons.reduce(
-                          (s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1),
-                          0
-                        );
-
+                        const addonsTotalCents = addons.reduce((s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1), 0);
                         const baseCents = toSafeInt(it.basePrice, toSafeInt(it.price, 0));
                         const perItemCents = baseCents + addonsTotalCents;
                         const lineTotalCents = perItemCents * (it.quantity ?? 1);
 
                         const isPizza = normalizeCategory(it.category ?? "").includes("pizza");
-
                         const sauceAddons = (addons ?? []).filter((a) => sauceIdSet.has(a.id));
                         const regularAddons = (addons ?? []).filter((a) => !sauceIdSet.has(a.id));
 
@@ -1475,14 +1414,11 @@ function onSubmitOrder(e: FormEvent) {
                                 <SmartCartImage image={it.image} name={it.name} alt={it.name} />
 
                                 <div className="min-w-0">
-                                  <div className="text-white/90 font-extrabold leading-tight">
-                                    {it.name}
-                                  </div>
+                                  <div className="text-white/90 font-extrabold leading-tight">{it.name}</div>
 
                                   {it.size ? (
                                     <div className="mt-1 text-xs text-white/60">
-                                      Veličina:{" "}
-                                      <span className="text-white/80 font-semibold">{it.size} cm</span>
+                                      Veličina: <span className="text-white/80 font-semibold">{it.size} cm</span>
                                     </div>
                                   ) : null}
 
@@ -1500,22 +1436,14 @@ function onSubmitOrder(e: FormEvent) {
                                       <button
                                         type="button"
                                         onClick={() => setPizzaSizeSafe(it.id, it.name, "33")}
-                                        className={[
-                                          BTN_NEUTRAL,
-                                          "h-10 px-4 text-sm font-extrabold",
-                                          it.size === "33" ? "bg-white/12 border-white/20" : "",
-                                        ].join(" ")}
+                                        className={[BTN_NEUTRAL, "h-10 px-4 text-sm font-extrabold", it.size === "33" ? "bg-white/12 border-white/20" : ""].join(" ")}
                                       >
                                         33 cm
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => setPizzaSizeSafe(it.id, it.name, "50")}
-                                        className={[
-                                          BTN_NEUTRAL,
-                                          "h-10 px-4 text-sm font-extrabold",
-                                          it.size === "50" ? "bg-white/12 border-white/20" : "",
-                                        ].join(" ")}
+                                        className={[BTN_NEUTRAL, "h-10 px-4 text-sm font-extrabold", it.size === "50" ? "bg-white/12 border-white/20" : ""].join(" ")}
                                       >
                                         50 cm
                                       </button>
@@ -1524,48 +1452,26 @@ function onSubmitOrder(e: FormEvent) {
                                 </div>
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={() => removeFromCart(it.id)}
-                                className={[
-                                  BTN_DANGER,
-                                  "h-10 w-10 shrink-0 text-lg leading-none",
-                                ].join(" ")}
-                                aria-label="Ukloni"
-                                title="Ukloni"
-                              >
+                              <button type="button" onClick={() => removeFromCart(it.id)} className={[BTN_DANGER, "h-10 w-10 shrink-0 text-lg leading-none"].join(" ")} aria-label="Ukloni" title="Ukloni">
                                 ×
                               </button>
                             </div>
 
                             <div className="mt-4 grid grid-cols-3 items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => decrease(it.id)}
-                                className={[BTN_NEUTRAL, "h-10 text-lg font-extrabold"].join(" ")}
-                              >
+                              <button type="button" onClick={() => decrease(it.id)} className={[BTN_NEUTRAL, "h-10 text-lg font-extrabold"].join(" ")}>
                                 −
                               </button>
-                              <div className="text-center text-white/85 font-extrabold">
-                                {it.quantity ?? 1}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => increase(it.id)}
-                                className={[BTN_NEUTRAL, "h-10 text-lg font-extrabold"].join(" ")}
-                              >
+                              <div className="text-center text-white/85 font-extrabold">{it.quantity ?? 1}</div>
+                              <button type="button" onClick={() => increase(it.id)} className={[BTN_NEUTRAL, "h-10 text-lg font-extrabold"].join(" ")}>
                                 +
                               </button>
                             </div>
 
-                            {/* Addons & Sauces only for non-drinks */}
                             {!drink ? (
                               <div className="mt-4 space-y-3">
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="text-sm font-extrabold text-white/85">Dodaci</div>
-                                  <div className="text-xs text-white/55">
-                                    Klikni da dodaš ili ukloniš
-                                  </div>
+                                  <div className="text-xs text-white/55">Klikni da dodaš ili ukloniš</div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -1574,17 +1480,17 @@ function onSubmitOrder(e: FormEvent) {
                                     const qty = existing?.quantity ?? 0;
                                     const isActive = qty > 0;
 
+                                    const displayPrice = isStuffedCrustAddonName(a.name) ? stuffedCrustPriceForSize(it.size ?? null) : a.price;
+
                                     return (
                                       <div key={a.id} className={ROW}>
                                         <div className="flex items-center gap-3 min-w-0">
                                           <SmartMiniAddonImage name={a.name} />
 
                                           <div className="min-w-0">
-                                            <div className="text-white/90 font-extrabold leading-tight">
-                                              {a.name}
-                                            </div>
+                                            <div className="text-white/90 font-extrabold leading-tight">{a.name}</div>
                                             <div className="text-xs text-white/60">
-                                              {formatEUR(a.price)}
+                                              {formatEUR(isActive ? toSafeInt(existing?.price, displayPrice) : displayPrice)}
                                             </div>
                                           </div>
                                         </div>
@@ -1592,52 +1498,19 @@ function onSubmitOrder(e: FormEvent) {
                                         <div className="flex items-center gap-2">
                                           {isActive ? (
                                             <>
-                                              <button
-                                                type="button"
-                                                onClick={() => decreaseAddonQuantity(it.id, a.id)}
-                                                className={[
-                                                  BTN_NEUTRAL,
-                                                  "h-9 w-9 text-lg font-extrabold",
-                                                ].join(" ")}
-                                              >
+                                              <button type="button" onClick={() => decreaseAddonQuantity(it.id, a.id)} className={[BTN_NEUTRAL, "h-9 w-9 text-lg font-extrabold"].join(" ")}>
                                                 −
                                               </button>
-                                              <div className="w-7 text-center text-white/85 font-extrabold">
-                                                {qty}
-                                              </div>
-                                              <button
-                                                type="button"
-                                                onClick={() => increaseAddonQuantity(it.id, a.id)}
-                                                className={[
-                                                  BTN_NEUTRAL,
-                                                  "h-9 w-9 text-lg font-extrabold",
-                                                ].join(" ")}
-                                              >
+                                              <div className="w-7 text-center text-white/85 font-extrabold">{qty}</div>
+                                              <button type="button" onClick={() => increaseAddonQuantity(it.id, a.id)} className={[BTN_NEUTRAL, "h-9 w-9 text-lg font-extrabold"].join(" ")}>
                                                 +
                                               </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => removeAddonFromItem(it.id, a.id)}
-                                                className={[
-                                                  BTN_DANGER,
-                                                  "h-9 px-3 text-sm font-extrabold",
-                                                ].join(" ")}
-                                              >
+                                              <button type="button" onClick={() => removeAddonFromItem(it.id, a.id)} className={[BTN_DANGER, "h-9 px-3 text-sm font-extrabold"].join(" ")}>
                                                 Ukloni
                                               </button>
                                             </>
                                           ) : (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                addAddonToItem(it.id, {
-                                                  id: a.id,
-                                                  name: a.name,
-                                                  price: a.price,
-} as CartAddon)
-                                              }
-                                              className="p-btn-gold h-10 px-4 text-sm"
-                                            >
+                                            <button type="button" onClick={() => addAddonToItem(it.id, { id: a.id, name: a.name, price: displayPrice })} className="p-btn-gold h-10 px-4 text-sm">
                                               Dodaj
                                             </button>
                                           )}
@@ -1647,22 +1520,14 @@ function onSubmitOrder(e: FormEvent) {
                                   })}
                                 </div>
 
-                                {/* Sosevi */}
                                 <div className="mt-4">
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      setOpenSaucesForItemId((prev) => (prev === it.id ? null : it.id))
-                                    }
-                                    className={[
-                                      BTN_NEUTRAL,
-                                      "h-11 w-full text-sm font-extrabold justify-between px-4",
-                                    ].join(" ")}
+                                    onClick={() => setOpenSaucesForItemId((prev) => (prev === it.id ? null : it.id))}
+                                    className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold justify-between px-4"].join(" ")}
                                   >
                                     <span>Sosevi</span>
-                                    <span className="text-white/60 text-xs">
-                                      {openSaucesForItemId === it.id ? "Zatvori" : "Otvori"}
-                                    </span>
+                                    <span className="text-white/60 text-xs">{openSaucesForItemId === it.id ? "Zatvori" : "Otvori"}</span>
                                   </button>
 
                                   {openSaucesForItemId === it.id ? (
@@ -1679,64 +1544,27 @@ function onSubmitOrder(e: FormEvent) {
                                                 <div className="flex items-center gap-3 min-w-0">
                                                   <SmartMiniAddonImage name={s.name} />
                                                   <div className="min-w-0">
-                                                    <div className="text-white/90 font-extrabold leading-tight">
-                                                      {s.name}
-                                                    </div>
-                                                    <div className="text-xs text-white/60">
-                                                      {formatEUR(s.price)}
-                                                    </div>
+                                                    <div className="text-white/90 font-extrabold leading-tight">{s.name}</div>
+                                                    <div className="text-xs text-white/60">{formatEUR(s.price)}</div>
                                                   </div>
                                                 </div>
 
                                                 <div className="flex items-center gap-2">
                                                   {isActive ? (
                                                     <>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => decreaseAddonQuantity(it.id, s.id)}
-                                                        className={[
-                                                          BTN_NEUTRAL,
-                                                          "h-9 w-9 text-lg font-extrabold",
-                                                        ].join(" ")}
-                                                      >
+                                                      <button type="button" onClick={() => decreaseAddonQuantity(it.id, s.id)} className={[BTN_NEUTRAL, "h-9 w-9 text-lg font-extrabold"].join(" ")}>
                                                         −
                                                       </button>
-                                                      <div className="w-7 text-center text-white/85 font-extrabold">
-                                                        {qty}
-                                                      </div>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => increaseAddonQuantity(it.id, s.id)}
-                                                        className={[
-                                                          BTN_NEUTRAL,
-                                                          "h-9 w-9 text-lg font-extrabold",
-                                                        ].join(" ")}
-                                                      >
+                                                      <div className="w-7 text-center text-white/85 font-extrabold">{qty}</div>
+                                                      <button type="button" onClick={() => increaseAddonQuantity(it.id, s.id)} className={[BTN_NEUTRAL, "h-9 w-9 text-lg font-extrabold"].join(" ")}>
                                                         +
                                                       </button>
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => removeAddonFromItem(it.id, s.id)}
-                                                        className={[
-                                                          BTN_DANGER,
-                                                          "h-9 px-3 text-sm font-extrabold",
-                                                        ].join(" ")}
-                                                      >
+                                                      <button type="button" onClick={() => removeAddonFromItem(it.id, s.id)} className={[BTN_DANGER, "h-9 px-3 text-sm font-extrabold"].join(" ")}>
                                                         Ukloni
                                                       </button>
                                                     </>
                                                   ) : (
-                                                    <button
-                                                      type="button"
-                                                      onClick={() =>
-                                                        addAddonToItem(it.id, {
-                                                          id: s.id,
-                                                          name: s.name,
-                                                          price: s.price,
-} as CartAddon)
-                                                      }
-                                                      className="p-btn-gold h-10 px-4 text-sm"
-                                                    >
+                                                    <button type="button" onClick={() => addAddonToItem(it.id, { id: s.id, name: s.name, price: s.price })} className="p-btn-gold h-10 px-4 text-sm">
                                                       Dodaj
                                                     </button>
                                                   )}
@@ -1746,19 +1574,63 @@ function onSubmitOrder(e: FormEvent) {
                                           })}
                                         </div>
                                       ) : (
-                                        <div className="text-sm text-white/60">
-                                          Nema dostupnih soseva.
-                                        </div>
+                                        <div className="text-sm text-white/60">Nema dostupnih soseva.</div>
                                       )}
                                     </div>
                                   ) : null}
                                 </div>
 
-                                {/* Napomena po stavci */}
+                                {items.length === 1 ? (
+                                  <div className="mt-4">
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenDrinksForItemId((prev) => (prev === it.id ? null : it.id))}
+                                      className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold justify-between px-4"].join(" ")}
+                                    >
+                                      <span>Piće</span>
+                                      <span className="text-white/60 text-xs">{openDrinksForItemId === it.id ? "Zatvori" : "Otvori"}</span>
+                                    </button>
+
+                                    {openDrinksForItemId === it.id ? (
+                                      <div className="mt-3 rounded-2xl border border-white/10 bg-black/15">
+                                        <div ref={drinksScrollRef} className="max-h-[300px] overflow-y-auto overscroll-contain p-3 space-y-2">
+                                          {drinksCatalog.length ? (
+                                            <>
+                                              {drinksCatalog.map((d) => (
+                                                <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                                  <div className="flex items-center gap-3 min-w-0">
+                                                    <SmartMiniAddonImage name={d.name} className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/10" />
+                                                    <div className="min-w-0">
+                                                      <div className="text-white/90 font-extrabold leading-tight">{d.name}</div>
+                                                      <div className="text-xs text-white/60">{formatEUR(d.price)}</div>
+                                                    </div>
+                                                  </div>
+
+                                                  <button
+                                                    type="button"
+                                                    onMouseDown={(e) => e.preventDefault()}
+                                                    onClick={(e) => {
+                                                      (e.currentTarget as HTMLButtonElement).blur();
+                                                      addDrinkToCart(d);
+                                                    }}
+                                                    className="p-btn-gold h-10 px-4 text-sm"
+                                                  >
+                                                    Dodaj
+                                                  </button>
+                                                </div>
+                                              ))}
+                                            </>
+                                          ) : (
+                                            <div className="text-sm text-white/60">Nema dostupnih pića.</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+
                                 <div className="mt-4">
-                                  <label className="mb-2 block text-sm font-semibold text-white/80">
-                                    Napomena za stavku (opciono)
-                                  </label>
+                                  <label className="mb-2 block text-sm font-semibold text-white/80">Napomena za stavku (opciono)</label>
                                   <textarea
                                     value={it.note ?? ""}
                                     onChange={(e) => setItemNote(it.id, e.target.value)}
@@ -1772,75 +1644,54 @@ function onSubmitOrder(e: FormEvent) {
                         );
                       })}
 
-                      {/* ✅ PIĆE SEKCIJA (VRAĆENO) */}
-                      <div className={CARD}>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setOpenDrinksForItemId((prev) =>
-                              prev === "__catalog__" ? null : "__catalog__"
-                            )
-                          }
-                          className={[
-                            BTN_NEUTRAL,
-                            "h-11 w-full text-sm font-extrabold justify-between px-4",
-                          ].join(" ")}
-                        >
-                          <span>Piće</span>
-                          <span className="text-white/60 text-xs">
-                            {openDrinksForItemId === "__catalog__" ? "Zatvori" : "Otvori"}
-                          </span>
-                        </button>
+                      {items.length > 1 ? (
+                        <div className={CARD}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenDrinksForItemId((prev) => (prev === "__catalog__" ? null : "__catalog__"))}
+                            className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold justify-between px-4"].join(" ")}
+                          >
+                            <span>Piće</span>
+                            <span className="text-white/60 text-xs">{openDrinksForItemId === "__catalog__" ? "Zatvori" : "Otvori"}</span>
+                          </button>
 
-                        {openDrinksForItemId === "__catalog__" ? (
-                          <div className="mt-3 rounded-2xl border border-white/10 bg-black/15">
-                            <div
-                              ref={drinksScrollRef}
-                              className="max-h-[300px] overflow-y-auto overscroll-contain p-3 space-y-2"
-                            >
-                              {drinksCatalog.length ? (
-                                <>
-                                  {drinksCatalog.map((d) => (
-                                    <div
-                                      key={d.id}
-                                      className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
-                                    >
-                                      <div className="flex items-center gap-3 min-w-0">
-                                        <SmartMiniAddonImage
-                                          name={d.name}
-                                          className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/10"
-                                        />
-                                        <div className="min-w-0">
-                                          <div className="text-white/90 font-extrabold leading-tight">
-                                            {d.name}
-                                          </div>
-                                          <div className="text-xs text-white/60">
-                                            {formatEUR(d.price)}
+                          {openDrinksForItemId === "__catalog__" ? (
+                            <div className="mt-3 rounded-2xl border border-white/10 bg-black/15">
+                              <div ref={drinksScrollRef} className="max-h-[300px] overflow-y-auto overscroll-contain p-3 space-y-2">
+                                {drinksCatalog.length ? (
+                                  <>
+                                    {drinksCatalog.map((d) => (
+                                      <div key={d.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <SmartMiniAddonImage name={d.name} className="h-11 w-11 rounded-xl object-cover ring-1 ring-white/10" />
+                                          <div className="min-w-0">
+                                            <div className="text-white/90 font-extrabold leading-tight">{d.name}</div>
+                                            <div className="text-xs text-white/60">{formatEUR(d.price)}</div>
                                           </div>
                                         </div>
-                                      </div>
 
-                                      <button
-                                        type="button"
-                                        onMouseDown={(e) => e.preventDefault()}
-                                        onClick={(e) => {
-                                          (e.currentTarget as HTMLButtonElement).blur();
-                                          addDrinkToCart(d);
-                                        }}
-                                        className="p-btn-gold h-10 px-4 text-sm"
-                                      >
-                                        Dodaj
-                                      </button>
-                                    </div>
-                                  ))}
-                                </>
-                              ) : (
-                                <div className="text-sm text-white/60">Nema dostupnih pića.</div>
-                              )}
+                                        <button
+                                          type="button"
+                                          onMouseDown={(e) => e.preventDefault()}
+                                          onClick={(e) => {
+                                            (e.currentTarget as HTMLButtonElement).blur();
+                                            addDrinkToCart(d);
+                                          }}
+                                          className="p-btn-gold h-10 px-4 text-sm"
+                                        >
+                                          Dodaj
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </>
+                                ) : (
+                                  <div className="text-sm text-white/60">Nema dostupnih pića.</div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ) : null}
-                      </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -1849,40 +1700,27 @@ function onSubmitOrder(e: FormEvent) {
               ) : null}
             </div>
 
-            {/* Locked footer */}
             {view === "cart" && canSubmit ? (
-              <div
-                className="border-t border-white/10 bg-black/30 px-4 sm:px-5"
-                style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-              >
+              <div className="border-t border-white/10 bg-black/30 px-4 sm:px-5" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
                 <div className="py-3">
                   <div className="p-glass p-4 p-glass-hover">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="p-eyebrow">UKUPNO</div>
-                        <div className="mt-1 text-white text-2xl font-extrabold tracking-tight">
-                          {subtotalLabel}
-                        </div>
+                        <div className="mt-1 text-white text-2xl font-extrabold tracking-tight">{subtotalLabel}</div>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => setView("checkout")}
+                        onClick={proceedToCheckout}
                         disabled={!canSubmit}
-                        className={[
-                          BTN_SUCCESS,
-                          "h-11 px-6 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100",
-                        ].join(" ")}
+                        className={[BTN_SUCCESS, "h-11 px-6 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100"].join(" ")}
                       >
                         Poruči
                       </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleGoToMenu}
-                      className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold"].join(" ")}
-                    >
+                    <button type="button" onClick={handleGoToMenu} className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold"].join(" ")}>
                       Nazad na meni
                     </button>
                   </div>
