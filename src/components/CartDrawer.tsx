@@ -902,6 +902,7 @@ export default function CartDrawer() {
           const merged = parts.join("\n").trim();
           return merged ? merged : null;
         })(),
+        payment_method: paymentMethod,
         items: items.map((it) => {
           const drink = isDrinkCategory(it.category ?? "");
           const addons = drink ? [] : (it.addons ?? []);
