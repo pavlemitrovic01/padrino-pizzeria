@@ -1,6 +1,19 @@
 import { toSafeInt } from "./money";
 import { getApiBase } from "./apiBase";
-import { supabase } from "./supabaseClient";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+
+function getEdgeFunctionUrl(fnName: string): string | null {
+  const base = String(SUPABASE_URL ?? "").trim();
+  if (!base) return null;
+  return `${base.replace(/\/+$/, "")}/functions/v1/${fnName}`;
+}
+
+function getAnonJwt(): string | null {
+  const anon = String(SUPABASE_ANON ?? "").trim();
+  return anon || null;
+}
 
 type PaymentMethod = "cash" | "card";
 
@@ -95,12 +108,28 @@ function inferPaymentMethodFromNote(note: string | null | undefined): PaymentMet
 
 async function createPaymentSessionBestEffort(orderId: string, method: PaymentMethod) {
   try {
-    const { data, error } = await supabase.functions.invoke("payments-create-session", {
-      body: { order_id: orderId, payment_method: method },
+    const url = getEdgeFunctionUrl("payments-create-session");
+    const anon = getAnonJwt();
+
+    if (!url || !anon) {
+      console.error("[payments] missing Supabase env for edge functions");
+      return;
+    }
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        apikey: anon,
+        Authorization: `Bearer ${anon}`,
+      },
+      body: JSON.stringify({ order_id: orderId, payment_method: method }),
     });
 
-    if (error) {
-      console.error("[payments] create-session failed:", { orderId, method, error });
+    const data: unknown = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      console.error("[payments] create-session non-200:", { orderId, method, status: res.status, data });
       return;
     }
 
