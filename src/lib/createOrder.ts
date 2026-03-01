@@ -66,6 +66,20 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 function formatHttpError(status: number, body: unknown) {
+  // ✅ Friendly message for card-disabled flow (server returns 501 + code CARD_DISABLED)
+  if (status === 501 && isRecord(body)) {
+    const code = body.code;
+    const err = body.error;
+
+    const isCardDisabled =
+      code === "CARD_DISABLED" ||
+      (typeof err === "string" && err.toLowerCase().includes("card") && err.toLowerCase().includes("disabled"));
+
+    if (isCardDisabled) {
+      return "Plaćanje karticom trenutno nije dostupno (NLB u pripremi). Molimo izaberite gotovinu.";
+    }
+  }
+
   const parts: string[] = [];
 
   if (isRecord(body)) {
@@ -193,7 +207,7 @@ export async function createOrder(payload: CreateOrderPayload) {
     status: "pending",
     fx_rsd_per_eur: null,
 
-    // ✅ NOVO: šaljemo serveru da zna koji payments flow da pokuša (cash/card)
+    // ✅ šaljemo serveru da zna koji payments flow da pokuša (cash/card)
     payment_method: method,
   };
 

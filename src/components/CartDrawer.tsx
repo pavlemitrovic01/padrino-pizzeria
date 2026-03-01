@@ -1144,7 +1144,7 @@ export default function CartDrawer() {
                             submitError && !name.trim() ? "border-red-500 focus:border-red-500" : "",
                             submitError && name.trim() ? "border-emerald-500 focus:border-emerald-500" : "",
                           ].join(" ")}
-                          placeholder="Npr. Pavle Mitrović"
+                          placeholder="Npr. Petar Petrovic"
                           autoComplete="name"
                         />
                         {submitError && !name.trim() && <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>}
@@ -1333,7 +1333,7 @@ export default function CartDrawer() {
                           </button>
                         </div>
 
-                        <div className="mt-2 text-xs text-white/60">Gotovina je dostupna sada. Kartice uskoro — čeka se NLB integracija.</div>
+                        <div className="mt-2 text-xs text-white/60">Gotovina je dostupna sada. Kartice uskoro.</div>
                       </div>
 
                       <div className="mt-4">

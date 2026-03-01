@@ -62,7 +62,9 @@ function maskId(value: string): string {
 function buildSupabaseAdmin() {
   const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
   const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY") || getEnv("SUPABASE_SERVICE_ROLE");
+    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
+    getEnv("SUPABASE_SERVICE_KEY") ||
+    getEnv("SUPABASE_SERVICE_ROLE");
 
   if (!SUPABASE_URL || !SERVICE_ROLE) {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
@@ -78,7 +80,11 @@ function buildSupabaseAdmin() {
   }
 
   return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
     global: { headers: { "X-Client-Info": "padrino-vercel-api/create-order" } },
   });
 }
@@ -130,7 +136,8 @@ function looksLikeRealItemButInvalid(v: unknown) {
   // META item ne smemo tretirati kao “invalid real item”
   if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
 
-  const hasItemIdentity = "name" in v || "menu_item_id" in v || "cart_id" in v || "menuItemId" in v;
+  const hasItemIdentity =
+    "name" in v || "menu_item_id" in v || "cart_id" in v || "menuItemId" in v;
 
   if (!hasItemIdentity) return false;
 
@@ -207,7 +214,6 @@ async function notifyPaymentsBestEffort(orderId: string, paymentMethod: PaymentM
   const edgeToken = getPaymentsEdgeToken();
 
   if (!url || !anon) {
-    // Backwards-compatible: if env not present, just skip
     console.warn(
       `[create-order] payments skip (missing url/anon) order_id=${maskId(orderId)} hasUrl=${!!url} hasAnon=${!!anon}`,
     );
@@ -221,7 +227,7 @@ async function notifyPaymentsBestEffort(orderId: string, paymentMethod: PaymentM
     "x-client-info": "padrino-vercel-api/create-order",
   };
 
-  // ✅ NEW: send guard token only if configured
+  // ✅ send guard token only if configured
   if (edgeToken) {
     headers["x-padrino-token"] = edgeToken;
   }
@@ -315,7 +321,8 @@ function parseZoneAndFeeFromNote(note: string): {
     const norm = normalizeText(line);
     if (norm.includes("zona:") && norm.includes("dostava:")) {
       const mZone = line.match(/Zona\s*:\s*([^,]+)\s*,?/i);
-      const mFee = line.match(/Dostava\s*:\s*([^\s]+)\s*€/i) || line.match(/Dostava\s*:\s*([^,\s]+)/i);
+      const mFee =
+        line.match(/Dostava\s*:\s*([^\s]+)\s*€/i) || line.match(/Dostava\s*:\s*([^,\s]+)/i);
       if (mZone) zonePart = String(mZone[1] ?? "").trim();
       if (mFee) feePart = String(mFee[1] ?? "").trim();
       break;
@@ -336,7 +343,9 @@ function parseZoneAndFeeFromNote(note: string): {
 
 function getMetaNote(body: Record<string, unknown>, rawItems: unknown[]): string {
   const direct =
-    toTrimmedString(body.note) || toTrimmedString(body.order_note) || toTrimmedString(body.orderNote);
+    toTrimmedString(body.note) ||
+    toTrimmedString(body.order_note) ||
+    toTrimmedString(body.orderNote);
 
   if (direct) return direct;
 
@@ -353,6 +362,62 @@ function getMetaNote(body: Record<string, unknown>, rawItems: unknown[]): string
   }
 
   return "";
+}
+
+/** -------------------- META NOTE: append payment line -------------------- */
+
+function hasPaymentLine(note: string): boolean {
+  const lines = String(note ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  return lines.some((l) => normalizeText(l).startsWith("placanje:"));
+}
+
+function appendPaymentLine(note: string, pm: PaymentMethod): string {
+  const base = String(note ?? "").trim();
+  if (!base) return base;
+
+  if (hasPaymentLine(base)) return base;
+
+  const label = pm === "card" ? "kartica" : "gotovina";
+  return `${base}\nPlaćanje: ${label}`;
+}
+
+function withPaymentInMetaItems(rawItems: unknown[], pm: PaymentMethod): unknown[] {
+  // clone array; clone only the meta objects we touch
+  const out = rawItems.slice();
+
+  // 1) cart meta (our preferred)
+  const idxCart = out.findIndex((it) => looksLikeCartMetaItem(it));
+  if (idxCart >= 0) {
+    const it = out[idxCart];
+    if (isPlainObject(it)) {
+      const prev = toTrimmedString(it.note);
+      const next = appendPaymentLine(prev, pm);
+      if (next && next !== prev) {
+        out[idxCart] = { ...it, note: next };
+      }
+    }
+    return out;
+  }
+
+  // 2) legacy meta fallback
+  const idxLegacy = out.findIndex((it) => looksLikeLegacyMetaItem(it));
+  if (idxLegacy >= 0) {
+    const it = out[idxLegacy];
+    if (isPlainObject(it)) {
+      const prev = toTrimmedString(it.order_note) || toTrimmedString(it.note);
+      const next = appendPaymentLine(prev, pm);
+      if (next && next !== prev) {
+        // keep both fields for max compatibility
+        out[idxLegacy] = { ...it, order_note: next, note: next };
+      }
+    }
+  }
+
+  return out;
 }
 
 function safeInt(v: unknown): number {
@@ -372,7 +437,10 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
   const map = new Map<string, number>();
   if (uniq.length === 0) return map;
 
-  const { data, error } = await supabase.from("menu_items").select("id, price_eur_cents, price").in("id", uniq);
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select("id, price_eur_cents, price")
+    .in("id", uniq);
 
   if (error) {
     console.error("[create-order] menu_items fetch error:", error);
@@ -430,6 +498,15 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
     const payment_method: PaymentMethod = pmRaw === "card" ? "card" : "cash";
 
+    // 🔒 HARD GUARD: kartica disabled dok NLB ne stigne (ne pravimo porudžbinu)
+    if (payment_method === "card") {
+      return json(res, 501, {
+        ok: false,
+        error: "Card payments are disabled (NLB pending).",
+        code: "CARD_DISABLED",
+      });
+    }
+
     if (
       customer_name.length < 2 ||
       customer_phone.length < 6 ||
@@ -445,8 +522,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }
     }
 
+    // ✅ items that we actually store in DB (META note appended with payment)
+    const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
+
     // samo real itemi, bez meta (legacy + cart meta)
-    const calcItems = rawItems.filter((it): it is Record<string, unknown> => {
+    const calcItems = itemsForInsert.filter((it): it is Record<string, unknown> => {
       if (!isPlainObject(it)) return false;
       if (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)) return false;
 
@@ -524,7 +604,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Total price must be greater than zero" });
     }
 
-    const rawNote = getMetaNote(body, rawItems);
+    const rawNote = getMetaNote(body, itemsForInsert);
     const parsed = parseZoneAndFeeFromNote(rawNote);
 
     if (!parsed.zone) {
@@ -553,7 +633,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       customer_name,
       customer_phone,
       customer_address,
-      items: rawItems,
+      items: itemsForInsert,
       currency,
       status,
       total_eur_cents,

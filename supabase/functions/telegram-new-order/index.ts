@@ -137,6 +137,88 @@ function extractOrderNote(order: InsertOrderPayload, items: CartItem[]) {
   return metaNote;
 }
 
+/** -------------------- META PARSING (Zona / Dostava / Plaćanje) -------------------- */
+
+type ParsedMeta = {
+  zone: string;
+  delivery: string;
+  payment: string;
+  extraNote: string;
+};
+
+function splitNoteLines(note: string): string[] {
+  return String(note ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function parseMetaFromNote(note: string): ParsedMeta {
+  const lines = splitNoteLines(note);
+  let zone = "";
+  let delivery = "";
+  let payment = "";
+
+  const extra: string[] = [];
+
+  for (const line of lines) {
+    const norm = normalizeText(line);
+
+    let usedAsMeta = false;
+
+    // Combined line: "Zona: X, Dostava: Y €"
+    if (norm.includes("zona:") || norm.includes("dostava:") || norm.includes("placanje:")) {
+      // Zona
+      if (!zone && norm.includes("zona:")) {
+        const mZone = line.match(/Zona\s*:\s*([^,]+)\s*,?/i);
+        if (mZone && typeof mZone[1] === "string") {
+          zone = mZone[1].trim();
+          usedAsMeta = true;
+        }
+      }
+
+      // Dostava
+      if (!delivery && norm.includes("dostava:")) {
+        const mFeeNum = line.match(/Dostava\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
+        if (mFeeNum && typeof mFeeNum[1] === "string") {
+          delivery = `${mFeeNum[1].trim()} €`;
+          usedAsMeta = true;
+        } else {
+          const mFeeAny = line.match(/Dostava\s*:\s*([^,]+)$/i);
+          if (mFeeAny && typeof mFeeAny[1] === "string") {
+            delivery = mFeeAny[1].trim();
+            usedAsMeta = true;
+          }
+        }
+      }
+
+      // Plaćanje
+      if (!payment && norm.includes("placanje:")) {
+        const mPay = line.match(/Pla[cć]anje\s*:\s*(.+)$/i);
+        if (mPay && typeof mPay[1] === "string") {
+          payment = mPay[1].trim();
+          usedAsMeta = true;
+        }
+      }
+    }
+
+    if (!usedAsMeta) {
+      extra.push(line);
+    }
+  }
+
+  return { zone, delivery, payment, extraNote: extra.join("\n").trim() };
+}
+
+function paymentLabelIcon(payment: string): string {
+  const p = normalizeText(payment);
+  if (p.includes("kart")) return "💳";
+  if (p.includes("cash") || p.includes("gotov") || p.includes("kes")) return "💵";
+  return "💳";
+}
+
+/** -------------------- TELEGRAM MESSAGE -------------------- */
+
 function formatTelegramMessage(order: InsertOrderPayload) {
   const name = safeString(order.customer_name) || "-";
   const phone = safeString(order.customer_phone) || "-";
@@ -144,7 +226,8 @@ function formatTelegramMessage(order: InsertOrderPayload) {
   const status = safeString(order.status) || "pending";
 
   const itemsAll = parseItems(order.items);
-  const orderNote = extractOrderNote(order, itemsAll);
+  const orderNoteRaw = extractOrderNote(order, itemsAll);
+  const parsedMeta = parseMetaFromNote(orderNoteRaw);
 
   // pravi items bez META
   const items = itemsAll.filter((it) => {
@@ -162,6 +245,11 @@ function formatTelegramMessage(order: InsertOrderPayload) {
   lines.push(`☎️ Telefon: ${phone}`);
   lines.push(`🏠 Adresa: ${address}`);
   lines.push(`🕒 Status: ${status}`);
+
+  if (parsedMeta.zone) lines.push(`📍 Zona: ${parsedMeta.zone}`);
+  if (parsedMeta.delivery) lines.push(`🚚 Dostava: ${parsedMeta.delivery}`);
+  if (parsedMeta.payment) lines.push(`${paymentLabelIcon(parsedMeta.payment)} Plaćanje: ${parsedMeta.payment}`);
+
   lines.push("");
   lines.push("🔊🔊 LISTA PROIZVODA:");
 
@@ -206,9 +294,9 @@ function formatTelegramMessage(order: InsertOrderPayload) {
     lines.push("");
   }
 
-  // Napomena za porudžbinu
-  if (orderNote) {
-    lines.push(`🚨 ● NAPOMENA: ${orderNote}`);
+  // Napomena za porudžbinu (samo "extra", bez Zona/Dostava/Plaćanje)
+  if (parsedMeta.extraNote) {
+    lines.push(`🚨 ● NAPOMENA: ${parsedMeta.extraNote}`);
     lines.push("");
   }
 
