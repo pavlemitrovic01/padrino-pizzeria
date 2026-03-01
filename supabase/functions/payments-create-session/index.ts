@@ -25,6 +25,21 @@ function safeString(v: unknown): string {
   }
 }
 
+function newRequestId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function maskId(value: string): string {
+  const v = value.trim();
+  if (!v) return "";
+  if (v.length <= 8) return `${v.slice(0, 2)}***`;
+  return `${v.slice(0, 4)}…${v.slice(-4)}`;
+}
+
 function resolveCorsOrigin(origin: string | null): string | null {
   // Non-browser requests (PowerShell/CLI) often have no Origin; allow them
   if (!origin) return "*";
@@ -36,16 +51,32 @@ function corsHeaders(allowOrigin: string) {
     "access-control-allow-origin": allowOrigin,
     "vary": "origin",
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type, authorization, apikey, x-client-info",
+    "access-control-allow-headers":
+      "content-type, authorization, apikey, x-client-info, x-padrino-token",
   };
 }
 
-function json(status: number, body: Json, allowOrigin: string) {
+function json(status: number, body: Json, allowOrigin: string, requestId: string) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-request-id": requestId,
       ...corsHeaders(allowOrigin),
+    },
+  });
+}
+
+// For blocked-origin responses: no CORS headers by design
+function jsonNoCors(status: number, body: Json, requestId: string) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-request-id": requestId,
+      "vary": "origin",
     },
   });
 }
@@ -68,45 +99,90 @@ function buildSupabaseAdmin() {
 const supabase = buildSupabaseAdmin();
 
 serve(async (req) => {
+  const requestId = newRequestId();
+
   const origin = req.headers.get("origin");
   const allowOrigin = resolveCorsOrigin(origin);
 
   // If Origin is present but not allowed -> block
   if (origin && !allowOrigin) {
-    return new Response(JSON.stringify({ ok: false, error: "Origin not allowed" }), {
-      status: 403,
-      headers: { "content-type": "application/json; charset=utf-8", vary: "origin" },
-    });
+    console.warn(`[payments-create-session] request_id=${requestId} origin_blocked origin=${origin}`);
+    return jsonNoCors(403, { ok: false, error: "Origin not allowed", request_id: requestId }, requestId);
   }
 
   // Preflight
   if (req.method === "OPTIONS") {
+    console.info(
+      `[payments-create-session] request_id=${requestId} preflight origin=${origin ?? "none"} allow=${
+        allowOrigin ?? "*"
+      }`,
+    );
     return new Response("ok", {
       status: 200,
-      headers: corsHeaders(allowOrigin ?? "*"),
+      headers: {
+        ...corsHeaders(allowOrigin ?? "*"),
+        "cache-control": "no-store",
+        "x-request-id": requestId,
+      },
     });
   }
 
   if (req.method !== "POST") {
-    return json(405, { ok: false, error: "Method not allowed" }, allowOrigin ?? "*");
+    return json(
+      405,
+      { ok: false, error: "Method not allowed", request_id: requestId },
+      allowOrigin ?? "*",
+      requestId,
+    );
+  }
+
+  // ✅ Optional guard: if PAYMENTS_EDGE_TOKEN exists, require header x-padrino-token
+  const requiredToken = getEnv("PAYMENTS_EDGE_TOKEN");
+  if (requiredToken) {
+    const gotToken = safeString(req.headers.get("x-padrino-token"));
+    const ok = gotToken && gotToken === requiredToken;
+
+    if (!ok) {
+      console.warn(
+        `[payments-create-session] request_id=${requestId} auth_failed origin=${origin ?? "none"} allow=${
+          allowOrigin ?? "*"
+        }`,
+      );
+      return json(401, { ok: false, error: "Unauthorized", request_id: requestId }, allowOrigin ?? "*", requestId);
+    }
+
+    console.info(
+      `[payments-create-session] request_id=${requestId} auth_ok origin=${origin ?? "none"} allow=${allowOrigin ?? "*"}`,
+    );
   }
 
   try {
     const bodyUnknown: unknown = await req.json().catch(() => null);
     if (!isRecord(bodyUnknown)) {
-      return json(400, { ok: false, error: "Invalid JSON body" }, allowOrigin ?? "*");
+      return json(400, { ok: false, error: "Invalid JSON body", request_id: requestId }, allowOrigin ?? "*", requestId);
     }
 
     const order_id = safeString(bodyUnknown["order_id"]);
     const payment_method = (safeString(bodyUnknown["payment_method"]) as PaymentMethod) || "cash";
 
     if (!order_id) {
-      return json(400, { ok: false, error: "order_id required" }, allowOrigin ?? "*");
+      return json(400, { ok: false, error: "order_id required", request_id: requestId }, allowOrigin ?? "*", requestId);
     }
 
     if (payment_method !== "cash" && payment_method !== "card") {
-      return json(400, { ok: false, error: "Invalid payment_method" }, allowOrigin ?? "*");
+      return json(
+        400,
+        { ok: false, error: "Invalid payment_method", request_id: requestId },
+        allowOrigin ?? "*",
+        requestId,
+      );
     }
+
+    console.info(
+      `[payments-create-session] request_id=${requestId} start origin=${origin ?? "none"} allow=${
+        allowOrigin ?? "*"
+      } pm=${payment_method} order_id=${maskId(order_id)}`,
+    );
 
     // HARD GUARD: kartica disabled dok NLB ne stigne
     if (payment_method === "card") {
@@ -116,16 +192,25 @@ serve(async (req) => {
           ok: false,
           error: "Card payments are disabled (NLB pending).",
           code: "CARD_DISABLED",
+          request_id: requestId,
         },
         allowOrigin ?? "*",
+        requestId,
       );
     }
 
     const { data, error } = await supabase.from("orders").select("id").eq("id", order_id).single();
 
     if (error || !data?.id) {
-      return json(404, { ok: false, error: "Order not found" }, allowOrigin ?? "*");
+      console.warn(
+        `[payments-create-session] request_id=${requestId} order_not_found order_id=${maskId(order_id)} supabase_error=${
+          error?.message ?? "none"
+        }`,
+      );
+      return json(404, { ok: false, error: "Order not found", request_id: requestId }, allowOrigin ?? "*", requestId);
     }
+
+    console.info(`[payments-create-session] request_id=${requestId} ok mode=by_order_id order_id=${maskId(data.id)}`);
 
     return json(
       200,
@@ -134,11 +219,18 @@ serve(async (req) => {
         payment_method: "cash",
         order_id: data.id,
         mode: "by_order_id",
+        request_id: requestId,
       },
       allowOrigin ?? "*",
+      requestId,
     );
-  } catch (e) {
-    console.error("payments-create-session error:", e);
-    return json(500, { ok: false, error: String(e) }, allowOrigin ?? "*");
+  } catch (e: unknown) {
+    console.error(`[payments-create-session] request_id=${requestId} unhandled_error`, e);
+    return json(
+      500,
+      { ok: false, error: "Internal server error", request_id: requestId },
+      allowOrigin ?? "*",
+      requestId,
+    );
   }
 });

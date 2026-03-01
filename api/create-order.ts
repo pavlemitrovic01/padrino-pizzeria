@@ -1,7 +1,40 @@
 import { createClient } from "@supabase/supabase-js";
 
-function setCors(req: any, res: any) {
-  const origin = typeof req?.headers?.origin === "string" ? req.headers.origin : "";
+type PaymentMethod = "cash" | "card";
+type Json = Record<string, unknown>;
+
+type HeaderValue = string | string[] | undefined;
+type HeadersLike = Record<string, HeaderValue>;
+
+type ReqLike = {
+  method?: string;
+  headers?: HeadersLike;
+  body?: unknown;
+};
+
+type ResLike = {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => ResLike;
+  send: (body: string) => void;
+};
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+function toTrimmedString(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function headerString(req: ReqLike, key: string): string {
+  const raw = req.headers?.[key];
+  if (typeof raw === "string") return raw.trim();
+  if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
+  return "";
+}
+
+function setCors(req: ReqLike, res: ResLike) {
+  const origin = headerString(req, "origin");
   res.setHeader("Access-Control-Allow-Origin", origin || "*");
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -9,26 +42,27 @@ function setCors(req: any, res: any) {
   res.setHeader("Access-Control-Max-Age", "86400");
 }
 
-function json(res: any, status: number, body: any) {
+function json(res: ResLike, status: number, body: Json) {
   res.status(status);
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.send(JSON.stringify(body));
 }
 
-function toTrimmedString(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
+function getEnv(name: string): string {
+  return toTrimmedString(process.env[name]);
 }
 
-function getEnv(name: string): string {
-  return toTrimmedString((process.env as any)?.[name]);
+function maskId(value: string): string {
+  const v = value.trim();
+  if (!v) return "";
+  if (v.length <= 8) return `${v.slice(0, 2)}***`;
+  return `${v.slice(0, 4)}…${v.slice(-4)}`;
 }
 
 function buildSupabaseAdmin() {
   const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
   const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-    getEnv("SUPABASE_SERVICE_KEY") ||
-    getEnv("SUPABASE_SERVICE_ROLE");
+    getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY") || getEnv("SUPABASE_SERVICE_ROLE");
 
   if (!SUPABASE_URL || !SERVICE_ROLE) {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
@@ -51,15 +85,11 @@ function buildSupabaseAdmin() {
 
 const supabase = buildSupabaseAdmin();
 
-function isPlainObject(v: any): v is Record<string, any> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
 /**
  * Legacy meta zapis koji frontend ubacuje u items[0]:
  * { total_items: number, order_note?: string }
  */
-function looksLikeLegacyMetaItem(v: any) {
+function looksLikeLegacyMetaItem(v: unknown) {
   if (!isPlainObject(v)) return false;
   const keys = Object.keys(v);
   if (keys.length === 0) return false;
@@ -75,7 +105,7 @@ function looksLikeLegacyMetaItem(v: any) {
  * NOVO: “META” item koji frontend šalje kao “pravi item”
  * (cart_id/meta, category/meta, name/META), ima note, ali nema menu_item_id
  */
-function looksLikeCartMetaItem(v: any) {
+function looksLikeCartMetaItem(v: unknown) {
   if (!isPlainObject(v)) return false;
 
   const cartId = toTrimmedString(v.cart_id);
@@ -94,14 +124,13 @@ function looksLikeCartMetaItem(v: any) {
   return false;
 }
 
-function looksLikeRealItemButInvalid(v: any) {
+function looksLikeRealItemButInvalid(v: unknown) {
   if (!isPlainObject(v)) return false;
 
   // META item ne smemo tretirati kao “invalid real item”
   if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
 
-  const hasItemIdentity =
-    "name" in v || "menu_item_id" in v || "cart_id" in v || "menuItemId" in v;
+  const hasItemIdentity = "name" in v || "menu_item_id" in v || "cart_id" in v || "menuItemId" in v;
 
   if (!hasItemIdentity) return false;
 
@@ -111,16 +140,16 @@ function looksLikeRealItemButInvalid(v: any) {
   return !hasQty || !hasPpi;
 }
 
-function getRequestBaseUrl(req: any) {
-  const xfProto = toTrimmedString(req?.headers?.["x-forwarded-proto"]);
+function getRequestBaseUrl(req: ReqLike) {
+  const xfProto = headerString(req, "x-forwarded-proto");
   const proto = xfProto || "https";
-  const xfHost = toTrimmedString(req?.headers?.["x-forwarded-host"]);
-  const host = xfHost || toTrimmedString(req?.headers?.host);
+  const xfHost = headerString(req, "x-forwarded-host");
+  const host = xfHost || headerString(req, "host");
   if (!host) return "";
   return `${proto}://${host}`;
 }
 
-async function notifyTelegramBestEffort(req: any, orderId: string) {
+async function notifyTelegramBestEffort(req: ReqLike, orderId: string) {
   const base = getRequestBaseUrl(req);
   if (!base) return { attempted: false, ok: false, status: 0 };
 
@@ -144,8 +173,73 @@ async function notifyTelegramBestEffort(req: any, orderId: string) {
     }
 
     return { attempted: true, ok: true, status: r.status };
-  } catch (e) {
+  } catch (e: unknown) {
     console.error("[create-order] telegram notify error:", e);
+    return { attempted: true, ok: false, status: 0 };
+  }
+}
+
+/** -------------------- PAYMENTS (SERVER-SIDE BEST EFFORT) -------------------- */
+
+function getSupabaseFunctionUrl(functionName: string): string {
+  const base = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
+  if (!base) return "";
+  return `${base.replace(/\/+$/, "")}/functions/v1/${functionName}`;
+}
+
+function getSupabaseAnonKey(): string {
+  return (
+    getEnv("SUPABASE_ANON_KEY") ||
+    getEnv("VITE_SUPABASE_ANON_KEY") ||
+    getEnv("SUPABASE_ANON_PUBLIC_KEY") ||
+    getEnv("SUPABASE_PUBLIC_ANON_KEY")
+  );
+}
+
+async function notifyPaymentsBestEffort(orderId: string, paymentMethod: PaymentMethod) {
+  const url = getSupabaseFunctionUrl("payments-create-session");
+  const anon = getSupabaseAnonKey();
+
+  if (!url || !anon) {
+    // Backwards-compatible: if env not present, just skip
+    console.warn(
+      `[create-order] payments skip (missing url/anon) order_id=${maskId(orderId)} hasUrl=${!!url} hasAnon=${!!anon}`,
+    );
+    return { attempted: false, ok: false, status: 0 };
+  }
+
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        apikey: anon,
+        authorization: `Bearer ${anon}`,
+        "x-client-info": "padrino-vercel-api/create-order",
+      },
+      body: JSON.stringify({ order_id: orderId, payment_method: paymentMethod }),
+    });
+
+    const j = (await r.json().catch(() => null)) as Json | null;
+
+    if (!r.ok) {
+      const code = typeof j?.code === "string" ? j.code : "";
+      const reqId = typeof j?.request_id === "string" ? j.request_id : "";
+      console.warn(
+        `[create-order] payments call not-ok status=${r.status} code=${code || "none"} request_id=${
+          reqId || "none"
+        } order_id=${maskId(orderId)} pm=${paymentMethod}`,
+      );
+      return { attempted: true, ok: false, status: r.status };
+    }
+
+    const reqId = typeof j?.request_id === "string" ? j.request_id : "";
+    console.info(
+      `[create-order] payments ok status=${r.status} request_id=${reqId || "none"} order_id=${maskId(orderId)} pm=${paymentMethod}`,
+    );
+    return { attempted: true, ok: true, status: r.status };
+  } catch (e: unknown) {
+    console.error(`[create-order] payments error order_id=${maskId(orderId)} pm=${paymentMethod}`, e);
     return { attempted: true, ok: false, status: 0 };
   }
 }
@@ -203,8 +297,7 @@ function parseZoneAndFeeFromNote(note: string): {
     const norm = normalizeText(line);
     if (norm.includes("zona:") && norm.includes("dostava:")) {
       const mZone = line.match(/Zona\s*:\s*([^,]+)\s*,?/i);
-      const mFee =
-        line.match(/Dostava\s*:\s*([^\s]+)\s*€/i) || line.match(/Dostava\s*:\s*([^,\s]+)/i);
+      const mFee = line.match(/Dostava\s*:\s*([^\s]+)\s*€/i) || line.match(/Dostava\s*:\s*([^,\s]+)/i);
       if (mZone) zonePart = String(mZone[1] ?? "").trim();
       if (mFee) feePart = String(mFee[1] ?? "").trim();
       break;
@@ -223,51 +316,54 @@ function parseZoneAndFeeFromNote(note: string): {
   return { zone, requestedFeeCents };
 }
 
-function getMetaNote(body: any, rawItems: any[]): string {
+function getMetaNote(body: Record<string, unknown>, rawItems: unknown[]): string {
   const direct =
-    toTrimmedString(body?.note) ||
-    toTrimmedString(body?.order_note) ||
-    toTrimmedString(body?.orderNote);
+    toTrimmedString(body.note) || toTrimmedString(body.order_note) || toTrimmedString(body.orderNote);
 
   if (direct) return direct;
 
   // legacy meta
   const legacy = rawItems.find((it) => looksLikeLegacyMetaItem(it));
-  if (legacy) {
+  if (legacy && isPlainObject(legacy)) {
     return toTrimmedString(legacy.order_note) || toTrimmedString(legacy.note) || "";
   }
 
   // cart meta (naš)
   const meta = rawItems.find((it) => looksLikeCartMetaItem(it));
-  if (meta) {
+  if (meta && isPlainObject(meta)) {
     return toTrimmedString(meta.note) || "";
   }
 
   return "";
 }
 
-function safeInt(v: any): number {
+function safeInt(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
   if (!Number.isFinite(n)) return 0;
   return Math.trunc(n);
 }
+
+type MenuItemRow = {
+  id: unknown;
+  price_eur_cents?: unknown;
+  price?: unknown;
+};
 
 async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>> {
   const uniq = Array.from(new Set(ids.filter((s) => typeof s === "string" && s.trim().length > 0)));
   const map = new Map<string, number>();
   if (uniq.length === 0) return map;
 
-  const { data, error } = await supabase
-    .from("menu_items")
-    .select("id, price_eur_cents, price")
-    .in("id", uniq);
+  const { data, error } = await supabase.from("menu_items").select("id, price_eur_cents, price").in("id", uniq);
 
   if (error) {
     console.error("[create-order] menu_items fetch error:", error);
     throw new Error("Menu pricing lookup failed");
   }
 
-  for (const r of (data ?? []) as any[]) {
+  const rows = (data ?? []) as MenuItemRow[];
+
+  for (const r of rows) {
     const id = toTrimmedString(r?.id);
     const price_eur_cents = r?.price_eur_cents;
     const price = r?.price;
@@ -285,7 +381,7 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
   return map;
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ReqLike, res: ResLike) {
   setCors(req, res);
 
   if (req.method === "OPTIONS") {
@@ -298,16 +394,23 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const body = req.body ?? {};
+    const body = isPlainObject(req.body) ? req.body : {};
 
     const customer_name = toTrimmedString(body.customer_name);
     const customer_phone = toTrimmedString(body.customer_phone);
     const customer_address = toTrimmedString(body.customer_address);
 
-    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const rawItems: unknown[] = Array.isArray(body.items) ? body.items : [];
 
     const currency = toTrimmedString(body.currency) || "EUR";
     const status = toTrimmedString(body.status) || "pending";
+
+    // NEW (backwards-compatible): accept payment_method if sent
+    const pmRaw = toTrimmedString(body.payment_method) || toTrimmedString(body.paymentMethod);
+    if (pmRaw && pmRaw !== "cash" && pmRaw !== "card") {
+      return json(res, 400, { ok: false, error: "Invalid payment_method" });
+    }
+    const payment_method: PaymentMethod = pmRaw === "card" ? "card" : "cash";
 
     if (
       customer_name.length < 2 ||
@@ -325,7 +428,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // samo real itemi, bez meta (legacy + cart meta)
-    const calcItems = rawItems.filter((it: any) => {
+    const calcItems = rawItems.filter((it): it is Record<string, unknown> => {
       if (!isPlainObject(it)) return false;
       if (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)) return false;
 
@@ -428,7 +531,7 @@ export default async function handler(req: any, res: any) {
       return json(res, 400, { ok: false, error: "Total price must be greater than zero" });
     }
 
-    const insertRow: Record<string, any> = {
+    const insertRow: Record<string, unknown> = {
       customer_name,
       customer_phone,
       customer_address,
@@ -442,15 +545,21 @@ export default async function handler(req: any, res: any) {
 
     const { data, error } = await supabase.from("orders").insert(insertRow).select("id").single();
 
-    if (error) {
+    if (error || !data || typeof (data as { id?: unknown }).id !== "string") {
       console.error("Supabase insert error:", error);
       return json(res, 500, { ok: false, error: "Database insert failed" });
     }
 
-    const telegram = await notifyTelegramBestEffort(req, data.id);
+    const orderId = (data as { id: string }).id;
 
-    return json(res, 200, { ok: true, id: data.id, telegram });
-  } catch (err: any) {
+    // Telegram best-effort (existing)
+    const telegram = await notifyTelegramBestEffort(req, orderId);
+
+    // NEW: payments-create-session best-effort (server-side)
+    const payments = await notifyPaymentsBestEffort(orderId, payment_method);
+
+    return json(res, 200, { ok: true, id: orderId, telegram, payments });
+  } catch (err: unknown) {
     console.error("create-order fatal error:", err);
     return json(res, 500, { ok: false, error: "Internal server error" });
   }

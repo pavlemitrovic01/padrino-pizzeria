@@ -6,7 +6,13 @@ import { createOrder, type CreateOrderPayload } from "../lib/createOrder";
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const { items, totalPrice, clearCart } = useCart();
+  const { items, totalPrice, clearCart, checkout } = useCart();
+
+  // ✅ NLB not ready — keep card disabled here too (legacy screen safety)
+  const CARD_PAYMENTS_ENABLED = false;
+
+  const rawPaymentMethod = checkout?.paymentMethod ?? "cash";
+  const paymentMethod = CARD_PAYMENTS_ENABLED ? rawPaymentMethod : "cash";
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -53,7 +59,9 @@ export default function Checkout() {
         total_price: totalPrice,
         total_items: totalItems,
         note: note.trim() || null,
-        payment_method: "cash",
+
+        // ✅ payment is now state-driven (and safely forced to cash while card is disabled)
+        payment_method: paymentMethod,
       };
 
       const result = await createOrder(payload);
@@ -139,7 +147,9 @@ export default function Checkout() {
           </button>
 
           {!canSubmit && !submitting ? (
-            <div className="text-xs text-white/50">Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.</div>
+            <div className="text-xs text-white/50">
+              Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.
+            </div>
           ) : null}
         </form>
 
@@ -148,7 +158,8 @@ export default function Checkout() {
 
           <div className="space-y-3">
             {items.map((i) => {
-              const unit = typeof i.price === "number" ? i.price : typeof i.basePrice === "number" ? i.basePrice : 0;
+              const unit =
+                typeof i.price === "number" ? i.price : typeof i.basePrice === "number" ? i.basePrice : 0;
               const qty = i.quantity || 1;
               const lineTotal = unit * qty;
 
@@ -184,7 +195,9 @@ export default function Checkout() {
             <div className="text-2xl font-extrabold text-white">{formatEUR(totalPrice)}</div>
           </div>
 
-          <div className="mt-3 text-xs text-white/55">Plaćanje: gotovina (kartice uskoro).</div>
+          <div className="mt-3 text-xs text-white/55">
+            Plaćanje: {paymentMethod === "card" ? "kartica" : "gotovina"} (kartice uskoro).
+          </div>
         </aside>
       </div>
     </section>
