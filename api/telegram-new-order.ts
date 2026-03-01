@@ -1,12 +1,55 @@
 import { createClient } from "@supabase/supabase-js";
 
-function json(res: any, status: number, body: any) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.send(JSON.stringify(body));
+type Json = Record<string, unknown>;
+
+type HeaderValue = string | string[] | undefined;
+type HeadersLike = Record<string, HeaderValue>;
+
+type ReqLike = {
+  method?: string;
+  headers?: HeadersLike;
+  body?: unknown;
+};
+
+type ResLike = {
+  setHeader: (name: string, value: string) => void;
+  status: (code: number) => ResLike;
+  send: (body: string) => void;
+};
+
+type CartAddon = {
+  name?: unknown;
+  quantity?: unknown;
+};
+
+type CartItem = {
+  cart_id?: unknown;
+  name?: unknown;
+  category?: unknown;
+  quantity?: unknown;
+  size?: unknown;
+  addons?: unknown;
+  note?: unknown;
+};
+
+type OrderRow = {
+  id?: unknown;
+  customer_name?: unknown;
+  customer_phone?: unknown;
+  customer_address?: unknown;
+  status?: unknown;
+  total_eur_cents?: unknown;
+  total_price?: unknown;
+  currency?: unknown;
+  items?: unknown;
+  note?: unknown;
+};
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
 }
 
-function isPlainObject(v: unknown): v is Record<string, any> {
+function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
@@ -14,57 +57,34 @@ function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-function normalizeHeaderValue(v: unknown): string {
-  if (Array.isArray(v)) return String(v[0] ?? "").trim();
-  return String(v ?? "").trim();
+function headerString(req: ReqLike, key: string): string {
+  const raw = req.headers?.[key];
+  if (typeof raw === "string") return raw.trim();
+  if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
+  return "";
 }
 
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const SERVICE_ROLE =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE;
-
-  if (!SUPABASE_URL) throw new Error("Missing env: SUPABASE_URL (or VITE_SUPABASE_URL)");
-  if (!SERVICE_ROLE) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)");
-
-  let u: URL;
-  try {
-    u = new URL(SUPABASE_URL);
-  } catch {
-    throw new Error("Invalid supabaseUrl: Provided URL is malformed.");
-  }
-  if (!u.hostname.endsWith(".supabase.co")) {
-    throw new Error("Invalid supabaseUrl: Expected *.supabase.co host.");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/telegram-new-order" } },
-  });
+function setCors(req: ReqLike, res: ResLike) {
+  const origin = headerString(req, "origin");
+  res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, x-telegram-secret");
+  res.setHeader("Vary", "Origin");
 }
 
-async function sendTelegramMessage(text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+function json(res: ResLike, status: number, body: Json) {
+  res.status(status);
+  res.setHeader("content-type", "application/json; charset=utf-8");
+  res.send(JSON.stringify(body));
+}
 
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (isRecord(err) && typeof err.message === "string" && err.message.trim()) return err.message.trim();
   try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        // bez parse_mode => najstabilnije za emoji + plain text
-        disable_web_page_preview: true,
-      }),
-    });
+    return String(err);
   } catch {
-    // best-effort
+    return "Unknown error";
   }
 }
 
@@ -90,15 +110,19 @@ function formatTotalFromCents(cents: number) {
   return (n / 100).toFixed(2);
 }
 
-function isMetaRow(it: any) {
-  const cartId = String(it?.cart_id ?? "").trim().toLowerCase();
-  const name = String(it?.name ?? "").trim().toLowerCase();
-  const cat = String(it?.category ?? "").trim().toLowerCase();
+function isMetaRow(it: unknown) {
+  if (!isPlainObject(it)) return false;
+
+  const cartId = normalizeText(toTrimmedString(it.cart_id));
+  const name = normalizeText(toTrimmedString(it.name));
+  const cat = normalizeText(toTrimmedString(it.category));
+
   return cartId === "meta" || name === "meta" || cat === "meta";
 }
 
-function isDrinkRow(it: any) {
-  const c = normalizeText(String(it?.category ?? ""));
+function isDrinkRow(it: unknown) {
+  if (!isPlainObject(it)) return false;
+  const c = normalizeText(toTrimmedString(it.category));
   return c.includes("pica") || c.includes("pice") || c.includes("napici") || c.includes("napitci");
 }
 
@@ -115,59 +139,162 @@ function addonEmoji(name: string) {
   return "➕";
 }
 
-function formatOrderForTelegram(order: any) {
-  const name = String(order?.customer_name ?? "").trim();
-  const phone = String(order?.customer_phone ?? "").trim();
-  const address = String(order?.customer_address ?? "").trim();
-  const status = String(order?.status ?? "pending").trim() || "pending";
+function parseItems(raw: unknown): CartItem[] {
+  if (Array.isArray(raw)) return raw as CartItem[];
 
-  const totalCents = safeInt(order?.total_eur_cents, 0);
+  if (typeof raw === "string") {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as CartItem[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+/** META parsing: Zona / Dostava / Plaćanje (i čista napomena) */
+
+type ParsedMeta = {
+  zone: string;
+  delivery: string;
+  payment: string;
+  extraNote: string;
+};
+
+function splitNoteLines(note: string): string[] {
+  return String(note ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function parseMetaFromNote(note: string): ParsedMeta {
+  const lines = splitNoteLines(note);
+  let zone = "";
+  let delivery = "";
+  let payment = "";
+
+  const extra: string[] = [];
+
+  for (const line of lines) {
+    const norm = normalizeText(line);
+    let usedAsMeta = false;
+
+    if (norm.includes("zona:") || norm.includes("dostava:") || norm.includes("placanje:")) {
+      if (!zone && norm.includes("zona:")) {
+        const mZone = line.match(/Zona\s*:\s*([^,]+)\s*,?/i);
+        if (mZone && typeof mZone[1] === "string") {
+          zone = mZone[1].trim();
+          usedAsMeta = true;
+        }
+      }
+
+      if (!delivery && norm.includes("dostava:")) {
+        const mFeeNum = line.match(/Dostava\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
+        if (mFeeNum && typeof mFeeNum[1] === "string") {
+          delivery = `${mFeeNum[1].trim()} €`;
+          usedAsMeta = true;
+        } else {
+          const mFeeAny = line.match(/Dostava\s*:\s*([^,]+)$/i);
+          if (mFeeAny && typeof mFeeAny[1] === "string") {
+            delivery = mFeeAny[1].trim();
+            usedAsMeta = true;
+          }
+        }
+      }
+
+      if (!payment && norm.includes("placanje:")) {
+        const mPay = line.match(/Pla[cć]anje\s*:\s*(.+)$/i);
+        if (mPay && typeof mPay[1] === "string") {
+          payment = mPay[1].trim();
+          usedAsMeta = true;
+        }
+      }
+    }
+
+    if (!usedAsMeta) extra.push(line);
+  }
+
+  return { zone, delivery, payment, extraNote: extra.join("\n").trim() };
+}
+
+function paymentIcon(payment: string): string {
+  const p = normalizeText(payment);
+  if (p.includes("kart")) return "💳";
+  if (p.includes("gotov") || p.includes("kes") || p.includes("cash")) return "💵";
+  return "💳";
+}
+
+function extractOrderNote(order: OrderRow, items: CartItem[]) {
+  // 1) prefer order.note ako postoji
+  const direct = toTrimmedString(order?.note);
+  if (direct) return direct;
+
+  // 2) meta stavka (createOrder ubaci META sa note)
+  const meta = items.find((it) => isMetaRow(it));
+  const metaNote = meta ? toTrimmedString(meta.note) : "";
+  return metaNote;
+}
+
+function formatOrderForTelegram(order: OrderRow) {
+  const name = toTrimmedString(order?.customer_name) || "-";
+  const phone = toTrimmedString(order?.customer_phone) || "-";
+  const address = toTrimmedString(order?.customer_address) || "-";
+  const status = toTrimmedString(order?.status) || "pending";
+
+  const rawItemsAll = parseItems(order?.items);
+  const orderNoteRaw = extractOrderNote(order, rawItemsAll);
+  const meta = parseMetaFromNote(orderNoteRaw);
+
+  const rawItems = rawItemsAll.filter((it) => isPlainObject(it) && toTrimmedString(it.cart_id) && !isMetaRow(it));
+  const pizzas = rawItems.filter((it) => !isDrinkRow(it));
+  const drinks = rawItems.filter((it) => isDrinkRow(it));
+
+  const totalCents =
+    Math.max(0, safeInt(order?.total_eur_cents, 0)) ||
+    Math.max(0, Math.round((typeof order?.total_price === "number" ? order.total_price : Number(order?.total_price)) * 100 || 0));
+
   const total = formatTotalFromCents(totalCents);
-
-  const rawItems = Array.isArray(order?.items) ? order.items : [];
-
-  // 1) izvuci napomenu sa META stavke (ako postoji)
-  const meta = rawItems.find((it: any) => isPlainObject(it) && isMetaRow(it));
-  const orderNote = meta && typeof meta.note === "string" ? meta.note.trim() : "";
-
-  // 2) pravi items = bez META
-  const items = rawItems.filter(
-    (it: any) => isPlainObject(it) && (it as any).cart_id && !isMetaRow(it)
-  );
-
-  // 3) podeli na pizze i pica
-  const pizzas = items.filter((it: any) => !isDrinkRow(it));
-  const drinks = items.filter((it: any) => isDrinkRow(it));
 
   const lines: string[] = [];
 
   lines.push("📪📬📭 Nova porudžbina:");
-  lines.push(`🙅‍♂️ Ime: ${name || "-"}`);
-  lines.push(`☎️ Telefon: ${phone || "-"}`);
-  lines.push(`🏠 Adresa: ${address || "-"}`);
+  lines.push(`🙅‍♂️ Ime: ${name}`);
+  lines.push(`☎️ Telefon: ${phone}`);
+  lines.push(`🏠 Adresa: ${address}`);
   lines.push(`🕒 Status: ${status}`);
+
+  if (meta.zone) lines.push(`📍 Zona: ${meta.zone}`);
+  if (meta.delivery) lines.push(`🚚 Dostava: ${meta.delivery}`);
+  if (meta.payment) lines.push(`${paymentIcon(meta.payment)} Plaćanje: ${meta.payment}`);
+
   lines.push("");
   lines.push("🔊🔊 LISTA PROIZVODA:");
 
-  // PIZZE + DODACI + NAPOMENE PO STAVCI
   for (const it of pizzas) {
-    const nm = String(it?.name ?? "").trim() || "Proizvod";
+    const nm = toTrimmedString(it?.name) || "Proizvod";
     const qty = Math.max(1, safeInt(it?.quantity, 1));
-    const size = typeof it?.size === "string" && it.size.trim() ? ` (${it.size.trim()})` : "";
+    const sizeRaw = toTrimmedString(it?.size);
+    const size = sizeRaw ? ` (${sizeRaw})` : "";
+
     lines.push(`🍕 ● ${qty}x ${nm}${size}`);
 
-    const addons = Array.isArray(it?.addons) ? it.addons : [];
+    const addonsRaw = it?.addons;
+    const addons: CartAddon[] = Array.isArray(addonsRaw) ? (addonsRaw as CartAddon[]) : [];
+
     if (addons.length > 0) {
-      lines.push(`🍄● Dodaci:`);
+      lines.push("🍄● Dodaci:");
       for (const a of addons) {
-        const an = String(a?.name ?? "").trim();
+        const an = toTrimmedString(a?.name);
         if (!an) continue;
         const aq = Math.max(1, safeInt(a?.quantity, 1));
         lines.push(` ${addonEmoji(an)}● ${aq}x ${an}`);
       }
     }
 
-    const itemNote = typeof it?.note === "string" ? it.note.trim() : "";
+    const itemNote = toTrimmedString(it?.note);
     if (itemNote) {
       lines.push(`🚨 ● NAPOMENA: ${itemNote}`);
     }
@@ -175,20 +302,18 @@ function formatOrderForTelegram(order: any) {
     lines.push("");
   }
 
-  // PIĆA
   if (drinks.length > 0) {
     lines.push("🥤● Piće:");
     for (const it of drinks) {
-      const nm = String(it?.name ?? "").trim() || "Piće";
+      const nm = toTrimmedString(it?.name) || "Piće";
       const qty = Math.max(1, safeInt(it?.quantity, 1));
       lines.push(`  - ${qty}x ${nm}`);
     }
     lines.push("");
   }
 
-  // NAPOMENA ZA PORUDŽBINU (iz META.note)
-  if (orderNote) {
-    lines.push(`🚨 ● NAPOMENA: ${orderNote}`);
+  if (meta.extraNote) {
+    lines.push(`🚨 ● NAPOMENA: ${meta.extraNote}`);
     lines.push("");
   }
 
@@ -197,52 +322,93 @@ function formatOrderForTelegram(order: any) {
   return lines.join("\n").trim();
 }
 
-export default async function handler(req: any, res: any) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", req.headers?.origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "content-type, x-telegram-secret");
+function getEnv(name: string): string {
+  return toTrimmedString(process.env[name]);
+}
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return json(res, 405, { ok: false, error: "Method Not Allowed" });
+function buildSupabaseAdmin() {
+  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
+  const SERVICE_ROLE =
+    getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY") || getEnv("SUPABASE_SERVICE_ROLE");
+
+  if (!SUPABASE_URL) throw new Error("Missing env: SUPABASE_URL (or VITE_SUPABASE_URL)");
+  if (!SERVICE_ROLE) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)");
+
+  let u: URL;
+  try {
+    u = new URL(SUPABASE_URL);
+  } catch {
+    throw new Error("Invalid supabaseUrl: Provided URL is malformed.");
+  }
+  if (!u.hostname.endsWith(".supabase.co")) {
+    throw new Error("Invalid supabaseUrl: Expected *.supabase.co host.");
+  }
+
+  return createClient(SUPABASE_URL, SERVICE_ROLE, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { "X-Client-Info": "padrino-vercel-api/telegram-new-order" } },
+  });
+}
+
+const supabase = buildSupabaseAdmin();
+
+async function sendTelegramMessage(text: string) {
+  const token = getEnv("TELEGRAM_BOT_TOKEN");
+  const chatId = getEnv("TELEGRAM_CHAT_ID");
+  if (!token || !chatId) return;
+
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        // bez parse_mode => najstabilnije za emoji + plain text
+        disable_web_page_preview: true,
+      }),
+    });
+  } catch {
+    // best-effort
+  }
+}
+
+export default async function handler(req: ReqLike, res: ResLike) {
+  setCors(req, res);
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
+  if (req.method !== "POST") {
+    return json(res, 405, { ok: false, error: "Method Not Allowed" });
+  }
 
   // Secret guard (ako postoji env)
-  const expectedSecret = toTrimmedString(process.env.TELEGRAM_WEBHOOK_SECRET);
+  const expectedSecret = getEnv("TELEGRAM_WEBHOOK_SECRET");
   if (expectedSecret) {
-    const got = normalizeHeaderValue(req.headers?.["x-telegram-secret"]);
+    const got = headerString(req, "x-telegram-secret");
     if (!got || got !== expectedSecret) {
       return json(res, 401, { ok: false, error: "Unauthorized" });
     }
   }
 
   const body = isPlainObject(req.body) ? req.body : {};
-  const order_id =
-    toTrimmedString((body as any).order_id) || toTrimmedString((body as any).orderId);
+  const order_id = toTrimmedString(body.order_id) || toTrimmedString(body.orderId);
 
   if (!order_id) return json(res, 400, { ok: false, error: "order_id required" });
 
-  let order: any = null;
-  let error: any = null;
-
-  try {
-    const supabaseAdmin = buildSupabaseAdmin();
-    const result = await supabaseAdmin.from("orders").select("*").eq("id", order_id).single();
-    order = result.data;
-    error = result.error;
-  } catch (e) {
-    error = e;
-  }
+  const { data: order, error } = await supabase.from("orders").select("*").eq("id", order_id).single();
 
   if (error) {
-    return json(res, 500, {
-      ok: false,
-      error:
-        typeof error === "object" && error && "message" in error ? (error as any).message : String(error),
-    });
+    return json(res, 500, { ok: false, error: errorMessage(error) });
   }
 
   try {
-    const message = formatOrderForTelegram(order);
+    const message = formatOrderForTelegram((order ?? {}) as OrderRow);
     await sendTelegramMessage(message);
   } catch {
     // best-effort

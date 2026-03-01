@@ -31,6 +31,23 @@ type ParsedItem = {
   note: string | null;
 };
 
+type MetaItem = {
+  total_items?: unknown;
+  order_note?: unknown;
+  note?: unknown;
+  cart_id?: unknown;
+  name?: unknown;
+  category?: unknown;
+};
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 function safeString(v: unknown): string {
   if (typeof v === "string") return v.trim();
   if (v == null) return "";
@@ -43,6 +60,15 @@ function safeString(v: unknown): string {
 
 function safeInt(v: unknown, fallback = 0): number {
   return toSafeInt(v, fallback);
+}
+
+function safeNumberOrNull(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
 }
 
 function safeDateTime(value: unknown) {
@@ -73,25 +99,49 @@ function getOrderTotalLabel(o: OrderRow) {
   return formatRSD(o.total_price ?? 0);
 }
 
-function parseOrderItems(itemsRaw: unknown[] | null): { meta: any | null; items: ParsedItem[] } {
+function normalizeText(value: string) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replaceAll("č", "c")
+    .replaceAll("ć", "c")
+    .replaceAll("š", "s")
+    .replaceAll("ž", "z")
+    .replaceAll("đ", "dj")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isMetaRow(v: unknown): v is MetaItem {
+  if (!isPlainObject(v)) return false;
+
+  const cartId = normalizeText(safeString(v.cart_id));
+  const name = normalizeText(safeString(v.name));
+  const cat = normalizeText(safeString(v.category));
+
+  return cartId === "meta" || name === "meta" || cat === "meta";
+}
+
+function parseOrderItems(itemsRaw: unknown[] | null): { meta: MetaItem | null; items: ParsedItem[] } {
   if (!Array.isArray(itemsRaw) || itemsRaw.length === 0) return { meta: null, items: [] };
 
-  const [first, ...rest] = itemsRaw;
+  const metaObj = itemsRaw.find((x): x is MetaItem => isMetaRow(x));
+  const meta = metaObj ?? null;
 
-  const meta = first && typeof first === "object" && !Array.isArray(first) ? (first as any) : null;
-
-  const items: ParsedItem[] = rest
-    .filter((x) => x && typeof x === "object" && !Array.isArray(x))
-    .map((x: any) => {
-      const addons = Array.isArray(x.addons)
-        ? x.addons
-            .filter((a: any) => a && typeof a === "object" && !Array.isArray(a))
-            .map((a: any) => ({
-              name: safeString(a.name),
-              quantity: Math.max(1, safeInt(a.quantity, 1)),
-              price: safeInt(a.price, 0),
-            }))
-        : [];
+  // ✅ Type narrowing: posle ovog filtera `x` više nije `unknown`
+  const items: ParsedItem[] = itemsRaw
+    .filter((x): x is Record<string, unknown> => isPlainObject(x) && !isMetaRow(x))
+    .map((x) => {
+      const addonsRaw = x.addons;
+      const addons =
+        Array.isArray(addonsRaw) && addonsRaw.length > 0
+          ? addonsRaw
+              .filter((a): a is Record<string, unknown> => isPlainObject(a))
+              .map((a) => ({
+                name: safeString(a.name),
+                quantity: Math.max(1, safeInt(a.quantity, 1)),
+                price: safeInt(a.price, 0),
+              }))
+          : [];
 
       return {
         name: safeString(x.name),
@@ -125,6 +175,10 @@ const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.ap
 
 type AdminStatusUpdateResponse = { ok: true; status: OrderStatus } | { ok: false; error: string };
 
+function isOrderStatus(v: unknown): v is OrderStatus {
+  return v === "pending" || v === "preparing" || v === "done" || v === "cancelled";
+}
+
 async function adminUpdateOrderStatus(orderId: string, next: OrderStatus): Promise<AdminStatusUpdateResponse> {
   const { data } = await supabaseAdminAuth.auth.getSession();
   const token = data?.session?.access_token;
@@ -142,21 +196,59 @@ async function adminUpdateOrderStatus(orderId: string, next: OrderStatus): Promi
     body: JSON.stringify({ order_id: orderId, next_status: next }),
   });
 
-  const json = (await res.json().catch(() => null)) as any;
+  const jsonBody: unknown = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const msg = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : `HTTP ${res.status}`;
+    const msg =
+      isRecord(jsonBody) && typeof jsonBody.error === "string" && jsonBody.error.trim()
+        ? jsonBody.error.trim()
+        : `HTTP ${res.status}`;
     return { ok: false, error: msg };
   }
 
-  if (json && json.ok === true && typeof json.status === "string") {
-    return { ok: true, status: json.status as OrderStatus };
+  if (isRecord(jsonBody) && jsonBody.ok === true && isOrderStatus(jsonBody.status)) {
+    return { ok: true, status: jsonBody.status };
   }
 
   return { ok: false, error: "Unexpected response from admin-update-order-status" };
 }
 
 type AdminOrdersResponse = { ok: true; orders: OrderRow[] } | { ok: false; error: string };
+
+function normalizeOrderRow(raw: unknown): OrderRow | null {
+  if (!isPlainObject(raw)) return null;
+
+  const id = safeString(raw.id);
+  const created_at = safeString(raw.created_at);
+  const customer_name = safeString(raw.customer_name);
+  const customer_phone = safeString(raw.customer_phone);
+  const customer_address = safeString(raw.customer_address);
+
+  if (!id) return null;
+
+  const total_price = safeNumberOrNull(raw.total_price);
+  const currency = safeString(raw.currency) || null;
+  const total_eur_cents = safeNumberOrNull(raw.total_eur_cents);
+  const fx_rsd_per_eur = safeNumberOrNull(raw.fx_rsd_per_eur);
+
+  const items = Array.isArray(raw.items) ? (raw.items as unknown[]) : null;
+
+  const status: OrderStatus | null = isOrderStatus(raw.status) ? raw.status : null;
+
+  return {
+    id,
+    created_at,
+    customer_name,
+    customer_phone,
+    customer_address,
+    total_price,
+    currency,
+    total_eur_cents,
+    fx_rsd_per_eur,
+    items,
+    status,
+  };
+}
 
 async function adminFetchOrders(limit = 200): Promise<AdminOrdersResponse> {
   const { data } = await supabaseAdminAuth.auth.getSession();
@@ -173,15 +265,19 @@ async function adminFetchOrders(limit = 200): Promise<AdminOrdersResponse> {
     },
   });
 
-  const json = (await res.json().catch(() => null)) as any;
+  const jsonBody: unknown = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const msg = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : `HTTP ${res.status}`;
+    const msg =
+      isRecord(jsonBody) && typeof jsonBody.error === "string" && jsonBody.error.trim()
+        ? jsonBody.error.trim()
+        : `HTTP ${res.status}`;
     return { ok: false, error: msg };
   }
 
-  if (json && json.ok === true && Array.isArray(json.orders)) {
-    return { ok: true, orders: json.orders as OrderRow[] };
+  if (isRecord(jsonBody) && jsonBody.ok === true && Array.isArray(jsonBody.orders)) {
+    const orders = jsonBody.orders.map((o) => normalizeOrderRow(o)).filter((o): o is OrderRow => Boolean(o));
+    return { ok: true, orders };
   }
 
   return { ok: false, error: "Unexpected response from admin-orders" };
@@ -206,14 +302,17 @@ async function adminResendTelegram(orderId: string): Promise<AdminResendTelegram
     body: JSON.stringify({ order_id: orderId }),
   });
 
-  const json = (await res.json().catch(() => null)) as any;
+  const jsonBody: unknown = await res.json().catch(() => null);
 
   if (!res.ok) {
-    const msg = typeof json?.error === "string" && json.error.trim() ? json.error.trim() : `HTTP ${res.status}`;
+    const msg =
+      isRecord(jsonBody) && typeof jsonBody.error === "string" && jsonBody.error.trim()
+        ? jsonBody.error.trim()
+        : `HTTP ${res.status}`;
     return { ok: false, error: msg };
   }
 
-  if (json && json.ok === true) {
+  if (isRecord(jsonBody) && jsonBody.ok === true) {
     return { ok: true, telegram: "sent" };
   }
 
@@ -278,7 +377,6 @@ export default function AdminOrders() {
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const renderedOrders = useMemo(() => orders, [orders]);
@@ -369,8 +467,9 @@ export default function AdminOrders() {
             <div className="space-y-3">
               {renderedOrders.map((o) => {
                 const parsed = parseOrderItems(o.items);
-                const metaTotalItems =
-                  parsed.meta && typeof parsed.meta.total_items === "number" ? safeInt(parsed.meta.total_items, 0) : null;
+
+                const metaTotalItemsRaw = parsed.meta ? safeInt(parsed.meta.total_items, 0) : 0;
+                const metaTotalItems = metaTotalItemsRaw > 0 ? metaTotalItemsRaw : null;
 
                 const computedCount = metaTotalItems ?? parsed.items.reduce((s, it) => s + it.quantity, 0);
 
@@ -394,7 +493,7 @@ export default function AdminOrders() {
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span
                             className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${pillClass(
-                              currentStatus
+                              currentStatus,
                             )}`}
                           >
                             Status: {currentStatus}
@@ -467,10 +566,7 @@ export default function AdminOrders() {
                           const lineTotal = safeInt(it.price_per_item, 0) * qty;
 
                           return (
-                            <div
-                              key={`${o.id}-${idx}`}
-                              className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                            >
+                            <div key={`${o.id}-${idx}`} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                               <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
                                   <p className="text-white font-semibold truncate">

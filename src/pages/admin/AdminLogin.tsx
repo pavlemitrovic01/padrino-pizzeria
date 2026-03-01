@@ -19,14 +19,27 @@ function cleanUrl() {
   window.history.replaceState({}, document.title, window.location.pathname);
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function getStringProp(obj: Record<string, unknown>, key: string): string {
+  const v = obj[key];
+  return typeof v === "string" ? v.trim() : "";
+}
+
 function extractSupabaseErrorMessage(err: unknown): string {
-  if (err && typeof err === "object") {
-    const anyErr = err as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) return anyErr.message.trim();
-    if (typeof anyErr.error_description === "string" && anyErr.error_description.trim())
-      return anyErr.error_description.trim();
-    if (typeof anyErr.error === "string" && anyErr.error.trim()) return anyErr.error.trim();
+  if (isRecord(err)) {
+    const msg = getStringProp(err, "message");
+    if (msg) return msg;
+
+    const desc = getStringProp(err, "error_description");
+    if (desc) return desc;
+
+    const e = getStringProp(err, "error");
+    if (e) return e;
   }
+
   if (err instanceof Error && err.message.trim()) return err.message.trim();
   return "Greška pri prijavi. Pokušajte ponovo.";
 }
@@ -351,11 +364,7 @@ export default function AdminLogin() {
             canSend ? "bg-yellow-500 hover:bg-yellow-400 text-black" : "bg-yellow-500/50 text-black/60",
           ].join(" ")}
         >
-          {submitting
-            ? "Šaljem…"
-            : cooldownSeconds > 0
-            ? `Sačekaj ${cooldownSeconds}s`
-            : "Pošalji magični link"}
+          {submitting ? "Šaljem…" : cooldownSeconds > 0 ? `Sačekaj ${cooldownSeconds}s` : "Pošalji magični link"}
         </button>
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
