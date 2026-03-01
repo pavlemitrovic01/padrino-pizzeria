@@ -33,7 +33,6 @@ export default function Checkout() {
     try {
       setSubmitting(true);
 
-      // Bez `any`: koristimo postojeće tipove iz src/lib/createOrder.ts
       const payload: CreateOrderPayload = {
         customer_name: name.trim(),
         customer_phone: phone.trim(),
@@ -54,6 +53,7 @@ export default function Checkout() {
         total_price: totalPrice,
         total_items: totalItems,
         note: note.trim() || null,
+        payment_method: "cash",
       };
 
       const result = await createOrder(payload);
@@ -118,9 +118,7 @@ export default function Checkout() {
             />
           </div>
 
-          {error ? (
-            <div className="rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">{error}</div>
-          ) : null}
+          {error ? <div className="rounded-2xl bg-red-500/10 p-4 text-sm text-red-200">{error}</div> : null}
 
           <button
             type="submit"
@@ -141,9 +139,7 @@ export default function Checkout() {
           </button>
 
           {!canSubmit && !submitting ? (
-            <div className="text-xs text-white/50">
-              Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.
-            </div>
+            <div className="text-xs text-white/50">Popuni ime/telefon/adresu i provjeri da korpa ima ispravan obračun.</div>
           ) : null}
         </form>
 
@@ -152,8 +148,7 @@ export default function Checkout() {
 
           <div className="space-y-3">
             {items.map((i) => {
-              const unit =
-                typeof i.price === "number" ? i.price : typeof i.basePrice === "number" ? i.basePrice : 0;
+              const unit = typeof i.price === "number" ? i.price : typeof i.basePrice === "number" ? i.basePrice : 0;
               const qty = i.quantity || 1;
               const lineTotal = unit * qty;
 
