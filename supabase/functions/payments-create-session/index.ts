@@ -51,8 +51,7 @@ function corsHeaders(allowOrigin: string) {
     "access-control-allow-origin": allowOrigin,
     "vary": "origin",
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers":
-      "content-type, authorization, apikey, x-client-info, x-padrino-token",
+    "access-control-allow-headers": "content-type, authorization, apikey, x-client-info, x-padrino-token",
   };
 }
 
@@ -112,11 +111,6 @@ serve(async (req) => {
 
   // Preflight
   if (req.method === "OPTIONS") {
-    console.info(
-      `[payments-create-session] request_id=${requestId} preflight origin=${origin ?? "none"} allow=${
-        allowOrigin ?? "*"
-      }`,
-    );
     return new Response("ok", {
       status: 200,
       headers: {
@@ -128,21 +122,14 @@ serve(async (req) => {
   }
 
   if (req.method !== "POST") {
-    return json(
-      405,
-      { ok: false, error: "Method not allowed", request_id: requestId },
-      allowOrigin ?? "*",
-      requestId,
-    );
+    return json(405, { ok: false, error: "Method not allowed", request_id: requestId }, allowOrigin ?? "*", requestId);
   }
 
-  // ✅ Optional guard: if PAYMENTS_EDGE_TOKEN exists, require header x-padrino-token
+  // ✅ Optional guard: enforce only if PAYMENTS_EDGE_TOKEN exists
   const requiredToken = getEnv("PAYMENTS_EDGE_TOKEN");
   if (requiredToken) {
     const gotToken = safeString(req.headers.get("x-padrino-token"));
-    const ok = gotToken && gotToken === requiredToken;
-
-    if (!ok) {
+    if (!gotToken || gotToken !== requiredToken) {
       console.warn(
         `[payments-create-session] request_id=${requestId} auth_failed origin=${origin ?? "none"} allow=${
           allowOrigin ?? "*"
@@ -150,10 +137,6 @@ serve(async (req) => {
       );
       return json(401, { ok: false, error: "Unauthorized", request_id: requestId }, allowOrigin ?? "*", requestId);
     }
-
-    console.info(
-      `[payments-create-session] request_id=${requestId} auth_ok origin=${origin ?? "none"} allow=${allowOrigin ?? "*"}`,
-    );
   }
 
   try {
@@ -210,27 +193,14 @@ serve(async (req) => {
       return json(404, { ok: false, error: "Order not found", request_id: requestId }, allowOrigin ?? "*", requestId);
     }
 
-    console.info(`[payments-create-session] request_id=${requestId} ok mode=by_order_id order_id=${maskId(data.id)}`);
-
     return json(
       200,
-      {
-        ok: true,
-        payment_method: "cash",
-        order_id: data.id,
-        mode: "by_order_id",
-        request_id: requestId,
-      },
+      { ok: true, payment_method: "cash", order_id: data.id, mode: "by_order_id", request_id: requestId },
       allowOrigin ?? "*",
       requestId,
     );
   } catch (e: unknown) {
     console.error(`[payments-create-session] request_id=${requestId} unhandled_error`, e);
-    return json(
-      500,
-      { ok: false, error: "Internal server error", request_id: requestId },
-      allowOrigin ?? "*",
-      requestId,
-    );
+    return json(500, { ok: false, error: "Internal server error", request_id: requestId }, allowOrigin ?? "*", requestId);
   }
 });

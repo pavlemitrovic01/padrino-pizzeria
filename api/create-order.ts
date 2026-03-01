@@ -196,9 +196,15 @@ function getSupabaseAnonKey(): string {
   );
 }
 
+function getPaymentsEdgeToken(): string {
+  // This must exist on the Vercel server environment (not Supabase Vault)
+  return getEnv("PAYMENTS_EDGE_TOKEN");
+}
+
 async function notifyPaymentsBestEffort(orderId: string, paymentMethod: PaymentMethod) {
   const url = getSupabaseFunctionUrl("payments-create-session");
   const anon = getSupabaseAnonKey();
+  const edgeToken = getPaymentsEdgeToken();
 
   if (!url || !anon) {
     // Backwards-compatible: if env not present, just skip
@@ -208,15 +214,22 @@ async function notifyPaymentsBestEffort(orderId: string, paymentMethod: PaymentM
     return { attempted: false, ok: false, status: 0 };
   }
 
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    apikey: anon,
+    authorization: `Bearer ${anon}`,
+    "x-client-info": "padrino-vercel-api/create-order",
+  };
+
+  // ✅ NEW: send guard token only if configured
+  if (edgeToken) {
+    headers["x-padrino-token"] = edgeToken;
+  }
+
   try {
     const r = await fetch(url, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        apikey: anon,
-        authorization: `Bearer ${anon}`,
-        "x-client-info": "padrino-vercel-api/create-order",
-      },
+      headers,
       body: JSON.stringify({ order_id: orderId, payment_method: paymentMethod }),
     });
 
@@ -228,18 +241,23 @@ async function notifyPaymentsBestEffort(orderId: string, paymentMethod: PaymentM
       console.warn(
         `[create-order] payments call not-ok status=${r.status} code=${code || "none"} request_id=${
           reqId || "none"
-        } order_id=${maskId(orderId)} pm=${paymentMethod}`,
+        } order_id=${maskId(orderId)} pm=${paymentMethod} token=${edgeToken ? "yes" : "no"}`,
       );
       return { attempted: true, ok: false, status: r.status };
     }
 
     const reqId = typeof j?.request_id === "string" ? j.request_id : "";
     console.info(
-      `[create-order] payments ok status=${r.status} request_id=${reqId || "none"} order_id=${maskId(orderId)} pm=${paymentMethod}`,
+      `[create-order] payments ok status=${r.status} request_id=${reqId || "none"} order_id=${maskId(
+        orderId,
+      )} pm=${paymentMethod} token=${edgeToken ? "yes" : "no"}`,
     );
     return { attempted: true, ok: true, status: r.status };
   } catch (e: unknown) {
-    console.error(`[create-order] payments error order_id=${maskId(orderId)} pm=${paymentMethod}`, e);
+    console.error(
+      `[create-order] payments error order_id=${maskId(orderId)} pm=${paymentMethod} token=${edgeToken ? "yes" : "no"}`,
+      e,
+    );
     return { attempted: true, ok: false, status: 0 };
   }
 }
@@ -555,7 +573,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     // Telegram best-effort (existing)
     const telegram = await notifyTelegramBestEffort(req, orderId);
 
-    // NEW: payments-create-session best-effort (server-side)
+    // payments-create-session best-effort (server-side)
     const payments = await notifyPaymentsBestEffort(orderId, payment_method);
 
     return json(res, 200, { ok: true, id: orderId, telegram, payments });
