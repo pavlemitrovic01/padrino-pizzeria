@@ -94,18 +94,6 @@ function formatHttpError(status: number, body: unknown) {
   return `Greška pri slanju porudžbine. HTTP ${status}`;
 }
 
-function inferPaymentMethodFromNote(note: string | null | undefined): PaymentMethod {
-  const raw = String(note ?? "");
-  const n = raw.toLowerCase();
-
-  if (n.includes("plaćanje") || n.includes("placanje")) {
-    if (n.includes("kartica") || n.includes("card")) return "card";
-    if (n.includes("gotovina") || n.includes("cash")) return "cash";
-  }
-
-  return "cash";
-}
-
 async function createPaymentSessionBestEffort(orderId: string, method: PaymentMethod) {
   try {
     const url = getEdgeFunctionUrl("payments-create-session");
@@ -162,7 +150,6 @@ async function notifyTelegramBestEffort(orderId: string) {
 }
 
 export async function createOrder(payload: CreateOrderPayload) {
-  // ✅ Strict-validacija inputa (fail-fast)
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
   const customer_address = normalizeString(payload.customer_address);
@@ -286,7 +273,7 @@ export async function createOrder(payload: CreateOrderPayload) {
   const orderId = normalizeString(String(jsonBody.id ?? ""));
   if (!orderId) throw new Error("Porudžbina je poslata, ali ID nije vraćen.");
 
-  const method: PaymentMethod = payload.payment_method ?? inferPaymentMethodFromNote(payload.note);
+  const method: PaymentMethod = payload.payment_method ?? "cash";
 
   // best-effort (ne blokira flow, order je već kreiran)
   void createPaymentSessionBestEffort(orderId, method);
