@@ -26,22 +26,39 @@ export default function Footer() {
           {/* Brand */}
           <div className="space-y-2">
             <div className="text-lg font-extrabold tracking-wide">Padrino Budva</div>
-            <div className="text-sm text-white/60">Pizza • Dostava • Kartice</div>
+            <div className="text-sm text-white/60">
+              Pizza • Dostava • Gotovina <span className="text-white/45">(Kartice uskoro)</span>
+            </div>
           </div>
 
           {/* Payment badges (bez dupliranja kontakt info) */}
           <div className="flex flex-wrap items-center gap-2 md:justify-center">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold text-white/75">
+            <span
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold text-white/75 opacity-50"
+              title="Kartice uskoro (NLB integracija)"
+            >
               VISA
             </span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold text-white/75">
+            <span
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold text-white/75 opacity-50"
+              title="Kartice uskoro (NLB integracija)"
+            >
               MasterCard
             </span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold text-white/75">
+            <span
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold text-white/75 opacity-50"
+              title="Kartice uskoro (NLB integracija)"
+            >
               Maestro
             </span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold text-white/75">
               Gotovina
+            </span>
+            <span
+              className="rounded-full border border-[#f2b400]/25 bg-[#f2b400]/10 px-3 py-1 text-xs font-extrabold text-[#f2b400]/90"
+              title="Kartice uskoro (NLB integracija)"
+            >
+              Kartice uskoro
             </span>
           </div>
 

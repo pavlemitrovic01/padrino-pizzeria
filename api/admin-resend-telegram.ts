@@ -47,6 +47,9 @@ type OrderRow = {
 
 const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
+// Hard timeout da Vercel funkcija nikad ne visi na Telegram fetch-u
+const TELEGRAM_FETCH_TIMEOUT_MS = 7000;
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -80,27 +83,12 @@ function setCors(req: ReqLike, res: ResLike) {
 function json(res: ResLike, status: number, body: Json) {
   res.status(status);
   res.setHeader("content-type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
   res.send(JSON.stringify(body));
 }
 
 function getEnv(name: string): string {
   return toTrimmedString(process.env[name]);
-}
-
-function normalizeEmail(v: string) {
-  return v.trim().toLowerCase();
-}
-
-function isAdminEmail(email: unknown): boolean {
-  const e = typeof email === "string" ? normalizeEmail(email) : "";
-  return e.length > 0 && ADMIN_EMAILS.has(e);
-}
-
-function getBearerToken(req: ReqLike): string {
-  const h = headerString(req, "authorization") || headerString(req, "Authorization");
-  if (!h) return "";
-  const m = h.match(/^Bearer\s+(.+)$/i);
-  return m ? m[1].trim() : "";
 }
 
 function buildSupabaseAdmin() {
@@ -128,6 +116,22 @@ function buildSupabaseAdmin() {
 }
 
 const supabase = buildSupabaseAdmin();
+
+function normalizeEmail(v: string) {
+  return v.trim().toLowerCase();
+}
+
+function isAdminEmail(email: unknown): boolean {
+  const e = typeof email === "string" ? normalizeEmail(email) : "";
+  return e.length > 0 && ADMIN_EMAILS.has(e);
+}
+
+function getBearerToken(req: ReqLike): string {
+  const h = headerString(req, "authorization") || headerString(req, "Authorization");
+  if (!h) return "";
+  const m = h.match(/^Bearer\s+(.+)$/i);
+  return m ? m[1].trim() : "";
+}
 
 function normalizeText(value: string) {
   return String(value ?? "")
@@ -194,8 +198,6 @@ function addonEmoji(name: string) {
 
   return "➕";
 }
-
-/** META parsing: Zona / Dostava / Plaćanje + “čista” napomena */
 
 type ParsedMeta = {
   zone: string;
@@ -292,7 +294,10 @@ function formatOrderForTelegram(order: OrderRow) {
 
   const totalCents =
     Math.max(0, safeInt(order?.total_eur_cents, 0)) ||
-    Math.max(0, Math.round((typeof order?.total_price === "number" ? order.total_price : Number(order?.total_price)) * 100 || 0));
+    Math.max(
+      0,
+      Math.round((typeof order?.total_price === "number" ? order.total_price : Number(order?.total_price)) * 100 || 0),
+    );
 
   const total = formatTotalFromCents(totalCents);
 
@@ -360,6 +365,16 @@ function formatOrderForTelegram(order: OrderRow) {
   return lines.join("\n").trim();
 }
 
+async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?: string }> {
   const token = getEnv("TELEGRAM_BOT_TOKEN");
   const chatId = getEnv("TELEGRAM_CHAT_ID");
@@ -371,15 +386,19 @@ async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?:
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
 
   try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        disable_web_page_preview: true,
-      }),
-    });
+    const r = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          disable_web_page_preview: true,
+        }),
+      },
+      TELEGRAM_FETCH_TIMEOUT_MS,
+    );
 
     if (!r.ok) {
       return { ok: false, error: `Telegram HTTP ${r.status}` };
@@ -388,7 +407,9 @@ async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?:
     return { ok: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: msg || "Telegram request failed" };
+    const m = msg.trim() ? msg.trim() : "Telegram request failed";
+    const isAbort = m.toLowerCase().includes("abort");
+    return { ok: false, error: isAbort ? `Telegram timeout (${TELEGRAM_FETCH_TIMEOUT_MS}ms)` : m };
   }
 }
 

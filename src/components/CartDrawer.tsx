@@ -6,6 +6,12 @@ import type { PizzaSize, PizzaVariant, PaymentMethod } from "../context/CartCont
 import { formatEUR, toSafeInt } from "../lib/money";
 import { createOrder, type CreateOrderPayload } from "../lib/createOrder";
 
+declare global {
+  interface ImportMetaEnv {
+    readonly VITE_CARD_PAYMENTS_ENABLED?: string;
+  }
+}
+
 type MenuItemData = {
   id: string;
   name: string;
@@ -433,8 +439,8 @@ export default function CartDrawer() {
   const BTN_GOLD_ACTIVE =
     "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_25px_rgba(242,180,0,0.45)] transition";
 
-  // ✅ NLB not ready — disable card payments until we get integration details
-  const CARD_PAYMENTS_ENABLED = false;
+  // ✅ NLB not ready — keep card disabled until we enable it via env (VITE_CARD_PAYMENTS_ENABLED="true")
+  const CARD_PAYMENTS_ENABLED = import.meta.env.VITE_CARD_PAYMENTS_ENABLED === "true";
 
   const PHONE_DISPLAY = "+382 67 603 780";
   const PHONE_E164 = "+38267603780";
