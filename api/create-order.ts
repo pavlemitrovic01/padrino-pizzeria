@@ -545,10 +545,8 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const orderId = toTrimmedString(inserted.id);
 
-    // ✅ čekamo Telegram notify (serverless može prekinuti fire-and-forget)
     await bestEffortTelegramNotify(orderId);
 
-    // payments ostaje best-effort i ne blokira response
     void bestEffortPaymentsCreateSession(orderId, payment_method);
 
     return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId });
