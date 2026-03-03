@@ -339,14 +339,17 @@ function safeTotalCentsFromBody(body: Record<string, unknown>): number {
 }
 
 function buildTelegramPayload(orderId: string) {
-  const base = getEnv("VERCEL_URL") ? `https://${getEnv("VERCEL_URL")}` : "";
-  const url = base || "https://padrinobudva.com";
+  // IMPORTANT:
+  // VERCEL_URL obično pokazuje na *.vercel.app domen koji može imati "Vercel Authentication" zaštitu,
+  // pa server-to-server poziv ka /api/telegram-new-order može završiti na HTML "Authentication Required" (401).
+  // Zato ovde preferiramo eksplicitan public site URL ili direktno custom domen.
+  const envSite =
+    getEnv("PUBLIC_SITE_URL") || getEnv("SITE_URL") || getEnv("APP_URL") || "https://padrinobudva.com";
+  const url = envSite.replace(/\/+$/, "");
   return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
 }
 
-async function bestEffortTelegramNotify(
-  orderId: string,
-): Promise<{ ok: boolean; status?: number; error?: string }> {
+async function bestEffortTelegramNotify(orderId: string) {
   const url = buildTelegramPayload(orderId).notify_url;
 
   // telegram-new-order može imati optional secret guard (TELEGRAM_WEBHOOK_SECRET)
@@ -355,33 +358,19 @@ async function bestEffortTelegramNotify(
   if (secret) headers["x-telegram-secret"] = secret;
 
   // serverless safety: ne dozvoliti da fetch "visi" (best-effort timeout)
-  // 4s je prekratko (telegram-new-order radi DB read + Telegram API call).
   const controller = new AbortController();
   const timeoutMs = 12000;
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const r = await fetch(url, {
+    await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify({ order_id: orderId }),
       signal: controller.signal,
     });
-
-    if (!r.ok) {
-      const bodyText = await r.text().catch(() => "");
-      console.error("bestEffortTelegramNotify: non-OK response", {
-        status: r.status,
-        body: bodyText.slice(0, 300),
-      });
-      return { ok: false, status: r.status, error: bodyText.slice(0, 300) };
-    }
-
-    return { ok: true, status: r.status };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("bestEffortTelegramNotify: request failed", { error: msg || "unknown" });
-    return { ok: false, error: msg || "unknown" };
+  } catch {
+    // best effort
   } finally {
     clearTimeout(t);
   }
@@ -551,13 +540,13 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const orderId = toTrimmedString(inserted.id);
 
-    // ✅ čekamo Telegram notify (serverless može prekinuti fire-and-forget)
-    const telegram_notify = await bestEffortTelegramNotify(orderId);
+    // best effort notify
+    await bestEffortTelegramNotify(orderId);
 
     // payments ostaje best-effort i ne blokira response
     void bestEffortPaymentsCreateSession(orderId, payment_method);
 
-    return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId, telegram_notify });
+    return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return json(res, 500, { ok: false, error: msg || "Unknown error" });
