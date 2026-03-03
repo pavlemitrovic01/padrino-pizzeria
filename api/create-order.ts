@@ -116,7 +116,6 @@ function looksLikeCartMetaItem(v: unknown) {
   if (category.toLowerCase() === "meta") return true;
   if (name.toUpperCase() === "META") return true;
 
-  // fallback: menu_item_id null + price_per_item 0 je vrlo verovatno meta
   const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
   const p = v.price_per_item ?? v.pricePerItem;
   if (!menuItemId && typeof p === "number" && p === 0) return true;
@@ -126,23 +125,16 @@ function looksLikeCartMetaItem(v: unknown) {
 
 function looksLikeRealItemButInvalid(v: unknown) {
   if (!isPlainObject(v)) return false;
+  const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
+  const name = toTrimmedString(v.name);
+  const qty = v.quantity;
 
-  // META item ne smemo tretirati kao “invalid real item”
+  const hasItemish = !!name || typeof qty === "number" || !!menuItemId;
+  if (!hasItemish) return false;
+
   if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
 
-  // must-have: name + quantity + price_per_item
-  const name = toTrimmedString(v.name);
-  const q = v.quantity;
-  const p = v.price_per_item ?? v.pricePerItem;
-
-  if (!name) return true;
-  if (typeof q !== "number" || !Number.isFinite(q) || q <= 0) return true;
-  if (typeof p !== "number" || !Number.isFinite(p) || p < 0) return true;
-
-  // optional: addons must be array if present
-  if ("addons" in v && v.addons != null && !Array.isArray(v.addons)) return true;
-
-  return false;
+  return !menuItemId;
 }
 
 function safeInt(v: unknown, fallback = 0) {
@@ -260,73 +252,63 @@ function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): un
 
   const items = Array.isArray(rawItems) ? [...rawItems] : [];
 
-  // Case 1: legacy meta item at index 0
-  if (items.length > 0 && looksLikeLegacyMetaItem(items[0])) {
-    const meta = isPlainObject(items[0]) ? items[0] : {};
-    const note = toTrimmedString(meta.order_note) || toTrimmedString(meta.note);
-    const updated = { ...meta, order_note: appendMetaLine(note, line) };
-    items[0] = updated;
-    return items;
-  }
+  const idx = items.findIndex((it) => isPlainObject(it) && (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)));
+  if (idx === -1) return items;
 
-  // Case 2: cart meta item exists anywhere
-  const idx = items.findIndex((it) => looksLikeCartMetaItem(it));
-  if (idx >= 0) {
-    const meta = isPlainObject(items[idx]) ? items[idx] : {};
-    const note = toTrimmedString(meta.note);
-    const updated = { ...meta, note: appendMetaLine(note, line) };
-    items[idx] = updated;
-    return items;
-  }
+  const meta = items[idx];
+  if (!isPlainObject(meta)) return items;
 
-  // Case 3: no meta item => add one (cart meta)
-  items.unshift({
-    cart_id: "meta",
-    category: "meta",
-    name: "META",
-    quantity: 1,
-    price_per_item: 0,
-    note: line,
-  });
+  const existing = toTrimmedString(meta.order_note) || toTrimmedString(meta.note);
+  const merged = appendMetaLine(existing, line);
+
+  items[idx] = { ...meta, order_note: merged, note: merged };
 
   return items;
 }
 
 async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>> {
-  const unique = Array.from(new Set(ids.filter(Boolean)));
+  const uniq = Array.from(new Set(ids.filter(Boolean)));
+  if (uniq.length === 0) return new Map();
 
-  if (unique.length === 0) return new Map();
+  const { data, error } = await supabase.from("menu_items").select("id,price_eur_cents").in("id", uniq);
 
-  const { data, error } = await supabase.from("menu_items").select("id,price_eur_cents").in("id", unique);
+  if (error) throw new Error(`DB: pricing fetch failed (${error.message})`);
 
-  if (error) throw new Error(`DB: menu_items fetch failed (${error.message})`);
-
-  const map = new Map<string, number>();
+  const m = new Map<string, number>();
   for (const row of Array.isArray(data) ? data : []) {
     const r = row as unknown as PricingRow;
-    const id = toTrimmedString(r.id);
-    const cents = safeInt(r.price_eur_cents, 0);
-    if (id) map.set(id, cents);
+    const id = toTrimmedString((r as unknown as Record<string, unknown>).id);
+    const p = safeInt((r as unknown as Record<string, unknown>).price_eur_cents, 0);
+    if (id && p > 0) m.set(id, p);
   }
-  return map;
+
+  return m;
 }
 
-function sumAddonsCents(addons: unknown, priceMap: Map<string, number>): number {
-  if (!Array.isArray(addons)) return 0;
-
+function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
+  const list = Array.isArray(addons) ? addons : [];
   let total = 0;
-  for (const a of addons) {
+
+  for (const a of list) {
     if (!isPlainObject(a)) continue;
-    const id = toTrimmedString(a.id);
+
+    const addonId = toTrimmedString(a.id);
     const q = safeInt(a.quantity, 1);
-    const cents = id ? priceMap.get(id) ?? 0 : 0;
-    if (q > 0 && cents > 0) total += q * cents;
+
+    if (!addonId || q <= 0) continue;
+
+    const cents = priceMap.get(addonId) ?? 0;
+    if (cents > 0) total += q * cents;
   }
+
   return total;
 }
 
-function getDeliveryFeeCentsFromMeta(items: unknown[], zones: Zone[], point: LatLng | null): { feeCents: number; zoneName: string } {
-  // If point exists, compute zone fee by polygon
+function getDeliveryFeeCentsFromMeta(
+  items: unknown[],
+  zones: Zone[],
+  point: LatLng | null,
+): { feeCents: number; zoneName: string } {
   if (point) {
     const pt: [number, number] = [point.lng, point.lat];
     for (const z of zones) {
@@ -336,7 +318,6 @@ function getDeliveryFeeCentsFromMeta(items: unknown[], zones: Zone[], point: Lat
     }
   }
 
-  // fallback: attempt to parse from meta note line "Dostava: X €" and "Zona: Y"
   let metaNote = "";
   for (const it of items) {
     if (!isPlainObject(it)) continue;
@@ -354,6 +335,21 @@ function getDeliveryFeeCentsFromMeta(items: unknown[], zones: Zone[], point: Lat
   for (const line of lines) {
     const n = normalizeText(line);
 
+    // ✅ Zona i Dostava često dolaze u istoj liniji (npr. "Zona: Budva, Dostava: 3€")
+    if (!zoneName) {
+      const mz = line.match(/Zona\s*:\s*([^,\n\r]+)/i);
+      if (mz && typeof mz[1] === "string") zoneName = mz[1].trim();
+    }
+
+    if (feeEur == null) {
+      const mf = line.match(/Dostava\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
+      if (mf && typeof mf[1] === "string") {
+        const v = Number(mf[1].replace(",", "."));
+        if (Number.isFinite(v) && v >= 0) feeEur = v;
+      }
+    }
+
+    // fallback na stari format (posebne linije)
     if (!zoneName && n.startsWith("zona:")) {
       zoneName = line.replace(/^Zona\s*:\s*/i, "").trim();
     }
@@ -375,7 +371,6 @@ function getDeliveryFeeCentsFromMeta(items: unknown[], zones: Zone[], point: Lat
 }
 
 function safeTotalCentsFromBody(body: Record<string, unknown>): number {
-  // prefer cents if present
   const cents = body.total_eur_cents ?? body.totalEurCents;
   const asCents = safeInt(cents, -1);
   if (asCents >= 0) return asCents;
@@ -389,7 +384,6 @@ function safeTotalCentsFromBody(body: Record<string, unknown>): number {
 
 function buildTelegramPayload(orderId: string) {
   const base = getEnv("VERCEL_URL") ? `https://${getEnv("VERCEL_URL")}` : "";
-  // fallback prod domain
   const url = base || "https://padrinobudva.com";
   return {
     order_id: orderId,
@@ -463,14 +457,12 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const currency = toTrimmedString(body.currency) || "EUR";
     const status = toTrimmedString(body.status) || "pending";
 
-    // NEW (backwards-compatible): accept payment_method if sent
     const pmRaw = toTrimmedString(body.payment_method) || toTrimmedString(body.paymentMethod);
     if (pmRaw && pmRaw !== "cash" && pmRaw !== "card") {
       return json(res, 400, { ok: false, error: "Invalid payment_method" });
     }
     const payment_method: PaymentMethod = pmRaw === "card" ? "card" : "cash";
 
-    // 🔒 HARD GUARD: kartica disabled dok NLB ne stigne (ne pravimo porudžbinu)
     if (payment_method === "card") {
       return json(res, 501, {
         ok: false,
@@ -494,10 +486,8 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }
     }
 
-    // ✅ items that we actually store in DB (META note appended with payment)
     const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
 
-    // samo real itemi, bez meta (legacy + cart meta)
     const calcItems = itemsForInsert.filter((it): it is Record<string, unknown> => {
       if (!isPlainObject(it)) return false;
       if (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)) return false;
@@ -511,7 +501,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Invalid item structure" });
     }
 
-    // pricing from DB (base + addons)
     const idsToFetch: string[] = [];
     for (const it of calcItems) {
       const menu_item_id = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
@@ -545,14 +534,23 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
 
     const point = parseLatLngFromBody(body);
-    const zones = await fetchZones();
+
+    // ✅ delivery_zones tabela nije obavezna (fallback iz meta note)
+    let zones: Zone[] = [];
+    if (point) {
+      try {
+        zones = await fetchZones();
+      } catch {
+        zones = [];
+      }
+    }
+
     const delivery = getDeliveryFeeCentsFromMeta(itemsForInsert, zones, point);
 
     const computedTotalCents = subtotal_eur_cents + Math.max(0, delivery.feeCents);
 
     const bodyTotalCents = safeTotalCentsFromBody(body);
 
-    // minimal anti-tamper: must match within 1 cent
     if (bodyTotalCents > 0 && Math.abs(bodyTotalCents - computedTotalCents) > 1) {
       return json(res, 400, { ok: false, error: "Total mismatch" });
     }
@@ -574,20 +572,21 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .select("id")
       .single();
 
-    if (insErr || !inserted?.id) {
-      const msg = insErr?.message ? `DB insert failed (${insErr.message})` : "DB insert failed";
-      return json(res, 500, { ok: false, error: msg });
+    if (insErr) {
+      return json(res, 500, { ok: false, error: insErr.message || "DB insert failed" });
     }
 
-    const orderId = toTrimmedString(inserted.id);
+    const orderId = toTrimmedString((inserted as Record<string, unknown>)?.id);
+    if (!orderId) {
+      return json(res, 500, { ok: false, error: "Insert succeeded but missing id" });
+    }
 
-    // best effort: telegram + payments session create
-    void bestEffortTelegramNotify(orderId);
-    void bestEffortPaymentsCreateSession(orderId, payment_method);
+    await bestEffortTelegramNotify(orderId);
+    await bestEffortPaymentsCreateSession(orderId, payment_method);
 
-    return json(res, 200, { ok: true, order_id: orderId, orderId });
+    return json(res, 200, { ok: true, id: orderId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+    return json(res, 500, { ok: false, error: msg || "Internal server error" });
   }
 }

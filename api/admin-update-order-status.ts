@@ -46,6 +46,7 @@ function setCors(req: ReqLike, res: ResLike) {
 function json(res: ResLike, status: number, body: Json) {
   res.status(status);
   res.setHeader("content-type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
   res.send(JSON.stringify(body));
 }
 
