@@ -116,6 +116,7 @@ function looksLikeCartMetaItem(v: unknown) {
   if (category.toLowerCase() === "meta") return true;
   if (name.toUpperCase() === "META") return true;
 
+  // fallback: menu_item_id null + price_per_item 0 je vrlo verovatno meta
   const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
   const p = v.price_per_item ?? v.pricePerItem;
   if (!menuItemId && typeof p === "number" && p === 0) return true;
@@ -129,11 +130,14 @@ function looksLikeRealItemButInvalid(v: unknown) {
   const name = toTrimmedString(v.name);
   const qty = v.quantity;
 
+  // ima neke item-ish stvari, ali nije validan
   const hasItemish = !!name || typeof qty === "number" || !!menuItemId;
   if (!hasItemish) return false;
 
+  // meta je ok
   if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
 
+  // nema menu_item_id ali izgleda kao item → invalid
   return !menuItemId;
 }
 
@@ -309,6 +313,7 @@ function getDeliveryFeeCentsFromMeta(
   zones: Zone[],
   point: LatLng | null,
 ): { feeCents: number; zoneName: string } {
+  // If point exists, compute zone fee by polygon
   if (point) {
     const pt: [number, number] = [point.lng, point.lat];
     for (const z of zones) {
@@ -318,6 +323,7 @@ function getDeliveryFeeCentsFromMeta(
     }
   }
 
+  // fallback: attempt to parse from meta note line "Dostava: X €" and "Zona: Y"
   let metaNote = "";
   for (const it of items) {
     if (!isPlainObject(it)) continue;
@@ -333,31 +339,16 @@ function getDeliveryFeeCentsFromMeta(
   let zoneName = "";
 
   for (const line of lines) {
-    const n = normalizeText(line);
-
-    // ✅ Zona i Dostava često dolaze u istoj liniji (npr. "Zona: Budva, Dostava: 3€")
+    // ✅ radi i kad su u istoj liniji: "Zona: Budva, Dostava: 3€"
     if (!zoneName) {
-      const mz = line.match(/Zona\s*:\s*([^,\n\r]+)/i);
+      const mz = line.match(/Zona\s*:?\s*([^,\n\r]+)/i);
       if (mz && typeof mz[1] === "string") zoneName = mz[1].trim();
     }
 
     if (feeEur == null) {
-      const mf = line.match(/Dostava\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
+      const mf = line.match(/Dostava\s*:?\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
       if (mf && typeof mf[1] === "string") {
         const v = Number(mf[1].replace(",", "."));
-        if (Number.isFinite(v) && v >= 0) feeEur = v;
-      }
-    }
-
-    // fallback na stari format (posebne linije)
-    if (!zoneName && n.startsWith("zona:")) {
-      zoneName = line.replace(/^Zona\s*:\s*/i, "").trim();
-    }
-
-    if (feeEur == null && n.startsWith("dostava:")) {
-      const m = line.match(/Dostava\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
-      if (m && typeof m[1] === "string") {
-        const v = Number(m[1].replace(",", "."));
         if (Number.isFinite(v) && v >= 0) feeEur = v;
       }
     }
@@ -501,6 +492,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Invalid item structure" });
     }
 
+    // pricing from DB (base + addons)
     const idsToFetch: string[] = [];
     for (const it of calcItems) {
       const menu_item_id = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
@@ -551,11 +543,10 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const bodyTotalCents = safeTotalCentsFromBody(body);
 
+    // minimal anti-tamper: must match within 1 cent
     if (bodyTotalCents > 0 && Math.abs(bodyTotalCents - computedTotalCents) > 1) {
       return json(res, 400, { ok: false, error: "Total mismatch" });
     }
-
-    const total_items = safeInt(body.total_items ?? body.totalItems, 0);
 
     const { data: inserted, error: insErr } = await supabase
       .from("orders")
@@ -567,26 +558,24 @@ export default async function handler(req: ReqLike, res: ResLike) {
         status,
         currency,
         total_eur_cents: computedTotalCents,
-        total_items,
       })
       .select("id")
       .single();
 
-    if (insErr) {
-      return json(res, 500, { ok: false, error: insErr.message || "DB insert failed" });
+    if (insErr || !inserted?.id) {
+      const msg = insErr?.message ? `DB insert failed (${insErr.message})` : "DB insert failed";
+      return json(res, 500, { ok: false, error: msg });
     }
 
-    const orderId = toTrimmedString((inserted as Record<string, unknown>)?.id);
-    if (!orderId) {
-      return json(res, 500, { ok: false, error: "Insert succeeded but missing id" });
-    }
+    const orderId = toTrimmedString(inserted.id);
 
-    await bestEffortTelegramNotify(orderId);
-    await bestEffortPaymentsCreateSession(orderId, payment_method);
+    // best effort: telegram + payments session create
+    void bestEffortTelegramNotify(orderId);
+    void bestEffortPaymentsCreateSession(orderId, payment_method);
 
-    return json(res, 200, { ok: true, id: orderId });
+    return json(res, 200, { ok: true, order_id: orderId, orderId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    return json(res, 500, { ok: false, error: msg || "Internal server error" });
+    return json(res, 500, { ok: false, error: msg || "Unknown error" });
   }
 }
