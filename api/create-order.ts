@@ -344,7 +344,9 @@ function buildTelegramPayload(orderId: string) {
   return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
 }
 
-async function bestEffortTelegramNotify(orderId: string) {
+async function bestEffortTelegramNotify(
+  orderId: string,
+): Promise<{ ok: boolean; status?: number; error?: string }> {
   const url = buildTelegramPayload(orderId).notify_url;
 
   // telegram-new-order može imati optional secret guard (TELEGRAM_WEBHOOK_SECRET)
@@ -353,9 +355,9 @@ async function bestEffortTelegramNotify(orderId: string) {
   if (secret) headers["x-telegram-secret"] = secret;
 
   // serverless safety: ne dozvoliti da fetch "visi" (best-effort timeout)
-  // 4s je prekratko jer telegram-new-order radi DB read + Telegram API call.
+  // 4s je prekratko (telegram-new-order radi DB read + Telegram API call).
   const controller = new AbortController();
-  const timeoutMs = 9000;
+  const timeoutMs = 12000;
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -372,10 +374,14 @@ async function bestEffortTelegramNotify(orderId: string) {
         status: r.status,
         body: bodyText.slice(0, 300),
       });
+      return { ok: false, status: r.status, error: bodyText.slice(0, 300) };
     }
+
+    return { ok: true, status: r.status };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("bestEffortTelegramNotify: request failed", { error: msg || "unknown" });
+    return { ok: false, error: msg || "unknown" };
   } finally {
     clearTimeout(t);
   }
@@ -545,11 +551,13 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const orderId = toTrimmedString(inserted.id);
 
-    await bestEffortTelegramNotify(orderId);
+    // ✅ čekamo Telegram notify (serverless može prekinuti fire-and-forget)
+    const telegram_notify = await bestEffortTelegramNotify(orderId);
 
+    // payments ostaje best-effort i ne blokira response
     void bestEffortPaymentsCreateSession(orderId, payment_method);
 
-    return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId });
+    return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId, telegram_notify });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return json(res, 500, { ok: false, error: msg || "Unknown error" });
