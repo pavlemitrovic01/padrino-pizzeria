@@ -40,12 +40,10 @@ type OrderRow = {
   status?: unknown;
   total_eur_cents?: unknown;
   total_price?: unknown;
-  currency?: unknown;
   items?: unknown;
   note?: unknown;
 };
 
-// Hard timeout da Vercel funkcija nikad ne visi na Telegram fetch-u
 const TELEGRAM_FETCH_TIMEOUT_MS = 7000;
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -70,17 +68,11 @@ function headerString(req: ReqLike, key: string): string {
 }
 
 function headerStringCI(req: ReqLike, key: string): string {
-  // case-insensitive read for safety
-  const direct = headerString(req, key);
-  if (direct) return direct;
-
-  const lower = headerString(req, key.toLowerCase());
-  if (lower) return lower;
-
-  const upper = headerString(req, key.toUpperCase());
-  if (upper) return upper;
-
-  return "";
+  return (
+    headerString(req, key) ||
+    headerString(req, key.toLowerCase()) ||
+    headerString(req, key.toUpperCase())
+  );
 }
 
 function setCors(req: ReqLike, res: ResLike) {
@@ -115,6 +107,15 @@ function buildSupabaseAdmin() {
 
   if (!SUPABASE_URL || !SERVICE_ROLE) {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  try {
+    const u = new URL(SUPABASE_URL);
+    if (!u.hostname.endsWith(".supabase.co")) {
+      throw new Error("Invalid supabaseUrl: Expected *.supabase.co host.");
+    }
+  } catch {
+    throw new Error("Invalid supabaseUrl: Provided URL is malformed.");
   }
 
   return createClient(SUPABASE_URL, SERVICE_ROLE, {
@@ -190,8 +191,6 @@ function addonEmoji(name: string) {
 
   return "➕";
 }
-
-/** -------------------- META PARSING (Zona / Dostava / Plaćanje) -------------------- */
 
 type ParsedMeta = {
   zone: string;
@@ -289,10 +288,7 @@ function formatOrderForTelegram(order: OrderRow) {
 
   const totalCents =
     Math.max(0, safeInt(order?.total_eur_cents, 0)) ||
-    Math.max(
-      0,
-      Math.round((typeof order?.total_price === "number" ? order.total_price : Number(order?.total_price)) * 100 || 0),
-    );
+    Math.max(0, Math.round((Number(order?.total_price) || 0) * 100));
 
   const total = formatTotalFromCents(totalCents);
 
@@ -334,9 +330,7 @@ function formatOrderForTelegram(order: OrderRow) {
     }
 
     const itemNote = toTrimmedString(it?.note);
-    if (itemNote) {
-      lines.push(`🚨 ● NAPOMENA: ${itemNote}`);
-    }
+    if (itemNote) lines.push(`🚨 ● NAPOMENA: ${itemNote}`);
 
     lines.push("");
   }
@@ -357,7 +351,6 @@ function formatOrderForTelegram(order: OrderRow) {
   }
 
   lines.push(`💸 ● Ukupno: ${total} €`);
-
   return lines.join("\n").trim();
 }
 
@@ -396,10 +389,7 @@ async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?:
       TELEGRAM_FETCH_TIMEOUT_MS,
     );
 
-    if (!r.ok) {
-      return { ok: false, error: `Telegram HTTP ${r.status}` };
-    }
-
+    if (!r.ok) return { ok: false, error: `Telegram HTTP ${r.status}` };
     return { ok: true };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -444,8 +434,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 500, { ok: false, error: msg });
     }
 
-    if (!order) return json(res, 404, { ok: false, error: "Order not found" });
-
     const message = formatOrderForTelegram((order ?? {}) as OrderRow);
     const sent = await sendTelegramMessage(message);
 
@@ -454,7 +442,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 502, { ok: false, error: sent.error || "Telegram failed" });
     }
 
-    return json(res, 200, { ok: true, telegram: "sent", order_id: orderId });
+    return json(res, 200, { ok: true, telegram: "sent" });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("telegram-new-order: unhandled error", { error: msg });
