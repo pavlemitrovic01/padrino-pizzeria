@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
+type PaymentMethod = "cash" | "card";
 type Json = Record<string, unknown>;
 
 type HeaderValue = string | string[] | undefined;
@@ -17,40 +18,8 @@ type ResLike = {
   send: (body: string) => void;
 };
 
-type CartAddon = {
-  name?: unknown;
-  quantity?: unknown;
-};
-
-type CartItem = {
-  cart_id?: unknown;
-  name?: unknown;
-  category?: unknown;
-  quantity?: unknown;
-  size?: unknown;
-  addons?: unknown;
-  note?: unknown;
-};
-
-type OrderRow = {
-  id?: unknown;
-  customer_name?: unknown;
-  customer_phone?: unknown;
-  customer_address?: unknown;
-  status?: unknown;
-  total_eur_cents?: unknown;
-  total_price?: unknown;
-  currency?: unknown;
-  items?: unknown;
-  note?: unknown;
-};
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-
 function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
 function toTrimmedString(v: unknown): string {
@@ -67,25 +36,102 @@ function headerString(req: ReqLike, key: string): string {
 function setCors(req: ReqLike, res: ResLike) {
   const origin = headerString(req, "origin");
   res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "content-type, x-telegram-secret");
   res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "content-type, x-requested-with");
+  res.setHeader("Access-Control-Max-Age", "86400");
 }
 
 function json(res: ResLike, status: number, body: Json) {
   res.status(status);
   res.setHeader("content-type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
   res.send(JSON.stringify(body));
 }
 
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (isRecord(err) && typeof err.message === "string" && err.message.trim()) return err.message.trim();
-  try {
-    return String(err);
-  } catch {
-    return "Unknown error";
+function getEnv(name: string): string {
+  return toTrimmedString(process.env[name]);
+}
+
+function buildSupabaseAdmin() {
+  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
+  const SERVICE_ROLE =
+    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
+    getEnv("SUPABASE_SERVICE_KEY") ||
+    getEnv("SUPABASE_SERVICE_ROLE");
+
+  if (!SUPABASE_URL || !SERVICE_ROLE) {
+    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
   }
+
+  return createClient(SUPABASE_URL, SERVICE_ROLE, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { "X-Client-Info": "padrino-vercel-api/create-order" } },
+  });
+}
+
+const supabase = buildSupabaseAdmin();
+
+/**
+ * Legacy meta zapis koji frontend ubacuje u items[0]:
+ * { total_items: number, order_note?: string }
+ */
+function looksLikeLegacyMetaItem(v: unknown) {
+  if (!isPlainObject(v)) return false;
+  const keys = Object.keys(v);
+  if (keys.length === 0) return false;
+
+  const allowed = new Set(["total_items", "order_note", "note"]);
+  const itemish = ["quantity", "price_per_item", "name", "menu_item_id", "cart_id", "menuItemId"];
+  if (itemish.some((k) => k in v)) return false;
+
+  return keys.every((k) => allowed.has(k));
+}
+
+/**
+ * NOVO: “META” item koji frontend šalje kao “pravi item”
+ * (cart_id/meta, category/meta, name/META), ima note, ali nema menu_item_id
+ */
+function looksLikeCartMetaItem(v: unknown) {
+  if (!isPlainObject(v)) return false;
+
+  const cartId = toTrimmedString(v.cart_id);
+  const name = toTrimmedString(v.name);
+  const category = toTrimmedString(v.category);
+
+  if (cartId.toLowerCase() === "meta") return true;
+  if (category.toLowerCase() === "meta") return true;
+  if (name.toUpperCase() === "META") return true;
+
+  const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
+  const p = v.price_per_item ?? v.pricePerItem;
+  if (!menuItemId && typeof p === "number" && p === 0) return true;
+
+  return false;
+}
+
+function looksLikeRealItemButInvalid(v: unknown) {
+  if (!isPlainObject(v)) return false;
+  const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
+  const name = toTrimmedString(v.name);
+  const qty = v.quantity;
+
+  const hasItemish = !!name || typeof qty === "number" || !!menuItemId;
+  if (!hasItemish) return false;
+
+  if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
+
+  return !menuItemId;
+}
+
+function safeInt(v: unknown, fallback = 0) {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
+
+function safeNumber(v: unknown, fallback = 0) {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function normalizeText(value: string) {
@@ -100,278 +146,253 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function safeInt(v: unknown, fallback = 0) {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-  return Number.isFinite(n) ? Math.trunc(n) : fallback;
-}
-
-function formatTotalFromCents(cents: number) {
-  const n = Number.isFinite(cents) ? Math.trunc(cents) : 0;
-  return (n / 100).toFixed(2);
-}
-
-function isMetaRow(it: unknown) {
-  if (!isPlainObject(it)) return false;
-
-  const cartId = normalizeText(toTrimmedString(it.cart_id));
-  const name = normalizeText(toTrimmedString(it.name));
-  const cat = normalizeText(toTrimmedString(it.category));
-
-  return cartId === "meta" || name === "meta" || cat === "meta";
-}
-
-function isDrinkRow(it: unknown) {
-  if (!isPlainObject(it)) return false;
-  const c = normalizeText(toTrimmedString(it.category));
-  return c.includes("pica") || c.includes("pice") || c.includes("napici") || c.includes("napitci");
-}
-
-function addonEmoji(name: string) {
-  const n = normalizeText(name);
-
-  if (n.includes("sos") || n.includes("kecap") || n.includes("kečap") || n.includes("majonez")) return "🧄";
-  if (n.includes("sir") || n.includes("mozz") || n.includes("kačk") || n.includes("kack")) return "🧀";
-  if (n.includes("krof") || n.includes("donut")) return "🍩";
-  if (n.includes("pecur") || n.includes("šamp") || n.includes("samp")) return "🍄";
-  if (n.includes("masl") || n.includes("olive")) return "🫒";
-  if (n.includes("sunka") || n.includes("prsut") || n.includes("slanina")) return "🥓";
-
-  return "➕";
-}
-
-function parseItems(raw: unknown): CartItem[] {
-  if (Array.isArray(raw)) return raw as CartItem[];
-
-  if (typeof raw === "string") {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as CartItem[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-}
-
-/** META parsing: Zona / Dostava / Plaćanje (i čista napomena) */
-
-type ParsedMeta = {
-  zone: string;
-  delivery: string;
-  payment: string;
-  extraNote: string;
+type Zone = {
+  id: string;
+  name: string;
+  fee_eur: number;
+  polygon: number[][];
 };
 
-function splitNoteLines(note: string): string[] {
-  return String(note ?? "")
-    .split(/\r?\n/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+type PricingRow = {
+  id: string;
+  price_eur_cents: number;
+};
+
+async function fetchZones(): Promise<Zone[]> {
+  const { data, error } = await supabase.from("delivery_zones").select("id,name,fee_eur,polygon");
+  if (error) throw new Error(`DB: zones fetch failed (${error.message})`);
+
+  const zones: Zone[] = [];
+  for (const row of Array.isArray(data) ? data : []) {
+    const id = toTrimmedString((row as Record<string, unknown>).id);
+    const name = toTrimmedString((row as Record<string, unknown>).name);
+    const fee = safeNumber((row as Record<string, unknown>).fee_eur, 0);
+
+    const polygonRaw = (row as Record<string, unknown>).polygon;
+    const polygon: number[][] = Array.isArray(polygonRaw)
+      ? (polygonRaw as unknown[]).map((pt) => {
+          if (!Array.isArray(pt) || pt.length < 2) return [0, 0];
+          return [safeNumber(pt[0], 0), safeNumber(pt[1], 0)];
+        })
+      : [];
+
+    if (!id || !name || polygon.length < 3) continue;
+    zones.push({ id, name, fee_eur: fee, polygon });
+  }
+
+  return zones;
 }
 
-function parseMetaFromNote(note: string): ParsedMeta {
-  const lines = splitNoteLines(note);
-  let zone = "";
-  let delivery = "";
-  let payment = "";
+function isPointInPolygon(point: [number, number], polygon: number[][]) {
+  const x = point[0];
+  const y = point[1];
 
-  const extra: string[] = [];
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0];
+    const yi = polygon[i][1];
+    const xj = polygon[j][0];
+    const yj = polygon[j][1];
+
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 0.0) + xi;
+    if (intersect) inside = !inside;
+  }
+
+  return inside;
+}
+
+type LatLng = { lat: number; lng: number };
+
+function parseLatLngFromBody(body: Record<string, unknown>): LatLng | null {
+  const lat = body.lat ?? body.latitude ?? body.customer_lat ?? body.customerLat;
+  const lng = body.lng ?? body.longitude ?? body.customer_lng ?? body.customerLng;
+
+  const la = safeNumber(lat, NaN);
+  const lo = safeNumber(lng, NaN);
+
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
+  if (la < -90 || la > 90 || lo < -180 || lo > 180) return null;
+
+  return { lat: la, lng: lo };
+}
+
+function appendMetaLine(existing: string, line: string): string {
+  const e = existing.trim();
+  const l = line.trim();
+  if (!l) return e;
+  if (!e) return l;
+
+  const existingLines = e.split(/\r?\n/).map((s) => s.trim());
+  if (existingLines.some((x) => normalizeText(x) === normalizeText(l))) return e;
+
+  return `${e}\n${l}`;
+}
+
+function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): unknown[] {
+  const line = `Plaćanje: ${payment === "cash" ? "Gotovina" : "Kartica"}`;
+  const items = Array.isArray(rawItems) ? [...rawItems] : [];
+
+  const idx = items.findIndex((it) => isPlainObject(it) && (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)));
+  if (idx === -1) return items;
+
+  const meta = items[idx];
+  if (!isPlainObject(meta)) return items;
+
+  const existing = toTrimmedString(meta.order_note) || toTrimmedString(meta.note);
+  const merged = appendMetaLine(existing, line);
+
+  items[idx] = { ...meta, order_note: merged, note: merged };
+  return items;
+}
+
+async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>> {
+  const uniq = Array.from(new Set(ids.filter(Boolean)));
+  if (uniq.length === 0) return new Map();
+
+  const { data, error } = await supabase.from("menu_items").select("id,price_eur_cents").in("id", uniq);
+  if (error) throw new Error(`DB: pricing fetch failed (${error.message})`);
+
+  const m = new Map<string, number>();
+  for (const row of Array.isArray(data) ? data : []) {
+    const r = row as unknown as PricingRow;
+    const id = toTrimmedString((r as unknown as Record<string, unknown>).id);
+    const p = safeInt((r as unknown as Record<string, unknown>).price_eur_cents, 0);
+    if (id && p > 0) m.set(id, p);
+  }
+  return m;
+}
+
+function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
+  const list = Array.isArray(addons) ? addons : [];
+  let total = 0;
+
+  for (const a of list) {
+    if (!isPlainObject(a)) continue;
+    const addonId = toTrimmedString(a.id);
+    const q = safeInt(a.quantity, 1);
+    if (!addonId || q <= 0) continue;
+
+    const cents = priceMap.get(addonId) ?? 0;
+    if (cents > 0) total += q * cents;
+  }
+
+  return total;
+}
+
+function getDeliveryFeeCentsFromMeta(
+  items: unknown[],
+  zones: Zone[],
+  point: LatLng | null,
+): { feeCents: number; zoneName: string } {
+  if (point) {
+    const pt: [number, number] = [point.lng, point.lat];
+    for (const z of zones) {
+      if (isPointInPolygon(pt, z.polygon)) {
+        return { feeCents: Math.round(z.fee_eur * 100), zoneName: z.name };
+      }
+    }
+  }
+
+  let metaNote = "";
+  for (const it of items) {
+    if (!isPlainObject(it)) continue;
+    if (!looksLikeLegacyMetaItem(it) && !looksLikeCartMetaItem(it)) continue;
+
+    const n = toTrimmedString(it.order_note) || toTrimmedString(it.note);
+    if (n) metaNote = n;
+    break;
+  }
+
+  const lines = metaNote.split(/\r?\n/).map((s) => s.trim());
+  let feeEur: number | null = null;
+  let zoneName = "";
 
   for (const line of lines) {
-    const norm = normalizeText(line);
-    let usedAsMeta = false;
-
-    if (norm.includes("zona:") || norm.includes("dostava:") || norm.includes("placanje:")) {
-      if (!zone && norm.includes("zona:")) {
-        const mZone = line.match(/Zona\s*:\s*([^,]+)\s*,?/i);
-        if (mZone && typeof mZone[1] === "string") {
-          zone = mZone[1].trim();
-          usedAsMeta = true;
-        }
-      }
-
-      if (!delivery && norm.includes("dostava:")) {
-        const mFeeNum = line.match(/Dostava\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
-        if (mFeeNum && typeof mFeeNum[1] === "string") {
-          delivery = `${mFeeNum[1].trim()} €`;
-          usedAsMeta = true;
-        } else {
-          const mFeeAny = line.match(/Dostava\s*:\s*([^,]+)$/i);
-          if (mFeeAny && typeof mFeeAny[1] === "string") {
-            delivery = mFeeAny[1].trim();
-            usedAsMeta = true;
-          }
-        }
-      }
-
-      if (!payment && norm.includes("placanje:")) {
-        const mPay = line.match(/Pla[cć]anje\s*:\s*(.+)$/i);
-        if (mPay && typeof mPay[1] === "string") {
-          payment = mPay[1].trim();
-          usedAsMeta = true;
-        }
-      }
+    if (!zoneName) {
+      const mz = line.match(/Zona\s*:?\s*([^,\n\r]+)/i);
+      if (mz && typeof mz[1] === "string") zoneName = mz[1].trim();
     }
 
-    if (!usedAsMeta) extra.push(line);
-  }
-
-  return { zone, delivery, payment, extraNote: extra.join("\n").trim() };
-}
-
-function paymentIcon(payment: string): string {
-  const p = normalizeText(payment);
-  if (p.includes("kart")) return "💳";
-  if (p.includes("gotov") || p.includes("kes") || p.includes("cash")) return "💵";
-  return "💳";
-}
-
-function extractOrderNote(order: OrderRow, items: CartItem[]) {
-  // 1) prefer order.note ako postoji
-  const direct = toTrimmedString(order?.note);
-  if (direct) return direct;
-
-  // 2) meta stavka (createOrder ubaci META sa note)
-  const meta = items.find((it) => isMetaRow(it));
-  const metaNote = meta ? toTrimmedString(meta.note) : "";
-  return metaNote;
-}
-
-function formatOrderForTelegram(order: OrderRow) {
-  const name = toTrimmedString(order?.customer_name) || "-";
-  const phone = toTrimmedString(order?.customer_phone) || "-";
-  const address = toTrimmedString(order?.customer_address) || "-";
-  const status = toTrimmedString(order?.status) || "pending";
-
-  const rawItemsAll = parseItems(order?.items);
-  const orderNoteRaw = extractOrderNote(order, rawItemsAll);
-  const meta = parseMetaFromNote(orderNoteRaw);
-
-  const rawItems = rawItemsAll.filter((it) => isPlainObject(it) && toTrimmedString(it.cart_id) && !isMetaRow(it));
-  const pizzas = rawItems.filter((it) => !isDrinkRow(it));
-  const drinks = rawItems.filter((it) => isDrinkRow(it));
-
-  const totalCents =
-    Math.max(0, safeInt(order?.total_eur_cents, 0)) ||
-    Math.max(0, Math.round((typeof order?.total_price === "number" ? order.total_price : Number(order?.total_price)) * 100 || 0));
-
-  const total = formatTotalFromCents(totalCents);
-
-  const lines: string[] = [];
-
-  lines.push("📪📬📭 Nova porudžbina:");
-  lines.push(`🙅‍♂️ Ime: ${name}`);
-  lines.push(`☎️ Telefon: ${phone}`);
-  lines.push(`🏠 Adresa: ${address}`);
-  lines.push(`🕒 Status: ${status}`);
-
-  if (meta.zone) lines.push(`📍 Zona: ${meta.zone}`);
-  if (meta.delivery) lines.push(`🚚 Dostava: ${meta.delivery}`);
-  if (meta.payment) lines.push(`${paymentIcon(meta.payment)} Plaćanje: ${meta.payment}`);
-
-  lines.push("");
-  lines.push("🔊🔊 LISTA PROIZVODA:");
-
-  for (const it of pizzas) {
-    const nm = toTrimmedString(it?.name) || "Proizvod";
-    const qty = Math.max(1, safeInt(it?.quantity, 1));
-    const sizeRaw = toTrimmedString(it?.size);
-    const size = sizeRaw ? ` (${sizeRaw})` : "";
-
-    lines.push(`🍕 ● ${qty}x ${nm}${size}`);
-
-    const addonsRaw = it?.addons;
-    const addons: CartAddon[] = Array.isArray(addonsRaw) ? (addonsRaw as CartAddon[]) : [];
-
-    if (addons.length > 0) {
-      lines.push("🍄● Dodaci:");
-      for (const a of addons) {
-        const an = toTrimmedString(a?.name);
-        if (!an) continue;
-        const aq = Math.max(1, safeInt(a?.quantity, 1));
-        lines.push(` ${addonEmoji(an)}● ${aq}x ${an}`);
+    if (feeEur == null) {
+      const mf = line.match(/Dostava\s*:?\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
+      if (mf && typeof mf[1] === "string") {
+        const v = Number(mf[1].replace(",", "."));
+        if (Number.isFinite(v) && v >= 0) feeEur = v;
       }
     }
-
-    const itemNote = toTrimmedString(it?.note);
-    if (itemNote) {
-      lines.push(`🚨 ● NAPOMENA: ${itemNote}`);
-    }
-
-    lines.push("");
   }
 
-  if (drinks.length > 0) {
-    lines.push("🥤● Piće:");
-    for (const it of drinks) {
-      const nm = toTrimmedString(it?.name) || "Piće";
-      const qty = Math.max(1, safeInt(it?.quantity, 1));
-      lines.push(`  - ${qty}x ${nm}`);
-    }
-    lines.push("");
-  }
-
-  if (meta.extraNote) {
-    lines.push(`🚨 ● NAPOMENA: ${meta.extraNote}`);
-    lines.push("");
-  }
-
-  lines.push(`💸 ● Ukupno: ${total} €`);
-
-  return lines.join("\n").trim();
+  if (feeEur != null) return { feeCents: Math.round(feeEur * 100), zoneName };
+  return { feeCents: 0, zoneName };
 }
 
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
+function safeTotalCentsFromBody(body: Record<string, unknown>): number {
+  const cents = body.total_eur_cents ?? body.totalEurCents;
+  const asCents = safeInt(cents, -1);
+  if (asCents >= 0) return asCents;
+
+  const price = body.total_price ?? body.totalPrice;
+  const n = safeNumber(price, NaN);
+  if (Number.isFinite(n) && n >= 0) return Math.round(n * 100);
+
+  return 0;
 }
 
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY") || getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL) throw new Error("Missing env: SUPABASE_URL (or VITE_SUPABASE_URL)");
-  if (!SERVICE_ROLE) throw new Error("Missing env: SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY)");
-
-  let u: URL;
-  try {
-    u = new URL(SUPABASE_URL);
-  } catch {
-    throw new Error("Invalid supabaseUrl: Provided URL is malformed.");
-  }
-  if (!u.hostname.endsWith(".supabase.co")) {
-    throw new Error("Invalid supabaseUrl: Expected *.supabase.co host.");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/telegram-new-order" } },
-  });
+function buildTelegramPayload(orderId: string) {
+  const base = getEnv("VERCEL_URL") ? `https://${getEnv("VERCEL_URL")}` : "";
+  const url = base || "https://padrinobudva.com";
+  return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
 }
 
-const supabase = buildSupabaseAdmin();
+async function bestEffortTelegramNotify(orderId: string) {
+  const url = buildTelegramPayload(orderId).notify_url;
 
-async function sendTelegramMessage(text: string) {
-  const token = getEnv("TELEGRAM_BOT_TOKEN");
-  const chatId = getEnv("TELEGRAM_CHAT_ID");
-  if (!token || !chatId) return;
+  // Ako je TELEGRAM_WEBHOOK_SECRET setovan, /api/telegram-new-order ga zahteva.
+  const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (secret) headers["x-telegram-secret"] = secret;
 
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  // Best-effort, ali ne smemo da “vise”: hard timeout.
+  const controller = new AbortController();
+  const timeoutMs = 7000;
+  const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        // bez parse_mode => najstabilnije za emoji + plain text
-        disable_web_page_preview: true,
-      }),
+      headers,
+      body: JSON.stringify({ order_id: orderId }),
+      signal: controller.signal,
     });
   } catch {
-    // best-effort
+    // best effort
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function bestEffortPaymentsCreateSession(orderId: string, paymentMethod: PaymentMethod) {
+  const projectRef = getEnv("SUPABASE_PROJECT_REF");
+  const anon = getEnv("SUPABASE_ANON_KEY") || getEnv("VITE_SUPABASE_ANON_KEY");
+  const token = getEnv("PAYMENTS_EDGE_TOKEN");
+  if (!projectRef || !anon) return;
+
+  const url = `https://${projectRef}.supabase.co/functions/v1/payments-create-session`;
+
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    authorization: `Bearer ${anon}`,
+  };
+  if (token) headers["x-padrino-token"] = token;
+
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ order_id: orderId, payment_method: paymentMethod }),
+    });
+  } catch {
+    // best effort
   }
 }
 
@@ -384,35 +405,145 @@ export default async function handler(req: ReqLike, res: ResLike) {
   }
 
   if (req.method !== "POST") {
-    return json(res, 405, { ok: false, error: "Method Not Allowed" });
-  }
-
-  // Secret guard (ako postoji env)
-  const expectedSecret = getEnv("TELEGRAM_WEBHOOK_SECRET");
-  if (expectedSecret) {
-    const got = headerString(req, "x-telegram-secret");
-    if (!got || got !== expectedSecret) {
-      return json(res, 401, { ok: false, error: "Unauthorized" });
-    }
-  }
-
-  const body = isPlainObject(req.body) ? req.body : {};
-  const order_id = toTrimmedString(body.order_id) || toTrimmedString(body.orderId);
-
-  if (!order_id) return json(res, 400, { ok: false, error: "order_id required" });
-
-  const { data: order, error } = await supabase.from("orders").select("*").eq("id", order_id).single();
-
-  if (error) {
-    return json(res, 500, { ok: false, error: errorMessage(error) });
+    return json(res, 405, { ok: false, error: "Method not allowed" });
   }
 
   try {
-    const message = formatOrderForTelegram((order ?? {}) as OrderRow);
-    await sendTelegramMessage(message);
-  } catch {
-    // best-effort
-  }
+    const body = isPlainObject(req.body) ? req.body : {};
 
-  return json(res, 200, { ok: true });
+    const customer_name = toTrimmedString(body.customer_name);
+    const customer_phone = toTrimmedString(body.customer_phone);
+    const customer_address = toTrimmedString(body.customer_address);
+
+    const rawItems: unknown[] = Array.isArray(body.items) ? body.items : [];
+
+    const currency = toTrimmedString(body.currency) || "EUR";
+    const status = toTrimmedString(body.status) || "pending";
+
+    const pmRaw = toTrimmedString(body.payment_method) || toTrimmedString(body.paymentMethod);
+    if (pmRaw && pmRaw !== "cash" && pmRaw !== "card") {
+      return json(res, 400, { ok: false, error: "Invalid payment_method" });
+    }
+    const payment_method: PaymentMethod = pmRaw === "card" ? "card" : "cash";
+
+    if (payment_method === "card") {
+      return json(res, 501, {
+        ok: false,
+        error: "Card payments are disabled (NLB pending).",
+        code: "CARD_DISABLED",
+      });
+    }
+
+    if (
+      customer_name.length < 2 ||
+      customer_phone.length < 6 ||
+      customer_address.length < 5 ||
+      rawItems.length === 0
+    ) {
+      return json(res, 400, { ok: false, error: "Invalid payload" });
+    }
+
+    for (const it of rawItems) {
+      if (looksLikeRealItemButInvalid(it)) {
+        return json(res, 400, { ok: false, error: "Invalid item structure" });
+      }
+    }
+
+    const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
+
+    const calcItems = itemsForInsert.filter((it): it is Record<string, unknown> => {
+      if (!isPlainObject(it)) return false;
+      if (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)) return false;
+
+      const q = it.quantity;
+      const p = it.price_per_item ?? it.pricePerItem;
+      return typeof q === "number" && typeof p === "number";
+    });
+
+    if (calcItems.length === 0) {
+      return json(res, 400, { ok: false, error: "Invalid item structure" });
+    }
+
+    const idsToFetch: string[] = [];
+    for (const it of calcItems) {
+      const menu_item_id = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
+      if (menu_item_id) idsToFetch.push(menu_item_id);
+
+      const addons = Array.isArray(it.addons) ? it.addons : [];
+      for (const a of addons) {
+        if (!isPlainObject(a)) continue;
+        const addonId = toTrimmedString(a.id);
+        if (addonId) idsToFetch.push(addonId);
+      }
+    }
+
+    const priceMap = await fetchMenuPricesCents(idsToFetch);
+
+    let subtotal_eur_cents = 0;
+
+    for (const item of calcItems) {
+      const q = safeInt(item.quantity, 1);
+      const id = toTrimmedString(item.menu_item_id) || toTrimmedString(item.menuItemId);
+      const baseCents = id ? priceMap.get(id) ?? 0 : 0;
+      const addonsCents = sumAddonsCents(item.addons, priceMap);
+
+      subtotal_eur_cents += q * baseCents + q * addonsCents;
+    }
+
+    if (subtotal_eur_cents <= 0) {
+      return json(res, 400, { ok: false, error: "Invalid calculated subtotal" });
+    }
+
+    const point = parseLatLngFromBody(body);
+
+    let zones: Zone[] = [];
+    if (point) {
+      try {
+        zones = await fetchZones();
+      } catch {
+        zones = [];
+      }
+    }
+
+    const delivery = getDeliveryFeeCentsFromMeta(itemsForInsert, zones, point);
+
+    const computedTotalCents = subtotal_eur_cents + Math.max(0, delivery.feeCents);
+    const bodyTotalCents = safeTotalCentsFromBody(body);
+
+    if (bodyTotalCents > 0 && Math.abs(bodyTotalCents - computedTotalCents) > 1) {
+      return json(res, 400, { ok: false, error: "Total mismatch" });
+    }
+
+    const { data: inserted, error: insErr } = await supabase
+      .from("orders")
+      .insert({
+        customer_name,
+        customer_phone,
+        customer_address,
+        items: itemsForInsert,
+        status,
+        currency,
+        total_eur_cents: computedTotalCents,
+      })
+      .select("id")
+      .single();
+
+    if (insErr || !inserted?.id) {
+      const msg = insErr?.message ? `DB insert failed (${insErr.message})` : "DB insert failed";
+      return json(res, 500, { ok: false, error: msg });
+    }
+
+    const orderId = toTrimmedString(inserted.id);
+
+    // ✅ čekamo Telegram notify (serverless može prekinuti fire-and-forget)
+    await bestEffortTelegramNotify(orderId);
+
+    // kartice su disabled, ali ostavljamo best-effort (ne blokira response)
+    void bestEffortPaymentsCreateSession(orderId, payment_method);
+
+    return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+  }
 }

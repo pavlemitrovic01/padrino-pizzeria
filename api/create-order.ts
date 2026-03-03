@@ -346,14 +346,28 @@ function buildTelegramPayload(orderId: string) {
 
 async function bestEffortTelegramNotify(orderId: string) {
   const url = buildTelegramPayload(orderId).notify_url;
+
+  // Ako je TELEGRAM_WEBHOOK_SECRET setovan, /api/telegram-new-order ga zahteva.
+  const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (secret) headers["x-telegram-secret"] = secret;
+
+  // Best-effort, ali ne smemo da “vise”: hard timeout.
+  const controller = new AbortController();
+  const timeoutMs = 7000;
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({ order_id: orderId }),
+      signal: controller.signal,
     });
   } catch {
     // best effort
+  } finally {
+    clearTimeout(t);
   }
 }
 
@@ -521,10 +535,12 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const orderId = toTrimmedString(inserted.id);
 
-    void bestEffortTelegramNotify(orderId);
+    // ✅ čekamo Telegram notify (serverless može prekinuti fire-and-forget)
+    await bestEffortTelegramNotify(orderId);
+
+    // kartice su disabled, ali ostavljamo best-effort (ne blokira response)
     void bestEffortPaymentsCreateSession(orderId, payment_method);
 
-    // ✅ UI očekuje `id` → dodajemo alias (plus ostavljamo postojeća polja)
     return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
