@@ -64,21 +64,8 @@ function buildSupabaseAdmin() {
     throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
   }
 
-  try {
-    const u = new URL(SUPABASE_URL);
-    if (!u.hostname.endsWith(".supabase.co")) {
-      throw new Error("Invalid supabaseUrl: Expected *.supabase.co host.");
-    }
-  } catch {
-    throw new Error("Invalid supabaseUrl: Provided URL is malformed.");
-  }
-
   return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { headers: { "X-Client-Info": "padrino-vercel-api/create-order" } },
   });
 }
@@ -116,7 +103,6 @@ function looksLikeCartMetaItem(v: unknown) {
   if (category.toLowerCase() === "meta") return true;
   if (name.toUpperCase() === "META") return true;
 
-  // fallback: menu_item_id null + price_per_item 0 je vrlo verovatno meta
   const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
   const p = v.price_per_item ?? v.pricePerItem;
   if (!menuItemId && typeof p === "number" && p === 0) return true;
@@ -130,14 +116,11 @@ function looksLikeRealItemButInvalid(v: unknown) {
   const name = toTrimmedString(v.name);
   const qty = v.quantity;
 
-  // ima neke item-ish stvari, ali nije validan
   const hasItemish = !!name || typeof qty === "number" || !!menuItemId;
   if (!hasItemish) return false;
 
-  // meta je ok
   if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
 
-  // nema menu_item_id ali izgleda kao item → invalid
   return !menuItemId;
 }
 
@@ -177,7 +160,6 @@ type PricingRow = {
 
 async function fetchZones(): Promise<Zone[]> {
   const { data, error } = await supabase.from("delivery_zones").select("id,name,fee_eur,polygon");
-
   if (error) throw new Error(`DB: zones fetch failed (${error.message})`);
 
   const zones: Zone[] = [];
@@ -190,21 +172,17 @@ async function fetchZones(): Promise<Zone[]> {
     const polygon: number[][] = Array.isArray(polygonRaw)
       ? (polygonRaw as unknown[]).map((pt) => {
           if (!Array.isArray(pt) || pt.length < 2) return [0, 0];
-          const a = safeNumber(pt[0], 0);
-          const b = safeNumber(pt[1], 0);
-          return [a, b];
+          return [safeNumber(pt[0], 0), safeNumber(pt[1], 0)];
         })
       : [];
 
     if (!id || !name || polygon.length < 3) continue;
-
     zones.push({ id, name, fee_eur: fee, polygon });
   }
 
   return zones;
 }
 
-// basic point-in-polygon (ray casting)
 function isPointInPolygon(point: [number, number], polygon: number[][]) {
   const x = point[0];
   const y = point[1];
@@ -242,7 +220,6 @@ function appendMetaLine(existing: string, line: string): string {
   const e = existing.trim();
   const l = line.trim();
   if (!l) return e;
-
   if (!e) return l;
 
   const existingLines = e.split(/\r?\n/).map((s) => s.trim());
@@ -253,7 +230,6 @@ function appendMetaLine(existing: string, line: string): string {
 
 function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): unknown[] {
   const line = `Plaćanje: ${payment === "cash" ? "Gotovina" : "Kartica"}`;
-
   const items = Array.isArray(rawItems) ? [...rawItems] : [];
 
   const idx = items.findIndex((it) => isPlainObject(it) && (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)));
@@ -266,7 +242,6 @@ function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): un
   const merged = appendMetaLine(existing, line);
 
   items[idx] = { ...meta, order_note: merged, note: merged };
-
   return items;
 }
 
@@ -275,7 +250,6 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
   if (uniq.length === 0) return new Map();
 
   const { data, error } = await supabase.from("menu_items").select("id,price_eur_cents").in("id", uniq);
-
   if (error) throw new Error(`DB: pricing fetch failed (${error.message})`);
 
   const m = new Map<string, number>();
@@ -285,7 +259,6 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
     const p = safeInt((r as unknown as Record<string, unknown>).price_eur_cents, 0);
     if (id && p > 0) m.set(id, p);
   }
-
   return m;
 }
 
@@ -295,10 +268,8 @@ function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
 
   for (const a of list) {
     if (!isPlainObject(a)) continue;
-
     const addonId = toTrimmedString(a.id);
     const q = safeInt(a.quantity, 1);
-
     if (!addonId || q <= 0) continue;
 
     const cents = priceMap.get(addonId) ?? 0;
@@ -313,7 +284,6 @@ function getDeliveryFeeCentsFromMeta(
   zones: Zone[],
   point: LatLng | null,
 ): { feeCents: number; zoneName: string } {
-  // If point exists, compute zone fee by polygon
   if (point) {
     const pt: [number, number] = [point.lng, point.lat];
     for (const z of zones) {
@@ -323,7 +293,6 @@ function getDeliveryFeeCentsFromMeta(
     }
   }
 
-  // fallback: attempt to parse from meta note line "Dostava: X €" and "Zona: Y"
   let metaNote = "";
   for (const it of items) {
     if (!isPlainObject(it)) continue;
@@ -339,7 +308,6 @@ function getDeliveryFeeCentsFromMeta(
   let zoneName = "";
 
   for (const line of lines) {
-    // ✅ radi i kad su u istoj liniji: "Zona: Budva, Dostava: 3€"
     if (!zoneName) {
       const mz = line.match(/Zona\s*:?\s*([^,\n\r]+)/i);
       if (mz && typeof mz[1] === "string") zoneName = mz[1].trim();
@@ -354,10 +322,7 @@ function getDeliveryFeeCentsFromMeta(
     }
   }
 
-  if (feeEur != null) {
-    return { feeCents: Math.round(feeEur * 100), zoneName };
-  }
-
+  if (feeEur != null) return { feeCents: Math.round(feeEur * 100), zoneName };
   return { feeCents: 0, zoneName };
 }
 
@@ -376,16 +341,11 @@ function safeTotalCentsFromBody(body: Record<string, unknown>): number {
 function buildTelegramPayload(orderId: string) {
   const base = getEnv("VERCEL_URL") ? `https://${getEnv("VERCEL_URL")}` : "";
   const url = base || "https://padrinobudva.com";
-  return {
-    order_id: orderId,
-    notify_url: `${url}/api/telegram-new-order`,
-  };
+  return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
 }
 
 async function bestEffortTelegramNotify(orderId: string) {
-  const payload = buildTelegramPayload(orderId);
-  const url = payload.notify_url;
-
+  const url = buildTelegramPayload(orderId).notify_url;
   try {
     await fetch(url, {
       method: "POST",
@@ -401,7 +361,6 @@ async function bestEffortPaymentsCreateSession(orderId: string, paymentMethod: P
   const projectRef = getEnv("SUPABASE_PROJECT_REF");
   const anon = getEnv("SUPABASE_ANON_KEY") || getEnv("VITE_SUPABASE_ANON_KEY");
   const token = getEnv("PAYMENTS_EDGE_TOKEN");
-
   if (!projectRef || !anon) return;
 
   const url = `https://${projectRef}.supabase.co/functions/v1/payments-create-session`;
@@ -410,7 +369,6 @@ async function bestEffortPaymentsCreateSession(orderId: string, paymentMethod: P
     "content-type": "application/json",
     authorization: `Bearer ${anon}`,
   };
-
   if (token) headers["x-padrino-token"] = token;
 
   try {
@@ -492,7 +450,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Invalid item structure" });
     }
 
-    // pricing from DB (base + addons)
     const idsToFetch: string[] = [];
     for (const it of calcItems) {
       const menu_item_id = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
@@ -512,10 +469,8 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     for (const item of calcItems) {
       const q = safeInt(item.quantity, 1);
-
       const id = toTrimmedString(item.menu_item_id) || toTrimmedString(item.menuItemId);
       const baseCents = id ? priceMap.get(id) ?? 0 : 0;
-
       const addonsCents = sumAddonsCents(item.addons, priceMap);
 
       subtotal_eur_cents += q * baseCents + q * addonsCents;
@@ -527,7 +482,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const point = parseLatLngFromBody(body);
 
-    // ✅ delivery_zones tabela nije obavezna (fallback iz meta note)
     let zones: Zone[] = [];
     if (point) {
       try {
@@ -540,10 +494,8 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const delivery = getDeliveryFeeCentsFromMeta(itemsForInsert, zones, point);
 
     const computedTotalCents = subtotal_eur_cents + Math.max(0, delivery.feeCents);
-
     const bodyTotalCents = safeTotalCentsFromBody(body);
 
-    // minimal anti-tamper: must match within 1 cent
     if (bodyTotalCents > 0 && Math.abs(bodyTotalCents - computedTotalCents) > 1) {
       return json(res, 400, { ok: false, error: "Total mismatch" });
     }
@@ -569,11 +521,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const orderId = toTrimmedString(inserted.id);
 
-    // best effort: telegram + payments session create
     void bestEffortTelegramNotify(orderId);
     void bestEffortPaymentsCreateSession(orderId, payment_method);
 
-    return json(res, 200, { ok: true, order_id: orderId, orderId });
+    // ✅ UI očekuje `id` → dodajemo alias (plus ostavljamo postojeća polja)
+    return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return json(res, 500, { ok: false, error: msg || "Unknown error" });
