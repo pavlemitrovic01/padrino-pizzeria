@@ -353,19 +353,29 @@ async function bestEffortTelegramNotify(orderId: string) {
   if (secret) headers["x-telegram-secret"] = secret;
 
   // serverless safety: ne dozvoliti da fetch "visi" (best-effort timeout)
+  // 4s je prekratko jer telegram-new-order radi DB read + Telegram API call.
   const controller = new AbortController();
-  const timeoutMs = 4000;
+  const timeoutMs = 9000;
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    await fetch(url, {
+    const r = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify({ order_id: orderId }),
       signal: controller.signal,
     });
-  } catch {
-    // best effort
+
+    if (!r.ok) {
+      const bodyText = await r.text().catch(() => "");
+      console.error("bestEffortTelegramNotify: non-OK response", {
+        status: r.status,
+        body: bodyText.slice(0, 300),
+      });
+    }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("bestEffortTelegramNotify: request failed", { error: msg || "unknown" });
   } finally {
     clearTimeout(t);
   }
