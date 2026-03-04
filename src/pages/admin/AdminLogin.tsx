@@ -3,15 +3,10 @@ import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 
 type AdminRoleState = "checking" | "none" | "admin" | "not-admin";
 
-const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
+type AdminMeVerdict = "admin" | "not-admin" | "unauthenticated";
 
 function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
-}
-
-function isAdminEmail(email: unknown): boolean {
-  const e = typeof email === "string" ? normalizeEmail(email) : "";
-  return e.length > 0 && ADMIN_EMAILS.has(e);
 }
 
 function cleanUrl() {
@@ -44,6 +39,35 @@ function extractSupabaseErrorMessage(err: unknown): string {
   return "Greška pri prijavi. Pokušajte ponovo.";
 }
 
+const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+
+async function checkAdminByToken(token: string): Promise<AdminMeVerdict> {
+  try {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-me`, {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    const body: unknown = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      if (res.status === 401) return "unauthenticated";
+      return "unauthenticated";
+    }
+
+    if (isRecord(body) && body.ok === true) {
+      return body.is_admin === true ? "admin" : "not-admin";
+    }
+
+    return "unauthenticated";
+  } catch (e) {
+    console.error("[AdminLogin] admin-me failed:", e);
+    return "unauthenticated";
+  }
+}
+
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
 
@@ -61,21 +85,26 @@ export default function AdminLogin() {
   const [confirming, setConfirming] = useState(false);
 
   const cleanedEmail = useMemo(() => normalizeEmail(email), [email]);
-  const emailIsAdmin = useMemo(() => isAdminEmail(cleanedEmail), [cleanedEmail]);
 
   const canSend = useMemo(() => {
     if (submitting) return false;
     if (cooldownSeconds > 0) return false;
     if (!cleanedEmail) return false;
-    if (!emailIsAdmin) return false; // allowlist guard
     return true;
-  }, [submitting, cooldownSeconds, cleanedEmail, emailIsAdmin]);
+  }, [submitting, cooldownSeconds, cleanedEmail]);
 
   async function getRoleStateFromSession(): Promise<AdminRoleState> {
     const { data } = await supabaseAdminAuth.auth.getSession();
     const session = data?.session;
     if (!session || !session.user) return "none";
-    return isAdminEmail(session.user.email) ? "admin" : "not-admin";
+
+    const token = typeof session.access_token === "string" ? session.access_token.trim() : "";
+    if (!token) return "none";
+
+    const verdict = await checkAdminByToken(token);
+    if (verdict === "admin") return "admin";
+    if (verdict === "not-admin") return "not-admin";
+    return "none";
   }
 
   useEffect(() => {
@@ -123,7 +152,6 @@ export default function AdminLogin() {
           return;
         }
 
-        // Ako je sesija već tu ali nije admin, odmah pokaži poruku
         if (rs === "not-admin") {
           setRoleState("not-admin");
           return;
@@ -155,12 +183,25 @@ export default function AdminLogin() {
         return;
       }
 
-      if (isAdminEmail(session.user.email)) {
+      const token = typeof session.access_token === "string" ? session.access_token.trim() : "";
+      if (!token) {
+        setRoleState("none");
+        return;
+      }
+
+      const verdict = await checkAdminByToken(token);
+
+      if (verdict === "admin") {
         window.location.replace("/admin");
         return;
       }
 
-      setRoleState("not-admin");
+      if (verdict === "not-admin") {
+        setRoleState("not-admin");
+        return;
+      }
+
+      setRoleState("none");
     });
 
     return () => {
@@ -219,12 +260,6 @@ export default function AdminLogin() {
     setError(null);
 
     if (!cleanedEmail) return;
-
-    if (!emailIsAdmin) {
-      setError("Ovaj e-mail nema admin pristup.");
-      return;
-    }
-
     if (cooldownSeconds > 0 || submitting) return;
 
     setSubmitting(true);
@@ -266,15 +301,35 @@ export default function AdminLogin() {
   if (roleState === "not-admin") {
     return (
       <div className="p-6 max-w-sm mx-auto flex flex-col items-center">
-        <h1 className="text-xl font-bold mb-4 text-white">Nemate admin pristup.</h1>
-        <button
-          className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
-          onClick={() => {
-            window.location.href = "/";
-          }}
-        >
-          Nazad na meni
-        </button>
+        <h1 className="text-xl font-bold mb-3 text-white">Nemate admin pristup.</h1>
+        <p className="text-white/70 text-sm text-center">
+          Ulogovani ste, ali vaš e-mail nije na admin listi (tabela <span className="font-semibold">admin_users</span>).
+          Kontaktirajte vlasnika da vas doda.
+        </p>
+
+        <div className="mt-5 flex flex-col gap-2 w-full">
+          <button
+            className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
+            onClick={() => {
+              window.location.href = "/";
+            }}
+          >
+            Nazad na meni
+          </button>
+
+          <button
+            className="w-full text-white/80 hover:text-white underline text-sm"
+            onClick={async () => {
+              try {
+                await supabaseAdminAuth.auth.signOut();
+              } finally {
+                window.location.replace("/admin/login");
+              }
+            }}
+          >
+            Odjavi se
+          </button>
+        </div>
       </div>
     );
   }
@@ -323,6 +378,11 @@ export default function AdminLogin() {
         <h1 className="text-xl font-bold text-white">Provjerite e-mail 📩</h1>
         <p className="text-white mt-2">Poslali smo magični link. Kliknite na link iz e-maila.</p>
 
+        <div className="mt-3 text-xs text-white/60">
+          Napomena: pristup admin panelu je dozvoljen samo ako je vaš e-mail upisan u{" "}
+          <span className="font-semibold">admin_users</span>.
+        </div>
+
         <div className="mt-4 text-xs text-white/60">
           {cooldownSeconds > 0
             ? `Ponovno slanje dostupno za: ${cooldownSeconds}s`
@@ -348,13 +408,10 @@ export default function AdminLogin() {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        {!emailIsAdmin && cleanedEmail.length > 0 ? (
-          <p className="text-xs text-red-300">
-            Ovaj e-mail nije na admin allowlist-i. (Ne šaljem magic link da ne bi udarao rate limit.)
-          </p>
-        ) : (
-          <p className="text-xs text-white/50">Magic link se šalje samo na admin e-mail.</p>
-        )}
+        <p className="text-xs text-white/50">
+          Magic link se šalje na uneseni e-mail. Pristup admin panelu zavisi od tabele{" "}
+          <span className="font-semibold">admin_users</span>.
+        </p>
 
         <button
           type="submit"
