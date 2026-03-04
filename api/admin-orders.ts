@@ -75,15 +75,14 @@ function buildSupabaseAdmin() {
 
 const supabase = buildSupabaseAdmin();
 
-const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
+/**
+ * Break-glass fallback samo ako admin_users tabela ne postoji (deploy/migracija).
+ * Pošto si ti tabelu već napravio, realno se ovo neće koristiti.
+ */
+const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
 function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
-}
-
-function isAdminEmail(email: unknown): boolean {
-  const e = typeof email === "string" ? normalizeEmail(email) : "";
-  return e.length > 0 && ADMIN_EMAILS.has(e);
 }
 
 function getBearerToken(req: ReqLike): string {
@@ -97,6 +96,32 @@ function parseLimit(v: string, def: number, min: number, max: number) {
   const n = Number(v);
   if (!Number.isFinite(n)) return def;
   return Math.max(min, Math.min(max, Math.floor(n)));
+}
+
+function looksLikeMissingTable(err: unknown): boolean {
+  const msg =
+    typeof (err as { message?: unknown })?.message === "string"
+      ? (err as { message: string }).message
+      : "";
+  const s = msg.toLowerCase();
+  return s.includes("admin_users") && (s.includes("does not exist") || s.includes("relation"));
+}
+
+async function isAdminEmailDb(email: string): Promise<boolean> {
+  const e = normalizeEmail(email);
+  if (!e) return false;
+
+  const { data, error } = await supabase.from("admin_users").select("email, enabled").eq("email", e).maybeSingle();
+
+  if (error) {
+    if (looksLikeMissingTable(error)) {
+      return FALLBACK_ADMIN_EMAILS.has(e);
+    }
+    return false;
+  }
+
+  const enabled = typeof data?.enabled === "boolean" ? data.enabled : false;
+  return enabled === true;
 }
 
 export default async function handler(req: ReqLike, res: ResLike) {
@@ -118,7 +143,9 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const { data: userData, error: userErr } = await supabase.auth.getUser(token);
     if (userErr || !userData?.user) return json(res, 401, { ok: false, error: "Invalid session" });
 
-    if (!isAdminEmail(userData.user.email)) return json(res, 403, { ok: false, error: "Not authorized" });
+    const userEmail = typeof userData.user.email === "string" ? userData.user.email : "";
+    const isAdmin = await isAdminEmailDb(userEmail);
+    if (!isAdmin) return json(res, 403, { ok: false, error: "Not authorized" });
 
     const limitRaw = queryString(req, "limit");
     const limit = parseLimit(limitRaw, 200, 1, 500);
