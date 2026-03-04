@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseAdminAuth } from "../lib/supabaseAdminAuthClient";
 import { formatEUR, formatRSD, toSafeInt } from "../lib/money";
 
@@ -97,6 +97,60 @@ function getOrderTotalLabel(o: OrderRow) {
     return formatEUR(cents);
   }
   return formatRSD(o.total_price ?? 0);
+}
+
+function parseTimeMs(value: string): number {
+  const t = Date.parse(String(value ?? ""));
+  return Number.isFinite(t) ? t : 0;
+}
+
+function splitNoteLines(note: string): string[] {
+  return String(note ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function extractPaymentValueFromNote(note: string): string | null {
+  const m = String(note ?? "").match(/pla[ćc]anje\s*:\s*(.+)/i);
+  const v = m?.[1]?.trim() ?? "";
+  return v ? v : null;
+}
+
+function stripPaymentLines(lines: string[]): string[] {
+  return lines.filter((ln) => !/pla[ćc]anje\s*:/i.test(ln));
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  const t = String(text ?? "");
+  if (!t) return false;
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(t);
+      return true;
+    }
+  } catch {
+    // fallback ispod
+  }
+
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    ta.setAttribute("readonly", "true");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeText(value: string) {
@@ -272,6 +326,7 @@ async function adminFetchOrders(limit = 200): Promise<AdminOrdersResponse> {
       isRecord(jsonBody) && typeof jsonBody.error === "string" && jsonBody.error.trim()
         ? jsonBody.error.trim()
         : `HTTP ${res.status}`;
+
     return { ok: false, error: msg };
   }
 
@@ -325,13 +380,18 @@ export default function AdminOrders() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortDir, setSortDir] = useState<"newest" | "oldest">("newest");
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
   const [busyStatusById, setBusyStatusById] = useState<Record<string, boolean>>({});
   const [busyTelegramById, setBusyTelegramById] = useState<Record<string, boolean>>({});
   const [toastById, setToastById] = useState<Record<string, string>>({});
 
   const [signingOut, setSigningOut] = useState(false);
 
-  async function loadOrders() {
+  const loadOrders = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
 
@@ -346,7 +406,7 @@ export default function AdminOrders() {
 
     setOrders(r.orders);
     setLoading(false);
-  }
+  }, []);
 
   async function signOut() {
     if (signingOut) return;
@@ -377,9 +437,69 @@ export default function AdminOrders() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadOrders]);
 
-  const renderedOrders = useMemo(() => orders, [orders]);
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const id = window.setInterval(() => {
+      void loadOrders();
+    }, 20000);
+
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [autoRefresh, loadOrders]);
+
+  const counts = useMemo(() => {
+    const c: Record<OrderStatus, number> = {
+      pending: 0,
+      preparing: 0,
+      done: 0,
+      cancelled: 0,
+    };
+
+    for (const o of orders) {
+      const s = (o.status ?? "pending") as OrderStatus;
+      if (s in c) c[s] += 1;
+    }
+
+    return c;
+  }, [orders]);
+
+  const renderedOrders = useMemo(() => {
+    let list = [...orders];
+
+    // filter by status
+    if (statusFilter !== "all") {
+      list = list.filter((o) => ((o.status ?? "pending") as OrderStatus) === statusFilter);
+    }
+
+    // search
+    const q = normalizeText(searchQuery);
+    if (q) {
+      list = list.filter((o) => {
+        const parsed = parseOrderItems(o.items);
+        const metaNote =
+          parsed.meta && (typeof parsed.meta.order_note === "string" || typeof parsed.meta.note === "string")
+            ? safeString(parsed.meta.order_note ?? parsed.meta.note)
+            : "";
+
+        const hay = normalizeText([o.id, o.customer_name, o.customer_phone, o.customer_address, metaNote].join(" "));
+
+        return hay.includes(q);
+      });
+    }
+
+    // sort
+    list.sort((a, b) => {
+      const da = parseTimeMs(a.created_at);
+      const db = parseTimeMs(b.created_at);
+      return sortDir === "oldest" ? da - db : db - da;
+    });
+
+    return list;
+  }, [orders, searchQuery, sortDir, statusFilter]);
 
   async function updateStatus(orderId: string, next: OrderStatus) {
     setToastById((m) => ({ ...m, [orderId]: "" }));
@@ -423,6 +543,67 @@ export default function AdminOrders() {
     }
   }
 
+  function buildOrderSummary(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }): string {
+    const lines: string[] = [];
+
+    lines.push(`Padrino — Porudžbina`);
+    lines.push(`ID: ${o.id}`);
+    lines.push(`Vreme: ${safeDateTime(o.created_at)}`);
+    lines.push(`Status: ${(o.status ?? "pending") as OrderStatus}`);
+    lines.push(`Kupac: ${safeString(o.customer_name)}`);
+    lines.push(`Telefon: ${safeString(o.customer_phone)}`);
+    lines.push(`Adresa: ${safeString(o.customer_address)}`);
+
+    const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
+    const noteLines = splitNoteLines(metaNote);
+    const payment = extractPaymentValueFromNote(metaNote);
+
+    if (payment) lines.push(`Plaćanje: ${payment}`);
+
+    const otherNotes = stripPaymentLines(noteLines);
+    if (otherNotes.length > 0) {
+      lines.push(`Napomena:`);
+      for (const ln of otherNotes) lines.push(`- ${ln}`);
+    }
+
+    lines.push("");
+    lines.push("Stavke:");
+
+    const eur = isEurOrder(o);
+
+    for (const it of parsed.items) {
+      const qty = Math.max(1, it.quantity);
+      const lineTotal = safeInt(it.price_per_item, 0) * qty;
+      const priceLabel = eur ? formatEUR(lineTotal) : formatRSD(lineTotal);
+
+      const sizeLabel = it.size ? ` (${it.size})` : "";
+      lines.push(`- ${it.name}${sizeLabel} x${qty} — ${priceLabel}`);
+
+      for (const a of it.addons) {
+        const aq = Math.max(1, a.quantity);
+        const addonLabel = `  + ${a.name}${aq > 1 ? ` x${aq}` : ""}`;
+        if (eur) {
+          lines.push(`${addonLabel} (${formatEUR(safeInt(a.price, 0) * aq)})`);
+        } else {
+          lines.push(`${addonLabel}`);
+        }
+      }
+
+      if (it.note) lines.push(`  Napomena: ${it.note}`);
+    }
+
+    lines.push("");
+    lines.push(`Ukupno: ${getOrderTotalLabel(o)}`);
+
+    return lines.join("\n");
+  }
+
+  async function copyOrder(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }) {
+    const text = buildOrderSummary(o, parsed);
+    const ok = await copyToClipboard(text);
+    setToastById((m) => ({ ...m, [o.id]: ok ? "Kopirano ✓" : "Copy failed" }));
+  }
+
   return (
     <section className="bg-black text-white py-14">
       <div className="mx-auto max-w-6xl px-4">
@@ -430,9 +611,7 @@ export default function AdminOrders() {
           <div>
             <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
             <p className="mt-2 text-white/70">Admin koristi server-side API (service role) za SELECT/UPDATE.</p>
-            {import.meta.env.DEV ? (
-              <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na production endpoint.</p>
-            ) : null}
+            {import.meta.env.DEV ? <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na production endpoint.</p> : null}
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
@@ -454,6 +633,60 @@ export default function AdminOrders() {
               {signingOut ? "Odjavljujem…" : "Odjavi se"}
             </button>
           </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {(["all", "pending", "preparing", "done", "cancelled"] as const).map((s) => {
+                const active = statusFilter === s;
+                const label =
+                  s === "all" ? "Sve" : s === "pending" ? "Pending" : s === "preparing" ? "Preparing" : s === "done" ? "Done" : "Cancel";
+                const count = s === "all" ? orders.length : counts[s as Exclude<typeof s, "all">];
+
+                return (
+                  <button
+                    key={s}
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                      active ? "border-white/20 bg-black/40 text-white" : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
+                    }`}
+                    onClick={() => setStatusFilter(s)}
+                    title="Filter po statusu"
+                  >
+                    {label} <span className="text-white/50">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Pretraga: ime / tel / adresa / ID / napomena…"
+                className="w-full md:w-[360px] rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-white/20"
+              />
+
+              <button
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20"
+                onClick={() => setSortDir((p) => (p === "newest" ? "oldest" : "newest"))}
+                title="Promeni sortiranje"
+              >
+                Sort: {sortDir === "newest" ? "Najnovije" : "Najstarije"}
+              </button>
+
+              <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/80">
+                <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
+                Auto refresh (20s)
+              </label>
+            </div>
+          </div>
+
+          <p className="mt-3 text-xs text-white/60">
+            Pending: <span className="text-white/80">{counts.pending}</span> · Preparing:{" "}
+            <span className="text-white/80">{counts.preparing}</span> · Done: <span className="text-white/80">{counts.done}</span> · Cancel:{" "}
+            <span className="text-white/80">{counts.cancelled}</span>
+          </p>
         </div>
 
         <div className="mt-8">
@@ -500,6 +733,17 @@ export default function AdminOrders() {
                           </span>
 
                           {toast ? <span className="text-xs text-white/60">{toast}</span> : null}
+
+                          {(() => {
+                            const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
+                            const payment = extractPaymentValueFromNote(metaNote);
+                            if (!payment) return null;
+                            return (
+                              <span className="text-xs text-white/70">
+                                Plaćanje: <span className="text-white/90">{payment}</span>
+                              </span>
+                            );
+                          })()}
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-2">
@@ -543,6 +787,14 @@ export default function AdminOrders() {
                           >
                             {telegramBusy ? "Šaljem…" : "Resend Telegram"}
                           </button>
+
+                          <button
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
+                            onClick={() => void copyOrder(o, parsed)}
+                            title="Kopiraj porudžbinu (tekst) u clipboard"
+                          >
+                            Copy
+                          </button>
                         </div>
                       </div>
 
@@ -561,6 +813,27 @@ export default function AdminOrders() {
 
                     {isExpanded && (
                       <div className="mt-4 border-t border-white/10 pt-4 space-y-3">
+                        {(() => {
+                          const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
+                          const lines = splitNoteLines(metaNote);
+                          const other = stripPaymentLines(lines);
+
+                          if (other.length === 0) return null;
+
+                          return (
+                            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                              <p className="text-xs font-semibold text-white/80">Napomena porudžbine</p>
+                              <ul className="mt-2 space-y-1 text-xs text-white/70">
+                                {other.map((ln, i) => (
+                                  <li key={i} className="leading-relaxed">
+                                    • {ln}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })()}
+
                         {parsed.items.map((it, idx) => {
                           const qty = Math.max(1, it.quantity);
                           const lineTotal = safeInt(it.price_per_item, 0) * qty;
@@ -570,8 +843,7 @@ export default function AdminOrders() {
                               <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
                                   <p className="text-white font-semibold truncate">
-                                    {it.name}{" "}
-                                    {it.size ? <span className="text-white/60 font-normal">({it.size})</span> : null}
+                                    {it.name} {it.size ? <span className="text-white/60 font-normal">({it.size})</span> : null}
                                   </p>
                                   <p className="text-xs text-white/60 mt-1">x{qty}</p>
 

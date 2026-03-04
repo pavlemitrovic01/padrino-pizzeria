@@ -18,20 +18,11 @@ import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
 type SessionLike = {
+  access_token?: string | null;
   user?: {
     email?: string | null;
   } | null;
 } | null;
-
-const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
-
-function isAdminSession(session: SessionLike): boolean {
-  const email =
-    typeof session?.user?.email === "string"
-      ? session.user.email.trim().toLowerCase()
-      : "";
-  return email.length > 0 && ADMIN_EMAILS.has(email);
-}
 
 const AdminOrders = lazy(() => import("./components/AdminOrders"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -167,6 +158,45 @@ function SeoAnchorBlock() {
   );
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+function getAccessToken(session: SessionLike): string {
+  const t = typeof session?.access_token === "string" ? session.access_token.trim() : "";
+  return t;
+}
+
+const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+
+async function checkAdminByToken(token: string): Promise<"admin" | "not-admin" | "unauthenticated"> {
+  try {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-me`, {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    });
+
+    const body: unknown = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      if (res.status === 401) return "unauthenticated";
+      return "unauthenticated";
+    }
+
+    if (isRecord(body) && body.ok === true) {
+      const isAdmin = body.is_admin === true;
+      return isAdmin ? "admin" : "not-admin";
+    }
+
+    return "unauthenticated";
+  } catch (e) {
+    console.error("[Padrino] admin-me failed:", e);
+    return "unauthenticated";
+  }
+}
+
 export default function App() {
   const [pathname, setPathname] = useState<string>(() => getPathname());
   const [hash, setHash] = useState<string>(() => getHash());
@@ -195,20 +225,13 @@ export default function App() {
         ? window.location.origin
         : "https://padrinobudva.com";
 
-    const isAdmin =
-      pathname === "/admin" ||
-      pathname === "/admin/" ||
-      pathname.startsWith("/admin/") ||
-      pathname === "/admin/login" ||
-      pathname.startsWith("/admin/login") ||
-      pathname === "/admin/logs" ||
-      pathname.startsWith("/admin/logs");
+    const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
 
     // Breadcrumb JSON-LD samo za /menu; u svim drugim slučajevima čistimo
     const isMenu = pathname === "/menu" || pathname === "/menu/";
     if (!isMenu) removeJsonLd("ld-breadcrumb-menu");
 
-    if (isAdmin) {
+    if (isAdminArea) {
       setRobots("noindex,nofollow");
       setCanonical(`${origin}/`);
       setOgUrl(`${origin}/`);
@@ -267,11 +290,8 @@ export default function App() {
 
   const isAdminLoginRoute =
     pathname === "/admin/login" || pathname.startsWith("/admin/login/");
-  const isAdminLogsRoute =
-    pathname === "/admin/logs" || pathname === "/admin/logs/";
-  const isAdminRoute = pathname === "/admin" || pathname === "/admin/";
-
-  const needsAdminGuard = isAdminRoute || isAdminLogsRoute;
+  const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
+  const needsAdminGuard = isAdminArea && !isAdminLoginRoute;
 
   const [guardState, setGuardState] = useState<GuardState>("loading");
   const [checking, setChecking] = useState(true);
@@ -329,11 +349,21 @@ export default function App() {
           return;
         }
 
-        setGuardState(isAdminSession(session) ? "admin" : "not-admin");
+        const token = getAccessToken(session);
+        if (!token) {
+          setGuardState("unauthenticated");
+          setChecking(false);
+          return;
+        }
+
+        const verdict = await checkAdminByToken(token);
+        if (!mounted) return;
+
+        setGuardState(verdict === "admin" ? "admin" : verdict === "not-admin" ? "not-admin" : "unauthenticated");
         setChecking(false);
 
         unsubscribe =
-          subscribeAuthChanges(supabaseAdminAuth.auth, (nextSession) => {
+          subscribeAuthChanges(supabaseAdminAuth.auth, async (nextSession) => {
             if (!mounted) return;
 
             if (!nextSession || !nextSession.user) {
@@ -342,7 +372,19 @@ export default function App() {
               return;
             }
 
-            setGuardState(isAdminSession(nextSession) ? "admin" : "not-admin");
+            const nextToken = getAccessToken(nextSession);
+            if (!nextToken) {
+              setGuardState("unauthenticated");
+              setChecking(false);
+              return;
+            }
+
+            const nextVerdict = await checkAdminByToken(nextToken);
+            if (!mounted) return;
+
+            setGuardState(
+              nextVerdict === "admin" ? "admin" : nextVerdict === "not-admin" ? "not-admin" : "unauthenticated"
+            );
             setChecking(false);
           }) ?? null;
       } catch (e) {
@@ -414,7 +456,7 @@ export default function App() {
       );
     }
 
-    if (isAdminLogsRoute) {
+    if (pathname === "/admin/logs" || pathname === "/admin/logs/") {
       return (
         <Suspense fallback={<AdminChunkFallback />}>
           <AdminLogs />
