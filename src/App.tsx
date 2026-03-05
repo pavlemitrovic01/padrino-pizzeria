@@ -27,9 +27,61 @@ type SessionLike = {
 const AdminOrders = lazy(() => import("./components/AdminOrders"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
+const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 
 function AdminChunkFallback() {
   return <p className="text-white text-lg">Učitavam…</p>;
+}
+
+function AdminNav({ active }: { active: "orders" | "users" | "logs" }) {
+  const btnBase = "rounded-xl border px-3 py-2 text-xs font-semibold transition";
+  const btnActive = "border-white/20 bg-black/40 text-white";
+  const btnIdle = "border-white/10 bg-black/20 text-white/80 hover:border-white/20";
+
+  return (
+    <div className="bg-black text-white">
+      <div className="mx-auto max-w-6xl px-4 pt-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white/80">Admin</p>
+            <p className="text-xs text-white/50">Navigacija</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={`${btnBase} ${active === "orders" ? btnActive : btnIdle}`}
+              onClick={() => {
+                window.location.href = "/admin";
+              }}
+              title="Admin — Porudžbine"
+            >
+              Porudžbine
+            </button>
+
+            <button
+              className={`${btnBase} ${active === "users" ? btnActive : btnIdle}`}
+              onClick={() => {
+                window.location.href = "/admin/users";
+              }}
+              title="Admin — Users"
+            >
+              Users
+            </button>
+
+            <button
+              className={`${btnBase} ${active === "logs" ? btnActive : btnIdle}`}
+              onClick={() => {
+                window.location.href = "/admin/logs";
+              }}
+              title="Admin — Logs"
+            >
+              Logs
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 async function readSessionFromAuth(auth: unknown): Promise<SessionLike> {
@@ -169,7 +221,9 @@ function getAccessToken(session: SessionLike): string {
 
 const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
 
-async function checkAdminByToken(token: string): Promise<"admin" | "not-admin" | "unauthenticated"> {
+async function checkAdminByToken(
+  token: string
+): Promise<"admin" | "not-admin" | "unauthenticated"> {
   try {
     const res = await fetch(`${ADMIN_API_BASE}/api/admin-me`, {
       method: "GET",
@@ -221,9 +275,7 @@ export default function App() {
 
   useEffect(() => {
     const origin =
-      typeof window !== "undefined"
-        ? window.location.origin
-        : "https://padrinobudva.com";
+      typeof window !== "undefined" ? window.location.origin : "https://padrinobudva.com";
 
     const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
 
@@ -359,7 +411,13 @@ export default function App() {
         const verdict = await checkAdminByToken(token);
         if (!mounted) return;
 
-        setGuardState(verdict === "admin" ? "admin" : verdict === "not-admin" ? "not-admin" : "unauthenticated");
+        setGuardState(
+          verdict === "admin"
+            ? "admin"
+            : verdict === "not-admin"
+              ? "not-admin"
+              : "unauthenticated"
+        );
         setChecking(false);
 
         unsubscribe =
@@ -383,7 +441,11 @@ export default function App() {
             if (!mounted) return;
 
             setGuardState(
-              nextVerdict === "admin" ? "admin" : nextVerdict === "not-admin" ? "not-admin" : "unauthenticated"
+              nextVerdict === "admin"
+                ? "admin"
+                : nextVerdict === "not-admin"
+                  ? "not-admin"
+                  : "unauthenticated"
             );
             setChecking(false);
           }) ?? null;
@@ -456,18 +518,35 @@ export default function App() {
       );
     }
 
+    if (pathname === "/admin/users" || pathname === "/admin/users/") {
+      return (
+        <>
+          <AdminNav active="users" />
+          <Suspense fallback={<AdminChunkFallback />}>
+            <AdminUsers />
+          </Suspense>
+        </>
+      );
+    }
+
     if (pathname === "/admin/logs" || pathname === "/admin/logs/") {
       return (
-        <Suspense fallback={<AdminChunkFallback />}>
-          <AdminLogs />
-        </Suspense>
+        <>
+          <AdminNav active="logs" />
+          <Suspense fallback={<AdminChunkFallback />}>
+            <AdminLogs />
+          </Suspense>
+        </>
       );
     }
 
     return (
-      <Suspense fallback={<AdminChunkFallback />}>
-        <AdminOrders />
-      </Suspense>
+      <>
+        <AdminNav active="orders" />
+        <Suspense fallback={<AdminChunkFallback />}>
+          <AdminOrders />
+        </Suspense>
+      </>
     );
   }
 
