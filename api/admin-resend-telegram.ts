@@ -45,7 +45,11 @@ type OrderRow = {
   note?: unknown;
 };
 
-const ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
+/**
+ * Break-glass fallback samo ako admin_users tabela ne postoji (deploy/migracija).
+ * Pošto si tabelu već napravio, realno se ovo neće koristiti.
+ */
+const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
 // Hard timeout da Vercel funkcija nikad ne visi na Telegram fetch-u
 const TELEGRAM_FETCH_TIMEOUT_MS = 7000;
@@ -121,9 +125,28 @@ function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
 }
 
-function isAdminEmail(email: unknown): boolean {
+function looksLikeMissingTable(err: unknown): boolean {
+  const msg =
+    typeof (err as { message?: unknown })?.message === "string"
+      ? (err as { message: string }).message
+      : "";
+  const s = msg.toLowerCase();
+  return s.includes("admin_users") && (s.includes("does not exist") || s.includes("relation"));
+}
+
+async function isAdminEmailDb(email: unknown): Promise<boolean> {
   const e = typeof email === "string" ? normalizeEmail(email) : "";
-  return e.length > 0 && ADMIN_EMAILS.has(e);
+  if (!e) return false;
+
+  const { data, error } = await supabase.from("admin_users").select("email, enabled").eq("email", e).maybeSingle();
+
+  if (error) {
+    if (looksLikeMissingTable(error)) return FALLBACK_ADMIN_EMAILS.has(e);
+    return false;
+  }
+
+  const enabled = typeof data?.enabled === "boolean" ? data.enabled : false;
+  return enabled === true;
 }
 
 function getBearerToken(req: ReqLike): string {
@@ -434,7 +457,8 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 401, { ok: false, error: "Invalid session" });
     }
 
-    if (!isAdminEmail(userData.user.email)) {
+    const isAdmin = await isAdminEmailDb(userData.user.email);
+    if (!isAdmin) {
       return json(res, 403, { ok: false, error: "Not authorized" });
     }
 
