@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 type PaymentMethod = "cash" | "card";
@@ -18,6 +19,53 @@ type ResLike = {
   send: (body: string) => void;
 };
 
+type BankartConfig = {
+  baseUrl: string;
+  apiKey: string;
+  username: string;
+  password: string;
+  sharedSecret: string;
+  language: string;
+};
+
+type BankartDebitRequest = {
+  merchantTransactionId: string;
+  amount: string;
+  currency: string;
+  successUrl: string;
+  cancelUrl: string;
+  errorUrl: string;
+  callbackUrl: string;
+  description: string;
+  language: string;
+  merchantMetaData: string;
+  extraData: Record<string, string>;
+  customer?: {
+    firstName?: string;
+    lastName?: string;
+    billingAddress1?: string;
+    billingCountry?: string;
+    billingPhone?: string;
+    shippingFirstName?: string;
+    shippingLastName?: string;
+    shippingAddress1?: string;
+    shippingCountry?: string;
+    shippingPhone?: string;
+    ipAddress?: string;
+  };
+};
+
+type BankartDebitResponse = {
+  success?: unknown;
+  uuid?: unknown;
+  purchaseId?: unknown;
+  returnType?: unknown;
+  redirectUrl?: unknown;
+  paymentMethod?: unknown;
+  errors?: unknown;
+  extraData?: unknown;
+};
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
@@ -33,8 +81,16 @@ function headerString(req: ReqLike, key: string): string {
   return "";
 }
 
+function headerStringCI(req: ReqLike, key: string): string {
+  return (
+    headerString(req, key) ||
+    headerString(req, key.toLowerCase()) ||
+    headerString(req, key.toUpperCase())
+  );
+}
+
 function setCors(req: ReqLike, res: ResLike) {
-  const origin = headerString(req, "origin");
+  const origin = headerStringCI(req, "origin");
   res.setHeader("Access-Control-Allow-Origin", origin || "*");
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -51,6 +107,14 @@ function json(res: ResLike, status: number, body: Json) {
 
 function getEnv(name: string): string {
   return toTrimmedString(process.env[name]);
+}
+
+function getFirstEnv(...names: string[]): string {
+  for (const name of names) {
+    const value = getEnv(name);
+    if (value) return value;
+  }
+  return "";
 }
 
 function buildSupabaseAdmin() {
@@ -125,12 +189,12 @@ function looksLikeRealItemButInvalid(v: unknown) {
 }
 
 function safeInt(v: unknown, fallback = 0) {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : Number.NaN;
   return Number.isFinite(n) ? Math.trunc(n) : fallback;
 }
 
 function safeNumber(v: unknown, fallback = 0) {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : Number.NaN;
   return Number.isFinite(n) ? n : fallback;
 }
 
@@ -207,8 +271,8 @@ function parseLatLngFromBody(body: Record<string, unknown>): LatLng | null {
   const lat = body.lat ?? body.latitude ?? body.customer_lat ?? body.customerLat;
   const lng = body.lng ?? body.longitude ?? body.customer_lng ?? body.customerLng;
 
-  const la = safeNumber(lat, NaN);
-  const lo = safeNumber(lng, NaN);
+  const la = safeNumber(lat, Number.NaN);
+  const lo = safeNumber(lng, Number.NaN);
 
   if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
   if (la < -90 || la > 90 || lo < -180 || lo > 180) return null;
@@ -332,32 +396,39 @@ function safeTotalCentsFromBody(body: Record<string, unknown>): number {
   if (asCents >= 0) return asCents;
 
   const price = body.total_price ?? body.totalPrice;
-  const n = safeNumber(price, NaN);
+  const n = safeNumber(price, Number.NaN);
   if (Number.isFinite(n) && n >= 0) return Math.round(n * 100);
 
   return 0;
 }
 
-function buildTelegramPayload(orderId: string) {
-  // IMPORTANT:
-  // VERCEL_URL obično pokazuje na *.vercel.app domen koji može imati "Vercel Authentication" zaštitu,
-  // pa server-to-server poziv ka /api/telegram-new-order može završiti na HTML "Authentication Required" (401).
-  // Zato ovde preferiramo eksplicitan public site URL ili direktno custom domen.
+function resolvePublicBaseUrl(req: ReqLike): string {
   const envSite =
-    getEnv("PUBLIC_SITE_URL") || getEnv("SITE_URL") || getEnv("APP_URL") || "https://padrinobudva.com";
-  const url = envSite.replace(/\/+$/, "");
+    getEnv("PUBLIC_SITE_URL") || getEnv("SITE_URL") || getEnv("APP_URL") || getEnv("NEXT_PUBLIC_SITE_URL");
+  if (envSite) return envSite.replace(/\/+$/, "");
+
+  const origin = headerStringCI(req, "origin");
+  if (origin) return origin.replace(/\/+$/, "");
+
+  const proto = headerStringCI(req, "x-forwarded-proto") || "https";
+  const host = headerStringCI(req, "x-forwarded-host") || headerStringCI(req, "host");
+  if (host) return `${proto}://${host}`.replace(/\/+$/, "");
+
+  return "https://padrinobudva.com";
+}
+
+function buildTelegramPayload(req: ReqLike, orderId: string) {
+  const url = resolvePublicBaseUrl(req);
   return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
 }
 
-async function bestEffortTelegramNotify(orderId: string) {
-  const url = buildTelegramPayload(orderId).notify_url;
+async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
+  const url = buildTelegramPayload(req, orderId).notify_url;
 
-  // telegram-new-order može imati optional secret guard (TELEGRAM_WEBHOOK_SECRET)
   const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (secret) headers["x-telegram-secret"] = secret;
 
-  // serverless safety: ne dozvoliti da fetch "visi" (best-effort timeout)
   const controller = new AbortController();
   const timeoutMs = 12000;
   const t = setTimeout(() => controller.abort(), timeoutMs);
@@ -401,6 +472,407 @@ async function bestEffortPaymentsCreateSession(orderId: string, paymentMethod: P
   }
 }
 
+function getBankartConfig(): BankartConfig {
+  const baseUrl = getFirstEnv("BANKART_API_BASE_URL", "NLB_API_BASE_URL") || "https://gateway.bankart.si/api/v3";
+  const apiKey = getFirstEnv("BANKART_API_KEY", "NLB_API_KEY");
+  const username = getFirstEnv("BANKART_API_USERNAME", "BANKART_API_USER", "NLB_API_USERNAME", "NLB_API_USER");
+  const password = getFirstEnv("BANKART_API_PASSWORD", "NLB_API_PASSWORD");
+  const sharedSecret = getFirstEnv("BANKART_SHARED_SECRET", "NLB_SHARED_SECRET");
+  const language = (getFirstEnv("BANKART_LANGUAGE", "NLB_LANGUAGE") || "en").toLowerCase();
+
+  if (!apiKey || !username || !password || !sharedSecret) {
+    throw new Error("Missing Bankart env: API key / username / password / shared secret");
+  }
+
+  return {
+    baseUrl: baseUrl.replace(/\/+$/, ""),
+    apiKey,
+    username,
+    password,
+    sharedSecret,
+    language: language.length === 2 ? language : "en",
+  };
+}
+
+function splitCustomerName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    return { firstName: fullName || "Kupac", lastName: "" };
+  }
+
+  const firstName = parts.shift() ?? fullName;
+  return { firstName, lastName: parts.join(" ") };
+}
+
+function getClientIp(req: ReqLike): string {
+  const forwarded = headerStringCI(req, "x-forwarded-for");
+  if (forwarded) {
+    const first = forwarded.split(",")[0]?.trim() ?? "";
+    if (first) return first;
+  }
+
+  return headerStringCI(req, "x-real-ip");
+}
+
+function centsToAmountString(cents: number): string {
+  const normalized = Number.isFinite(cents) ? Math.max(0, Math.trunc(cents)) : 0;
+  return (normalized / 100).toFixed(2);
+}
+
+function createBankartSignature(
+  sharedSecret: string,
+  method: string,
+  contentType: string,
+  dateHeader: string,
+  requestUri: string,
+  bodyText: string,
+): string {
+  const bodyHash = crypto.createHash("sha512").update(bodyText, "utf8").digest("hex");
+  const message = [method.toUpperCase(), bodyHash, contentType, dateHeader, requestUri].join("\n");
+  return crypto.createHmac("sha512", sharedSecret).update(message, "utf8").digest("base64");
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function safeBankartErrorMessage(body: unknown, status: number, fallback: string): string {
+  if (isPlainObject(body)) {
+    const topError = toTrimmedString(body.errorMessage) || toTrimmedString(body.message);
+    if (topError) return topError;
+
+    const errors = Array.isArray(body.errors) ? body.errors : [];
+    const first = errors[0];
+    if (isPlainObject(first)) {
+      const parts = [
+        toTrimmedString(first.errorMessage),
+        toTrimmedString(first.adapterMessage),
+        toTrimmedString(first.errorCode),
+        toTrimmedString(first.adapterCode),
+      ].filter(Boolean);
+      if (parts.length > 0) return parts.join(" | ");
+    }
+  }
+
+  return `${fallback} (HTTP ${status})`;
+}
+
+function bankartMetaSnapshot(input: {
+  phase: string;
+  requestBody?: BankartDebitRequest;
+  responseBody?: unknown;
+  responseStatus?: number;
+  message?: string;
+}): Record<string, unknown> {
+  const out: Record<string, unknown> = { phase: input.phase };
+  if (typeof input.responseStatus === "number") out.responseStatus = input.responseStatus;
+  if (input.message) out.message = input.message;
+  if (input.requestBody) out.request = input.requestBody;
+  if (input.responseBody !== undefined) out.response = input.responseBody;
+  return out;
+}
+
+async function updateOrderPaymentState(
+  orderId: string,
+  values: {
+    status?: string;
+    payment_status?: string | null;
+    payment_reference?: string | null;
+    payment_meta?: Record<string, unknown> | null;
+  },
+) {
+  const patch: Record<string, unknown> = {};
+
+  if (typeof values.status === "string") patch.status = values.status;
+  if (values.payment_status !== undefined) patch.payment_status = values.payment_status;
+  if (values.payment_reference !== undefined) patch.payment_reference = values.payment_reference;
+  if (values.payment_meta !== undefined) patch.payment_meta = values.payment_meta;
+
+  if (Object.keys(patch).length === 0) return;
+
+  const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
+  if (error) {
+    throw new Error(`DB payment update failed (${error.message})`);
+  }
+}
+
+function buildBankartUrls(req: ReqLike, orderId: string) {
+  const base = resolvePublicBaseUrl(req);
+  const encoded = encodeURIComponent(orderId);
+
+  return {
+    successUrl: `${base}/checkout/success?id=${encoded}&payment=card&bankart=success`,
+    cancelUrl: `${base}/checkout/success?id=${encoded}&payment=card&bankart=cancel`,
+    errorUrl: `${base}/checkout/success?id=${encoded}&payment=card&bankart=error`,
+    callbackUrl: `${base}/api/bankart-callback`,
+  };
+}
+
+function buildBankartDebitRequest(
+  req: ReqLike,
+  orderId: string,
+  input: {
+    amountCents: number;
+    currency: string;
+    customerName: string;
+    customerPhone: string;
+    customerAddress: string;
+  },
+): BankartDebitRequest {
+  const urls = buildBankartUrls(req, orderId);
+  const { firstName, lastName } = splitCustomerName(input.customerName);
+  const clientIp = getClientIp(req);
+  const config = getBankartConfig();
+
+  return {
+    merchantTransactionId: orderId,
+    amount: centsToAmountString(input.amountCents),
+    currency: input.currency || "EUR",
+    successUrl: urls.successUrl,
+    cancelUrl: urls.cancelUrl,
+    errorUrl: urls.errorUrl,
+    callbackUrl: urls.callbackUrl,
+    description: `Padrino Budva order ${orderId}`.slice(0, 255),
+    language: config.language,
+    merchantMetaData: orderId.slice(0, 255),
+    extraData: {
+      source: "padrino-web",
+      orderId,
+      paymentMethod: "card",
+    },
+    customer: {
+      firstName: firstName.slice(0, 50),
+      lastName: lastName.slice(0, 50),
+      billingAddress1: input.customerAddress.slice(0, 50),
+      billingCountry: "ME",
+      billingPhone: input.customerPhone.slice(0, 20),
+      shippingFirstName: firstName.slice(0, 50),
+      shippingLastName: lastName.slice(0, 50),
+      shippingAddress1: input.customerAddress.slice(0, 50),
+      shippingCountry: "ME",
+      shippingPhone: input.customerPhone.slice(0, 20),
+      ipAddress: clientIp || undefined,
+    },
+  };
+}
+
+async function startBankartDebit(req: ReqLike, orderId: string, requestBody: BankartDebitRequest) {
+  const config = getBankartConfig();
+  const requestUri = `/transaction/${encodeURIComponent(config.apiKey)}/debit`;
+  const url = `${config.baseUrl}${requestUri}`;
+  const contentType = "application/json; charset=utf-8";
+  const dateHeader = new Date().toUTCString();
+  const bodyText = JSON.stringify(requestBody);
+  const signature = createBankartSignature(
+    config.sharedSecret,
+    "POST",
+    contentType,
+    dateHeader,
+    requestUri,
+    bodyText,
+  );
+
+  const auth = Buffer.from(`${config.username}:${config.password}`).toString("base64");
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Basic ${auth}`,
+        "content-type": contentType,
+        date: dateHeader,
+        "x-signature": signature,
+      },
+      body: bodyText,
+    });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? `Bankart init network error (${err.message})` : "Bankart init network error";
+
+    await updateOrderPaymentState(orderId, {
+      status: "cancelled",
+      payment_status: "failed",
+      payment_meta: bankartMetaSnapshot({
+        phase: "init_network_error",
+        requestBody,
+        message,
+      }),
+    });
+
+    throw new Error(message);
+  }
+
+  const responseText = await response.text();
+  const responseBody = safeJsonParse(responseText);
+
+  if (!response.ok) {
+    const message = safeBankartErrorMessage(responseBody, response.status, "Bankart init failed");
+
+    await updateOrderPaymentState(orderId, {
+      status: "cancelled",
+      payment_status: "failed",
+      payment_meta: bankartMetaSnapshot({
+        phase: "init_http_error",
+        requestBody,
+        responseBody,
+        responseStatus: response.status,
+        message,
+      }),
+    });
+
+    throw new Error(message);
+  }
+
+  const bankart = isPlainObject(responseBody) ? (responseBody as BankartDebitResponse) : null;
+  if (!bankart) {
+    const message = "Bankart init failed: invalid JSON response";
+
+    await updateOrderPaymentState(orderId, {
+      status: "cancelled",
+      payment_status: "failed",
+      payment_meta: bankartMetaSnapshot({
+        phase: "init_invalid_json",
+        requestBody,
+        responseBody,
+        responseStatus: response.status,
+        message,
+      }),
+    });
+
+    throw new Error(message);
+  }
+
+  const transactionUuid = toTrimmedString(bankart.uuid);
+  const returnType = toTrimmedString(bankart.returnType).toUpperCase();
+  const redirectUrl = toTrimmedString(bankart.redirectUrl);
+
+  if (bankart.success !== true || returnType === "ERROR") {
+    const message = safeBankartErrorMessage(bankart, response.status, "Bankart rejected transaction");
+
+    await updateOrderPaymentState(orderId, {
+      status: "cancelled",
+      payment_status: "failed",
+      payment_reference: transactionUuid || null,
+      payment_meta: bankartMetaSnapshot({
+        phase: "init_error",
+        requestBody,
+        responseBody: bankart,
+        responseStatus: response.status,
+        message,
+      }),
+    });
+
+    throw new Error(message);
+  }
+
+  if (returnType === "REDIRECT") {
+    if (!redirectUrl) {
+      const message = "Bankart init failed: missing redirect URL";
+
+      await updateOrderPaymentState(orderId, {
+        status: "cancelled",
+        payment_status: "failed",
+        payment_reference: transactionUuid || null,
+        payment_meta: bankartMetaSnapshot({
+          phase: "init_missing_redirect",
+          requestBody,
+          responseBody: bankart,
+          responseStatus: response.status,
+          message,
+        }),
+      });
+
+      throw new Error(message);
+    }
+
+    await updateOrderPaymentState(orderId, {
+      payment_status: "pending",
+      payment_reference: transactionUuid || null,
+      payment_meta: bankartMetaSnapshot({
+        phase: "redirect",
+        requestBody,
+        responseBody: bankart,
+        responseStatus: response.status,
+      }),
+    });
+
+    return {
+      flow: "card_redirect" as const,
+      redirectUrl,
+      bankartUuid: transactionUuid,
+      bankartPurchaseId: toTrimmedString(bankart.purchaseId),
+      bankartReturnType: returnType,
+    };
+  }
+
+  if (returnType === "PENDING") {
+    await updateOrderPaymentState(orderId, {
+      payment_status: "pending",
+      payment_reference: transactionUuid || null,
+      payment_meta: bankartMetaSnapshot({
+        phase: "pending",
+        requestBody,
+        responseBody: bankart,
+        responseStatus: response.status,
+      }),
+    });
+
+    return {
+      flow: "card_pending" as const,
+      bankartUuid: transactionUuid,
+      bankartPurchaseId: toTrimmedString(bankart.purchaseId),
+      bankartReturnType: returnType,
+    };
+  }
+
+  if (returnType === "FINISHED") {
+    await updateOrderPaymentState(orderId, {
+      payment_status: "paid",
+      payment_reference: transactionUuid || null,
+      payment_meta: bankartMetaSnapshot({
+        phase: "finished",
+        requestBody,
+        responseBody: bankart,
+        responseStatus: response.status,
+      }),
+    });
+
+    await bestEffortTelegramNotify(req, orderId);
+
+    return {
+      flow: "card_paid" as const,
+      bankartUuid: transactionUuid,
+      bankartPurchaseId: toTrimmedString(bankart.purchaseId),
+      bankartReturnType: returnType,
+    };
+  }
+
+  await updateOrderPaymentState(orderId, {
+    payment_status: "pending",
+    payment_reference: transactionUuid || null,
+    payment_meta: bankartMetaSnapshot({
+      phase: "other_return_type",
+      requestBody,
+      responseBody: bankart,
+      responseStatus: response.status,
+      message: `Unhandled returnType: ${returnType || "UNKNOWN"}`,
+    }),
+  });
+
+  return {
+    flow: "card_pending" as const,
+    bankartUuid: transactionUuid,
+    bankartPurchaseId: toTrimmedString(bankart.purchaseId),
+    bankartReturnType: returnType || "UNKNOWN",
+  };
+}
+
 export default async function handler(req: ReqLike, res: ResLike) {
   setCors(req, res);
 
@@ -431,14 +903,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
     const payment_method: PaymentMethod = pmRaw === "card" ? "card" : "cash";
 
-    if (payment_method === "card") {
-      return json(res, 501, {
-        ok: false,
-        error: "Card payments are disabled (NLB pending).",
-        code: "CARD_DISABLED",
-      });
-    }
-
     if (
       customer_name.length < 2 ||
       customer_phone.length < 6 ||
@@ -452,6 +916,10 @@ export default async function handler(req: ReqLike, res: ResLike) {
       if (looksLikeRealItemButInvalid(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
+    }
+
+    if (payment_method === "card") {
+      getBankartConfig();
     }
 
     const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
@@ -519,17 +987,30 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Total mismatch" });
     }
 
+    const insertRow: Record<string, unknown> = {
+      customer_name,
+      customer_phone,
+      customer_address,
+      items: itemsForInsert,
+      status: payment_method === "card" ? "pending" : status,
+      currency,
+      total_eur_cents: computedTotalCents,
+      payment_method,
+      payment_status: payment_method === "card" ? "pending" : null,
+      payment_provider: payment_method === "card" ? "bankart" : null,
+      payment_reference: null,
+      payment_meta:
+        payment_method === "card"
+          ? bankartMetaSnapshot({
+              phase: "order_created",
+              message: "Order created before Bankart redirect init",
+            })
+          : null,
+    };
+
     const { data: inserted, error: insErr } = await supabase
       .from("orders")
-      .insert({
-        customer_name,
-        customer_phone,
-        customer_address,
-        items: itemsForInsert,
-        status,
-        currency,
-        total_eur_cents: computedTotalCents,
-      })
+      .insert(insertRow)
       .select("id")
       .single();
 
@@ -540,13 +1021,43 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const orderId = toTrimmedString(inserted.id);
 
-    // best effort notify
-    await bestEffortTelegramNotify(orderId);
+    if (payment_method === "cash") {
+      await bestEffortTelegramNotify(req, orderId);
+      void bestEffortPaymentsCreateSession(orderId, payment_method);
 
-    // payments ostaje best-effort i ne blokira response
-    void bestEffortPaymentsCreateSession(orderId, payment_method);
+      return json(res, 200, {
+        ok: true,
+        id: orderId,
+        order_id: orderId,
+        orderId,
+        flow: "cash",
+      });
+    }
 
-    return json(res, 200, { ok: true, id: orderId, order_id: orderId, orderId });
+    const bankartRequest = buildBankartDebitRequest(req, orderId, {
+      amountCents: computedTotalCents,
+      currency,
+      customerName: customer_name,
+      customerPhone: customer_phone,
+      customerAddress: customer_address,
+    });
+
+    const bankart = await startBankartDebit(req, orderId, bankartRequest);
+
+    return json(res, 200, {
+      ok: true,
+      id: orderId,
+      order_id: orderId,
+      orderId,
+      payment_method,
+      payment_status: bankart.flow === "card_paid" ? "paid" : "pending",
+      flow: bankart.flow,
+      redirect_url: "redirectUrl" in bankart ? bankart.redirectUrl : null,
+      redirectUrl: "redirectUrl" in bankart ? bankart.redirectUrl : null,
+      bankart_uuid: bankart.bankartUuid,
+      bankart_purchase_id: bankart.bankartPurchaseId,
+      bankart_return_type: bankart.bankartReturnType,
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return json(res, 500, { ok: false, error: msg || "Unknown error" });
