@@ -91,7 +91,7 @@ export default function AdminLogs() {
       <div className="mx-auto w-full max-w-5xl">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-extrabold">Admin Logs</h1>
+            <h1 className="text-2xl font-extrabold">Admin — Logovi</h1>
             <p className="mt-1 text-sm text-white/60">
               Lokalni frontend logovi (console + ring buffer u localStorage). Koristi se za brzi debug u produkciji.
             </p>
@@ -102,24 +102,27 @@ export default function AdminLogs() {
               type="button"
               onClick={onRefresh}
               className="rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm font-extrabold text-white hover:border-white/25"
+              title="Osveži listu logova"
             >
-              Refresh
+              Osveži
             </button>
 
             <button
               type="button"
               onClick={onCopy}
               className="rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-black"
+              title="Kopiraj logove u clipboard"
             >
-              {copied ? "Copied ✅" : "Copy logs"}
+              {copied ? "Kopirano ✅" : "Kopiraj logove"}
             </button>
 
             <button
               type="button"
               onClick={onClear}
               className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-sm font-extrabold text-red-200 hover:border-red-500/35"
+              title="Obriši lokalne logove"
             >
-              Clear
+              Obriši
             </button>
           </div>
         </div>
@@ -127,16 +130,16 @@ export default function AdminLogs() {
         <div className="mt-5 rounded-2xl border border-white/10 bg-[#121212] p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-extrabold">
-              Events: <span className="text-white/80">{logs.length}</span>
+              Događaji: <span className="text-white/80">{logs.length}</span>
             </div>
             <div className="text-xs text-white/50">
-              Tip: ako prijaviš bug, klikni <span className="font-bold text-white/70">Copy logs</span> i pošalji tekst.
+              Tip: kad prijaviš bug, klikni <span className="font-bold text-white/70">Kopiraj logove</span> i pošalji tekst.
             </div>
           </div>
 
           {logs.length === 0 ? (
             <div className="mt-4 rounded-xl border border-white/10 bg-black/40 p-4 text-sm text-white/60">
-              Nema logova još. (Otvori app, uradi akciju, ili sačekaj eventualnu grešku — logovi se čuvaju lokalno.)
+              Trenutno nema logova. (Otvori app, uradi akciju, ili sačekaj grešku — logovi se čuvaju lokalno.)
             </div>
           ) : (
             <div className="mt-4 space-y-3">
