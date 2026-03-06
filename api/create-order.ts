@@ -662,7 +662,7 @@ function buildBankartDebitRequest(
 
 async function startBankartDebit(req: ReqLike, orderId: string, requestBody: BankartDebitRequest) {
   const config = getBankartConfig();
-  const requestUri = `/transaction/${encodeURIComponent(config.apiKey)}/debit`;
+  const requestUri = `/api/v3/transaction/${encodeURIComponent(config.apiKey)}/debit`;
   const url = `${config.baseUrl}${requestUri}`;
   const contentType = "application/json; charset=utf-8";
   const dateHeader = new Date().toUTCString();
@@ -687,6 +687,7 @@ async function startBankartDebit(req: ReqLike, orderId: string, requestBody: Ban
         authorization: `Basic ${auth}`,
         "content-type": contentType,
         date: dateHeader,
+        "x-date": dateHeader,
         "x-signature": signature,
       },
       body: bodyText,
