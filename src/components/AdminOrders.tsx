@@ -383,6 +383,14 @@ async function adminResendTelegram(orderId: string): Promise<AdminResendTelegram
   return { ok: false, error: "Unexpected response from admin-resend-telegram" };
 }
 
+function formatTimeOnly(ts: number): string {
+  try {
+    return new Date(ts).toLocaleTimeString("sr-Latn-ME", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 export default function AdminOrders() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -398,6 +406,8 @@ export default function AdminOrders() {
   const [busyTelegramById, setBusyTelegramById] = useState<Record<string, string>>({});
   const [toastById, setToastById] = useState<Record<string, string>>({});
 
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
+
   const loadOrders = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
@@ -408,11 +418,13 @@ export default function AdminOrders() {
       setOrders([]);
       setErrorMsg(r.error);
       setLoading(false);
+      setLastRefreshedAt(Date.now());
       return;
     }
 
     setOrders(r.orders);
     setLoading(false);
+    setLastRefreshedAt(Date.now());
   }, []);
 
   useEffect(() => {
@@ -441,6 +453,11 @@ export default function AdminOrders() {
       window.clearInterval(id);
     };
   }, [autoRefresh, loadOrders]);
+
+  const lastRefreshLabel = useMemo(() => {
+    if (!lastRefreshedAt) return "";
+    return formatTimeOnly(lastRefreshedAt);
+  }, [lastRefreshedAt]);
 
   const counts = useMemo(() => {
     const c: Record<OrderStatus, number> = {
@@ -551,7 +568,7 @@ export default function AdminOrders() {
 
   const copyOrderId = useCallback(async (orderId: string) => {
     const ok = await copyToClipboard(orderId);
-    setToastById((m) => ({ ...m, [orderId]: ok ? "ID kopiran ✓" : "Kopiranje nije uspelo" }));
+    setToastById((m) => ({ ...m, [orderId]: ok ? "ID kopiran ✓" : "Kopiranje nije uspjelo" }));
   }, []);
 
   function buildOrderSummary(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }) {
@@ -561,7 +578,7 @@ export default function AdminOrders() {
 
     const dt = safeDateTime(o.created_at);
     lines.push(`Porudžbina #${o.id}`);
-    lines.push(`Vreme: ${dt}`);
+    lines.push(`Vrijeme: ${dt}`);
     lines.push("");
 
     lines.push(`Kupac: ${safeString(o.customer_name) || "-"}`);
@@ -613,7 +630,7 @@ export default function AdminOrders() {
   async function copyOrder(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }) {
     const text = buildOrderSummary(o, parsed);
     const ok = await copyToClipboard(text);
-    setToastById((m) => ({ ...m, [o.id]: ok ? "Kopirano ✓" : "Kopiranje nije uspelo" }));
+    setToastById((m) => ({ ...m, [o.id]: ok ? "Kopirano ✓" : "Kopiranje nije uspjelo" }));
   }
 
   return (
@@ -626,16 +643,19 @@ export default function AdminOrders() {
             {import.meta.env.DEV ? (
               <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na https://padrinobudva.com</p>
             ) : null}
+            {lastRefreshLabel ? (
+              <p className="mt-1 text-xs text-white/50">Posljednje osvježavanje: {lastRefreshLabel}</p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
             <button
               className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-extrabold text-white hover:border-white/20 disabled:opacity-60"
               onClick={() => void loadOrders()}
-              title="Osveži porudžbine"
+              title="Osvježi porudžbine"
               disabled={loading}
             >
-              Osveži listu
+              Osvježi listu
             </button>
           </div>
         </div>
@@ -669,21 +689,21 @@ export default function AdminOrders() {
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Pretraga: ime / tel / adresa / ID / napomena…"
+                placeholder="Pretraga: ime / telefon / adresa / ID / napomena…"
                 className="w-full md:w-[360px] rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-white/20"
               />
 
               <button
                 className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20"
                 onClick={() => setSortDir((p) => (p === "newest" ? "oldest" : "newest"))}
-                title="Promeni sortiranje"
+                title="Promijeni sortiranje"
               >
                 Sort: {sortDir === "newest" ? "Najnovije" : "Najstarije"}
               </button>
 
               <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/80">
                 <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-                Auto osvežavanje (20s)
+                Auto osvježavanje (20s)
               </label>
             </div>
           </div>
@@ -762,7 +782,7 @@ export default function AdminOrders() {
                         <p className="mt-3 text-white font-bold truncate">{safeString(o.customer_name) || "—"}</p>
 
                         <p className="mt-1 text-xs text-white/70">
-                          <span className="text-white/50">Tel:</span> {safeString(o.customer_phone) || "—"}
+                          <span className="text-white/50">Telefon:</span> {safeString(o.customer_phone) || "—"}
                         </p>
 
                         <p className="mt-1 text-xs text-white/70">

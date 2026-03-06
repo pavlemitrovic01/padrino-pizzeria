@@ -29,7 +29,7 @@ export default function AdminLogs() {
   const [copied, setCopied] = useState(false);
 
   const logs = useMemo(() => {
-    // tick je samo za manual refresh
+    // tick je samo za ručno osvježavanje
     void tick;
     const all = getClientLogs();
     // najnovije gore
@@ -47,6 +47,9 @@ export default function AdminLogs() {
   const onRefresh = () => setTick((x) => x + 1);
 
   const onClear = () => {
+    const ok = window.confirm("Da li si siguran da želiš da obrišeš sve lokalne logove?");
+    if (!ok) return;
+
     clearClientLogs();
     setTick((x) => x + 1);
   };
@@ -102,9 +105,9 @@ export default function AdminLogs() {
               type="button"
               onClick={onRefresh}
               className="rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm font-extrabold text-white hover:border-white/25"
-              title="Osveži listu logova"
+              title="Osvježi listu logova"
             >
-              Osveži
+              Osvježi
             </button>
 
             <button
@@ -133,7 +136,8 @@ export default function AdminLogs() {
               Događaji: <span className="text-white/80">{logs.length}</span>
             </div>
             <div className="text-xs text-white/50">
-              Tip: kad prijaviš bug, klikni <span className="font-bold text-white/70">Kopiraj logove</span> i pošalji tekst.
+              Savjet: kad prijaviš grešku, klikni{" "}
+              <span className="font-bold text-white/70">Kopiraj logove</span> i pošalji tekst.
             </div>
           </div>
 

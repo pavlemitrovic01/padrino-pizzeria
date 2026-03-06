@@ -114,7 +114,7 @@ async function apiGetUsers(token: string): Promise<AdminUsersGetResponse> {
     return { ok: true, actor: { email: actorEmail, role: actorRole }, users };
   }
 
-  return { ok: false, error: "Unexpected response from admin-users" };
+  return { ok: false, error: "Neočekivan odgovor sa admin-users." };
 }
 
 async function apiUpsertUser(
@@ -145,11 +145,11 @@ async function apiUpsertUser(
     const role: AdminRole = body.role === "owner" ? "owner" : "staff";
     const enabled = typeof body.enabled === "boolean" ? body.enabled : true;
 
-    if (!email) return { ok: false, error: "Unexpected response from admin-users (missing email)" };
+    if (!email) return { ok: false, error: "Neočekivan odgovor sa admin-users (fali email)." };
     return { ok: true, email, role, enabled };
   }
 
-  return { ok: false, error: "Unexpected response from admin-users" };
+  return { ok: false, error: "Neočekivan odgovor sa admin-users." };
 }
 
 function pill(enabled: boolean) {
@@ -162,12 +162,12 @@ const ROLE_UI: Record<AdminRole, { label: string; desc: string; short: string }>
   staff: {
     label: "Osoblje",
     short: "osoblje",
-    desc: "Može da vidi i upravlja porudžbinama (status, resend, copy). Ne može da menja listu admin korisnika.",
+    desc: "Može da vidi i upravlja porudžbinama (status, resend, copy). Ne može da mijenja listu admin korisnika.",
   },
   owner: {
     label: "Vlasnik",
     short: "vlasnik",
-    desc: "Puni admin pristup, uključujući dodavanje/gašenje admin korisnika i promenu uloga (Korisnici stranica).",
+    desc: "Puni admin pristup, uključujući dodavanje/gašenje admin korisnika i promjenu uloga (Korisnici stranica).",
   },
 };
 
@@ -193,6 +193,7 @@ export default function AdminUsers() {
 
   const isOwner = actor?.role === "owner";
   const cleanedEmail = useMemo(() => normalizeEmail(email), [email]);
+
   const existingUser = useMemo(() => {
     if (!cleanedEmail) return null;
     return users.find((u) => u.email === cleanedEmail) ?? null;
@@ -206,7 +207,7 @@ export default function AdminUsers() {
     const token = await getSessionToken();
     if (!token) {
       setLoading(false);
-      setErrorMsg("Niste prijavljeni. Otvorite /admin/login.");
+      setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
       return;
     }
 
@@ -232,7 +233,7 @@ export default function AdminUsers() {
       setErrorMsg(null);
 
       if (!isOwner) {
-        setErrorMsg("Samo vlasnik (owner) može menjati listu admin korisnika.");
+        setErrorMsg("Samo vlasnik (owner) može mijenjati listu admin korisnika.");
         return;
       }
 
@@ -245,7 +246,7 @@ export default function AdminUsers() {
       try {
         const token = await getSessionToken();
         if (!token) {
-          setErrorMsg("Niste prijavljeni. Otvorite /admin/login.");
+          setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
           return;
         }
 
@@ -255,9 +256,7 @@ export default function AdminUsers() {
           return;
         }
 
-        setToast(
-          `Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`,
-        );
+        setToast(`Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`);
         setEmail("");
         setRole("staff");
         setEnabled(true);
@@ -276,7 +275,7 @@ export default function AdminUsers() {
     setErrorMsg(null);
 
     if (!isOwner) {
-      setErrorMsg("Samo vlasnik (owner) može menjati listu admin korisnika.");
+      setErrorMsg("Samo vlasnik (owner) može mijenjati listu admin korisnika.");
       return;
     }
 
@@ -289,7 +288,7 @@ export default function AdminUsers() {
     try {
       const token = await getSessionToken();
       if (!token) {
-        setErrorMsg("Niste prijavljeni. Otvorite /admin/login.");
+        setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
         return;
       }
 
@@ -299,9 +298,7 @@ export default function AdminUsers() {
         return;
       }
 
-      setToast(
-        `Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`,
-      );
+      setToast(`Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`);
       setEmail("");
       setRole("staff");
       setEnabled(true);
@@ -317,7 +314,7 @@ export default function AdminUsers() {
     setErrorMsg(null);
 
     if (!isOwner) {
-      setErrorMsg("Samo vlasnik (owner) može menjati listu admin korisnika.");
+      setErrorMsg("Samo vlasnik (owner) može mijenjati listu admin korisnika.");
       return;
     }
 
@@ -325,7 +322,7 @@ export default function AdminUsers() {
     try {
       const token = await getSessionToken();
       if (!token) {
-        setErrorMsg("Niste prijavljeni. Otvorite /admin/login.");
+        setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
         return;
       }
 
@@ -338,9 +335,7 @@ export default function AdminUsers() {
         return;
       }
 
-      setToast(
-        `Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`,
-      );
+      setToast(`Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`);
       await load();
     } finally {
       setBusy(false);
@@ -369,9 +364,9 @@ export default function AdminUsers() {
               className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-extrabold text-white hover:border-white/20 disabled:opacity-60"
               onClick={() => void load()}
               disabled={loading || busy}
-              title="Osveži listu"
+              title="Osvježi listu"
             >
-              Osveži
+              Osvježi
             </button>
 
             <button
@@ -390,8 +385,8 @@ export default function AdminUsers() {
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
           <p className="text-sm text-white/70">
             {isOwner
-              ? "Ti si vlasnik (owner) — možeš dodavati/uklanjati admin pristup i menjati uloge na ovoj stranici."
-              : "Ti si osoblje (staff) — možeš da vidiš listu, ali samo vlasnik može da pravi izmene."}
+              ? "Ti si vlasnik (owner) — možeš dodavati/uklanjati admin pristup i mijenjati uloge na ovoj stranici."
+              : "Ti si osoblje (staff) — možeš da vidiš listu, ali samo vlasnik može da pravi izmjene."}
           </p>
 
           <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -422,7 +417,7 @@ export default function AdminUsers() {
             <p className="mt-2 text-xs text-white/60">
               Unesi e-mail. Preporuka: <span className="text-white/80 font-semibold">osoblje</span> za operativu
               (porudžbine), a <span className="text-white/80 font-semibold">vlasnik</span> samo za vlasnika sajta
-              (može menjati Korisnike).
+              (može mijenjati Korisnike).
             </p>
 
             <form onSubmit={submit} className="mt-4 space-y-3">
@@ -546,7 +541,7 @@ export default function AdminUsers() {
 
               {!isOwner ? (
                 <p className="text-xs text-white/50">
-                  Samo vlasnik može menjati listu. Ako treba, dodaj owner u bazi (admin_users).
+                  Samo vlasnik može mijenjati listu. Ako treba, dodaj owner u bazi (admin_users).
                 </p>
               ) : null}
             </form>
@@ -601,7 +596,7 @@ export default function AdminUsers() {
                             className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
                             disabled={!isOwner || busy || isSelf}
                             onClick={() => void quickUpdate(u, { enabled: !u.enabled })}
-                            title={isSelf ? "Ne možeš menjati sebe (server guard)" : "Aktiviraj/Deaktiviraj"}
+                            title={isSelf ? "Ne možeš mijenjati sebe (server guard)" : "Aktiviraj/Deaktiviraj"}
                           >
                             {u.enabled ? "Deaktiviraj" : "Aktiviraj"}
                           </button>
@@ -610,7 +605,7 @@ export default function AdminUsers() {
                             className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
                             disabled={!isOwner || busy || isSelf}
                             onClick={() => void quickUpdate(u, { role: u.role === "owner" ? "staff" : "owner" })}
-                            title={isSelf ? "Ne možeš menjati svoju ulogu (server guard)" : "Promeni ulogu"}
+                            title={isSelf ? "Ne možeš mijenjati svoju ulogu (server guard)" : "Promijeni ulogu"}
                           >
                             {u.role === "owner" ? "Postavi kao osoblje" : "Postavi kao vlasnik"}
                           </button>
@@ -625,7 +620,7 @@ export default function AdminUsers() {
         </div>
 
         <div className="mt-8 text-xs text-white/50">
-          Napomena: Server već ima zaštite (ne možeš deaktivirati/demote sebe, i ne možeš ukloniti poslednjeg vlasnika).
+          Napomena: Server već ima zaštite (ne možeš deaktivirati/demote sebe, i ne možeš ukloniti posljednjeg vlasnika).
         </div>
       </div>
     </section>
