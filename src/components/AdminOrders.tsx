@@ -93,7 +93,9 @@ function isEurOrder(o: OrderRow) {
 function getOrderTotalLabel(o: OrderRow) {
   if (isEurOrder(o)) {
     const cents =
-      typeof o.total_eur_cents === "number" ? safeInt(o.total_eur_cents, 0) : safeInt(o.total_price, 0);
+      typeof o.total_eur_cents === "number"
+        ? safeInt(o.total_eur_cents, 0)
+        : safeInt(o.total_price, 0);
     return formatEUR(cents);
   }
   return formatRSD(o.total_price ?? 0);
@@ -181,7 +183,6 @@ function parseOrderItems(itemsRaw: unknown[] | null): { meta: MetaItem | null; i
   const metaObj = itemsRaw.find((x): x is MetaItem => isMetaRow(x));
   const meta = metaObj ?? null;
 
-  // ✅ Type narrowing: posle ovog filtera `x` više nije `unknown`
   const items: ParsedItem[] = itemsRaw
     .filter((x): x is Record<string, unknown> => isPlainObject(x) && !isMetaRow(x))
     .map((x) => {
@@ -386,10 +387,8 @@ export default function AdminOrders() {
   const [autoRefresh, setAutoRefresh] = useState(false);
 
   const [busyStatusById, setBusyStatusById] = useState<Record<string, boolean>>({});
-  const [busyTelegramById, setBusyTelegramById] = useState<Record<string, boolean>>({});
+  const [busyTelegramById, setBusyTelegramById] = useState<Record<string, string>>({});
   const [toastById, setToastById] = useState<Record<string, string>>({});
-
-  const [signingOut, setSigningOut] = useState(false);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -407,22 +406,6 @@ export default function AdminOrders() {
     setOrders(r.orders);
     setLoading(false);
   }, []);
-
-  async function signOut() {
-    if (signingOut) return;
-    setSigningOut(true);
-
-    try {
-      await supabaseAdminAuth.auth.signOut();
-    } finally {
-      try {
-        localStorage.removeItem("padrino-admin-auth");
-      } catch {
-        // ignore
-      }
-      window.location.replace("/admin/login");
-    }
-  }
 
   useEffect(() => {
     let mounted = true;
@@ -468,115 +451,136 @@ export default function AdminOrders() {
   }, [orders]);
 
   const renderedOrders = useMemo(() => {
-    let list = [...orders];
-
-    // filter by status
-    if (statusFilter !== "all") {
-      list = list.filter((o) => ((o.status ?? "pending") as OrderStatus) === statusFilter);
-    }
-
-    // search
     const q = normalizeText(searchQuery);
-    if (q) {
-      list = list.filter((o) => {
-        const parsed = parseOrderItems(o.items);
-        const metaNote =
-          parsed.meta && (typeof parsed.meta.order_note === "string" || typeof parsed.meta.note === "string")
-            ? safeString(parsed.meta.order_note ?? parsed.meta.note)
-            : "";
 
-        const hay = normalizeText([o.id, o.customer_name, o.customer_phone, o.customer_address, metaNote].join(" "));
+    const filtered = orders.filter((o) => {
+      const status = (o.status ?? "pending") as OrderStatus;
 
-        return hay.includes(q);
-      });
-    }
+      if (statusFilter !== "all" && status !== statusFilter) return false;
+      if (!q) return true;
 
-    // sort
-    list.sort((a, b) => {
-      const da = parseTimeMs(a.created_at);
-      const db = parseTimeMs(b.created_at);
-      return sortDir === "oldest" ? da - db : db - da;
+      const base = [
+        safeString(o.id),
+        safeString(o.customer_name),
+        safeString(o.customer_phone),
+        safeString(o.customer_address),
+        safeString(o.status),
+        safeString(o.created_at),
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const parsed = parseOrderItems(o.items);
+
+      const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
+      const metaBits = [metaNote, safeString(parsed.meta?.total_items), safeString(parsed.meta?.cart_id)]
+        .filter(Boolean)
+        .join(" ");
+
+      const itemBits = parsed.items
+        .flatMap((it) => [it.name, it.size ?? "", it.note ?? "", ...it.addons.map((a) => a.name)])
+        .filter(Boolean)
+        .join(" ");
+
+      const hay = normalizeText([base, metaBits, itemBits].filter(Boolean).join(" "));
+      return hay.includes(q);
     });
 
-    return list;
+    const sorted = [...filtered].sort((a, b) => {
+      const ta = parseTimeMs(a.created_at);
+      const tb = parseTimeMs(b.created_at);
+      return sortDir === "newest" ? tb - ta : ta - tb;
+    });
+
+    return sorted;
   }, [orders, searchQuery, sortDir, statusFilter]);
 
-  async function updateStatus(orderId: string, next: OrderStatus) {
-    setToastById((m) => ({ ...m, [orderId]: "" }));
-    setBusyStatusById((m) => ({ ...m, [orderId]: true }));
+  const updateStatus = useCallback(
+    async (orderId: string, next: OrderStatus) => {
+      setBusyStatusById((m) => ({ ...m, [orderId]: true }));
+      setToastById((m) => ({ ...m, [orderId]: "" }));
 
-    // optimistic UI
-    setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, status: next } : o)));
+      const r = await adminUpdateOrderStatus(orderId, next);
 
-    const r = await adminUpdateOrderStatus(orderId, next);
-
-    if (!r.ok) {
-      setToastById((m) => ({ ...m, [orderId]: `Greška: ${r.error}` }));
-      await loadOrders();
-    } else {
-      const devHint = import.meta.env.DEV ? " (DEV → prod endpoint)" : "";
-      setToastById((m) => ({ ...m, [orderId]: `Status: ${r.status}${devHint}` }));
-    }
-
-    setBusyStatusById((m) => ({ ...m, [orderId]: false }));
-  }
-
-  async function resendTelegram(orderId: string) {
-    setToastById((m) => ({ ...m, [orderId]: "" }));
-    setBusyTelegramById((m) => ({ ...m, [orderId]: true }));
-
-    try {
-      const r = await adminResendTelegram(orderId);
+      setBusyStatusById((m) => ({ ...m, [orderId]: false }));
 
       if (!r.ok) {
-        setToastById((m) => ({ ...m, [orderId]: `Telegram error: ${r.error}` }));
+        setToastById((m) => ({ ...m, [orderId]: `Greška: ${r.error}` }));
         return;
       }
 
-      const devHint = import.meta.env.DEV ? " (DEV → prod endpoint)" : "";
-      setToastById((m) => ({ ...m, [orderId]: `Telegram: sent${devHint}` }));
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setToastById((m) => ({ ...m, [orderId]: `Telegram error: ${msg}` }));
-    } finally {
-      setBusyTelegramById((m) => ({ ...m, [orderId]: false }));
-    }
-  }
+      setOrders((prev) =>
+        prev.map((o) => {
+          if (o.id !== orderId) return o;
+          return { ...o, status: r.status };
+        })
+      );
 
-  function buildOrderSummary(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }): string {
+      setToastById((m) => ({ ...m, [orderId]: "Status ažuriran ✓" }));
+    },
+    [setOrders]
+  );
+
+  const resendTelegram = useCallback(async (orderId: string) => {
+    setBusyTelegramById((m) => ({ ...m, [orderId]: "1" }));
+    setToastById((m) => ({ ...m, [orderId]: "" }));
+
+    const r = await adminResendTelegram(orderId);
+
+    setBusyTelegramById((m) => {
+      const next = { ...m };
+      delete next[orderId];
+      return next;
+    });
+
+    if (!r.ok) {
+      setToastById((m) => ({ ...m, [orderId]: `Greška: ${r.error}` }));
+      return;
+    }
+
+    setToastById((m) => ({ ...m, [orderId]: "Telegram poslat ✓" }));
+  }, []);
+
+  const copyOrderId = useCallback(async (orderId: string) => {
+    const ok = await copyToClipboard(orderId);
+    setToastById((m) => ({ ...m, [orderId]: ok ? "ID kopiran ✓" : "Copy failed" }));
+  }, []);
+
+  function buildOrderSummary(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }) {
+    const eur = isEurOrder(o);
+
     const lines: string[] = [];
 
-    lines.push(`Padrino — Porudžbina`);
-    lines.push(`ID: ${o.id}`);
-    lines.push(`Vreme: ${safeDateTime(o.created_at)}`);
-    lines.push(`Status: ${(o.status ?? "pending") as OrderStatus}`);
-    lines.push(`Kupac: ${safeString(o.customer_name)}`);
-    lines.push(`Telefon: ${safeString(o.customer_phone)}`);
-    lines.push(`Adresa: ${safeString(o.customer_address)}`);
+    const dt = safeDateTime(o.created_at);
+    lines.push(`Porudžbina #${o.id}`);
+    lines.push(`Vreme: ${dt}`);
+    lines.push("");
+
+    lines.push(`Kupac: ${safeString(o.customer_name) || "-"}`);
+    lines.push(`Telefon: ${safeString(o.customer_phone) || "-"}`);
+    lines.push(`Adresa: ${safeString(o.customer_address) || "-"}`);
 
     const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
-    const noteLines = splitNoteLines(metaNote);
     const payment = extractPaymentValueFromNote(metaNote);
 
-    if (payment) lines.push(`Plaćanje: ${payment}`);
+    if (payment) {
+      lines.push(`Plaćanje: ${payment}`);
+    }
 
-    const otherNotes = stripPaymentLines(noteLines);
-    if (otherNotes.length > 0) {
-      lines.push(`Napomena:`);
-      for (const ln of otherNotes) lines.push(`- ${ln}`);
+    const other = stripPaymentLines(splitNoteLines(metaNote));
+    if (other.length > 0) {
+      lines.push(`Napomena: ${other.join(" | ")}`);
     }
 
     lines.push("");
     lines.push("Stavke:");
 
-    const eur = isEurOrder(o);
-
     for (const it of parsed.items) {
       const qty = Math.max(1, it.quantity);
+      const sizeLabel = it.size ? ` (${it.size})` : "";
       const lineTotal = safeInt(it.price_per_item, 0) * qty;
       const priceLabel = eur ? formatEUR(lineTotal) : formatRSD(lineTotal);
 
-      const sizeLabel = it.size ? ` (${it.size})` : "";
       lines.push(`- ${it.name}${sizeLabel} x${qty} — ${priceLabel}`);
 
       for (const a of it.addons) {
@@ -611,7 +615,9 @@ export default function AdminOrders() {
           <div>
             <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
             <p className="mt-2 text-white/70">Admin koristi server-side API (service role) za SELECT/UPDATE.</p>
-            {import.meta.env.DEV ? <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na production endpoint.</p> : null}
+            {import.meta.env.DEV ? (
+              <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na production endpoint.</p>
+            ) : null}
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
@@ -623,15 +629,6 @@ export default function AdminOrders() {
             >
               Osveži listu
             </button>
-
-            <button
-              className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-xs font-extrabold text-red-200 hover:border-red-500/30 disabled:opacity-60"
-              onClick={() => void signOut()}
-              disabled={signingOut}
-              title="Odjava admin sesije"
-            >
-              {signingOut ? "Odjavljujem…" : "Odjavi se"}
-            </button>
           </div>
         </div>
 
@@ -641,14 +638,24 @@ export default function AdminOrders() {
               {(["all", "pending", "preparing", "done", "cancelled"] as const).map((s) => {
                 const active = statusFilter === s;
                 const label =
-                  s === "all" ? "Sve" : s === "pending" ? "Pending" : s === "preparing" ? "Preparing" : s === "done" ? "Done" : "Cancel";
+                  s === "all"
+                    ? "Sve"
+                    : s === "pending"
+                      ? "Pending"
+                      : s === "preparing"
+                        ? "Preparing"
+                        : s === "done"
+                          ? "Done"
+                          : "Cancel";
                 const count = s === "all" ? orders.length : counts[s as Exclude<typeof s, "all">];
 
                 return (
                   <button
                     key={s}
                     className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
-                      active ? "border-white/20 bg-black/40 text-white" : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
+                      active
+                        ? "border-white/20 bg-black/40 text-white"
+                        : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
                     }`}
                     onClick={() => setStatusFilter(s)}
                     title="Filter po statusu"
@@ -689,83 +696,94 @@ export default function AdminOrders() {
           </p>
         </div>
 
-        <div className="mt-8">
+        <div className="mt-6">
+          {errorMsg ? (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{errorMsg}</div>
+          ) : null}
+
           {loading ? (
-            <p className="text-white/70">Učitavam…</p>
-          ) : errorMsg ? (
-            <p className="text-red-300">{errorMsg}</p>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/70">Učitavam porudžbine…</div>
           ) : renderedOrders.length === 0 ? (
-            <p className="text-white/70">Nema porudžbina.</p>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/70">Nema porudžbina.</div>
           ) : (
             <div className="space-y-3">
               {renderedOrders.map((o) => {
-                const parsed = parseOrderItems(o.items);
-
-                const metaTotalItemsRaw = parsed.meta ? safeInt(parsed.meta.total_items, 0) : 0;
-                const metaTotalItems = metaTotalItemsRaw > 0 ? metaTotalItemsRaw : null;
-
-                const computedCount = metaTotalItems ?? parsed.items.reduce((s, it) => s + it.quantity, 0);
-
-                const eur = isEurOrder(o);
+                const status = (o.status ?? "pending") as OrderStatus;
                 const isExpanded = expandedId === o.id;
 
-                const currentStatus = (o.status ?? "pending") as OrderStatus;
-                const toast = toastById[o.id] || "";
-                const statusBusy = !!busyStatusById[o.id];
-                const telegramBusy = !!busyTelegramById[o.id];
+                const parsed = parseOrderItems(o.items);
+                const eur = isEurOrder(o);
+
+                const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
+                const payment = extractPaymentValueFromNote(metaNote);
+
+                const computedCount =
+                  parsed.meta && parsed.meta.total_items != null
+                    ? safeInt(parsed.meta.total_items, parsed.items.length)
+                    : parsed.items.reduce((sum, it) => sum + Math.max(1, it.quantity), 0);
+
+                const statusBusy = Boolean(busyStatusById[o.id]);
+                const telegramBusy = Boolean(busyTelegramById[o.id]);
+                const toast = safeString(toastById[o.id]);
 
                 return (
                   <div key={o.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
-                        <p className="text-sm text-white/60">{safeDateTime(o.created_at)}</p>
-                        <p className="mt-1 text-lg font-extrabold text-white truncate">{o.customer_name}</p>
-                        <p className="mt-1 text-sm text-white/70 truncate">{o.customer_phone}</p>
-                        <p className="mt-1 text-sm text-white/70 truncate">{o.customer_address}</p>
-
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <span
-                            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${pillClass(
-                              currentStatus,
-                            )}`}
-                          >
-                            Status: {currentStatus}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${pillClass(status)}`}>
+                            {status}
                           </span>
 
-                          {toast ? <span className="text-xs text-white/60">{toast}</span> : null}
+                          <p className="text-xs text-gray-400">{safeDateTime(o.created_at)}</p>
 
-                          {(() => {
-                            const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
-                            const payment = extractPaymentValueFromNote(metaNote);
-                            if (!payment) return null;
-                            return (
-                              <span className="text-xs text-white/70">
-                                Plaćanje: <span className="text-white/90">{payment}</span>
-                              </span>
-                            );
-                          })()}
+                          <button
+                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-1 text-xs font-semibold text-white hover:border-white/20"
+                            onClick={() => void copyOrderId(o.id)}
+                            title="Copy order ID"
+                          >
+                            Copy ID
+                          </button>
+
+                          {toast ? <span className="text-xs text-white/60">· {toast}</span> : null}
                         </div>
+
+                        <p className="mt-3 text-white font-bold truncate">{safeString(o.customer_name) || "—"}</p>
+
+                        <p className="mt-1 text-xs text-white/70">
+                          <span className="text-white/50">Tel:</span> {safeString(o.customer_phone) || "—"}
+                        </p>
+
+                        <p className="mt-1 text-xs text-white/70">
+                          <span className="text-white/50">Adresa:</span> {safeString(o.customer_address) || "—"}
+                        </p>
+
+                        {payment ? (
+                          <p className="mt-2 text-xs text-white/70">
+                            <span className="text-white/50">Plaćanje:</span> <span className="text-white/90 font-semibold">{payment}</span>
+                          </p>
+                        ) : null}
 
                         <div className="mt-4 flex flex-wrap gap-2">
                           <button
-                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
-                            disabled={statusBusy || currentStatus === "pending"}
+                            className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-200 hover:border-yellow-500/30 disabled:opacity-50"
+                            disabled={statusBusy || status === "pending"}
                             onClick={() => void updateStatus(o.id, "pending")}
                           >
                             Pending
                           </button>
 
                           <button
-                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
-                            disabled={statusBusy || currentStatus === "preparing"}
+                            className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 hover:border-blue-500/30 disabled:opacity-50"
+                            disabled={statusBusy || status === "preparing"}
                             onClick={() => void updateStatus(o.id, "preparing")}
                           >
                             Preparing
                           </button>
 
                           <button
-                            className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
-                            disabled={statusBusy || currentStatus === "done"}
+                            className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-500/30 disabled:opacity-50"
+                            disabled={statusBusy || status === "done"}
                             onClick={() => void updateStatus(o.id, "done")}
                           >
                             Done
@@ -773,7 +791,7 @@ export default function AdminOrders() {
 
                           <button
                             className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:border-red-500/30 disabled:opacity-50"
-                            disabled={statusBusy || currentStatus === "cancelled"}
+                            disabled={statusBusy || status === "cancelled"}
                             onClick={() => void updateStatus(o.id, "cancelled")}
                           >
                             Cancel
@@ -814,8 +832,8 @@ export default function AdminOrders() {
                     {isExpanded && (
                       <div className="mt-4 border-t border-white/10 pt-4 space-y-3">
                         {(() => {
-                          const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
-                          const lines = splitNoteLines(metaNote);
+                          const metaNote2 = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
+                          const lines = splitNoteLines(metaNote2);
                           const other = stripPaymentLines(lines);
 
                           if (other.length === 0) return null;
