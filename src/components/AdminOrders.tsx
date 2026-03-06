@@ -226,13 +226,21 @@ function pillClass(status: OrderStatus) {
   }
 }
 
-const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrino-pizzeria.vercel.app" : "";
+// DEV poziva prod API; koristimo public domen radi stabilnosti.
+const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
 
 type AdminStatusUpdateResponse = { ok: true; status: OrderStatus } | { ok: false; error: string };
 
 function isOrderStatus(v: unknown): v is OrderStatus {
   return v === "pending" || v === "preparing" || v === "done" || v === "cancelled";
 }
+
+const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending: "Novo",
+  preparing: "U pripremi",
+  done: "Završeno",
+  cancelled: "Otkazano",
+};
 
 async function adminUpdateOrderStatus(orderId: string, next: OrderStatus): Promise<AdminStatusUpdateResponse> {
   const { data } = await supabaseAdminAuth.auth.getSession();
@@ -513,12 +521,12 @@ export default function AdminOrders() {
         prev.map((o) => {
           if (o.id !== orderId) return o;
           return { ...o, status: r.status };
-        })
+        }),
       );
 
       setToastById((m) => ({ ...m, [orderId]: "Status ažuriran ✓" }));
     },
-    [setOrders]
+    [setOrders],
   );
 
   const resendTelegram = useCallback(async (orderId: string) => {
@@ -543,7 +551,7 @@ export default function AdminOrders() {
 
   const copyOrderId = useCallback(async (orderId: string) => {
     const ok = await copyToClipboard(orderId);
-    setToastById((m) => ({ ...m, [orderId]: ok ? "ID kopiran ✓" : "Copy failed" }));
+    setToastById((m) => ({ ...m, [orderId]: ok ? "ID kopiran ✓" : "Kopiranje nije uspelo" }));
   }, []);
 
   function buildOrderSummary(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }) {
@@ -605,7 +613,7 @@ export default function AdminOrders() {
   async function copyOrder(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }) {
     const text = buildOrderSummary(o, parsed);
     const ok = await copyToClipboard(text);
-    setToastById((m) => ({ ...m, [o.id]: ok ? "Kopirano ✓" : "Copy failed" }));
+    setToastById((m) => ({ ...m, [o.id]: ok ? "Kopirano ✓" : "Kopiranje nije uspelo" }));
   }
 
   return (
@@ -616,7 +624,7 @@ export default function AdminOrders() {
             <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
             <p className="mt-2 text-white/70">Admin koristi server-side API (service role) za SELECT/UPDATE.</p>
             {import.meta.env.DEV ? (
-              <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na production endpoint.</p>
+              <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na https://padrinobudva.com</p>
             ) : null}
           </div>
 
@@ -624,7 +632,7 @@ export default function AdminOrders() {
             <button
               className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-extrabold text-white hover:border-white/20 disabled:opacity-60"
               onClick={() => void loadOrders()}
-              title="Refresh orders"
+              title="Osveži porudžbine"
               disabled={loading}
             >
               Osveži listu
@@ -637,17 +645,8 @@ export default function AdminOrders() {
             <div className="flex flex-wrap gap-2">
               {(["all", "pending", "preparing", "done", "cancelled"] as const).map((s) => {
                 const active = statusFilter === s;
-                const label =
-                  s === "all"
-                    ? "Sve"
-                    : s === "pending"
-                      ? "Pending"
-                      : s === "preparing"
-                        ? "Preparing"
-                        : s === "done"
-                          ? "Done"
-                          : "Cancel";
-                const count = s === "all" ? orders.length : counts[s as Exclude<typeof s, "all">];
+                const label = s === "all" ? "Sve" : STATUS_LABEL[s];
+                const count = s === "all" ? orders.length : counts[s];
 
                 return (
                   <button
@@ -684,27 +683,34 @@ export default function AdminOrders() {
 
               <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/80">
                 <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-                Auto refresh (20s)
+                Auto osvežavanje (20s)
               </label>
             </div>
           </div>
 
           <p className="mt-3 text-xs text-white/60">
-            Pending: <span className="text-white/80">{counts.pending}</span> · Preparing:{" "}
-            <span className="text-white/80">{counts.preparing}</span> · Done: <span className="text-white/80">{counts.done}</span> · Cancel:{" "}
+            Novo: <span className="text-white/80">{counts.pending}</span> · U pripremi:{" "}
+            <span className="text-white/80">{counts.preparing}</span> · Završeno:{" "}
+            <span className="text-white/80">{counts.done}</span> · Otkazano:{" "}
             <span className="text-white/80">{counts.cancelled}</span>
           </p>
         </div>
 
         <div className="mt-6">
           {errorMsg ? (
-            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{errorMsg}</div>
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {errorMsg}
+            </div>
           ) : null}
 
           {loading ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/70">Učitavam porudžbine…</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/70">
+              Učitavam porudžbine…
+            </div>
           ) : renderedOrders.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/70">Nema porudžbina.</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-6 text-sm text-white/70">
+              Nema porudžbina.
+            </div>
           ) : (
             <div className="space-y-3">
               {renderedOrders.map((o) => {
@@ -731,8 +737,13 @@ export default function AdminOrders() {
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${pillClass(status)}`}>
-                            {status}
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${pillClass(
+                              status,
+                            )}`}
+                            title={status}
+                          >
+                            {STATUS_LABEL[status]}
                           </span>
 
                           <p className="text-xs text-gray-400">{safeDateTime(o.created_at)}</p>
@@ -740,9 +751,9 @@ export default function AdminOrders() {
                           <button
                             className="rounded-xl border border-white/10 bg-black/30 px-3 py-1 text-xs font-semibold text-white hover:border-white/20"
                             onClick={() => void copyOrderId(o.id)}
-                            title="Copy order ID"
+                            title="Kopiraj ID porudžbine"
                           >
-                            Copy ID
+                            Kopiraj ID
                           </button>
 
                           {toast ? <span className="text-xs text-white/60">· {toast}</span> : null}
@@ -760,7 +771,8 @@ export default function AdminOrders() {
 
                         {payment ? (
                           <p className="mt-2 text-xs text-white/70">
-                            <span className="text-white/50">Plaćanje:</span> <span className="text-white/90 font-semibold">{payment}</span>
+                            <span className="text-white/50">Plaćanje:</span>{" "}
+                            <span className="text-white/90 font-semibold">{payment}</span>
                           </p>
                         ) : null}
 
@@ -769,49 +781,53 @@ export default function AdminOrders() {
                             className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-200 hover:border-yellow-500/30 disabled:opacity-50"
                             disabled={statusBusy || status === "pending"}
                             onClick={() => void updateStatus(o.id, "pending")}
+                            title="Postavi status: Novo"
                           >
-                            Pending
+                            Novo
                           </button>
 
                           <button
                             className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-200 hover:border-blue-500/30 disabled:opacity-50"
                             disabled={statusBusy || status === "preparing"}
                             onClick={() => void updateStatus(o.id, "preparing")}
+                            title="Postavi status: U pripremi"
                           >
-                            Preparing
+                            U pripremi
                           </button>
 
                           <button
                             className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 hover:border-emerald-500/30 disabled:opacity-50"
                             disabled={statusBusy || status === "done"}
                             onClick={() => void updateStatus(o.id, "done")}
+                            title="Postavi status: Završeno"
                           >
-                            Done
+                            Završeno
                           </button>
 
                           <button
                             className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:border-red-500/30 disabled:opacity-50"
                             disabled={statusBusy || status === "cancelled"}
                             onClick={() => void updateStatus(o.id, "cancelled")}
+                            title="Postavi status: Otkazano"
                           >
-                            Cancel
+                            Otkazano
                           </button>
 
                           <button
                             className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
                             disabled={telegramBusy}
                             onClick={() => void resendTelegram(o.id)}
-                            title="Pošalji ponovo Telegram poruku za ovaj order"
+                            title="Pošalji ponovo Telegram poruku za ovu porudžbinu"
                           >
-                            {telegramBusy ? "Šaljem…" : "Resend Telegram"}
+                            {telegramBusy ? "Šaljem…" : "Pošalji Telegram ponovo"}
                           </button>
 
                           <button
                             className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
                             onClick={() => void copyOrder(o, parsed)}
-                            title="Kopiraj porudžbinu (tekst) u clipboard"
+                            title="Kopiraj porudžbinu (tekst)"
                           >
-                            Copy
+                            Kopiraj porudžbinu
                           </button>
                         </div>
                       </div>
@@ -824,7 +840,7 @@ export default function AdminOrders() {
                           className="mt-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20"
                           onClick={() => setExpandedId((prev) => (prev === o.id ? null : o.id))}
                         >
-                          {isExpanded ? "Sakrij" : "Detalji"}
+                          {isExpanded ? "Sakrij detalje" : "Detalji"}
                         </button>
                       </div>
                     </div>
@@ -857,11 +873,17 @@ export default function AdminOrders() {
                           const lineTotal = safeInt(it.price_per_item, 0) * qty;
 
                           return (
-                            <div key={`${o.id}-${idx}`} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                            <div
+                              key={`${o.id}-${idx}`}
+                              className="rounded-xl border border-white/10 bg-black/20 px-4 py-3"
+                            >
                               <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
                                   <p className="text-white font-semibold truncate">
-                                    {it.name} {it.size ? <span className="text-white/60 font-normal">({it.size})</span> : null}
+                                    {it.name}{" "}
+                                    {it.size ? (
+                                      <span className="text-white/60 font-normal">({it.size})</span>
+                                    ) : null}
                                   </p>
                                   <p className="text-xs text-white/60 mt-1">x{qty}</p>
 
@@ -876,7 +898,9 @@ export default function AdminOrders() {
                                             <span className="text-white/70">{addonLabel}</span>
 
                                             {eur ? (
-                                              <span className="text-gray-400">{formatEUR(safeInt(a.price, 0) * aq)}</span>
+                                              <span className="text-gray-400">
+                                                {formatEUR(safeInt(a.price, 0) * aq)}
+                                              </span>
                                             ) : (
                                               <span className="text-gray-500">—</span>
                                             )}
@@ -886,11 +910,15 @@ export default function AdminOrders() {
                                     </div>
                                   )}
 
-                                  {it.note ? <p className="mt-2 text-xs text-white/60">Napomena: {it.note}</p> : null}
+                                  {it.note ? (
+                                    <p className="mt-2 text-xs text-white/60">Napomena: {it.note}</p>
+                                  ) : null}
                                 </div>
 
                                 <div className="text-right shrink-0">
-                                  <p className="text-white font-bold">{eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}</p>
+                                  <p className="text-white font-bold">
+                                    {eur ? formatEUR(lineTotal) : formatRSD(lineTotal)}
+                                  </p>
                                 </div>
                               </div>
                             </div>

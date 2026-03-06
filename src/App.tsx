@@ -87,9 +87,9 @@ function AdminNav({ active }: { active: "orders" | "users" | "logs" }) {
               onClick={() => {
                 window.location.href = "/admin/users";
               }}
-              title="Admin — Users"
+              title="Admin — Korisnici"
             >
-              Users
+              Korisnici
             </button>
 
             <button
@@ -97,9 +97,9 @@ function AdminNav({ active }: { active: "orders" | "users" | "logs" }) {
               onClick={() => {
                 window.location.href = "/admin/logs";
               }}
-              title="Admin — Logs"
+              title="Admin — Logovi"
             >
-              Logs
+              Logovi
             </button>
 
             <button

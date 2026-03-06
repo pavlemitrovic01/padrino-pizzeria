@@ -158,6 +158,25 @@ function pill(enabled: boolean) {
     : "bg-red-500/15 text-red-200 border-red-500/20";
 }
 
+const ROLE_UI: Record<AdminRole, { label: string; desc: string; short: string }> = {
+  staff: {
+    label: "Osoblje",
+    short: "osoblje",
+    desc: "Može da vidi i upravlja porudžbinama (status, resend, copy). Ne može da menja listu admin korisnika.",
+  },
+  owner: {
+    label: "Vlasnik",
+    short: "vlasnik",
+    desc: "Puni admin pristup, uključujući dodavanje/gašenje admin korisnika i promenu uloga (Korisnici stranica).",
+  },
+};
+
+function rolePill(role: AdminRole) {
+  return role === "owner"
+    ? "bg-purple-500/15 text-purple-200 border-purple-500/20"
+    : "bg-white/10 text-white/70 border-white/10";
+}
+
 export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -174,6 +193,10 @@ export default function AdminUsers() {
 
   const isOwner = actor?.role === "owner";
   const cleanedEmail = useMemo(() => normalizeEmail(email), [email]);
+  const existingUser = useMemo(() => {
+    if (!cleanedEmail) return null;
+    return users.find((u) => u.email === cleanedEmail) ?? null;
+  }, [users, cleanedEmail]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -203,13 +226,57 @@ export default function AdminUsers() {
     void load();
   }, [load]);
 
+  const quickAdd = useCallback(
+    async (nextRole: AdminRole) => {
+      setToast(null);
+      setErrorMsg(null);
+
+      if (!isOwner) {
+        setErrorMsg("Samo vlasnik (owner) može menjati listu admin korisnika.");
+        return;
+      }
+
+      if (!cleanedEmail) {
+        setErrorMsg("Unesite e-mail.");
+        return;
+      }
+
+      setBusy(true);
+      try {
+        const token = await getSessionToken();
+        if (!token) {
+          setErrorMsg("Niste prijavljeni. Otvorite /admin/login.");
+          return;
+        }
+
+        const r = await apiUpsertUser(token, { email: cleanedEmail, role: nextRole, enabled: true });
+        if (!r.ok) {
+          setErrorMsg(r.error);
+          return;
+        }
+
+        setToast(
+          `Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`,
+        );
+        setEmail("");
+        setRole("staff");
+        setEnabled(true);
+
+        await load();
+      } finally {
+        setBusy(false);
+      }
+    },
+    [cleanedEmail, isOwner, load],
+  );
+
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setToast(null);
     setErrorMsg(null);
 
     if (!isOwner) {
-      setErrorMsg("Samo owner može mijenjati admin listu.");
+      setErrorMsg("Samo vlasnik (owner) može menjati listu admin korisnika.");
       return;
     }
 
@@ -232,7 +299,9 @@ export default function AdminUsers() {
         return;
       }
 
-      setToast(`Sačuvano: ${r.email} (${r.role}, ${r.enabled ? "enabled" : "disabled"})`);
+      setToast(
+        `Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`,
+      );
       setEmail("");
       setRole("staff");
       setEnabled(true);
@@ -248,7 +317,7 @@ export default function AdminUsers() {
     setErrorMsg(null);
 
     if (!isOwner) {
-      setErrorMsg("Samo owner može mijenjati admin listu.");
+      setErrorMsg("Samo vlasnik (owner) može menjati listu admin korisnika.");
       return;
     }
 
@@ -269,7 +338,9 @@ export default function AdminUsers() {
         return;
       }
 
-      setToast(`Sačuvano: ${r.email} (${r.role}, ${r.enabled ? "enabled" : "disabled"})`);
+      setToast(
+        `Sačuvano: ${r.email} (${ROLE_UI[r.role].short}, ${r.enabled ? "aktivan" : "neaktivan"})`,
+      );
       await load();
     } finally {
       setBusy(false);
@@ -281,14 +352,14 @@ export default function AdminUsers() {
       <div className="mx-auto max-w-6xl px-4">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="text-3xl font-extrabold">Admin — Users</h2>
+            <h2 className="text-3xl font-extrabold">Admin — Korisnici</h2>
             <p className="mt-2 text-white/70">
-              Upravljanje admin pristupom je u tabeli <span className="font-semibold">admin_users</span>.
+              Admin pristup se kontroliše u tabeli <span className="font-semibold">admin_users</span>.
             </p>
             {actor ? (
               <p className="mt-1 text-xs text-white/50">
                 Ulogovan: <span className="text-white/80">{actor.email}</span> · uloga:{" "}
-                <span className="text-white/80">{actor.role}</span>
+                <span className="text-white/80">{ROLE_UI[actor.role].short}</span>
               </p>
             ) : null}
           </div>
@@ -298,7 +369,7 @@ export default function AdminUsers() {
               className="rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs font-extrabold text-white hover:border-white/20 disabled:opacity-60"
               onClick={() => void load()}
               disabled={loading || busy}
-              title="Refresh"
+              title="Osveži listu"
             >
               Osveži
             </button>
@@ -319,9 +390,27 @@ export default function AdminUsers() {
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
           <p className="text-sm text-white/70">
             {isOwner
-              ? "Owner može dodavati/disable admin-e i menjati uloge."
-              : "Ovo je read-only (samo owner može da menja listu)."}
+              ? "Ti si vlasnik (owner) — možeš dodavati/uklanjati admin pristup i menjati uloge na ovoj stranici."
+              : "Ti si osoblje (staff) — možeš da vidiš listu, ali samo vlasnik može da pravi izmene."}
           </p>
+
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+            {(["owner", "staff"] as const).map((r) => (
+              <div key={r} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${rolePill(
+                      r,
+                    )}`}
+                    title={`DB uloga: ${r}`}
+                  >
+                    {ROLE_UI[r].label}
+                  </span>
+                  <p className="text-xs text-white/70">{ROLE_UI[r].desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
 
           {toast ? <p className="mt-2 text-xs text-emerald-200">{toast}</p> : null}
           {errorMsg ? <p className="mt-2 text-xs text-red-300">{errorMsg}</p> : null}
@@ -329,7 +418,12 @@ export default function AdminUsers() {
 
         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-extrabold">Dodaj / Izmeni admina</h3>
+            <h3 className="text-lg font-extrabold">Dodaj admin korisnika</h3>
+            <p className="mt-2 text-xs text-white/60">
+              Unesi e-mail. Preporuka: <span className="text-white/80 font-semibold">osoblje</span> za operativu
+              (porudžbine), a <span className="text-white/80 font-semibold">vlasnik</span> samo za vlasnika sajta
+              (može menjati Korisnike).
+            </p>
 
             <form onSubmit={submit} className="mt-4 space-y-3">
               <input
@@ -341,26 +435,104 @@ export default function AdminUsers() {
                 disabled={!isOwner || busy}
               />
 
-              <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                <label className="text-xs text-white/70">Uloga</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value === "owner" ? "owner" : "staff")}
-                  className="w-full md:w-auto rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-                  disabled={!isOwner || busy}
-                >
-                  <option value="staff">staff</option>
-                  <option value="owner">owner</option>
-                </select>
+              {existingUser ? (
+                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
+                  Već postoji u listi:{" "}
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 font-semibold ${rolePill(
+                      existingUser.role,
+                    )}`}
+                    title={`DB uloga: ${existingUser.role}`}
+                  >
+                    {ROLE_UI[existingUser.role].short}
+                  </span>{" "}
+                  ·{" "}
+                  <span
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 font-semibold ${pill(
+                      existingUser.enabled,
+                    )}`}
+                  >
+                    {existingUser.enabled ? "aktivan" : "neaktivan"}
+                  </span>
+                </div>
+              ) : null}
 
-                <label className="ml-0 md:ml-auto inline-flex items-center gap-2 text-xs text-white/70">
+              {isOwner ? (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
+                      onClick={() => void quickAdd("staff")}
+                      disabled={!cleanedEmail || busy}
+                      title="Brzo dodaj kao osoblje (aktivan)"
+                    >
+                      Brzo dodaj: osoblje
+                    </button>
+
+                    <button
+                      type="button"
+                      className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
+                      onClick={() => void quickAdd("owner")}
+                      disabled={!cleanedEmail || busy}
+                      title="Brzo dodaj kao vlasnik (aktivan)"
+                    >
+                      Brzo dodaj: vlasnik
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-white/50">
+                    Brzo dodavanje odmah postavlja korisnika kao <span className="text-white/70">aktivan</span>. Za
+                    deaktivaciju koristi dugme u listi.
+                  </p>
+                </>
+              ) : null}
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-white/70">Uloga</p>
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={!isOwner || busy}
+                      onClick={() => setRole("staff")}
+                      className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                        role === "staff"
+                          ? "border-white/20 bg-black/40 text-white"
+                          : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
+                      } disabled:opacity-50`}
+                      title="Osoblje: porudžbine"
+                    >
+                      Osoblje
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!isOwner || busy}
+                      onClick={() => setRole("owner")}
+                      className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                        role === "owner"
+                          ? "border-white/20 bg-black/40 text-white"
+                          : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
+                      } disabled:opacity-50`}
+                      title="Vlasnik: puni admin"
+                    >
+                      Vlasnik
+                    </button>
+                  </div>
+
+                  <p className="mt-2 text-xs text-white/50">{ROLE_UI[role].desc}</p>
+                </div>
+
+                <label className="inline-flex items-center gap-2 text-xs text-white/70">
                   <input
                     type="checkbox"
                     checked={enabled}
                     onChange={(e) => setEnabled(e.target.checked)}
                     disabled={!isOwner || busy}
                   />
-                  enabled
+                  Aktivan (enabled)
                 </label>
               </div>
 
@@ -374,19 +546,19 @@ export default function AdminUsers() {
 
               {!isOwner ? (
                 <p className="text-xs text-white/50">
-                  Samo owner može menjati listu. Ako treba, dodaj owner u bazi (admin_users).
+                  Samo vlasnik može menjati listu. Ako treba, dodaj owner u bazi (admin_users).
                 </p>
               ) : null}
             </form>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <h3 className="text-lg font-extrabold">Lista admina</h3>
+            <h3 className="text-lg font-extrabold">Lista admin korisnika</h3>
 
             {loading ? (
               <p className="mt-3 text-white/70">Učitavam…</p>
             ) : users.length === 0 ? (
-              <p className="mt-3 text-white/70">Nema admina.</p>
+              <p className="mt-3 text-white/70">Nema admin korisnika.</p>
             ) : (
               <div className="mt-3 space-y-2">
                 {users.map((u) => {
@@ -397,10 +569,20 @@ export default function AdminUsers() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-semibold text-white truncate">{u.email}</p>
-                          <p className="mt-1 text-xs text-white/60">
-                            Role: <span className="text-white/80">{u.role}</span> · Created:{" "}
+                          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/60">
+                            <span>Uloga:</span>
+                            <span
+                              className={`inline-flex items-center rounded-full border px-2 py-0.5 font-semibold ${rolePill(
+                                u.role,
+                              )}`}
+                              title={`DB uloga: ${u.role}`}
+                            >
+                              {ROLE_UI[u.role].short}
+                            </span>
+                            <span className="text-white/40">·</span>
+                            <span>Kreiran:</span>
                             <span className="text-white/80">{safeDateTime(u.created_at)}</span>
-                            {isSelf ? <span className="ml-2 text-white/50">(ti)</span> : null}
+                            {isSelf ? <span className="ml-1 text-white/50">(ti)</span> : null}
                           </p>
 
                           <div className="mt-2">
@@ -409,7 +591,7 @@ export default function AdminUsers() {
                                 u.enabled,
                               )}`}
                             >
-                              {u.enabled ? "enabled" : "disabled"}
+                              {u.enabled ? "aktivan" : "neaktivan"}
                             </span>
                           </div>
                         </div>
@@ -419,18 +601,18 @@ export default function AdminUsers() {
                             className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
                             disabled={!isOwner || busy || isSelf}
                             onClick={() => void quickUpdate(u, { enabled: !u.enabled })}
-                            title={isSelf ? "Ne možeš menjati sebe (server guard)" : "Toggle enabled"}
+                            title={isSelf ? "Ne možeš menjati sebe (server guard)" : "Aktiviraj/Deaktiviraj"}
                           >
-                            {u.enabled ? "Disable" : "Enable"}
+                            {u.enabled ? "Deaktiviraj" : "Aktiviraj"}
                           </button>
 
                           <button
                             className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20 disabled:opacity-50"
                             disabled={!isOwner || busy || isSelf}
                             onClick={() => void quickUpdate(u, { role: u.role === "owner" ? "staff" : "owner" })}
-                            title={isSelf ? "Ne možeš demote sebe (server guard)" : "Toggle role"}
+                            title={isSelf ? "Ne možeš menjati svoju ulogu (server guard)" : "Promeni ulogu"}
                           >
-                            {u.role === "owner" ? "Demote → staff" : "Promote → owner"}
+                            {u.role === "owner" ? "Postavi kao osoblje" : "Postavi kao vlasnik"}
                           </button>
                         </div>
                       </div>
@@ -443,7 +625,7 @@ export default function AdminUsers() {
         </div>
 
         <div className="mt-8 text-xs text-white/50">
-          Napomena: Server već ima zaštite (ne možeš disable/demote sebe, ne možeš ukloniti poslednjeg owner-a).
+          Napomena: Server već ima zaštite (ne možeš deaktivirati/demote sebe, i ne možeš ukloniti poslednjeg vlasnika).
         </div>
       </div>
     </section>
