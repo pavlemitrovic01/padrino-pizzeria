@@ -24,19 +24,43 @@ type SessionLike = {
   } | null;
 } | null;
 
-const AdminOrders = lazy(() => import("./components/AdminOrders"));
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
-const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
+const AdminOrders = lazy(() => import("./components/AdminOrders"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
 
 function AdminChunkFallback() {
-  return <p className="text-white text-lg">Učitavam…</p>;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <p className="text-sm font-semibold text-white/80">Admin</p>
+      <p className="mt-2 text-xs text-white/60">Učitavam…</p>
+    </div>
+  );
 }
 
 function AdminNav({ active }: { active: "orders" | "users" | "logs" }) {
   const btnBase = "rounded-xl border px-3 py-2 text-xs font-semibold transition";
   const btnActive = "border-white/20 bg-black/40 text-white";
   const btnIdle = "border-white/10 bg-black/20 text-white/80 hover:border-white/20";
+
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+
+    try {
+      const { supabaseAdminAuth } = await import("./lib/supabaseAdminAuthClient");
+      await supabaseAdminAuth.auth.signOut();
+    } finally {
+      try {
+        localStorage.removeItem("padrino-admin-auth");
+      } catch {
+        // ignore
+      }
+      window.location.replace("/admin/login");
+    }
+  }
 
   return (
     <div className="bg-black text-white">
@@ -77,6 +101,15 @@ function AdminNav({ active }: { active: "orders" | "users" | "logs" }) {
             >
               Logs
             </button>
+
+            <button
+              className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:border-red-500/30 disabled:opacity-60"
+              onClick={() => void signOut()}
+              disabled={signingOut}
+              title="Odjava admin sesije"
+            >
+              {signingOut ? "Odjavljujem…" : "Odjavi se"}
+            </button>
           </div>
         </div>
       </div>
@@ -108,286 +141,182 @@ function subscribeAuthChanges(
 ): (() => void) | null {
   const a = auth as {
     onAuthStateChange?: (
-      cb: (event: unknown, session: SessionLike) => void
+      cb: (_event: unknown, session: SessionLike) => void
     ) => { data?: { subscription?: { unsubscribe?: () => void } } };
   };
 
   if (typeof a.onAuthStateChange !== "function") return null;
 
-  const { data } = a.onAuthStateChange((_event, nextSession) => {
-    onSession(nextSession ?? null);
+  const res = a.onAuthStateChange((_event, session) => {
+    onSession(session ?? null);
   });
 
+  const unsub = res?.data?.subscription?.unsubscribe;
+  if (typeof unsub !== "function") return null;
+
   return () => {
-    data?.subscription?.unsubscribe?.();
+    try {
+      unsub();
+    } catch {
+      // ignore
+    }
   };
 }
 
 function getPathname(): string {
-  if (typeof window === "undefined") return "/";
-  return window.location.pathname || "/";
+  try {
+    return window.location.pathname || "/";
+  } catch {
+    return "/";
+  }
 }
 
 function getHash(): string {
-  if (typeof window === "undefined") return "";
-  return window.location.hash || "";
+  try {
+    return window.location.hash || "";
+  } catch {
+    return "";
+  }
 }
 
 function upsertJsonLd(id: string, json: unknown) {
-  if (typeof document === "undefined") return;
+  const jsonText = JSON.stringify(json);
 
-  const prev = document.getElementById(id);
-  if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
+  const existing = document.getElementById(id);
+  if (existing) {
+    existing.textContent = jsonText;
+    return;
+  }
 
-  const script = document.createElement("script");
-  script.id = id;
-  script.type = "application/ld+json";
-  script.text = JSON.stringify(json);
-  document.head.appendChild(script);
+  const s = document.createElement("script");
+  s.id = id;
+  s.type = "application/ld+json";
+  s.text = jsonText;
+
+  document.head.appendChild(s);
 }
 
 function removeJsonLd(id: string) {
-  if (typeof document === "undefined") return;
-  const el = document.getElementById(id);
-  if (el && el.parentNode) el.parentNode.removeChild(el);
+  const existing = document.getElementById(id);
+  if (existing) existing.remove();
 }
 
-/**
- * GA4 SPA page_view
- * index.html ima send_page_view:false, pa moramo ručno slati page_view na svaku promenu rute.
- */
 function ga4PageView(path: string) {
-  if (typeof window === "undefined") return;
-
-  const w = window as typeof window & {
+  const w = window as unknown as {
     gtag?: (...args: unknown[]) => void;
   };
 
   if (typeof w.gtag !== "function") return;
 
-  w.gtag("event", "page_view", {
-    page_location: window.location.href,
-    page_path: path,
-    page_title: document.title,
-  });
+  try {
+    w.gtag("event", "page_view", {
+      page_location: window.location.href,
+      page_path: path,
+    });
+  } catch {
+    // ignore
+  }
 }
 
 function SeoAnchorBlock() {
+  // SEO-only anchors (hidden) to help discover internal sections from a single-page site.
+  // No user-facing impact.
   return (
-    <section className="relative">
-      <div className="mx-auto w-full max-w-6xl px-6">
-        <div className="mt-6 md:mt-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm p-6 md:p-8">
-          <h2 className="text-xl md:text-2xl font-semibold text-white/90">
-            Pizza Budva — dostava i takeaway
-          </h2>
-
-          <p className="mt-3 text-white/75 leading-relaxed">
-            Ako tražiš <strong>pizza Budva</strong> sa pouzdanom dostavom i stabilnim
-            kvalitetom, Padrino Budva je praktična opcija za brz obrok, ekipu ili porodičnu večeru.
-            Poručivanje je jednostavno: izabereš pizzu, dodaš u korpu i potvrdiš.
-          </p>
-
-          <p className="mt-3 text-white/70 leading-relaxed">
-            Za detaljnije informacije i lokalni kontekst, pogledaj našu stranicu{" "}
-            <a
-              href="/pizza-budva"
-              className="underline underline-offset-4 decoration-white/30 hover:decoration-white/60 hover:text-white"
-            >
-              Pizza Budva
-            </a>
-            . Za porudžbinu odmah, otvori{" "}
-            <a
-              href="/#meni"
-              className="underline underline-offset-4 decoration-white/30 hover:decoration-white/60 hover:text-white"
-            >
-              meni
-            </a>
-            .
-          </p>
-        </div>
-      </div>
-    </section>
+    <div className="sr-only" aria-hidden="true">
+      <a href="#meni">Meni</a>
+      <a href="#dostava">Dostava</a>
+      <a href="#faq">FAQ</a>
+      <a href="#o-nama">O nama</a>
+      <a href="#kontakt">Kontakt</a>
+    </div>
   );
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
+  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function getAccessToken(session: SessionLike): string {
-  const t = typeof session?.access_token === "string" ? session.access_token.trim() : "";
-  return t;
+  if (!session) return "";
+  if (!isRecord(session)) return "";
+  const t = session.access_token;
+  return typeof t === "string" ? t : "";
 }
 
-const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
-
-async function checkAdminByToken(
-  token: string
-): Promise<"admin" | "not-admin" | "unauthenticated"> {
+async function verifyAdminAccess(accessToken: string): Promise<boolean> {
   try {
-    const res = await fetch(`${ADMIN_API_BASE}/api/admin-me`, {
-      method: "GET",
+    const res = await fetch("/api/admin-me", {
       headers: {
-        authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     });
 
-    const body: unknown = await res.json().catch(() => null);
+    if (!res.ok) return false;
 
-    if (!res.ok) {
-      if (res.status === 401) return "unauthenticated";
-      return "unauthenticated";
-    }
-
-    if (isRecord(body) && body.ok === true) {
-      const isAdmin = body.is_admin === true;
-      return isAdmin ? "admin" : "not-admin";
-    }
-
-    return "unauthenticated";
-  } catch (e) {
-    console.error("[Padrino] admin-me failed:", e);
-    return "unauthenticated";
+    const data = (await res.json().catch(() => null)) as { ok?: boolean } | null;
+    return Boolean(data?.ok);
+  } catch {
+    return false;
   }
 }
 
-export default function App() {
-  const [pathname, setPathname] = useState<string>(() => getPathname());
-  const [hash, setHash] = useState<string>(() => getHash());
+function Landing() {
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <Navbar />
+      <CartDrawer />
+
+      <Hero />
+      <Menu />
+      <Delivery />
+      <Faq />
+      <About />
+      <Contact />
+      <Footer />
+
+      <SeoAnchorBlock />
+      <PizzaBudvaPage />
+    </div>
+  );
+}
+
+function AdminShell({
+  active,
+  children,
+}: {
+  active: "orders" | "users" | "logs";
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <AdminNav active={active} />
+      <div className="mx-auto max-w-6xl px-4 py-8">{children}</div>
+    </div>
+  );
+}
+
+function AdminRoute({ page }: { page: "orders" | "users" | "logs" }) {
+  const [guard, setGuard] = useState<GuardState>("loading");
+  const [lastPath, setLastPath] = useState(getPathname());
 
   useEffect(() => {
-    const syncLocation = () => {
-      setPathname(getPathname());
-      setHash(getHash());
-    };
+    // sync on route changes (path-based admin, no router)
+    const id = window.setInterval(() => {
+      const p = getPathname();
+      if (p !== lastPath) setLastPath(p);
+    }, 200);
 
-    const onPopState = () => syncLocation();
-    const onHashChange = () => syncLocation();
-
-    window.addEventListener("popstate", onPopState);
-    window.addEventListener("hashchange", onHashChange);
-
-    return () => {
-      window.removeEventListener("popstate", onPopState);
-      window.removeEventListener("hashchange", onHashChange);
-    };
-  }, []);
+    return () => window.clearInterval(id);
+  }, [lastPath]);
 
   useEffect(() => {
-    const origin =
-      typeof window !== "undefined" ? window.location.origin : "https://padrinobudva.com";
-
-    const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
-
-    // Breadcrumb JSON-LD samo za /menu; u svim drugim slučajevima čistimo
-    const isMenu = pathname === "/menu" || pathname === "/menu/";
-    if (!isMenu) removeJsonLd("ld-breadcrumb-menu");
-
-    if (isAdminArea) {
-      setRobots("noindex,nofollow");
-      setCanonical(`${origin}/`);
-      setOgUrl(`${origin}/`);
-      setTitle("Admin | Padrino Budva");
-      return;
-    }
-
-    if (pathname === "/pizza-budva" || pathname === "/pizza-budva/") {
-      setRobots("index,follow,max-image-preview:large");
-      setCanonical(`${origin}/pizza-budva`);
-      setOgUrl(`${origin}/pizza-budva`);
-      setTitle("Pizza Budva | Padrino Budva — Dostava & Takeaway");
-      return;
-    }
-
-    if (isMenu) {
-      setRobots("index,follow,max-image-preview:large");
-      setCanonical(`${origin}/menu`);
-      setOgUrl(`${origin}/menu`);
-      setTitle("Meni | Padrino Budva");
-
-      upsertJsonLd("ld-breadcrumb-menu", {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        itemListElement: [
-          {
-            "@type": "ListItem",
-            position: 1,
-            name: "Padrino Budva",
-            item: `${origin}/`,
-          },
-          {
-            "@type": "ListItem",
-            position: 2,
-            name: "Meni",
-            item: `${origin}/menu`,
-          },
-        ],
-      });
-
-      return;
-    }
-
-    setRobots("index,follow,max-image-preview:large");
-    setCanonical(`${origin}/`);
-    setOgUrl(`${origin}/`);
-    setTitle("Padrino Budva | Pićerija i Dostava Pizze u Budvi");
-  }, [pathname]);
-
-  // ✅ GA4 SPA page_view (ručno, jer je send_page_view:false u index.html)
-  // Sada pratimo i hash navigaciju (/#meni, /#dostava...) tako što šaljemo page_path = pathname + hash
-  useEffect(() => {
-    const pathWithHash = `${pathname}${hash || ""}`;
-    ga4PageView(pathWithHash);
-  }, [pathname, hash]);
-
-  const isAdminLoginRoute =
-    pathname === "/admin/login" || pathname.startsWith("/admin/login/");
-  const isAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
-  const needsAdminGuard = isAdminArea && !isAdminLoginRoute;
-
-  const [guardState, setGuardState] = useState<GuardState>("loading");
-  const [checking, setChecking] = useState(true);
-
-  const [isOnline, setIsOnline] = useState<boolean>(() => {
-    if (typeof navigator === "undefined") return true;
-    return navigator.onLine;
-  });
-
-  const onlineBanner = useMemo(() => {
-    if (isOnline) return null;
-    return (
-      <div className="fixed top-0 left-0 right-0 z-[60]">
-        <div className="mx-auto max-w-5xl px-4">
-          <div className="mt-3 rounded-xl border border-white/10 bg-black/70 px-4 py-2 text-sm text-white/80">
-            Offline ste — admin provera sesije može kasniti.
-          </div>
-        </div>
-      </div>
-    );
-  }, [isOnline]);
-
-  useEffect(() => {
-    const onOnline = () => setIsOnline(true);
-    const onOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!needsAdminGuard) return;
-
     let mounted = true;
     let unsubscribe: (() => void) | null = null;
 
-    async function checkSession() {
-      setGuardState("loading");
-      setChecking(true);
+    async function check() {
+      if (!mounted) return;
+
+      setGuard("loading");
 
       try {
         const { supabaseAdminAuth } = await import("./lib/supabaseAdminAuthClient");
@@ -395,182 +324,218 @@ export default function App() {
         const session = await readSessionFromAuth(supabaseAdminAuth.auth);
         if (!mounted) return;
 
-        if (!session || !session.user) {
-          setGuardState("unauthenticated");
-          setChecking(false);
+        const accessToken = getAccessToken(session);
+        if (!accessToken) {
+          setGuard("unauthenticated");
           return;
         }
 
-        const token = getAccessToken(session);
-        if (!token) {
-          setGuardState("unauthenticated");
-          setChecking(false);
+        const ok = await verifyAdminAccess(accessToken);
+        if (!mounted) return;
+
+        if (!ok) {
+          setGuard("not-admin");
           return;
         }
 
-        const verdict = await checkAdminByToken(token);
+        setGuard("admin");
+
+        // keep guard in sync with auth changes (logout, token refresh, etc.)
+        unsubscribe = subscribeAuthChanges(supabaseAdminAuth.auth, async (nextSession) => {
+          if (!mounted) return;
+
+          const nextToken = getAccessToken(nextSession);
+          if (!nextToken) {
+            setGuard("unauthenticated");
+            return;
+          }
+
+          const nextOk = await verifyAdminAccess(nextToken);
+          if (!mounted) return;
+
+          setGuard(nextOk ? "admin" : "not-admin");
+        });
+      } catch {
         if (!mounted) return;
-
-        setGuardState(
-          verdict === "admin"
-            ? "admin"
-            : verdict === "not-admin"
-              ? "not-admin"
-              : "unauthenticated"
-        );
-        setChecking(false);
-
-        unsubscribe =
-          subscribeAuthChanges(supabaseAdminAuth.auth, async (nextSession) => {
-            if (!mounted) return;
-
-            if (!nextSession || !nextSession.user) {
-              setGuardState("unauthenticated");
-              setChecking(false);
-              return;
-            }
-
-            const nextToken = getAccessToken(nextSession);
-            if (!nextToken) {
-              setGuardState("unauthenticated");
-              setChecking(false);
-              return;
-            }
-
-            const nextVerdict = await checkAdminByToken(nextToken);
-            if (!mounted) return;
-
-            setGuardState(
-              nextVerdict === "admin"
-                ? "admin"
-                : nextVerdict === "not-admin"
-                  ? "not-admin"
-                  : "unauthenticated"
-            );
-            setChecking(false);
-          }) ?? null;
-      } catch (e) {
-        console.error("[Padrino] Admin guard failed to load Supabase:", e);
-        if (!mounted) return;
-        setGuardState("unauthenticated");
-        setChecking(false);
+        setGuard("unauthenticated");
       }
     }
 
-    void checkSession();
+    void check();
 
     return () => {
       mounted = false;
-      unsubscribe?.();
+      if (unsubscribe) unsubscribe();
     };
-  }, [needsAdminGuard]);
+  }, [lastPath]);
 
-  if (isAdminLoginRoute) {
+  const pathname = lastPath;
+  const isLogin = pathname === "/admin/login";
+
+  if (guard === "loading") {
     return (
-      <Suspense fallback={<AdminChunkFallback />}>
-        <AdminLogin />
-      </Suspense>
+      <div className="min-h-screen bg-black text-white">
+        <div className="mx-auto max-w-6xl px-4 py-14">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <p className="text-sm font-semibold">Admin</p>
+            <p className="mt-2 text-xs text-white/60">Proveravam pristup…</p>
+          </div>
+        </div>
+      </div>
     );
   }
 
-  if (needsAdminGuard) {
-    if (checking || guardState === "loading") {
-      return (
-        <div className="min-h-screen bg-black flex items-center justify-center">
-          <p className="text-white/80">Provjeravam admin sesiju…</p>
-        </div>
-      );
-    }
-
-    if (guardState === "unauthenticated") {
-      return (
-        <div className="min-h-screen bg-black flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-white mb-4">Prijavite se kao admin.</p>
-            <button
-              className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
-              onClick={() => {
-                window.location.href = "/admin/login";
-              }}
-            >
-              Prijava
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    if (guardState === "not-admin") {
-      return (
-        <div className="min-h-screen bg-black flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-white mb-4">Nemate admin pristup.</p>
-            <button
-              className="bg-yellow-500 hover:bg-yellow-400 text-black font-semibold px-6 py-2 rounded-full text-base"
-              onClick={() => {
-                window.location.href = "/";
-              }}
-            >
-              Nazad na meni
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    if (pathname === "/admin/users" || pathname === "/admin/users/") {
-      return (
-        <>
-          <AdminNav active="users" />
-          <Suspense fallback={<AdminChunkFallback />}>
-            <AdminUsers />
-          </Suspense>
-        </>
-      );
-    }
-
-    if (pathname === "/admin/logs" || pathname === "/admin/logs/") {
-      return (
-        <>
-          <AdminNav active="logs" />
-          <Suspense fallback={<AdminChunkFallback />}>
-            <AdminLogs />
-          </Suspense>
-        </>
-      );
+  if (guard === "unauthenticated") {
+    if (!isLogin) {
+      window.location.replace("/admin/login");
+      return null;
     }
 
     return (
-      <>
-        <AdminNav active="orders" />
+      <div className="min-h-screen bg-black text-white">
+        <div className="mx-auto max-w-6xl px-4 py-14">
+          <Suspense fallback={<AdminChunkFallback />}>
+            <AdminLogin />
+          </Suspense>
+        </div>
+      </div>
+    );
+  }
+
+  if (guard === "not-admin") {
+    return (
+      <div className="min-h-screen bg-black text-white">
+        <div className="mx-auto max-w-6xl px-4 py-14">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <p className="text-sm font-semibold">Nemaš pristup</p>
+            <p className="mt-2 text-xs text-white/60">
+              Tvoj nalog nije na admin allowlist-i (admin_users) ili je deaktiviran.
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:border-white/20"
+                onClick={() => {
+                  window.location.replace("/admin/login");
+                }}
+              >
+                Prijava
+              </button>
+
+              <button
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:border-white/20"
+                onClick={() => {
+                  window.location.replace("/");
+                }}
+              >
+                Nazad na meni
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // guard === "admin"
+  if (isLogin) {
+    window.location.replace("/admin");
+    return null;
+  }
+
+  if (page === "orders") {
+    return (
+      <AdminShell active="orders">
         <Suspense fallback={<AdminChunkFallback />}>
           <AdminOrders />
         </Suspense>
-      </>
+      </AdminShell>
     );
   }
 
-  if (pathname === "/pizza-budva" || pathname === "/pizza-budva/") {
-    return <PizzaBudvaPage />;
+  if (page === "users") {
+    return (
+      <AdminShell active="users">
+        <Suspense fallback={<AdminChunkFallback />}>
+          <AdminUsers />
+        </Suspense>
+      </AdminShell>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {onlineBanner}
-      <Navbar />
-      <CartDrawer />
-
-      <main>
-        <Hero />
-        <SeoAnchorBlock />
-        <Menu />
-        <Delivery />
-        <Faq />
-        <About />
-        <Contact />
-      </main>
-
-      <Footer />
-    </div>
+    <AdminShell active="logs">
+      <Suspense fallback={<AdminChunkFallback />}>
+        <AdminLogs />
+      </Suspense>
+    </AdminShell>
   );
+}
+
+export default function App() {
+  const pathname = useMemo(() => getPathname(), []);
+  const hash = useMemo(() => getHash(), []);
+
+  useEffect(() => {
+    setTitle("Padrino Budva — Picerija & Dostava");
+    setCanonical("https://padrinobudva.com");
+    setOgUrl("https://padrinobudva.com");
+    setRobots("index,follow");
+
+    // JSON-LD
+    upsertJsonLd("padrino-jsonld-restaurant", {
+      "@context": "https://schema.org",
+      "@type": "Restaurant",
+      name: "Padrino Budva",
+      url: "https://padrinobudva.com",
+      telephone: "+38269123456",
+      address: {
+        "@type": "PostalAddress",
+        streetAddress: "Budva",
+        addressLocality: "Budva",
+        addressCountry: "ME",
+      },
+      servesCuisine: ["Pizza", "Italian"],
+      priceRange: "$$",
+    });
+
+    return () => {
+      removeJsonLd("padrino-jsonld-restaurant");
+    };
+  }, []);
+
+  useEffect(() => {
+    // simple hash scroll on landing
+    if (!hash) return;
+    const id = hash.replace("#", "");
+    if (!id) return;
+
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    // slight delay so sections render
+    const t = window.setTimeout(() => {
+      try {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch {
+        // ignore
+      }
+    }, 50);
+
+    return () => window.clearTimeout(t);
+  }, [hash]);
+
+  useEffect(() => {
+    // GA4 pageview
+    ga4PageView(pathname);
+  }, [pathname]);
+
+  if (pathname.startsWith("/admin")) {
+    if (pathname === "/admin/login") return <AdminRoute page="orders" />;
+    if (pathname === "/admin/users") return <AdminRoute page="users" />;
+    if (pathname === "/admin/logs") return <AdminRoute page="logs" />;
+    return <AdminRoute page="orders" />;
+  }
+
+  return <Landing />;
 }
