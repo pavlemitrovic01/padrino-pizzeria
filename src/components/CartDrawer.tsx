@@ -22,6 +22,35 @@ type MenuItemData = {
 
 type DrawerView = "cart" | "checkout" | "success";
 
+type BankartOrderPaymentStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded" | null;
+
+type BankartOrderStatusResponse = {
+  ok?: boolean;
+  id?: unknown;
+  order_id?: unknown;
+  orderId?: unknown;
+  status?: unknown;
+  payment_method?: unknown;
+  payment_status?: unknown;
+  payment_provider?: unknown;
+  payment_reference?: unknown;
+  final?: unknown;
+  source?: unknown;
+  refreshed?: unknown;
+  retry_after_seconds?: unknown;
+  bankart_transaction_status?: unknown;
+  bankart_transaction_type?: unknown;
+  lookup_error?: unknown;
+};
+
+type BankartReturnStorage = {
+  orderId: string;
+  totalCents: number;
+  zoneLabel: string;
+  feeCents: number;
+  paymentMethod: PaymentMethod;
+};
+
 /** -------------------- DELIVERY ZONES -------------------- */
 type DeliveryZoneKey =
   | "budva"
@@ -55,6 +84,108 @@ function formatFeeEurShort(cents: number) {
   const n = Number(cents);
   const v = Number.isFinite(n) ? Math.round(n / 100) : 0;
   return `${v}€`;
+}
+
+const BANKART_RETURN_STORAGE_KEY = "padrino:bankart:return";
+
+function isPaymentStatusValue(value: unknown): value is Exclude<BankartOrderPaymentStatus, null> {
+  return (
+    value === "pending" ||
+    value === "paid" ||
+    value === "failed" ||
+    value === "cancelled" ||
+    value === "refunded"
+  );
+}
+
+function isFinalPaymentStatusValue(value: BankartOrderPaymentStatus): boolean {
+  return value === "paid" || value === "failed" || value === "cancelled" || value === "refunded";
+}
+
+function getBankartReturnParams() {
+  if (typeof window === "undefined") {
+    return {
+      isBankartReturn: false,
+      orderId: "",
+      bankart: "",
+      payment: "",
+      path: "",
+    };
+  }
+
+  const path = window.location.pathname || "";
+  const params = new URLSearchParams(window.location.search);
+  const payment = params.get("payment")?.trim() ?? "";
+  const bankart = params.get("bankart")?.trim() ?? "";
+  const orderId = params.get("id")?.trim() ?? params.get("order_id")?.trim() ?? params.get("orderId")?.trim() ?? "";
+
+  return {
+    isBankartReturn: path === "/checkout/success" && payment === "card" && !!orderId,
+    orderId,
+    bankart,
+    payment,
+    path,
+  };
+}
+
+function readBankartReturnStorage(): BankartReturnStorage | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(BANKART_RETURN_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const rec = parsed as Record<string, unknown>;
+    const orderId = typeof rec.orderId === "string" ? rec.orderId.trim() : "";
+    const zoneLabel = typeof rec.zoneLabel === "string" ? rec.zoneLabel.trim() : "";
+    const paymentMethod = rec.paymentMethod === "card" ? "card" : rec.paymentMethod === "cash" ? "cash" : "card";
+    const totalCents = toSafeInt(rec.totalCents, 0);
+    const feeCents = toSafeInt(rec.feeCents, 0);
+
+    if (!orderId) return null;
+
+    return {
+      orderId,
+      totalCents,
+      zoneLabel,
+      feeCents,
+      paymentMethod,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeBankartReturnStorage(value: BankartReturnStorage) {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(BANKART_RETURN_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // ignore
+  }
+}
+
+function clearBankartReturnStorage() {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(BANKART_RETURN_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function cleanBankartReturnUrl() {
+  if (typeof window === "undefined") return;
+  const currentPath = window.location.pathname || "/";
+  if (currentPath !== "/checkout/success") return;
+  try {
+    window.history.replaceState({}, document.title, "/");
+  } catch {
+    // ignore
+  }
 }
 /** --------------------------------------------------------- */
 
@@ -410,6 +541,7 @@ function SmartMiniAddonImageInner(props: { name: string; className?: string }) {
 export default function CartDrawer() {
   const {
     isOpen,
+    openCart,
     closeCart,
     items,
     removeFromCart,
@@ -438,9 +570,6 @@ export default function CartDrawer() {
     "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out";
   const BTN_GOLD_ACTIVE =
     "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_25px_rgba(242,180,0,0.45)] transition";
-
-  // ✅ NLB not ready — keep card disabled until we enable it via env (VITE_CARD_PAYMENTS_ENABLED="true")
-  const CARD_PAYMENTS_ENABLED = import.meta.env.VITE_CARD_PAYMENTS_ENABLED === "true";
 
   const PHONE_DISPLAY = "+382 67 603 780";
   const PHONE_E164 = "+38267603780";
@@ -484,19 +613,13 @@ export default function CartDrawer() {
   const [successPaymentMethod, setSuccessPaymentMethod] = useState<PaymentMethod>("cash");
   const paymentLabel = (m: PaymentMethod) => (m === "card" ? "kartica" : "gotovina");
 
+
   const handleSetPaymentMethod = (m: PaymentMethod) => {
-    if (m === "card" && !CARD_PAYMENTS_ENABLED) return;
     setPaymentMethod?.(m);
   };
 
-  // ✅ Safety: if old state somehow has "card", force back to cash when entering checkout.
-  useEffect(() => {
-    if (view !== "checkout") return;
-    if (CARD_PAYMENTS_ENABLED) return;
-    if (paymentMethod !== "card") return;
-    setPaymentMethod?.("cash");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+
+  // (Blokirajući useEffect uklonjen)
 
   const [deliveryZoneKey, setDeliveryZoneKey] = useState<DeliveryZoneKey | "">("");
   const [deliveryFeeOverride, setDeliveryFeeOverride] = useState(false);
@@ -508,6 +631,11 @@ export default function CartDrawer() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
+  const [successPaymentStatus, setSuccessPaymentStatus] = useState<BankartOrderPaymentStatus>(null);
+  const [successTitle, setSuccessTitle] = useState("Porudžbina je poslata");
+  const [successSubtitle, setSuccessSubtitle] = useState("Hvala na poverenju <3");
+  const [successStatusNote, setSuccessStatusNote] = useState<string | null>(null);
+  const [successCheckingPayment, setSuccessCheckingPayment] = useState(false);
 
   const [successCopied, setSuccessCopied] = useState(false);
   const successCopiedTimerRef = useRef<number | null>(null);
@@ -528,6 +656,7 @@ export default function CartDrawer() {
   useEffect(() => {
     return () => {
       if (successCopiedTimerRef.current) window.clearTimeout(successCopiedTimerRef.current);
+      if (bankartStatusTimerRef.current) window.clearTimeout(bankartStatusTimerRef.current);
     };
   }, []);
 
@@ -557,6 +686,84 @@ export default function CartDrawer() {
     successCopiedTimerRef.current = window.setTimeout(() => setSuccessCopied(false), 1400);
   }
 
+  function applySuccessUiState(input: {
+    paymentMethod: PaymentMethod;
+    paymentStatus: BankartOrderPaymentStatus;
+    orderId: string | null;
+    checking: boolean;
+    bankartHint?: string | null;
+    lookupError?: string | null;
+  }) {
+    const bankartHint = String(input.bankartHint ?? "").trim().toLowerCase();
+    const lookupError = String(input.lookupError ?? "").trim();
+
+    setSuccessPaymentMethod(input.paymentMethod);
+    setSuccessPaymentStatus(input.paymentStatus);
+    setSuccessOrderId(input.orderId);
+    setSuccessCheckingPayment(input.checking);
+
+    if (input.paymentMethod !== "card") {
+      setSuccessTitle("Porudžbina je poslata");
+      setSuccessSubtitle("Hvala na poverenju <3");
+      setSuccessStatusNote(null);
+      return;
+    }
+
+    if (input.checking || input.paymentStatus === "pending") {
+      setSuccessTitle("Provjeravamo uplatu");
+      setSuccessSubtitle("Sačekaj trenutak dok potvrdimo status kartičnog plaćanja.");
+      setSuccessStatusNote(lookupError || "Status se osvežava automatski.");
+      return;
+    }
+
+    if (input.paymentStatus === "paid") {
+      setSuccessTitle("Uplata je uspješna");
+      setSuccessSubtitle("Porudžbina je potvrđena i prosleđena kuhinji.");
+      setSuccessStatusNote(null);
+      return;
+    }
+
+    if (input.paymentStatus === "cancelled") {
+      setSuccessTitle("Plaćanje je otkazano");
+      setSuccessSubtitle("Kartično plaćanje nije završeno.");
+      setSuccessStatusNote(lookupError || (bankartHint === "cancel" ? "Možeš pokušati ponovo ili izabrati gotovinu." : null));
+      return;
+    }
+
+    if (input.paymentStatus === "failed") {
+      setSuccessTitle("Plaćanje nije uspjelo");
+      setSuccessSubtitle("Transakcija nije potvrđena od strane Bankarta.");
+      setSuccessStatusNote(lookupError || "Pokušaj ponovo ili izaberi gotovinu.");
+      return;
+    }
+
+    if (input.paymentStatus === "refunded") {
+      setSuccessTitle("Uplata je refundirana");
+      setSuccessSubtitle("Transakcija je evidentirana kao refundirana.");
+      setSuccessStatusNote(null);
+      return;
+    }
+
+    setSuccessTitle("Provjeravamo uplatu");
+    setSuccessSubtitle("Sačekaj trenutak dok potvrdimo status kartičnog plaćanja.");
+    setSuccessStatusNote(lookupError || null);
+  }
+
+  async function fetchBankartOrderStatus(orderId: string): Promise<BankartOrderStatusResponse> {
+    const url = `/api/bankart-order-status?id=${encodeURIComponent(orderId)}`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { accept: "application/json" },
+    });
+
+    const body = (await res.json().catch(() => null)) as unknown;
+    if (!res.ok || !body || typeof body !== "object") {
+      throw new Error("Status kartičnog plaćanja trenutno nije dostupan.");
+    }
+
+    return body as BankartOrderStatusResponse;
+  }
+
   const [addonsCatalog, setAddonsCatalog] = useState<
     { id: string; name: string; price: number; imageKey: string }[]
   >([]);
@@ -575,6 +782,8 @@ export default function CartDrawer() {
   const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] = useState<PizzaVariantsMap>({});
 
   const drinksScrollRef = useRef<HTMLDivElement | null>(null);
+  const bankartReturnHandledRef = useRef(false);
+  const bankartStatusTimerRef = useRef<number | null>(null);
 
   const sauceIdSet = useMemo(() => {
     return new Set<string>((saucesCatalog ?? []).map((s) => s.id));
@@ -657,6 +866,17 @@ export default function CartDrawer() {
     setView("cart");
     setSubmitError(null);
     setSubmitting(false);
+    setSuccessCheckingPayment(false);
+  };
+
+  const resetSuccessState = () => {
+    setSuccessOrderId(null);
+    setSuccessSummary(null);
+    setSuccessPaymentStatus(null);
+    setSuccessTitle("Porudžbina je poslata");
+    setSuccessSubtitle("Hvala na poverenju <3");
+    setSuccessStatusNote(null);
+    setSuccessCheckingPayment(false);
   };
 
   const handleCloseDrawer = () => {
@@ -664,11 +884,16 @@ export default function CartDrawer() {
     setView("cart");
     setSubmitting(false);
     setSubmitError(null);
-    setSuccessOrderId(null);
-    setSuccessSummary(null);
+    resetSuccessState();
     setOpenSaucesForItemId(null);
     setOpenDrinksForItemId(null);
     setIsZoneOpen(false);
+    if (bankartStatusTimerRef.current) {
+      window.clearTimeout(bankartStatusTimerRef.current);
+      bankartStatusTimerRef.current = null;
+    }
+    clearBankartReturnStorage();
+    cleanBankartReturnUrl();
     closeCart();
   };
 
@@ -731,14 +956,123 @@ export default function CartDrawer() {
       setView("cart");
       setSubmitting(false);
       setSubmitError(null);
-      setSuccessOrderId(null);
-      setSuccessSummary(null);
+      resetSuccessState();
       setOpenSaucesForItemId(null);
       setOpenDrinksForItemId(null);
       setIsZoneOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  useEffect(() => {
+    const bankartReturn = getBankartReturnParams();
+    if (!bankartReturn.isBankartReturn) return;
+    if (bankartReturnHandledRef.current) return;
+
+    bankartReturnHandledRef.current = true;
+
+    const stored = readBankartReturnStorage();
+    if (stored && stored.orderId === bankartReturn.orderId) {
+      setSuccessSummary({
+        totalCents: stored.totalCents,
+        zoneLabel: stored.zoneLabel,
+        feeCents: stored.feeCents,
+      });
+      setSuccessPaymentMethod(stored.paymentMethod);
+    } else {
+      setSuccessPaymentMethod("card");
+    }
+
+    setSubmitError(null);
+    setView("success");
+    openCart();
+    applySuccessUiState({
+      paymentMethod: "card",
+      paymentStatus: "pending",
+      orderId: bankartReturn.orderId,
+      checking: true,
+      bankartHint: bankartReturn.bankart,
+    });
+
+    let active = true;
+
+    const poll = async (attempt: number) => {
+      if (!active) return;
+      try {
+        const body = await fetchBankartOrderStatus(bankartReturn.orderId);
+
+        const nextPaymentStatus = isPaymentStatusValue(body.payment_status) ? body.payment_status : "pending";
+        const retryAfterSeconds = Math.max(4, toSafeInt(body.retry_after_seconds, 12));
+        const lookupError = typeof body.lookup_error === "string" ? body.lookup_error.trim() : "";
+
+        applySuccessUiState({
+          paymentMethod: "card",
+          paymentStatus: nextPaymentStatus,
+          orderId: bankartReturn.orderId,
+          checking: !isFinalPaymentStatusValue(nextPaymentStatus),
+          bankartHint: bankartReturn.bankart,
+          lookupError: lookupError || null,
+        });
+
+        if (nextPaymentStatus === "paid") {
+          clearBankartReturnStorage();
+          cleanBankartReturnUrl();
+          return;
+        }
+
+        if (isFinalPaymentStatusValue(nextPaymentStatus)) {
+          cleanBankartReturnUrl();
+          return;
+        }
+
+        if (attempt >= 6) {
+          applySuccessUiState({
+            paymentMethod: "card",
+            paymentStatus: nextPaymentStatus,
+            orderId: bankartReturn.orderId,
+            checking: false,
+            bankartHint: bankartReturn.bankart,
+            lookupError: lookupError || "Potvrda uplate kasni. Sačekaj još malo ili nas pozovi ako se status ne promeni.",
+          });
+          cleanBankartReturnUrl();
+          return;
+        }
+
+        bankartStatusTimerRef.current = window.setTimeout(() => {
+          void poll(attempt + 1);
+        }, retryAfterSeconds * 1000);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Status kartičnog plaćanja trenutno nije dostupan.";
+
+        if (attempt >= 2) {
+          applySuccessUiState({
+            paymentMethod: "card",
+            paymentStatus: "pending",
+            orderId: bankartReturn.orderId,
+            checking: false,
+            bankartHint: bankartReturn.bankart,
+            lookupError: message,
+          });
+          cleanBankartReturnUrl();
+          return;
+        }
+
+        bankartStatusTimerRef.current = window.setTimeout(() => {
+          void poll(attempt + 1);
+        }, 4000);
+      }
+    };
+
+    void poll(0);
+
+    return () => {
+      active = false;
+      if (bankartStatusTimerRef.current) {
+        window.clearTimeout(bankartStatusTimerRef.current);
+        bankartStatusTimerRef.current = null;
+      }
+    };
+  }, [openCart]);
 
   useEffect(() => {
     setDeliveryFeeOverride(false);
@@ -946,8 +1280,32 @@ export default function CartDrawer() {
       setSuccessPaymentMethod(paymentMethod);
 
       const res = await createOrder(payload);
-      setSuccessSummary({ totalCents: effectiveTotalCents, zoneLabel: selectedDeliveryZone.label, feeCents: deliveryFeeCents });
-      setSuccessOrderId(res.orderId ?? null);
+      const nextSummary = {
+        totalCents: effectiveTotalCents,
+        zoneLabel: selectedDeliveryZone.label,
+        feeCents: deliveryFeeCents,
+      };
+
+      if (res.flow === "card_redirect" && res.redirectUrl) {
+        writeBankartReturnStorage({
+          orderId: res.orderId,
+          totalCents: nextSummary.totalCents,
+          zoneLabel: nextSummary.zoneLabel,
+          feeCents: nextSummary.feeCents,
+          paymentMethod: paymentMethod,
+        });
+
+        window.location.assign(res.redirectUrl);
+        return;
+      }
+
+      setSuccessSummary(nextSummary);
+      applySuccessUiState({
+        paymentMethod,
+        paymentStatus: paymentMethod === "card" ? res.paymentStatus : null,
+        orderId: res.orderId ?? null,
+        checking: false,
+      });
 
       clearCart();
       resetCheckout?.();
@@ -1043,14 +1401,26 @@ export default function CartDrawer() {
                       <div className="absolute inset-0 rounded-full bg-[#f2b400]/35 blur-xl" aria-hidden="true" />
                       <div className="relative h-16 w-16 rounded-full bg-[#f2b400]/20 ring-1 ring-[#f2b400]/35 flex items-center justify-center">
                         <div className="h-12 w-12 rounded-full bg-[#f2b400] text-black flex items-center justify-center shadow-[0_18px_60px_rgba(242,180,0,0.25)]">
-                          <span className="text-[26px] font-black leading-none">✓</span>
+                          {successCheckingPayment ? (
+                            <span className="inline-block h-5 w-5 animate-spin rounded-full border-[2.5px] border-black/30 border-t-black" />
+                          ) : successPaymentMethod === "card" && successPaymentStatus !== "paid" ? (
+                            <span className="text-[24px] font-black leading-none">!</span>
+                          ) : (
+                            <span className="text-[26px] font-black leading-none">✓</span>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <p className="text-white/95 font-extrabold text-[22px] text-center leading-tight">Porudžbina je poslata</p>
-                  <div className="mt-1 text-sm font-semibold text-white/70 text-center">Hvala na poverenju &lt;3</div>
+                  <p className="text-white/95 font-extrabold text-[22px] text-center leading-tight">{successTitle}</p>
+                  <div className="mt-1 text-sm font-semibold text-white/70 text-center">{successSubtitle}</div>
+
+                  {successStatusNote ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-center text-sm text-white/75">
+                      {successStatusNote}
+                    </div>
+                  ) : null}
 
                   {successOrderId ? (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
@@ -1315,7 +1685,6 @@ export default function CartDrawer() {
                         ) : null}
                       </div>
 
-                      {/* ✅ Način plaćanja (Kartica disabled dok ne dobijemo NLB) */}
                       <div className="mt-4">
                         <label className="mb-2 block text-sm font-semibold text-white/80">Način plaćanja</label>
 
@@ -1330,16 +1699,19 @@ export default function CartDrawer() {
 
                           <button
                             type="button"
-                            disabled={!CARD_PAYMENTS_ENABLED}
                             onClick={() => handleSetPaymentMethod("card")}
-                            title="Kartice uskoro (NLB integracija)"
-                            className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold", "opacity-45 cursor-not-allowed hover:bg-white/5"].join(" ")}
+                            className={[
+                              paymentMethod === "card" ? BTN_GOLD_ACTIVE : BTN_NEUTRAL,
+                              "h-11 w-full text-sm font-extrabold"
+                            ].join(" ")}
                           >
                             Kartica
                           </button>
                         </div>
 
-                        <div className="mt-2 text-xs text-white/60">Gotovina je dostupna sada. Kartice uskoro.</div>
+                        <div className="mt-2 text-xs text-white/60">
+                          Kartično plaćanje vodi na sigurnu Bankart stranicu za unos kartice.
+                        </div>
                       </div>
 
                       <div className="mt-4">

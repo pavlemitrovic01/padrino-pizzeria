@@ -8,8 +8,7 @@ export default function Checkout() {
   const navigate = useNavigate();
   const { items, totalPrice, clearCart, checkout } = useCart();
 
-  // ✅ NLB not ready — keep card disabled here too (legacy screen safety)
-  const CARD_PAYMENTS_ENABLED = false;
+  const CARD_PAYMENTS_ENABLED = import.meta.env.VITE_CARD_PAYMENTS_ENABLED === "true";
 
   const rawPaymentMethod = checkout?.paymentMethod ?? "cash";
   const paymentMethod = CARD_PAYMENTS_ENABLED ? rawPaymentMethod : "cash";
@@ -59,14 +58,25 @@ export default function Checkout() {
         total_price: totalPrice,
         total_items: totalItems,
         note: note.trim() || null,
-
-        // ✅ payment is now state-driven (and safely forced to cash while card is disabled)
         payment_method: paymentMethod,
       };
 
       const result = await createOrder(payload);
 
+      if (result.paymentMethod === "card" && result.flow === "card_redirect" && result.redirectUrl) {
+        window.location.href = result.redirectUrl;
+        return;
+      }
+
       clearCart();
+
+      if (result.paymentMethod === "card") {
+        navigate(
+          `/checkout/success?id=${encodeURIComponent(result.orderId)}&payment=card&bankart=${encodeURIComponent(result.flow)}`
+        );
+        return;
+      }
+
       navigate(`/checkout/success?id=${encodeURIComponent(result.orderId)}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Došlo je do greške pri slanju porudžbine.";
@@ -196,7 +206,7 @@ export default function Checkout() {
           </div>
 
           <div className="mt-3 text-xs text-white/55">
-            Plaćanje: {paymentMethod === "card" ? "kartica" : "gotovina"} (kartice uskoro).
+            Plaćanje: {paymentMethod === "card" ? "kartica" : "gotovina"}
           </div>
         </aside>
       </div>
