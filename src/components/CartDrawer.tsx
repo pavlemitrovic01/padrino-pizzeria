@@ -96,6 +96,25 @@ function formatFeeEurShort(cents: number) {
 const BANKART_RETURN_STORAGE_KEY = "padrino:bankart:return";
 const BANKART_PAYMENTJS_NUMBER_DIV_ID = "bankart-paymentjs-number";
 const BANKART_PAYMENTJS_CVV_DIV_ID = "bankart-paymentjs-cvv";
+const BANKART_PAYMENTJS_POLISH_CSS = `
+  #${BANKART_PAYMENTJS_NUMBER_DIV_ID},
+  #${BANKART_PAYMENTJS_CVV_DIV_ID} {
+    width: 100%;
+  }
+
+  #${BANKART_PAYMENTJS_NUMBER_DIV_ID} iframe,
+  #${BANKART_PAYMENTJS_CVV_DIV_ID} iframe {
+    display: block !important;
+    width: 100% !important;
+    min-height: 56px !important;
+    height: 56px !important;
+    border: 0 !important;
+    border-radius: 16px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+  }
+`;
 
 function envFlagEnabled(value: string | undefined) {
   const normalized = String(value ?? "").trim().toLowerCase();
@@ -577,9 +596,9 @@ export default function CartDrawer() {
   } = useCart();
 
   const BTN_NEUTRAL =
-    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/85 transition";
+    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-white/[0.11] hover:border-white/15 transition-all duration-200";
   const BTN_DANGER =
-    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 hover:bg-white/10 text-white/75 hover:text-white transition";
+    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-red-500/10 hover:border-red-400/20 hover:text-white transition-all duration-200";
   const BTN_SUCCESS =
     "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out";
   const BTN_GOLD_ACTIVE =
@@ -589,9 +608,9 @@ export default function CartDrawer() {
   const PHONE_E164 = "+38267603780";
 
   const CARD =
-    "p-glass p-4 sm:p-5 p-glass-hover ring-1 ring-white/5 transition-all duration-200 hover:bg-white/7 hover:ring-white/10 md:hover:-translate-y-[1px] active:translate-y-0";
+    "relative overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.09),rgba(255,255,255,0.03)_40%,rgba(255,255,255,0.02)_70%)] p-4 sm:p-5 shadow-[0_18px_45px_rgba(0,0,0,0.22)] backdrop-blur-xl ring-1 ring-white/5 transition-all duration-200 hover:border-white/15 hover:ring-white/10 md:hover:-translate-y-[1px] active:translate-y-0";
   const ROW =
-    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 px-3 py-2.5 transition-all duration-200 hover:bg-white/7 hover:border-white/15 hover:ring-1 hover:ring-white/10";
+    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-200 hover:bg-white/7 hover:border-white/15 hover:ring-1 hover:ring-white/10";
 
   const [view, setView] = useState<DrawerView>("cart");
 
@@ -749,17 +768,31 @@ export default function CartDrawer() {
         paymentJsControllerRef.current = controller;
         controller.setNumberStyle({
           width: "100%",
-          height: "44px",
-          color: "#111111",
+          height: "24px",
+          color: "#f8fafc",
           "font-size": "16px",
-          "line-height": "44px",
+          "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
+          "font-weight": "600",
+          "line-height": "24px",
+          "letter-spacing": "0.01em",
+          "background-color": "transparent",
+          border: "0",
+          padding: "0",
+          margin: "0",
         });
         controller.setCvvStyle({
           width: "100%",
-          height: "44px",
-          color: "#111111",
+          height: "24px",
+          color: "#f8fafc",
           "font-size": "16px",
-          "line-height": "44px",
+          "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
+          "font-weight": "600",
+          "line-height": "24px",
+          "letter-spacing": "0.02em",
+          "background-color": "transparent",
+          border: "0",
+          padding: "0",
+          margin: "0",
         });
         setPaymentJsReady(true);
       })
@@ -1907,40 +1940,63 @@ export default function CartDrawer() {
                         </div>
 
                         {paymentMethod === "card" ? (
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
-                            <div>
-                              <div className="text-sm font-extrabold text-white/90">Bankart payment.js</div>
-                              <div className="mt-1 text-xs text-white/60">
-                                {paymentJsRequested
-                                  ? "Kupac ostaje na sajtu, a osjetljiva kartična polja renderuje Bankart."
-                                  : paymentJsMissingKey
-                                    ? "Payment.js je uključen, ali nedostaje public integration key — koristiće se fallback redirect tek kada key bude dodat."
-                                    : "Trenutno je aktivan fallback redirect flow. Payment.js će se koristiti kada bude uključen u env-u."}
+                          <div className="mt-4 space-y-4 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),rgba(255,255,255,0.03)_42%,rgba(255,255,255,0.02)_72%)] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-extrabold text-white/90">Sigurna Bankart polja</div>
+                                  <div className="mt-1 text-xs leading-relaxed text-white/60">
+                                    {paymentJsRequested
+                                      ? "Kupac ostaje na sajtu, a broj kartice i CVV se unose kroz zaštićena Bankart polja."
+                                      : paymentJsMissingKey
+                                        ? "Payment.js je uključen, ali nedostaje public integration key — koristiće se fallback redirect tek kada key bude dodat."
+                                        : "Trenutno je aktivan fallback redirect flow. Payment.js će se koristiti kada bude uključen u env-u."}
+                                  </div>
+                                </div>
+
+                                <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-200">
+                                  Bankart
+                                </div>
                               </div>
                             </div>
 
                             {paymentJsRequested ? (
                               <>
-                                <div>
-                                  <label className="mb-2 block text-sm font-semibold text-white/80">Email</label>
-                                  <input
-                                    value={customerEmail}
-                                    onChange={(e) => setCustomerEmail(e.target.value)}
-                                    type="email"
-                                    autoComplete="email"
-                                    className="p-input"
-                                    placeholder="npr. ime@domen.com"
-                                  />
-                                  {submitError && !isCustomerEmailValid ? <div className="mt-1 text-xs font-medium text-red-300">Unesi ispravan email.</div> : null}
+                                <style>{BANKART_PAYMENTJS_POLISH_CSS}</style>
+
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">Email</label>
+                                    <input
+                                      value={customerEmail}
+                                      onChange={(e) => setCustomerEmail(e.target.value)}
+                                      type="email"
+                                      autoComplete="email"
+                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                      placeholder="npr. ime@domen.com"
+                                    />
+                                    {submitError && !isCustomerEmailValid ? <div className="mt-1 text-xs font-medium text-red-300">Unesi ispravan email.</div> : null}
+                                  </div>
+
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">Vlasnik kartice</label>
+                                    <input
+                                      value={cardholder}
+                                      onChange={(e) => setCardholder(e.target.value)}
+                                      autoComplete="cc-name"
+                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                      placeholder="Ime i prezime sa kartice"
+                                    />
+                                  </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
+                                <div className="grid gap-3 sm:grid-cols-2">
                                   <div>
                                     <label className="mb-2 block text-sm font-semibold text-white/80">Grad</label>
                                     <input
                                       value={billingCity}
                                       onChange={(e) => setBillingCity(e.target.value)}
-                                      className="p-input"
+                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
                                       placeholder="Budva"
                                     />
                                   </div>
@@ -1950,62 +2006,63 @@ export default function CartDrawer() {
                                       value={billingPostcode}
                                       onChange={(e) => setBillingPostcode(e.target.value)}
                                       inputMode="numeric"
-                                      className="p-input"
+                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
                                       placeholder="85310"
                                     />
                                   </div>
                                 </div>
 
-                                <div>
-                                  <label className="mb-2 block text-sm font-semibold text-white/80">Vlasnik kartice</label>
-                                  <input
-                                    value={cardholder}
-                                    onChange={(e) => setCardholder(e.target.value)}
-                                    autoComplete="cc-name"
-                                    className="p-input"
-                                    placeholder="Ime i prezime sa kartice"
-                                  />
-                                </div>
+                                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                  <div className="mb-3 flex items-center justify-between gap-3">
+                                    <div className="text-sm font-extrabold text-white/90">Detalji kartice</div>
+                                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Secure entry</div>
+                                  </div>
 
-                                <div>
-                                  <label className="mb-2 block text-sm font-semibold text-white/80">Broj kartice</label>
-                                  <div className="rounded-2xl border border-white/10 bg-white px-3 py-3">
-                                    <div id={BANKART_PAYMENTJS_NUMBER_DIV_ID} className="min-h-[22px] w-full" />
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">Broj kartice</label>
+                                    <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
+                                      <div id={BANKART_PAYMENTJS_NUMBER_DIV_ID} className="w-full" />
+                                    </div>
                                   </div>
-                                </div>
 
-                                <div className="grid grid-cols-[1fr_1fr_120px] gap-3">
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">Mesec</label>
-                                    <input
-                                      value={expMonth}
-                                      onChange={(e) => setExpMonth(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-                                      inputMode="numeric"
-                                      autoComplete="cc-exp-month"
-                                      className="p-input"
-                                      placeholder="MM"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">Godina</label>
-                                    <input
-                                      value={expYear}
-                                      onChange={(e) => setExpYear(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
-                                      inputMode="numeric"
-                                      autoComplete="cc-exp-year"
-                                      className="p-input"
-                                      placeholder="YY ili YYYY"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
-                                    <div className="rounded-2xl border border-white/10 bg-white px-3 py-3">
-                                      <div id={BANKART_PAYMENTJS_CVV_DIV_ID} className="min-h-[22px] w-full" />
+                                  <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_140px]">
+                                    <div>
+                                      <label className="mb-2 block text-sm font-semibold text-white/80">Mesec</label>
+                                      <input
+                                        value={expMonth}
+                                        onChange={(e) => setExpMonth(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                                        inputMode="numeric"
+                                        autoComplete="cc-exp-month"
+                                        className="p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                        placeholder="MM"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="mb-2 block text-sm font-semibold text-white/80">Godina</label>
+                                      <input
+                                        value={expYear}
+                                        onChange={(e) => setExpYear(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                                        inputMode="numeric"
+                                        autoComplete="cc-exp-year"
+                                        className="p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                        placeholder="YY ili YYYY"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
+                                      <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
+                                        <div id={BANKART_PAYMENTJS_CVV_DIV_ID} className="w-full" />
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
 
-                                {paymentJsLoading ? <div className="text-xs text-white/60">Učitavam sigurna Bankart polja…</div> : null}
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-white/55">
+                                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Bankart iframe polja</span>
+                                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Broj kartice i CVV se ne čuvaju u našem frontend-u</span>
+                                </div>
+
+                                {paymentJsLoading ? <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">Učitavam sigurna Bankart polja…</div> : null}
                                 {paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsInitError}</div> : null}
                               </>
                             ) : null}
@@ -2135,14 +2192,21 @@ export default function CartDrawer() {
                               </button>
                             </div>
 
-                            <div className="mt-4 grid grid-cols-3 items-center gap-2">
-                              <button type="button" onClick={() => decrease(it.id)} className={[BTN_NEUTRAL, "h-10 text-lg font-extrabold"].join(" ")}>
-                                −
-                              </button>
-                              <div className="text-center text-white/85 font-extrabold">{it.quantity ?? 1}</div>
-                              <button type="button" onClick={() => increase(it.id)} className={[BTN_NEUTRAL, "h-10 text-lg font-extrabold"].join(" ")}>
-                                +
-                              </button>
+                            <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/15 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                              <div>
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">Količina</div>
+                                <div className="mt-0.5 text-sm font-extrabold text-white/85">Izmeni broj komada</div>
+                              </div>
+
+                              <div className="grid w-[138px] grid-cols-3 gap-2">
+                                <button type="button" onClick={() => decrease(it.id)} className={[BTN_NEUTRAL, "h-11 text-lg font-extrabold"].join(" ")}>
+                                  −
+                                </button>
+                                <div className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-center text-white/90 font-extrabold">{it.quantity ?? 1}</div>
+                                <button type="button" onClick={() => increase(it.id)} className={[BTN_NEUTRAL, "h-11 text-lg font-extrabold"].join(" ")}>
+                                  +
+                                </button>
+                              </div>
                             </div>
 
                             {!drink ? (
