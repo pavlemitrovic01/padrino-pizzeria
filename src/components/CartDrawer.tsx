@@ -100,21 +100,19 @@ const BANKART_PAYMENTJS_POLISH_CSS = `
   #${BANKART_PAYMENTJS_NUMBER_DIV_ID},
   #${BANKART_PAYMENTJS_CVV_DIV_ID} {
     width: 100%;
-    min-height: 28px;
   }
 
   #${BANKART_PAYMENTJS_NUMBER_DIV_ID} iframe,
   #${BANKART_PAYMENTJS_CVV_DIV_ID} iframe {
     display: block !important;
     width: 100% !important;
-    min-height: 28px !important;
-    height: 28px !important;
+    min-height: 56px !important;
+    height: 56px !important;
     border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
+    border-radius: 16px !important;
+    background: #151214 !important;
     box-shadow: none !important;
     overflow: hidden !important;
-    opacity: 1 !important;
   }
 `;
 
@@ -771,68 +769,54 @@ export default function CartDrawer() {
 
         const numberBaseStyle = {
           width: "100%",
-          height: "28px",
-          color: "#ffffff",
-          "-webkit-text-fill-color": "#ffffff",
-          "caret-color": "#f2b400",
-          opacity: "1",
-          "font-size": "18px",
-          fontSize: "18px",
+          height: "56px",
+          color: "#f8fafc",
+          "font-size": "17px",
           "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
-          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-          "font-weight": "700",
-          fontWeight: "700",
-          "line-height": "28px",
-          lineHeight: "28px",
-          "letter-spacing": "0.04em",
-          letterSpacing: "0.04em",
-          background: "transparent",
-          "background-color": "transparent",
-          border: "0",
-          "border-radius": "0",
+          "font-weight": "600",
+          "line-height": "56px",
+          "letter-spacing": "0.02em",
+          background: "#151214",
+          "background-color": "#151214",
+          border: "1px solid rgba(255,255,255,0.08)",
+          "border-radius": "16px",
           "box-sizing": "border-box",
-          padding: "0",
+          padding: "0 16px",
           margin: "0",
           outline: "none",
           "box-shadow": "none",
-          "text-shadow": "0 0 0 rgba(255,255,255,0.01)",
         } as const;
 
         const numberFocusStyle = {
           ...numberBaseStyle,
+          border: "1px solid rgba(242,180,0,0.45)",
+          "box-shadow": "0 0 0 3px rgba(242,180,0,0.10)",
         } as const;
 
         const cvvBaseStyle = {
           width: "100%",
-          height: "28px",
-          color: "#ffffff",
-          "-webkit-text-fill-color": "#ffffff",
-          "caret-color": "#f2b400",
-          opacity: "1",
-          "font-size": "18px",
-          fontSize: "18px",
+          height: "56px",
+          color: "#f8fafc",
+          "font-size": "17px",
           "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
-          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-          "font-weight": "700",
-          fontWeight: "700",
-          "line-height": "28px",
-          lineHeight: "28px",
-          "letter-spacing": "0.08em",
-          letterSpacing: "0.08em",
-          background: "transparent",
-          "background-color": "transparent",
-          border: "0",
-          "border-radius": "0",
+          "font-weight": "600",
+          "line-height": "56px",
+          "letter-spacing": "0.06em",
+          background: "#151214",
+          "background-color": "#151214",
+          border: "1px solid rgba(255,255,255,0.08)",
+          "border-radius": "16px",
           "box-sizing": "border-box",
-          padding: "0",
+          padding: "0 16px",
           margin: "0",
           outline: "none",
           "box-shadow": "none",
-          "text-shadow": "0 0 0 rgba(255,255,255,0.01)",
         } as const;
 
         const cvvFocusStyle = {
           ...cvvBaseStyle,
+          border: "1px solid rgba(242,180,0,0.45)",
+          "box-shadow": "0 0 0 3px rgba(242,180,0,0.10)",
         } as const;
 
         controller.setNumberStyle(numberBaseStyle);
@@ -2076,7 +2060,7 @@ export default function CartDrawer() {
 
                                   <div>
                                     <label className="mb-2 block text-sm font-semibold text-white/80">Broj kartice</label>
-                                    <div className="flex min-h-[60px] items-center rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
+                                    <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
                                       <div id={BANKART_PAYMENTJS_NUMBER_DIV_ID} className="w-full" />
                                     </div>
                                   </div>
@@ -2106,7 +2090,7 @@ export default function CartDrawer() {
                                     </div>
                                     <div>
                                       <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
-                                      <div className="flex min-h-[60px] items-center rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
+                                      <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
                                         <div id={BANKART_PAYMENTJS_CVV_DIV_ID} className="w-full" />
                                       </div>
                                     </div>
