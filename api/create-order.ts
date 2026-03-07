@@ -43,7 +43,10 @@ type BankartDebitRequest = {
   customer?: {
     firstName?: string;
     lastName?: string;
+    email?: string;
     billingAddress1?: string;
+    billingCity?: string;
+    billingPostcode?: string;
     billingCountry?: string;
     billingPhone?: string;
     shippingFirstName?: string;
@@ -647,7 +650,10 @@ function buildBankartDebitRequest(
     customer: {
       firstName: firstName.slice(0, 50),
       lastName: lastName.slice(0, 50),
+      email: "padrinobudva@gmail.com",
       billingAddress1: input.customerAddress.slice(0, 50),
+      billingCity: "Budva",
+      billingPostcode: "85310",
       billingCountry: "ME",
       billingPhone: input.customerPhone.slice(0, 20),
       shippingFirstName: firstName.slice(0, 50),
