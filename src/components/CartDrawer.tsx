@@ -110,7 +110,7 @@ const BANKART_PAYMENTJS_POLISH_CSS = `
     height: 56px !important;
     border: 0 !important;
     border-radius: 16px !important;
-    background: transparent !important;
+    background: #151214 !important;
     box-shadow: none !important;
     overflow: hidden !important;
   }
@@ -766,33 +766,73 @@ export default function CartDrawer() {
         }
 
         paymentJsControllerRef.current = controller;
-        controller.setNumberStyle({
+
+        const numberBaseStyle = {
           width: "100%",
-          height: "24px",
+          height: "56px",
           color: "#f8fafc",
-          "font-size": "16px",
+          "font-size": "17px",
           "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
           "font-weight": "600",
-          "line-height": "24px",
-          "letter-spacing": "0.01em",
-          "background-color": "transparent",
-          border: "0",
-          padding: "0",
-          margin: "0",
-        });
-        controller.setCvvStyle({
-          width: "100%",
-          height: "24px",
-          color: "#f8fafc",
-          "font-size": "16px",
-          "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
-          "font-weight": "600",
-          "line-height": "24px",
+          "line-height": "56px",
           "letter-spacing": "0.02em",
-          "background-color": "transparent",
-          border: "0",
-          padding: "0",
+          background: "#151214",
+          "background-color": "#151214",
+          border: "1px solid rgba(255,255,255,0.08)",
+          "border-radius": "16px",
+          "box-sizing": "border-box",
+          padding: "0 16px",
           margin: "0",
+          outline: "none",
+          "box-shadow": "none",
+        } as const;
+
+        const numberFocusStyle = {
+          ...numberBaseStyle,
+          border: "1px solid rgba(242,180,0,0.45)",
+          "box-shadow": "0 0 0 3px rgba(242,180,0,0.10)",
+        } as const;
+
+        const cvvBaseStyle = {
+          width: "100%",
+          height: "56px",
+          color: "#f8fafc",
+          "font-size": "17px",
+          "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
+          "font-weight": "600",
+          "line-height": "56px",
+          "letter-spacing": "0.06em",
+          background: "#151214",
+          "background-color": "#151214",
+          border: "1px solid rgba(255,255,255,0.08)",
+          "border-radius": "16px",
+          "box-sizing": "border-box",
+          padding: "0 16px",
+          margin: "0",
+          outline: "none",
+          "box-shadow": "none",
+        } as const;
+
+        const cvvFocusStyle = {
+          ...cvvBaseStyle,
+          border: "1px solid rgba(242,180,0,0.45)",
+          "box-shadow": "0 0 0 3px rgba(242,180,0,0.10)",
+        } as const;
+
+        controller.setNumberStyle(numberBaseStyle);
+        controller.setCvvStyle(cvvBaseStyle);
+
+        controller.numberOn("focus", () => {
+          controller.setNumberStyle(numberFocusStyle);
+        });
+        controller.numberOn("blur", () => {
+          controller.setNumberStyle(numberBaseStyle);
+        });
+        controller.cvvOn("focus", () => {
+          controller.setCvvStyle(cvvFocusStyle);
+        });
+        controller.cvvOn("blur", () => {
+          controller.setCvvStyle(cvvBaseStyle);
         });
         setPaymentJsReady(true);
       })
