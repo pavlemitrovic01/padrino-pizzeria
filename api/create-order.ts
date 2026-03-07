@@ -40,6 +40,7 @@ type BankartDebitRequest = {
   language: string;
   merchantMetaData: string;
   extraData: Record<string, string>;
+  transactionToken?: string;
   customer?: {
     firstName?: string;
     lastName?: string;
@@ -68,6 +69,10 @@ type BankartDebitResponse = {
   errors?: unknown;
   extraData?: unknown;
 };
+
+const BANKART_FALLBACK_EMAIL = "padrinobudva@gmail.com";
+const BANKART_FALLBACK_CITY = "Budva";
+const BANKART_FALLBACK_POSTCODE = "85310";
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
@@ -497,6 +502,11 @@ function getBankartConfig(): BankartConfig {
   };
 }
 
+function normalizeBankartApiBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.replace(/\/api\/v3$/i, "");
+}
+
 function splitCustomerName(fullName: string): { firstName: string; lastName: string } {
   const parts = fullName.split(/\s+/).filter(Boolean);
   if (parts.length <= 1) {
@@ -622,16 +632,26 @@ function buildBankartDebitRequest(
     amountCents: number;
     currency: string;
     customerName: string;
+    bankartCustomerName?: string;
     customerPhone: string;
     customerAddress: string;
+    customerEmail?: string | null;
+    billingCity?: string | null;
+    billingPostcode?: string | null;
+    transactionToken?: string | null;
   },
 ): BankartDebitRequest {
   const urls = buildBankartUrls(req, orderId);
-  const { firstName, lastName } = splitCustomerName(input.customerName);
+  const bankartCustomerName = toTrimmedString(input.bankartCustomerName) || input.customerName;
+  const { firstName, lastName } = splitCustomerName(bankartCustomerName);
   const clientIp = getClientIp(req);
   const config = getBankartConfig();
+  const customerEmail = toTrimmedString(input.customerEmail) || BANKART_FALLBACK_EMAIL;
+  const billingCity = toTrimmedString(input.billingCity) || BANKART_FALLBACK_CITY;
+  const billingPostcode = toTrimmedString(input.billingPostcode) || BANKART_FALLBACK_POSTCODE;
+  const transactionToken = toTrimmedString(input.transactionToken);
 
-  return {
+  const requestBody: BankartDebitRequest = {
     merchantTransactionId: orderId,
     amount: centsToAmountString(input.amountCents),
     currency: input.currency || "EUR",
@@ -646,14 +666,15 @@ function buildBankartDebitRequest(
       source: "padrino-web",
       orderId,
       paymentMethod: "card",
+      integration: transactionToken ? "payment_js" : "redirect",
     },
     customer: {
       firstName: firstName.slice(0, 50),
       lastName: lastName.slice(0, 50),
-      email: "padrinobudva@gmail.com",
+      email: customerEmail.slice(0, 100),
       billingAddress1: input.customerAddress.slice(0, 50),
-      billingCity: "Budva",
-      billingPostcode: "85310",
+      billingCity: billingCity.slice(0, 50),
+      billingPostcode: billingPostcode.slice(0, 16),
       billingCountry: "ME",
       billingPhone: input.customerPhone.slice(0, 20),
       shippingFirstName: firstName.slice(0, 50),
@@ -664,13 +685,18 @@ function buildBankartDebitRequest(
       ipAddress: clientIp || undefined,
     },
   };
+
+  if (transactionToken) {
+    requestBody.transactionToken = transactionToken;
+  }
+
+  return requestBody;
 }
 
 async function startBankartDebit(req: ReqLike, orderId: string, requestBody: BankartDebitRequest) {
   const config = getBankartConfig();
-  const hostBaseUrl = config.baseUrl.replace(/\/api\/v3$/i, "");
-  const signatureUri = `/api/v3/transaction/${encodeURIComponent(config.apiKey)}/debit`;
-  const url = `${hostBaseUrl}${signatureUri}`;
+  const requestUri = `/api/v3/transaction/${encodeURIComponent(config.apiKey)}/debit`;
+  const url = `${normalizeBankartApiBaseUrl(config.baseUrl)}${requestUri}`;
   const contentType = "application/json; charset=utf-8";
   const dateHeader = new Date().toUTCString();
   const bodyText = JSON.stringify(requestBody);
@@ -679,7 +705,7 @@ async function startBankartDebit(req: ReqLike, orderId: string, requestBody: Ban
     "POST",
     contentType,
     dateHeader,
-    signatureUri,
+    requestUri,
     bodyText,
   );
 
@@ -899,6 +925,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const customer_name = toTrimmedString(body.customer_name);
     const customer_phone = toTrimmedString(body.customer_phone);
     const customer_address = toTrimmedString(body.customer_address);
+    const customer_email = toTrimmedString(body.customer_email) || BANKART_FALLBACK_EMAIL;
+    const billing_city = toTrimmedString(body.billing_city) || BANKART_FALLBACK_CITY;
+    const billing_postcode = toTrimmedString(body.billing_postcode) || BANKART_FALLBACK_POSTCODE;
+    const cardholder = toTrimmedString(body.cardholder);
+    const transaction_token = toTrimmedString(body.transaction_token);
 
     const rawItems: unknown[] = Array.isArray(body.items) ? body.items : [];
 
@@ -1011,7 +1042,9 @@ export default async function handler(req: ReqLike, res: ResLike) {
         payment_method === "card"
           ? bankartMetaSnapshot({
               phase: "order_created",
-              message: "Order created before Bankart redirect init",
+              message: transaction_token
+                ? "Order created before Bankart payment.js debit init"
+                : "Order created before Bankart redirect init",
             })
           : null,
     };
@@ -1046,8 +1079,13 @@ export default async function handler(req: ReqLike, res: ResLike) {
       amountCents: computedTotalCents,
       currency,
       customerName: customer_name,
+      bankartCustomerName: cardholder || customer_name,
       customerPhone: customer_phone,
       customerAddress: customer_address,
+      customerEmail: customer_email,
+      billingCity: billing_city,
+      billingPostcode: billing_postcode,
+      transactionToken: transaction_token || null,
     });
 
     const bankart = await startBankartDebit(req, orderId, bankartRequest);

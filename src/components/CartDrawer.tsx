@@ -5,10 +5,17 @@ import { useCart } from "../context/useCart";
 import type { PizzaSize, PizzaVariant, PaymentMethod } from "../context/CartContext";
 import { formatEUR, toSafeInt } from "../lib/money";
 import { createOrder, type CreateOrderPayload } from "../lib/createOrder";
+import {
+  createBankartPaymentJs,
+  formatBankartPaymentJsErrors,
+  type BankartPaymentJsController,
+} from "../lib/bankartPaymentJs";
 
 declare global {
   interface ImportMetaEnv {
     readonly VITE_CARD_PAYMENTS_ENABLED?: string;
+    readonly VITE_BANKART_PAYMENTJS_ENABLED?: string;
+    readonly VITE_BANKART_PAYMENTJS_PUBLIC_KEY?: string;
   }
 }
 
@@ -87,6 +94,13 @@ function formatFeeEurShort(cents: number) {
 }
 
 const BANKART_RETURN_STORAGE_KEY = "padrino:bankart:return";
+const BANKART_PAYMENTJS_NUMBER_DIV_ID = "bankart-paymentjs-number";
+const BANKART_PAYMENTJS_CVV_DIV_ID = "bankart-paymentjs-cvv";
+
+function envFlagEnabled(value: string | undefined) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
 
 function isPaymentStatusValue(value: unknown): value is Exclude<BankartOrderPaymentStatus, null> {
   return (
@@ -585,10 +599,22 @@ export default function CartDrawer() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [orderNote, setOrderNote] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [billingCity, setBillingCity] = useState("Budva");
+  const [billingPostcode, setBillingPostcode] = useState("85310");
+  const [cardholder, setCardholder] = useState("");
+  const [expMonth, setExpMonth] = useState("");
+  const [expYear, setExpYear] = useState("");
 
   const nameTrim = name.trim();
   const phoneTrim = phone.trim();
   const addressTrim = address.trim();
+  const customerEmailTrim = customerEmail.trim();
+  const billingCityTrim = billingCity.trim();
+  const billingPostcodeTrim = billingPostcode.trim();
+  const cardholderTrim = cardholder.trim();
+  const expMonthTrim = expMonth.trim();
+  const expYearTrim = expYear.trim();
 
   const isNameValid = useMemo(() => {
     if (!nameTrim) return false;
@@ -609,10 +635,37 @@ export default function CartDrawer() {
     return addressTrim.length >= 5;
   }, [addressTrim]);
 
+  const isCustomerEmailValid = useMemo(() => {
+    if (!customerEmailTrim) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmailTrim);
+  }, [customerEmailTrim]);
+
+  const isCardholderValid = useMemo(() => {
+    return cardholderTrim.length >= 2;
+  }, [cardholderTrim]);
+
+  const isExpMonthValid = useMemo(() => {
+    if (!expMonthTrim) return false;
+    return /^(0?[1-9]|1[0-2])$/.test(expMonthTrim);
+  }, [expMonthTrim]);
+
+  const isExpYearValid = useMemo(() => {
+    if (!expYearTrim) return false;
+    return /^\d{2,4}$/.test(expYearTrim);
+  }, [expYearTrim]);
+
   const paymentMethod: PaymentMethod = checkout?.paymentMethod ?? "cash";
   const [successPaymentMethod, setSuccessPaymentMethod] = useState<PaymentMethod>("cash");
   const paymentLabel = (m: PaymentMethod) => (m === "card" ? "kartica" : "gotovina");
 
+  const paymentJsPublicKey = String(import.meta.env.VITE_BANKART_PAYMENTJS_PUBLIC_KEY ?? "").trim();
+  const paymentJsFeatureEnabled = envFlagEnabled(import.meta.env.VITE_BANKART_PAYMENTJS_ENABLED);
+  const paymentJsRequested = paymentMethod === "card" && paymentJsFeatureEnabled && !!paymentJsPublicKey;
+  const paymentJsMissingKey = paymentMethod === "card" && paymentJsFeatureEnabled && !paymentJsPublicKey;
+  const paymentJsControllerRef = useRef<BankartPaymentJsController | null>(null);
+  const [paymentJsReady, setPaymentJsReady] = useState(false);
+  const [paymentJsLoading, setPaymentJsLoading] = useState(false);
+  const [paymentJsInitError, setPaymentJsInitError] = useState<string | null>(null);
 
   const handleSetPaymentMethod = (m: PaymentMethod) => {
     setPaymentMethod?.(m);
@@ -657,8 +710,75 @@ export default function CartDrawer() {
     return () => {
       if (successCopiedTimerRef.current) window.clearTimeout(successCopiedTimerRef.current);
       if (bankartStatusTimerRef.current) window.clearTimeout(bankartStatusTimerRef.current);
+      paymentJsControllerRef.current?.dispose();
+      paymentJsControllerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const shouldInit = isOpen && view === "checkout" && paymentMethod === "card" && paymentJsFeatureEnabled && !!paymentJsPublicKey;
+
+    if (!shouldInit) {
+      paymentJsControllerRef.current?.dispose();
+      paymentJsControllerRef.current = null;
+      setPaymentJsReady(false);
+      setPaymentJsLoading(false);
+      setPaymentJsInitError(null);
+      return;
+    }
+
+    let active = true;
+
+    paymentJsControllerRef.current?.dispose();
+    paymentJsControllerRef.current = null;
+    setPaymentJsReady(false);
+    setPaymentJsLoading(true);
+    setPaymentJsInitError(null);
+
+    void createBankartPaymentJs({
+      publicIntegrationKey: paymentJsPublicKey,
+      numberDivId: BANKART_PAYMENTJS_NUMBER_DIV_ID,
+      cvvDivId: BANKART_PAYMENTJS_CVV_DIV_ID,
+    })
+      .then((controller) => {
+        if (!active) {
+          controller.dispose();
+          return;
+        }
+
+        paymentJsControllerRef.current = controller;
+        controller.setNumberStyle({
+          width: "100%",
+          height: "44px",
+          color: "#111111",
+          "font-size": "16px",
+          "line-height": "44px",
+        });
+        controller.setCvvStyle({
+          width: "100%",
+          height: "44px",
+          color: "#111111",
+          "font-size": "16px",
+          "line-height": "44px",
+        });
+        setPaymentJsReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setPaymentJsInitError(error instanceof Error ? error.message : "Greška pri učitavanju kartičnih polja.");
+      })
+      .finally(() => {
+        if (!active) return;
+        setPaymentJsLoading(false);
+      });
+
+    return () => {
+      active = false;
+      paymentJsControllerRef.current?.dispose();
+      paymentJsControllerRef.current = null;
+      setPaymentJsReady(false);
+    };
+  }, [isOpen, view, paymentMethod, paymentJsFeatureEnabled, paymentJsPublicKey]);
 
   async function copySuccessOrderId() {
     if (!successOrderId) return;
@@ -860,7 +980,17 @@ export default function CartDrawer() {
     isPhoneValid &&
     isAddressValid &&
     !!selectedDeliveryZone &&
-    (selectedDeliveryZone.feeCents <= 0 || qualifiesForFreeDelivery || deliveryFeeOverride);
+    (selectedDeliveryZone.feeCents <= 0 || qualifiesForFreeDelivery || deliveryFeeOverride) &&
+    (!paymentJsRequested ||
+      (isCustomerEmailValid &&
+        !!billingCityTrim &&
+        !!billingPostcodeTrim &&
+        isCardholderValid &&
+        isExpMonthValid &&
+        isExpYearValid &&
+        paymentJsReady &&
+        !paymentJsLoading &&
+        !paymentJsInitError));
 
   const backToCart = () => {
     setView("cart");
@@ -888,6 +1018,11 @@ export default function CartDrawer() {
     setOpenSaucesForItemId(null);
     setOpenDrinksForItemId(null);
     setIsZoneOpen(false);
+    paymentJsControllerRef.current?.dispose();
+    paymentJsControllerRef.current = null;
+    setPaymentJsReady(false);
+    setPaymentJsLoading(false);
+    setPaymentJsInitError(null);
     if (bankartStatusTimerRef.current) {
       window.clearTimeout(bankartStatusTimerRef.current);
       bankartStatusTimerRef.current = null;
@@ -960,6 +1095,11 @@ export default function CartDrawer() {
       setOpenSaucesForItemId(null);
       setOpenDrinksForItemId(null);
       setIsZoneOpen(false);
+      paymentJsControllerRef.current?.dispose();
+      paymentJsControllerRef.current = null;
+      setPaymentJsReady(false);
+      setPaymentJsLoading(false);
+      setPaymentJsInitError(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -1224,6 +1364,33 @@ export default function CartDrawer() {
       return;
     }
 
+    if (paymentMethod === "card" && paymentJsRequested) {
+      if (!isCustomerEmailValid) {
+        setSubmitError("Unesi ispravan email za kartično plaćanje.");
+        return;
+      }
+      if (!billingCityTrim || !billingPostcodeTrim) {
+        setSubmitError("Unesi grad i poštanski broj za kartično plaćanje.");
+        return;
+      }
+      if (!isCardholderValid) {
+        setSubmitError("Unesi ime vlasnika kartice.");
+        return;
+      }
+      if (!isExpMonthValid || !isExpYearValid) {
+        setSubmitError("Unesi ispravan mesec i godinu isteka kartice.");
+        return;
+      }
+      if (paymentJsMissingKey) {
+        setSubmitError("Bankart payment.js public key nije podešen.");
+        return;
+      }
+      if (paymentJsLoading || !paymentJsReady || !paymentJsControllerRef.current) {
+        setSubmitError("Kartična polja se još učitavaju. Sačekaj trenutak i pokušaj ponovo.");
+        return;
+      }
+    }
+
     setSubmitting(true);
     setSubmitError(null);
 
@@ -1232,6 +1399,10 @@ export default function CartDrawer() {
         customer_name: nameTrim,
         customer_phone: phoneTrim,
         customer_address: addressTrim,
+        customer_email: paymentJsRequested ? customerEmailTrim : null,
+        billing_city: paymentJsRequested ? billingCityTrim : null,
+        billing_postcode: paymentJsRequested ? billingPostcodeTrim : null,
+        cardholder: paymentJsRequested ? cardholderTrim : null,
         total_price: effectiveTotalCents,
         total_items: totalItems,
         note: (() => {
@@ -1277,6 +1448,22 @@ export default function CartDrawer() {
         }),
       };
 
+      if (paymentMethod === "card" && paymentJsRequested) {
+        const controller = paymentJsControllerRef.current;
+        if (!controller) {
+          throw new Error("Kartična polja nisu spremna. Osvježi checkout i pokušaj ponovo.");
+        }
+
+        const tokenizeResult = await controller.tokenize({
+          card_holder: cardholderTrim,
+          month: expMonthTrim.padStart(2, "0"),
+          year: expYearTrim,
+          email: customerEmailTrim || undefined,
+        });
+
+        payload.transaction_token = tokenizeResult.token;
+      }
+
       setSuccessPaymentMethod(paymentMethod);
 
       const res = await createOrder(payload);
@@ -1311,7 +1498,11 @@ export default function CartDrawer() {
       resetCheckout?.();
       setView("success");
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Došlo je do greške.");
+      if (Array.isArray(err)) {
+        setSubmitError(formatBankartPaymentJsErrors(err));
+      } else {
+        setSubmitError(err instanceof Error ? err.message : "Došlo je do greške.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -1710,8 +1901,116 @@ export default function CartDrawer() {
                         </div>
 
                         <div className="mt-2 text-xs text-white/60">
-                          Kartično plaćanje vodi na sigurnu Bankart stranicu za unos kartice.
+                          {paymentJsRequested
+                            ? "Kartica ostaje u checkoutu — broj kartice i CVV unosiš kroz sigurna Bankart polja."
+                            : "Kartično plaćanje vodi na sigurnu Bankart stranicu za unos kartice."}
                         </div>
+
+                        {paymentMethod === "card" ? (
+                          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 space-y-4">
+                            <div>
+                              <div className="text-sm font-extrabold text-white/90">Bankart payment.js</div>
+                              <div className="mt-1 text-xs text-white/60">
+                                {paymentJsRequested
+                                  ? "Kupac ostaje na sajtu, a osjetljiva kartična polja renderuje Bankart."
+                                  : paymentJsMissingKey
+                                    ? "Payment.js je uključen, ali nedostaje public integration key — koristiće se fallback redirect tek kada key bude dodat."
+                                    : "Trenutno je aktivan fallback redirect flow. Payment.js će se koristiti kada bude uključen u env-u."}
+                              </div>
+                            </div>
+
+                            {paymentJsRequested ? (
+                              <>
+                                <div>
+                                  <label className="mb-2 block text-sm font-semibold text-white/80">Email</label>
+                                  <input
+                                    value={customerEmail}
+                                    onChange={(e) => setCustomerEmail(e.target.value)}
+                                    type="email"
+                                    autoComplete="email"
+                                    className="p-input"
+                                    placeholder="npr. ime@domen.com"
+                                  />
+                                  {submitError && !isCustomerEmailValid ? <div className="mt-1 text-xs font-medium text-red-300">Unesi ispravan email.</div> : null}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">Grad</label>
+                                    <input
+                                      value={billingCity}
+                                      onChange={(e) => setBillingCity(e.target.value)}
+                                      className="p-input"
+                                      placeholder="Budva"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">Poštanski broj</label>
+                                    <input
+                                      value={billingPostcode}
+                                      onChange={(e) => setBillingPostcode(e.target.value)}
+                                      inputMode="numeric"
+                                      className="p-input"
+                                      placeholder="85310"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="mb-2 block text-sm font-semibold text-white/80">Vlasnik kartice</label>
+                                  <input
+                                    value={cardholder}
+                                    onChange={(e) => setCardholder(e.target.value)}
+                                    autoComplete="cc-name"
+                                    className="p-input"
+                                    placeholder="Ime i prezime sa kartice"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="mb-2 block text-sm font-semibold text-white/80">Broj kartice</label>
+                                  <div className="rounded-2xl border border-white/10 bg-white px-3 py-3">
+                                    <div id={BANKART_PAYMENTJS_NUMBER_DIV_ID} className="min-h-[22px] w-full" />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-[1fr_1fr_120px] gap-3">
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">Mesec</label>
+                                    <input
+                                      value={expMonth}
+                                      onChange={(e) => setExpMonth(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                                      inputMode="numeric"
+                                      autoComplete="cc-exp-month"
+                                      className="p-input"
+                                      placeholder="MM"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">Godina</label>
+                                    <input
+                                      value={expYear}
+                                      onChange={(e) => setExpYear(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                                      inputMode="numeric"
+                                      autoComplete="cc-exp-year"
+                                      className="p-input"
+                                      placeholder="YY ili YYYY"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
+                                    <div className="rounded-2xl border border-white/10 bg-white px-3 py-3">
+                                      <div id={BANKART_PAYMENTJS_CVV_DIV_ID} className="min-h-[22px] w-full" />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {paymentJsLoading ? <div className="text-xs text-white/60">Učitavam sigurna Bankart polja…</div> : null}
+                                {paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsInitError}</div> : null}
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="mt-4">

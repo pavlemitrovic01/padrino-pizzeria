@@ -37,6 +37,11 @@ export type CreateOrderPayload = {
   customer_name: string;
   customer_phone: string;
   customer_address: string;
+  customer_email?: string | null;
+  billing_city?: string | null;
+  billing_postcode?: string | null;
+  cardholder?: string | null;
+  transaction_token?: string | null;
 
   items: OrderItemPayload[];
 
@@ -62,6 +67,10 @@ export type CreateOrderResult = {
 function normalizeString(value: string) {
   const trimmed = value.trim();
   return trimmed.length ? trimmed : "";
+}
+
+function normalizeOptionalString(value: unknown) {
+  return normalizeString(String(value ?? "")) || null;
 }
 
 function safeInt(value: unknown, fallback = 0) {
@@ -153,6 +162,11 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
   const customer_address = normalizeString(payload.customer_address);
+  const customer_email = normalizeOptionalString(payload.customer_email);
+  const billing_city = normalizeOptionalString(payload.billing_city);
+  const billing_postcode = normalizeOptionalString(payload.billing_postcode);
+  const cardholder = normalizeOptionalString(payload.cardholder);
+  const transaction_token = normalizeOptionalString(payload.transaction_token);
 
   if (!customer_name || !customer_phone || !customer_address) {
     throw new Error("Unesite ime, telefon i adresu.");
@@ -245,7 +259,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
     normalizedItems.unshift(meta);
   }
 
-  const apiBody = {
+  const apiBody: Record<string, unknown> = {
     customer_name,
     customer_phone,
     customer_address,
@@ -256,6 +270,12 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
     fx_rsd_per_eur: null,
     payment_method: method,
   };
+
+  if (customer_email) apiBody.customer_email = customer_email;
+  if (billing_city) apiBody.billing_city = billing_city;
+  if (billing_postcode) apiBody.billing_postcode = billing_postcode;
+  if (cardholder) apiBody.cardholder = cardholder;
+  if (transaction_token) apiBody.transaction_token = transaction_token;
 
   const base = getApiBase().replace(/\/+$/, "");
   const url = `${base}/create-order`;
