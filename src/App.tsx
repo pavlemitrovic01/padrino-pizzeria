@@ -258,6 +258,32 @@ async function verifyAdminAccess(accessToken: string): Promise<boolean> {
   }
 }
 
+
+function FaqPage() {
+  return (
+    <div className="min-h-screen bg-black text-white">
+      <Navbar />
+      <CartDrawer />
+
+      <main className="pt-24 md:pt-28">
+        <div className="mx-auto max-w-4xl px-6 pb-4">
+          <a
+            href="/"
+            className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/10"
+          >
+            ← Nazad na početnu
+          </a>
+        </div>
+
+        <Faq />
+      </main>
+
+      <Footer />
+      <SeoAnchorBlock />
+    </div>
+  );
+}
+
 function Landing() {
   return (
     <div className="min-h-screen bg-black text-white">
@@ -267,7 +293,6 @@ function Landing() {
       <Hero />
       <Menu />
       <Delivery />
-      <Faq />
       <About />
       <Contact />
       <Footer />
@@ -474,9 +499,11 @@ export default function App() {
   const hash = useMemo(() => getHash(), []);
 
   useEffect(() => {
-    setTitle("Padrino Budva — Picerija & Dostava");
-    setCanonical("https://padrinobudva.com");
-    setOgUrl("https://padrinobudva.com");
+    const isFaqPage = pathname === "/faq";
+
+    setTitle(isFaqPage ? "FAQ — Padrino Budva" : "Padrino Budva — Picerija & Dostava");
+    setCanonical(isFaqPage ? "https://padrinobudva.com/faq" : "https://padrinobudva.com");
+    setOgUrl(isFaqPage ? "https://padrinobudva.com/faq" : "https://padrinobudva.com");
     setRobots("index,follow");
 
     // JSON-LD
@@ -499,7 +526,7 @@ export default function App() {
     return () => {
       removeJsonLd("padrino-jsonld-restaurant");
     };
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     // simple hash scroll on landing
@@ -533,6 +560,8 @@ export default function App() {
     if (pathname === "/admin/logs") return <AdminRoute page="logs" />;
     return <AdminRoute page="orders" />;
   }
+
+  if (pathname === "/faq") return <FaqPage />;
 
   return <Landing />;
 }

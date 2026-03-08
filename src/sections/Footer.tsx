@@ -68,6 +68,15 @@ export default function Footer() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <a
+              href="/faq"
+              className="inline-flex min-w-[132px] items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-4 py-3 text-sm font-extrabold text-white/86 transition hover:border-white/20 hover:bg-white/8"
+              aria-label="Česta pitanja"
+              title="Česta pitanja"
+            >
+              Česta pitanja
+            </a>
+
             <button
               type="button"
               onClick={onTop}
