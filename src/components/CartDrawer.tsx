@@ -702,6 +702,7 @@ export default function CartDrawer() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
   const [successPaymentStatus, setSuccessPaymentStatus] = useState<BankartOrderPaymentStatus>(null);
   const [successTitle, setSuccessTitle] = useState("Porudžbina je poslata");
@@ -916,12 +917,10 @@ export default function CartDrawer() {
       return;
     }
 
-    const shouldShowCancelledUi = input.paymentStatus === "cancelled" || bankartHint === "cancel";
-
-    if (shouldShowCancelledUi) {
+    if (input.paymentStatus === "cancelled") {
       setSuccessTitle("Plaćanje je otkazano");
       setSuccessSubtitle("Kartično plaćanje nije završeno.");
-      setSuccessStatusNote(lookupError || "Možeš pokušati ponovo ili izabrati gotovinu.");
+      setSuccessStatusNote(lookupError || (bankartHint === "cancel" ? "Možeš pokušati ponovo ili izabrati gotovinu." : null));
       return;
     }
 
@@ -1067,9 +1066,127 @@ export default function CartDrawer() {
         !paymentJsLoading &&
         !paymentJsInitError));
 
+  const showValidation = view === "checkout" && submitAttempted;
+
+  const nameError = !showValidation
+    ? null
+    : !nameTrim
+      ? "Unesi ime i prezime."
+      : !isNameValid
+        ? "Unesi ime i prezime bez brojeva."
+        : null;
+
+  const phoneError = !showValidation
+    ? null
+    : !phoneTrim
+      ? "Unesi broj telefona."
+      : !isPhoneValid
+        ? "Unesi ispravan broj telefona."
+        : null;
+
+  const addressError = !showValidation
+    ? null
+    : !addressTrim
+      ? "Unesi adresu dostave."
+      : !isAddressValid
+        ? "Adresa mora imati najmanje 5 karaktera."
+        : null;
+
+  const deliveryZoneError = !showValidation
+    ? null
+    : !selectedDeliveryZone
+      ? "Izaberi zonu dostave."
+      : null;
+
+  const deliveryRulesError = !showValidation
+    ? null
+    : selectedDeliveryZone && selectedDeliveryZone.feeCents > 0 && !qualifiesForFreeDelivery && !deliveryFeeOverride
+      ? `Dopuni korpu do minimuma ili klikni "Doplati ${formatFeeEurShort(selectedDeliveryZone.feeCents)} za dostavu".`
+      : null;
+
+  const customerEmailError = !showValidation || !paymentJsRequested
+    ? null
+    : !customerEmailTrim
+      ? "Unesi email za kartično plaćanje."
+      : !isCustomerEmailValid
+        ? "Unesi ispravan email."
+        : null;
+
+  const billingCityError = !showValidation || !paymentJsRequested
+    ? null
+    : !billingCityTrim
+      ? "Unesi grad."
+      : null;
+
+  const billingPostcodeError = !showValidation || !paymentJsRequested
+    ? null
+    : !billingPostcodeTrim
+      ? "Unesi poštanski broj."
+      : null;
+
+  const cardholderError = !showValidation || !paymentJsRequested
+    ? null
+    : !cardholderTrim
+      ? "Unesi ime vlasnika kartice."
+      : !isCardholderValid
+        ? "Ime vlasnika kartice je prekratko."
+        : null;
+
+  const expMonthError = !showValidation || !paymentJsRequested
+    ? null
+    : !expMonthTrim
+      ? "Unesi mesec isteka."
+      : !isExpMonthValid
+        ? "Mesec mora biti od 01 do 12."
+        : null;
+
+  const expYearError = !showValidation || !paymentJsRequested
+    ? null
+    : !expYearTrim
+      ? "Unesi godinu isteka."
+      : !isExpYearValid
+        ? "Godina mora imati 2 ili 4 cifre."
+        : null;
+
+  const paymentJsStateError = !showValidation || paymentMethod !== "card"
+    ? null
+    : paymentJsMissingKey
+      ? "Kartično plaćanje trenutno nije dostupno. Pokušaj kasnije ili izaberi gotovinu."
+      : paymentJsLoading
+        ? "Sigurna Bankart polja se još učitavaju. Sačekaj trenutak."
+        : paymentJsInitError
+          ? paymentJsInitError
+          : paymentJsRequested && !paymentJsReady
+            ? "Sačekaj da se učitaju sigurna Bankart polja."
+            : null;
+
+  const invalidFieldLabels = [
+    [nameError, "ime i prezime"],
+    [phoneError, "telefon"],
+    [addressError, "adresa"],
+    [deliveryZoneError, "zona dostave"],
+    [deliveryRulesError, "dostava"],
+    [customerEmailError, "email"],
+    [billingCityError, "grad"],
+    [billingPostcodeError, "poštanski broj"],
+    [cardholderError, "vlasnik kartice"],
+    [expMonthError, "mesec isteka"],
+    [expYearError, "godina isteka"],
+    [paymentJsStateError, "kartična polja"],
+  ]
+    .filter((entry): entry is [string, string] => Boolean(entry[0]))
+    .map((entry) => entry[1]);
+
+  const checkoutValidationHint = !showValidation || invalidFieldLabels.length === 0
+    ? null
+    : invalidFieldLabels.length <= 3
+      ? `Proveri: ${invalidFieldLabels.join(", ")}.`
+      : "Proveri označena polja pre slanja porudžbine.";
+
   const backToCart = () => {
     setView("cart");
     setSubmitError(null);
+    setSubmitAttempted(false);
     setSubmitting(false);
     setSuccessCheckingPayment(false);
   };
@@ -1089,6 +1206,7 @@ export default function CartDrawer() {
     setView("cart");
     setSubmitting(false);
     setSubmitError(null);
+    setSubmitAttempted(false);
     resetSuccessState();
     setOpenSaucesForItemId(null);
     setOpenDrinksForItemId(null);
@@ -1166,6 +1284,7 @@ export default function CartDrawer() {
       setView("cart");
       setSubmitting(false);
       setSubmitError(null);
+      setSubmitAttempted(false);
       resetSuccessState();
       setOpenSaucesForItemId(null);
       setOpenDrinksForItemId(null);
@@ -1407,9 +1526,12 @@ export default function CartDrawer() {
     createOrderSnapshot?.();
     setView("checkout");
     setSubmitError(null);
+    setSubmitAttempted(false);
   };
 
   async function submitOrder() {
+    setSubmitAttempted(true);
+
     if (!canSubmit) return;
 
     if (!nameTrim || !phoneTrim || !addressTrim) {
@@ -1571,6 +1693,7 @@ export default function CartDrawer() {
 
       clearCart();
       resetCheckout?.();
+      setSubmitAttempted(false);
       setView("success");
     } catch (err: unknown) {
       if (Array.isArray(err)) {
@@ -1783,13 +1906,12 @@ export default function CartDrawer() {
                           onChange={(e) => setName(e.target.value)}
                           className={[
                             "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                            submitError && !name.trim() ? "border-red-500 focus:border-red-500" : "",
-                            submitError && name.trim() ? "border-emerald-500 focus:border-emerald-500" : "",
+                            nameError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
                           ].join(" ")}
                           placeholder="Npr. Petar Petrovic"
                           autoComplete="name"
                         />
-                        {submitError && !name.trim() && <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>}
+                        {nameError ? <div className="mt-1 text-xs font-medium text-red-300">{nameError}</div> : null}
                       </div>
 
                       <div className="mt-4">
@@ -1799,13 +1921,12 @@ export default function CartDrawer() {
                           onChange={(e) => setPhone(e.target.value)}
                           className={[
                             "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                            submitError && !phone.trim() ? "border-red-500 focus:border-red-500" : "",
-                            submitError && phone.trim() ? "border-emerald-500 focus:border-emerald-500" : "",
+                            phoneError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
                           ].join(" ")}
                           placeholder="+382..."
                           autoComplete="tel"
                         />
-                        {submitError && !phone.trim() && <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>}
+                        {phoneError ? <div className="mt-1 text-xs font-medium text-red-300">{phoneError}</div> : null}
                       </div>
 
                       <div className="mt-4">
@@ -1815,13 +1936,12 @@ export default function CartDrawer() {
                           onChange={(e) => setAddress(e.target.value)}
                           className={[
                             "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                            submitError && !address.trim() ? "border-red-500 focus:border-red-500" : "",
-                            submitError && address.trim() ? "border-emerald-500 focus:border-emerald-500" : "",
+                            addressError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
                           ].join(" ")}
                           placeholder="Ulica i broj"
                           autoComplete="street-address"
                         />
-                        {submitError && !address.trim() && <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div>}
+                        {addressError ? <div className="mt-1 text-xs font-medium text-red-300">{addressError}</div> : null}
                       </div>
 
                       <div className="mt-4">
@@ -1836,8 +1956,7 @@ export default function CartDrawer() {
                             aria-expanded={isZoneOpen}
                             className={[
                               "p-input w-full text-left border border-white/10 bg-black/20 text-white/90 hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-[#f2b400]/20 focus:border-[#f2b400]/40 transition flex items-center justify-between gap-3",
-                              submitError && !deliveryZoneKey ? "border-red-500 focus:border-red-500" : "",
-                              submitError && deliveryZoneKey ? "border-emerald-500 focus:border-emerald-500" : "",
+                              deliveryZoneError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
                             ].join(" ")}
                           >
                             <span className="min-w-0 truncate">
@@ -1893,7 +2012,7 @@ export default function CartDrawer() {
                           </a>
                         </div>
 
-                        {submitError && !deliveryZoneKey ? <div className="mt-1 text-xs font-medium text-red-300">Obavezno polje</div> : null}
+                        {deliveryZoneError ? <div className="mt-1 text-xs font-medium text-red-300">{deliveryZoneError}</div> : null}
 
                         {deliveryZoneKey && selectedDeliveryZone ? (
                           <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4">
@@ -1949,6 +2068,8 @@ export default function CartDrawer() {
                             </div>
                           </div>
                         ) : null}
+
+                        {deliveryRulesError ? <div className="mt-3 text-xs font-medium text-red-300">{deliveryRulesError}</div> : null}
                       </div>
 
                       <div className="mt-4">
@@ -2014,10 +2135,13 @@ export default function CartDrawer() {
                                       onChange={(e) => setCustomerEmail(e.target.value)}
                                       type="email"
                                       autoComplete="email"
-                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                      className={[
+                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                        customerEmailError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                      ].join(" ")}
                                       placeholder="npr. ime@domen.com"
                                     />
-                                    {submitError && !isCustomerEmailValid ? <div className="mt-1 text-xs font-medium text-red-300">Unesi ispravan email.</div> : null}
+                                    {customerEmailError ? <div className="mt-1 text-xs font-medium text-red-300">{customerEmailError}</div> : null}
                                   </div>
 
                                   <div>
@@ -2026,9 +2150,13 @@ export default function CartDrawer() {
                                       value={cardholder}
                                       onChange={(e) => setCardholder(e.target.value)}
                                       autoComplete="cc-name"
-                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                      className={[
+                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                        cardholderError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                      ].join(" ")}
                                       placeholder="Ime i prezime sa kartice"
                                     />
+                                    {cardholderError ? <div className="mt-1 text-xs font-medium text-red-300">{cardholderError}</div> : null}
                                   </div>
                                 </div>
 
@@ -2038,9 +2166,13 @@ export default function CartDrawer() {
                                     <input
                                       value={billingCity}
                                       onChange={(e) => setBillingCity(e.target.value)}
-                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                      className={[
+                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                        billingCityError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                      ].join(" ")}
                                       placeholder="Budva"
                                     />
+                                    {billingCityError ? <div className="mt-1 text-xs font-medium text-red-300">{billingCityError}</div> : null}
                                   </div>
                                   <div>
                                     <label className="mb-2 block text-sm font-semibold text-white/80">Poštanski broj</label>
@@ -2048,9 +2180,13 @@ export default function CartDrawer() {
                                       value={billingPostcode}
                                       onChange={(e) => setBillingPostcode(e.target.value)}
                                       inputMode="numeric"
-                                      className="p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                      className={[
+                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                        billingPostcodeError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                      ].join(" ")}
                                       placeholder="85310"
                                     />
+                                    {billingPostcodeError ? <div className="mt-1 text-xs font-medium text-red-300">{billingPostcodeError}</div> : null}
                                   </div>
                                 </div>
 
@@ -2075,9 +2211,13 @@ export default function CartDrawer() {
                                         onChange={(e) => setExpMonth(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
                                         inputMode="numeric"
                                         autoComplete="cc-exp-month"
-                                        className="p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                        className={[
+                                          "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                          expMonthError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                        ].join(" ")}
                                         placeholder="MM"
                                       />
+                                      {expMonthError ? <div className="mt-1 text-xs font-medium text-red-300">{expMonthError}</div> : null}
                                     </div>
                                     <div>
                                       <label className="mb-2 block text-sm font-semibold text-white/80">Godina</label>
@@ -2086,9 +2226,13 @@ export default function CartDrawer() {
                                         onChange={(e) => setExpYear(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
                                         inputMode="numeric"
                                         autoComplete="cc-exp-year"
-                                        className="p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition"
+                                        className={[
+                                          "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                          expYearError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                        ].join(" ")}
                                         placeholder="YY ili YYYY"
                                       />
+                                      {expYearError ? <div className="mt-1 text-xs font-medium text-red-300">{expYearError}</div> : null}
                                     </div>
                                     <div>
                                       <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
@@ -2106,6 +2250,7 @@ export default function CartDrawer() {
 
                                 {paymentJsLoading ? <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">Učitavam sigurna Bankart polja…</div> : null}
                                 {paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsInitError}</div> : null}
+                                {paymentJsStateError && !paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsStateError}</div> : null}
                               </>
                             ) : null}
                           </div>
@@ -2123,6 +2268,12 @@ export default function CartDrawer() {
                       </div>
                     </div>
 
+                    {checkoutValidationHint ? (
+                      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                        {checkoutValidationHint}
+                      </div>
+                    ) : null}
+
                     {submitError ? (
                       <div className="space-y-3">
                         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{submitError}</div>
@@ -2139,8 +2290,13 @@ export default function CartDrawer() {
 
                     <button
                       type="submit"
-                      disabled={submitting || !canConfirmOrder}
-                      className={[BTN_SUCCESS, "w-full h-12 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100 inline-flex items-center justify-center gap-2"].join(" ")}
+                      disabled={submitting}
+                      aria-disabled={submitting || !canConfirmOrder}
+                      className={[
+                        BTN_SUCCESS,
+                        "w-full h-12 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100 inline-flex items-center justify-center gap-2",
+                        !submitting && !canConfirmOrder ? "ring-1 ring-[#f2b400]/15" : "",
+                      ].join(" ")}
                     >
                       {submitting ? (
                         <>
