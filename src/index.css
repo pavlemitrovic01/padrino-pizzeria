@@ -18,6 +18,10 @@
     background: #000;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     margin: 0;
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
@@ -38,8 +42,34 @@
     @apply rounded-3xl bg-white/[0.04] ring-1 ring-white/10 backdrop-blur-md;
   }
 
+  .p-glass-hover {
+    @apply transition-all duration-300 ease-out hover:bg-white/[0.06] hover:ring-white/15;
+    @apply focus-within:bg-white/[0.06] focus-within:ring-white/15;
+  }
+
   .p-divider {
     @apply h-px w-full bg-white/10;
+  }
+
+  .p-kicker {
+    @apply inline-flex items-center gap-2 rounded-full border border-[#f2b400]/20 bg-[#f2b400]/10 px-3 py-1.5 text-[#f2b400];
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+  }
+
+  .p-eyebrow {
+    @apply text-white/45;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+
+  .p-title {
+    @apply font-black text-white;
+    letter-spacing: -0.03em;
   }
 
   .p-btn {
@@ -49,6 +79,10 @@
   }
 
   .p-btn-primary {
+    @apply p-btn bg-[#f2b400] text-black hover:brightness-105 active:brightness-95;
+  }
+
+  .p-btn-gold {
     @apply p-btn bg-[#f2b400] text-black hover:brightness-105 active:brightness-95;
   }
 
@@ -62,7 +96,7 @@
   }
 
   .p-textarea {
-    @apply w-full rounded-2xl bg-black/30 px-4 py-3 text-white outline-none resize-none;
+    @apply w-full resize-none rounded-2xl bg-black/30 px-4 py-3 text-white outline-none;
     @apply ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/60;
   }
 }
