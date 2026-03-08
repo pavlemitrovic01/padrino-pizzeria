@@ -217,13 +217,12 @@ function ga4PageView(path: string) {
 }
 
 function SeoAnchorBlock() {
-  // SEO-only anchors (hidden) to help discover internal sections from a single-page site.
+  // SEO-only anchors (hidden) to help discover internal sections from the landing page.
   // No user-facing impact.
   return (
     <div className="sr-only" aria-hidden="true">
       <a href="#meni">Meni</a>
-      <a href="#dostava">Dostava</a>
-      <a href="#faq">FAQ</a>
+      <a href="#delivery">Dostava</a>
       <a href="#o-nama">O nama</a>
       <a href="#kontakt">Kontakt</a>
     </div>
@@ -279,7 +278,6 @@ function FaqPage() {
       </main>
 
       <Footer />
-      <SeoAnchorBlock />
     </div>
   );
 }

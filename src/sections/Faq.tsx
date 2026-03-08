@@ -15,22 +15,22 @@ export default function FAQ() {
     {
       question: "Koliko traje dostava pizze?",
       answer:
-        "Prosječno vrijeme dostave u Budvi je oko 30 minuta, u zavisnosti od gužve i lokacije.",
+        "Prosječno vrijeme dostave u Budvi je oko 30 minuta, u zavisnosti od gužve, termina i lokacije.",
     },
     {
       question: "Kako mogu poručiti pizzu online?",
       answer:
-        "Poručivanje je jednostavno – izaberite pizzu sa menija, dodajte u korpu i završite narudžbu direktno putem sajta.",
+        "Poručivanje je jednostavno — izaberite pizzu sa menija, dodajte proizvode u korpu i završite narudžbu direktno putem sajta.",
     },
     {
-      question: "Da li je moguće platiti pouzećem?",
+      question: "Kako mogu platiti porudžbinu?",
       answer:
-        "Trenutno je dostupno plaćanje pouzećem prilikom dostave.",
+        "Porudžbinu možete platiti gotovinom prilikom dostave ili karticom online, kroz siguran Bankart checkout, u zavisnosti od izabranog načina plaćanja.",
     },
     {
       question: "Da li dostavljate u okolini Budve?",
       answer:
-        "Dostava je dostupna u Budvi i okolnim zonama. Ukoliko niste sigurni da li ste u zoni dostave, možete nas kontaktirati.",
+        "Dostava je dostupna u Budvi i okolnim zonama. Ako niste sigurni da li ste u zoni dostave, možete nas kontaktirati prije poručivanja.",
     },
   ];
 
@@ -42,15 +42,15 @@ export default function FAQ() {
       className="bg-black py-24 md:py-32"
       aria-labelledby="faq-title"
     >
-      <div className="max-w-4xl mx-auto px-6">
-        <div className="text-center mb-16">
+      <div className="mx-auto max-w-4xl px-6">
+        <div className="mb-16 text-center">
           <div className="p-kicker mb-4">FAQ</div>
           <h2 id="faq-title" className="p-title text-4xl md:text-5xl">
             Česta pitanja
           </h2>
-          <p className="mt-4 text-white/60 max-w-2xl mx-auto leading-relaxed">
+          <p className="mx-auto mt-4 max-w-2xl leading-relaxed text-white/60">
             Odgovori na najčešća pitanja o dostavi pizze u Budvi,
-            poručivanju i načinu plaćanja.
+            poručivanju i načinima plaćanja.
           </p>
         </div>
 
@@ -64,7 +64,8 @@ export default function FAQ() {
                 className="p-glass p-glass-hover rounded-2xl"
               >
                 <button
-                  className="w-full text-left px-6 py-5 flex justify-between items-center"
+                  type="button"
+                  className="flex w-full items-center justify-between px-6 py-5 text-left"
                   onClick={() =>
                     setOpenIndex(isOpen ? null : index)
                   }
@@ -72,13 +73,13 @@ export default function FAQ() {
                   <span className="font-serif text-lg text-white/90">
                     {item.question}
                   </span>
-                  <span className="text-white/60 text-xl">
+                  <span className="text-xl text-white/60">
                     {isOpen ? "−" : "+"}
                   </span>
                 </button>
 
                 {isOpen && (
-                  <div className="px-6 pb-6 text-white/65 leading-relaxed">
+                  <div className="px-6 pb-6 leading-relaxed text-white/65">
                     {item.answer}
                   </div>
                 )}

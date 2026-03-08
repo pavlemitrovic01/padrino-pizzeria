@@ -33,6 +33,7 @@ export default function Navbar() {
 
   const path = normalizePath();
   const isAdminRoute = useMemo(() => path.startsWith("/admin"), [path]);
+  const isLandingPage = useMemo(() => path === "/" || path === "", [path]);
 
   // ✅ SOURCE OF TRUTH (iz ZIP-a): stvarni section id-jevi su:
   // Menu.tsx -> id="meni"
@@ -66,10 +67,11 @@ export default function Navbar() {
   function onClickLink(id: string) {
     setMobileOpen(false);
 
-    // ✅ ESLint immutability: ne koristimo window.location.href = ...
-    if (isAdminRoute) {
+    // Sa admin ili zasebne javne stranice (npr. /faq), prvo idi na landing.
+    // Tek landing ima sekcije koje treba scroll-ovati / otvarati.
+    if (isAdminRoute || !isLandingPage) {
       if (id === "meni") {
-        window.location.assign("/#");
+        window.location.assign("/#meni");
       } else {
         window.location.assign(`/#${id}`);
       }
@@ -91,8 +93,8 @@ export default function Navbar() {
     e.preventDefault();
     setMobileOpen(false);
 
-    if (isAdminRoute) {
-      window.location.assign("/#");
+    if (isAdminRoute || !isLandingPage) {
+      window.location.assign("/");
       return;
     }
 

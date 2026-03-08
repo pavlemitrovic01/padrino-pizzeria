@@ -279,7 +279,7 @@ export default function PizzaBudvaPage() {
                 >
                   Dostava
                 </a>
-                <a className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40" href="/#faq">
+                <a className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 hover:bg-black/40" href="/faq">
                   FAQ
                 </a>
                 <a
