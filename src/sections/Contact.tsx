@@ -11,7 +11,7 @@ const ADDRESS_LINE = "Jadranski put BB (Kotorski Semafori)";
 const HOURS = "12–00";
 
 const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
-const INSTAGRAM_URL = "https://www.instagram.com/"; // po potrebi stavi tačan profil
+const INSTAGRAM_URL = "https://www.instagram.com/padrino_budva"; // po potrebi stavi tačan profil
 
 const WHATSAPP_WEB_URL = "https://wa.me/38267603780";
 const VIBER_URL = `viber://chat?number=${PHONE_E164.replace("+", "")}`;

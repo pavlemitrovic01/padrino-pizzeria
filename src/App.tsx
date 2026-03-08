@@ -11,8 +11,6 @@ import About from "./sections/About";
 import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
 
-import PizzaBudvaPage from "./seo/PizzaBudvaPage";
-
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
@@ -275,7 +273,6 @@ function Landing() {
       <Footer />
 
       <SeoAnchorBlock />
-      <PizzaBudvaPage />
     </div>
   );
 }

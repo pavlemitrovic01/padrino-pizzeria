@@ -596,21 +596,21 @@ export default function CartDrawer() {
   } = useCart();
 
   const BTN_NEUTRAL =
-    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.07] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-white/[0.11] hover:border-white/15 transition-all duration-200";
+    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_10px_26px_rgba(0,0,0,0.18)] hover:bg-white/[0.1] hover:border-white/15 hover:text-white transition-all duration-200";
   const BTN_DANGER =
-    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-red-500/10 hover:border-red-400/20 hover:text-white transition-all duration-200";
+    "inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-red-500/10 hover:border-red-400/20 hover:text-white transition-all duration-200";
   const BTN_SUCCESS =
-    "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_35px_rgba(242,180,0,0.55)] hover:scale-[1.03] active:scale-[0.98] transition-all duration-200 ease-out";
+    "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_16px_44px_rgba(242,180,0,0.24)] hover:shadow-[0_22px_54px_rgba(242,180,0,0.34)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ease-out";
   const BTN_GOLD_ACTIVE =
-    "inline-flex items-center justify-center rounded-full bg-[#f2b400] text-black hover:brightness-110 shadow-[0_0_0px_rgba(242,180,0,0.35)] hover:shadow-[0_0_25px_rgba(242,180,0,0.45)] transition";
+    "inline-flex items-center justify-center rounded-full border border-[#f2b400]/20 bg-[#f2b400] text-black shadow-[0_14px_38px_rgba(242,180,0,0.22)] hover:brightness-110 transition-all duration-200";
 
   const PHONE_DISPLAY = "+382 67 603 780";
   const PHONE_E164 = "+38267603780";
 
   const CARD =
-    "relative overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.09),rgba(255,255,255,0.03)_40%,rgba(255,255,255,0.02)_70%)] p-4 sm:p-5 shadow-[0_18px_45px_rgba(0,0,0,0.22)] backdrop-blur-xl ring-1 ring-white/5 transition-all duration-200 hover:border-white/15 hover:ring-white/10 md:hover:-translate-y-[1px] active:translate-y-0";
+    "relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035)_28%,rgba(255,255,255,0.02)_100%)] p-4 sm:p-5 shadow-[0_24px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl ring-1 ring-white/5 transition-all duration-200 hover:border-white/15 hover:ring-white/10 md:hover:-translate-y-[1px] active:translate-y-0";
   const ROW =
-    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-200 hover:bg-white/7 hover:border-white/15 hover:ring-1 hover:ring-white/10";
+    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-200 hover:bg-white/[0.08] hover:border-white/15 hover:ring-1 hover:ring-white/10";
 
   const [view, setView] = useState<DrawerView>("cart");
 
@@ -1749,27 +1749,28 @@ export default function CartDrawer() {
   return (
     <AnimatePresence>
       <motion.div className="fixed inset-0 z-[80]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-        <button type="button" aria-label="Close cart" className="absolute inset-0 bg-black/70" onClick={handleCloseDrawer} />
+        <button type="button" aria-label="Close cart" className="absolute inset-0 bg-black/75 backdrop-blur-[2px]" onClick={handleCloseDrawer} />
 
         <motion.div
-          className="absolute right-0 top-0 h-full w-full max-w-[520px] overflow-hidden border-l border-white/10 bg-black/60 backdrop-blur-xl"
+          className="absolute right-0 top-0 h-full w-full max-w-[560px] overflow-hidden border-l border-white/10 bg-black/55 shadow-[-24px_0_80px_rgba(0,0,0,0.4)] backdrop-blur-2xl"
           initial={{ x: 60 }}
           animate={{ x: 0 }}
           exit={{ x: 60 }}
           transition={{ type: "spring", stiffness: 260, damping: 28 }}
         >
           <div className="absolute inset-0 z-0 pointer-events-none">
-            <img src="/sections/menu.webp" alt="" className="h-full w-full object-cover opacity-85" draggable={false} loading="eager" decoding="async" />
-            <div className="absolute inset-0 bg-black/40" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/30 to-black/50" />
+            <img src="/sections/menu.webp" alt="" className="h-full w-full object-cover opacity-90" draggable={false} loading="eager" decoding="async" />
+            <div className="absolute inset-0 bg-black/48" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(242,180,0,0.08),transparent_34%)]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-black/34 to-black/60" />
           </div>
 
-          <div className="relative h-full flex flex-col z-10">
-            <div className="border-b border-white/10 bg-black/30 px-4 sm:px-5">
-              <div className="flex items-center justify-between py-4">
+          <div className="relative z-10 flex h-full flex-col">
+            <div className="border-b border-white/10 bg-black/25 px-4 sm:px-5 backdrop-blur-xl">
+              <div className="flex items-center justify-between py-4 sm:py-5">
                 <div className="min-w-0">
                   <div className="p-eyebrow">KORPA</div>
-                  <div className="text-white/90 font-extrabold">
+                  <div className="mt-1 text-[1.05rem] font-black tracking-[-0.02em] text-white/95 sm:text-[1.12rem]">
                     {view === "checkout" ? "Plaćanje" : view === "success" ? "Porudžbina" : "Vaša porudžbina"}
                   </div>
                   <div className="mt-1 text-xs text-white/60">Stavki: {totalItems}</div>
@@ -1800,7 +1801,7 @@ export default function CartDrawer() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
               {view === "success" ? (
                 <div className="mt-5 p-glass p-5 p-glass-hover relative overflow-hidden">
                   <div className="pointer-events-none absolute -top-24 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-[#f2b400]/20 blur-3xl" />
@@ -1926,9 +1927,43 @@ export default function CartDrawer() {
               ) : null}
 
               {view === "checkout" ? (
-                <div className="mt-5 space-y-5">
+                <div className="mt-3 space-y-4 sm:mt-4">
+                  <div className="p-glass p-4 p-glass-hover">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="p-eyebrow">PREGLED</div>
+                        <div className="mt-1 text-base font-black tracking-[-0.02em] text-white/95">Spremno za potvrdu porudžbine</div>
+                        <div className="mt-1 text-sm text-white/65">Provjeri podatke ispod, izaberi zonu i način plaćanja.</div>
+                      </div>
+                      <div className="shrink-0 rounded-full border border-[#f2b400]/20 bg-[#f2b400]/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#f2b400]">{totalItems} stavki</div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+                        <div className="text-[11px] font-semibold text-white/55">SUBTOTAL</div>
+                        <div className="mt-1 font-extrabold text-white/92">{subtotalLabel}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+                        <div className="text-[11px] font-semibold text-white/55">DOSTAVA</div>
+                        <div className="mt-1 font-extrabold text-white/92">{formatFeeEurShort(deliveryFeeCents)}</div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
+                        <div className="text-[11px] font-semibold text-white/55">UKUPNO</div>
+                        <div className="mt-1 font-extrabold text-white/92">{effectiveTotalLabel}</div>
+                      </div>
+                    </div>
+                  </div>
+
                   <form onSubmit={onSubmitOrder} className="space-y-4">
-                    <div className="p-glass p-4 p-glass-hover">
+                    <div className="p-glass p-4 p-glass-hover sm:p-5">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="p-eyebrow">KONTAKT I DOSTAVA</div>
+                          <div className="mt-1 text-base font-black tracking-[-0.02em] text-white/95">Unos podataka za dostavu</div>
+                        </div>
+                        <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white/55 sm:inline-flex">Checkout</div>
+                      </div>
+
                       <div>
                         <label className="mb-2 block text-sm font-semibold text-white/80">Ime i prezime</label>
                         <input
@@ -2045,7 +2080,7 @@ export default function CartDrawer() {
                         {deliveryZoneError ? <div className="mt-1 text-xs font-medium text-red-300">{deliveryZoneError}</div> : null}
 
                         {deliveryZoneKey && selectedDeliveryZone ? (
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 p-4">
+                          <div className="mt-4 rounded-[24px] border border-white/10 bg-black/15 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <div className="text-sm font-extrabold text-white/90">Pravila dostave</div>
@@ -2105,7 +2140,7 @@ export default function CartDrawer() {
                       <div className="mt-4">
                         <label className="mb-2 block text-sm font-semibold text-white/80">Način plaćanja</label>
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2.5">
                           <button
                             type="button"
                             onClick={() => handleSetPaymentMethod("cash")}
@@ -2133,61 +2168,12 @@ export default function CartDrawer() {
                         </div>
 
                         {paymentMethod === "card" ? (
-                          <div className="mt-4 space-y-4 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),rgba(255,255,255,0.03)_42%,rgba(255,255,255,0.02)_72%)] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-                            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-sm font-extrabold text-white/90">Sigurna Bankart polja</div>
-                                  <div className="mt-1 text-xs leading-relaxed text-white/60">
-                                    {paymentJsRequested
-                                      ? "Kupac ostaje na sajtu, a broj kartice i CVV se unose kroz zaštićena Bankart polja."
-                                      : paymentJsMissingKey
-                                        ? "Payment.js je uključen, ali nedostaje public integration key — koristiće se fallback redirect tek kada key bude dodat."
-                                        : "Trenutno je aktivan fallback redirect flow. Payment.js će se koristiti kada bude uključen u env-u."}
-                                  </div>
-                                </div>
-
-                                <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-200">
-                                  Bankart
-                                </div>
-                              </div>
-                            </div>
-
+                          <>
                             {paymentJsRequested ? (
-                              <>
-                                <style>{BANKART_PAYMENTJS_POLISH_CSS}</style>
-
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">Email</label>
-                                    <input
-                                      value={customerEmail}
-                                      onChange={(e) => setCustomerEmail(e.target.value)}
-                                      type="email"
-                                      autoComplete="email"
-                                      className={[
-                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                        customerEmailError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                      ].join(" ")}
-                                      placeholder="npr. ime@domen.com"
-                                    />
-                                    {customerEmailError ? <div className="mt-1 text-xs font-medium text-red-300">{customerEmailError}</div> : null}
-                                  </div>
-
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">Vlasnik kartice</label>
-                                    <input
-                                      value={cardholder}
-                                      onChange={(e) => setCardholder(e.target.value)}
-                                      autoComplete="cc-name"
-                                      className={[
-                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                        cardholderError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                      ].join(" ")}
-                                      placeholder="Ime i prezime sa kartice"
-                                    />
-                                    {cardholderError ? <div className="mt-1 text-xs font-medium text-red-300">{cardholderError}</div> : null}
-                                  </div>
+                              <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm">
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                  <div className="text-sm font-extrabold text-white/90">Podaci za naplatu</div>
+                                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Billing</div>
                                 </div>
 
                                 <div className="grid gap-3 sm:grid-cols-2">
@@ -2219,71 +2205,131 @@ export default function CartDrawer() {
                                     {billingPostcodeError ? <div className="mt-1 text-xs font-medium text-red-300">{billingPostcodeError}</div> : null}
                                   </div>
                                 </div>
+                              </div>
+                            ) : null}
 
-                                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                  <div className="mb-3 flex items-center justify-between gap-3">
-                                    <div className="text-sm font-extrabold text-white/90">Detalji kartice</div>
-                                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Secure entry</div>
-                                  </div>
-
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">Broj kartice</label>
-                                    <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
-                                      <div id={BANKART_PAYMENTJS_NUMBER_DIV_ID} className="w-full" />
+                            <div className="mt-4 space-y-4 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.02)_100%)] p-4 shadow-[0_24px_56px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-extrabold text-white/90">Sigurna Bankart polja</div>
+                                    <div className="mt-1 text-xs leading-relaxed text-white/60">
+                                      {paymentJsRequested
+                                        ? "Kupac ostaje na sajtu, a broj kartice i CVV se unose kroz zaštićena Bankart polja."
+                                        : paymentJsMissingKey
+                                          ? "Payment.js je uključen, ali nedostaje public integration key — koristiće se fallback redirect tek kada key bude dodat."
+                                          : "Trenutno je aktivan fallback redirect flow. Payment.js će se koristiti kada bude uključen u env-u."}
                                     </div>
                                   </div>
 
-                                  <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_140px]">
+                                  <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-200">
+                                    Bankart
+                                  </div>
+                                </div>
+                              </div>
+
+                              {paymentJsRequested ? (
+                                <>
+                                  <style>{BANKART_PAYMENTJS_POLISH_CSS}</style>
+
+                                  <div className="grid gap-3 sm:grid-cols-2">
                                     <div>
-                                      <label className="mb-2 block text-sm font-semibold text-white/80">Mesec</label>
+                                      <label className="mb-2 block text-sm font-semibold text-white/80">Email</label>
                                       <input
-                                        value={expMonth}
-                                        onChange={(e) => setExpMonth(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-                                        inputMode="numeric"
-                                        autoComplete="cc-exp-month"
+                                        value={customerEmail}
+                                        onChange={(e) => setCustomerEmail(e.target.value)}
+                                        type="email"
+                                        autoComplete="email"
                                         className={[
-                                          "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                          expMonthError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                          "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                          customerEmailError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
                                         ].join(" ")}
-                                        placeholder="MM"
+                                        placeholder="npr. ime@domen.com"
                                       />
-                                      {expMonthError ? <div className="mt-1 text-xs font-medium text-red-300">{expMonthError}</div> : null}
+                                      {customerEmailError ? <div className="mt-1 text-xs font-medium text-red-300">{customerEmailError}</div> : null}
                                     </div>
+
                                     <div>
-                                      <label className="mb-2 block text-sm font-semibold text-white/80">Godina</label>
+                                      <label className="mb-2 block text-sm font-semibold text-white/80">Vlasnik kartice</label>
                                       <input
-                                        value={expYear}
-                                        onChange={(e) => setExpYear(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
-                                        inputMode="numeric"
-                                        autoComplete="cc-exp-year"
+                                        value={cardholder}
+                                        onChange={(e) => setCardholder(e.target.value)}
+                                        autoComplete="cc-name"
                                         className={[
-                                          "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                          expYearError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                          "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                          cardholderError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
                                         ].join(" ")}
-                                        placeholder="YY ili YYYY"
+                                        placeholder="Ime i prezime sa kartice"
                                       />
-                                      {expYearError ? <div className="mt-1 text-xs font-medium text-red-300">{expYearError}</div> : null}
+                                      {cardholderError ? <div className="mt-1 text-xs font-medium text-red-300">{cardholderError}</div> : null}
                                     </div>
+                                  </div>
+
+                                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                      <div className="text-sm font-extrabold text-white/90">Detalji kartice</div>
+                                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Secure entry</div>
+                                    </div>
+
                                     <div>
-                                      <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
+                                      <label className="mb-2 block text-sm font-semibold text-white/80">Broj kartice</label>
                                       <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
-                                        <div id={BANKART_PAYMENTJS_CVV_DIV_ID} className="w-full" />
+                                        <div id={BANKART_PAYMENTJS_NUMBER_DIV_ID} className="w-full" />
+                                      </div>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_140px]">
+                                      <div>
+                                        <label className="mb-2 block text-sm font-semibold text-white/80">Mesec</label>
+                                        <input
+                                          value={expMonth}
+                                          onChange={(e) => setExpMonth(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+                                          inputMode="numeric"
+                                          autoComplete="cc-exp-month"
+                                          className={[
+                                            "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                            expMonthError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                          ].join(" ")}
+                                          placeholder="MM"
+                                        />
+                                        {expMonthError ? <div className="mt-1 text-xs font-medium text-red-300">{expMonthError}</div> : null}
+                                      </div>
+                                      <div>
+                                        <label className="mb-2 block text-sm font-semibold text-white/80">Godina</label>
+                                        <input
+                                          value={expYear}
+                                          onChange={(e) => setExpYear(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+                                          inputMode="numeric"
+                                          autoComplete="cc-exp-year"
+                                          className={[
+                                            "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
+                                            expYearError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
+                                          ].join(" ")}
+                                          placeholder="YY ili YYYY"
+                                        />
+                                        {expYearError ? <div className="mt-1 text-xs font-medium text-red-300">{expYearError}</div> : null}
+                                      </div>
+                                      <div>
+                                        <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
+                                        <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
+                                          <div id={BANKART_PAYMENTJS_CVV_DIV_ID} className="w-full" />
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
 
-                                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-white/55">
-                                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Bankart iframe polja</span>
-                                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Broj kartice i CVV se ne čuvaju u našem frontend-u</span>
-                                </div>
+                                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-white/55">
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Bankart iframe polja</span>
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Broj kartice i CVV se ne čuvaju u našem frontend-u</span>
+                                  </div>
 
-                                {paymentJsLoading ? <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">Učitavam sigurna Bankart polja…</div> : null}
-                                {paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsInitError}</div> : null}
-                                {paymentJsStateError && !paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsStateError}</div> : null}
-                              </>
-                            ) : null}
-                          </div>
+                                  {paymentJsLoading ? <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">Učitavam sigurna Bankart polja…</div> : null}
+                                  {paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsInitError}</div> : null}
+                                  {paymentJsStateError && !paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsStateError}</div> : null}
+                                </>
+                              ) : null}
+                            </div>
+                          </>
                         ) : null}
                       </div>
 
@@ -2671,13 +2717,14 @@ export default function CartDrawer() {
             </div>
 
             {view === "cart" && canSubmit ? (
-              <div className="border-t border-white/10 bg-black/30 px-4 sm:px-5" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-                <div className="py-3">
+              <div className="border-t border-white/10 bg-black/25 px-4 sm:px-5 backdrop-blur-xl" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+                <div className="py-3 sm:py-4">
                   <div className="p-glass p-4 p-glass-hover">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="p-eyebrow">UKUPNO</div>
-                        <div className="mt-1 text-white text-2xl font-extrabold tracking-tight">{subtotalLabel}</div>
+                        <div className="mt-1 text-2xl font-black tracking-[-0.03em] text-white">{subtotalLabel}</div>
+                        <div className="mt-1 text-xs text-white/60">{totalItems} stavki spremno za checkout</div>
                       </div>
 
                       <button
@@ -2690,9 +2737,11 @@ export default function CartDrawer() {
                       </button>
                     </div>
 
-                    <button type="button" onClick={handleGoToMenu} className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold"].join(" ")}>
-                      Nazad na meni
-                    </button>
+                    <div className="mt-3 grid grid-cols-1 gap-2">
+                      <button type="button" onClick={handleGoToMenu} className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold"].join(" ")}>
+                        Nazad na meni
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
