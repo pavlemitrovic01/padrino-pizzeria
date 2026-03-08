@@ -1066,9 +1066,20 @@ export default function CartDrawer() {
         !paymentJsLoading &&
         !paymentJsInitError));
 
-  const showValidation = view === "checkout" && submitAttempted;
+  const shouldValidateName = submitAttempted || nameTrim.length > 0;
+  const shouldValidatePhone = submitAttempted || phoneTrim.length > 0;
+  const shouldValidateAddress = submitAttempted || addressTrim.length > 0;
+  const shouldValidateDeliveryZone = submitAttempted || !!deliveryZoneKey;
+  const shouldValidateDeliveryRules = submitAttempted || !!deliveryZoneKey;
+  const shouldValidateCustomerEmail = paymentJsRequested && (submitAttempted || customerEmailTrim.length > 0);
+  const shouldValidateBillingCity = paymentJsRequested && (submitAttempted || billingCityTrim.length > 0);
+  const shouldValidateBillingPostcode = paymentJsRequested && (submitAttempted || billingPostcodeTrim.length > 0);
+  const shouldValidateCardholder = paymentJsRequested && (submitAttempted || cardholderTrim.length > 0);
+  const shouldValidateExpMonth = paymentJsRequested && (submitAttempted || expMonthTrim.length > 0);
+  const shouldValidateExpYear = paymentJsRequested && (submitAttempted || expYearTrim.length > 0);
+  const shouldValidatePaymentJsState = paymentMethod === "card" && (submitAttempted || paymentJsRequested);
 
-  const nameError = !showValidation
+  const nameError = !shouldValidateName
     ? null
     : !nameTrim
       ? "Unesi ime i prezime."
@@ -1076,7 +1087,7 @@ export default function CartDrawer() {
         ? "Unesi ime i prezime bez brojeva."
         : null;
 
-  const phoneError = !showValidation
+  const phoneError = !shouldValidatePhone
     ? null
     : !phoneTrim
       ? "Unesi broj telefona."
@@ -1084,7 +1095,7 @@ export default function CartDrawer() {
         ? "Unesi ispravan broj telefona."
         : null;
 
-  const addressError = !showValidation
+  const addressError = !shouldValidateAddress
     ? null
     : !addressTrim
       ? "Unesi adresu dostave."
@@ -1092,19 +1103,19 @@ export default function CartDrawer() {
         ? "Adresa mora imati najmanje 5 karaktera."
         : null;
 
-  const deliveryZoneError = !showValidation
+  const deliveryZoneError = !shouldValidateDeliveryZone
     ? null
     : !selectedDeliveryZone
       ? "Izaberi zonu dostave."
       : null;
 
-  const deliveryRulesError = !showValidation
+  const deliveryRulesError = !shouldValidateDeliveryRules
     ? null
     : selectedDeliveryZone && selectedDeliveryZone.feeCents > 0 && !qualifiesForFreeDelivery && !deliveryFeeOverride
       ? `Dopuni korpu do minimuma ili klikni "Doplati ${formatFeeEurShort(selectedDeliveryZone.feeCents)} za dostavu".`
       : null;
 
-  const customerEmailError = !showValidation || !paymentJsRequested
+  const customerEmailError = !shouldValidateCustomerEmail
     ? null
     : !customerEmailTrim
       ? "Unesi email za kartično plaćanje."
@@ -1112,19 +1123,19 @@ export default function CartDrawer() {
         ? "Unesi ispravan email."
         : null;
 
-  const billingCityError = !showValidation || !paymentJsRequested
+  const billingCityError = !shouldValidateBillingCity
     ? null
     : !billingCityTrim
       ? "Unesi grad."
       : null;
 
-  const billingPostcodeError = !showValidation || !paymentJsRequested
+  const billingPostcodeError = !shouldValidateBillingPostcode
     ? null
     : !billingPostcodeTrim
       ? "Unesi poštanski broj."
       : null;
 
-  const cardholderError = !showValidation || !paymentJsRequested
+  const cardholderError = !shouldValidateCardholder
     ? null
     : !cardholderTrim
       ? "Unesi ime vlasnika kartice."
@@ -1132,7 +1143,7 @@ export default function CartDrawer() {
         ? "Ime vlasnika kartice je prekratko."
         : null;
 
-  const expMonthError = !showValidation || !paymentJsRequested
+  const expMonthError = !shouldValidateExpMonth
     ? null
     : !expMonthTrim
       ? "Unesi mesec isteka."
@@ -1140,7 +1151,7 @@ export default function CartDrawer() {
         ? "Mesec mora biti od 01 do 12."
         : null;
 
-  const expYearError = !showValidation || !paymentJsRequested
+  const expYearError = !shouldValidateExpYear
     ? null
     : !expYearTrim
       ? "Unesi godinu isteka."
@@ -1148,7 +1159,7 @@ export default function CartDrawer() {
         ? "Godina mora imati 2 ili 4 cifre."
         : null;
 
-  const paymentJsStateError = !showValidation || paymentMethod !== "card"
+  const paymentJsStateError = !shouldValidatePaymentJsState
     ? null
     : paymentJsMissingKey
       ? "Kartično plaćanje trenutno nije dostupno. Pokušaj kasnije ili izaberi gotovinu."
@@ -1177,7 +1188,26 @@ export default function CartDrawer() {
     .filter((entry): entry is [string, string] => Boolean(entry[0]))
     .map((entry) => entry[1]);
 
-  const checkoutValidationHint = !showValidation || invalidFieldLabels.length === 0
+  const shouldShowValidationHint =
+    invalidFieldLabels.length > 0 &&
+    (
+      submitAttempted ||
+      nameTrim.length > 0 ||
+      phoneTrim.length > 0 ||
+      addressTrim.length > 0 ||
+      !!deliveryZoneKey ||
+      (paymentJsRequested &&
+        (
+          customerEmailTrim.length > 0 ||
+          billingCityTrim.length > 0 ||
+          billingPostcodeTrim.length > 0 ||
+          cardholderTrim.length > 0 ||
+          expMonthTrim.length > 0 ||
+          expYearTrim.length > 0
+        ))
+    );
+
+  const checkoutValidationHint = !shouldShowValidationHint
     ? null
     : invalidFieldLabels.length <= 3
       ? `Proveri: ${invalidFieldLabels.join(", ")}.`
