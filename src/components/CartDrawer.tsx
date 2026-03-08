@@ -916,10 +916,12 @@ export default function CartDrawer() {
       return;
     }
 
-    if (input.paymentStatus === "cancelled") {
+    const shouldShowCancelledUi = input.paymentStatus === "cancelled" || bankartHint === "cancel";
+
+    if (shouldShowCancelledUi) {
       setSuccessTitle("Plaćanje je otkazano");
       setSuccessSubtitle("Kartično plaćanje nije završeno.");
-      setSuccessStatusNote(lookupError || (bankartHint === "cancel" ? "Možeš pokušati ponovo ili izabrati gotovinu." : null));
+      setSuccessStatusNote(lookupError || "Možeš pokušati ponovo ili izabrati gotovinu.");
       return;
     }
 
