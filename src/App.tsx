@@ -22,8 +22,11 @@ type SessionLike = {
   } | null;
 } | null;
 
+const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 const AdminOrders = lazy(() => import("./components/AdminOrders"));
+const AdminMenu = lazy(() => import("./pages/admin/AdminMenu"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
 
@@ -36,7 +39,7 @@ function AdminChunkFallback() {
   );
 }
 
-function AdminNav({ active }: { active: "orders" | "users" | "logs" }) {
+function AdminNav({ active }: { active: "orders" | "menu" | "users" | "logs" }) {
   const btnBase = "rounded-xl border px-3 py-2 text-xs font-semibold transition";
   const btnActive = "border-white/20 bg-black/40 text-white";
   const btnIdle = "border-white/10 bg-black/20 text-white/80 hover:border-white/20";
@@ -78,6 +81,16 @@ function AdminNav({ active }: { active: "orders" | "users" | "logs" }) {
               title="Admin — Porudžbine"
             >
               Porudžbine
+            </button>
+
+            <button
+              className={`${btnBase} ${active === "menu" ? btnActive : btnIdle}`}
+              onClick={() => {
+                window.location.href = "/admin/menu";
+              }}
+              title="Admin — Meni"
+            >
+              Meni
             </button>
 
             <button
@@ -217,8 +230,6 @@ function ga4PageView(path: string) {
 }
 
 function SeoAnchorBlock() {
-  // SEO-only anchors (hidden) to help discover internal sections from the landing page.
-  // No user-facing impact.
   return (
     <div className="sr-only" aria-hidden="true">
       <a href="#meni">Meni</a>
@@ -242,7 +253,7 @@ function getAccessToken(session: SessionLike): string {
 
 async function verifyAdminAccess(accessToken: string): Promise<boolean> {
   try {
-    const res = await fetch("/api/admin-me", {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-me`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -250,13 +261,15 @@ async function verifyAdminAccess(accessToken: string): Promise<boolean> {
 
     if (!res.ok) return false;
 
-    const data = (await res.json().catch(() => null)) as { ok?: boolean } | null;
-    return Boolean(data?.ok);
+    const data = (await res.json().catch(() => null)) as
+      | { ok?: boolean; is_admin?: boolean | null }
+      | null;
+
+    return data?.ok === true && data?.is_admin === true;
   } catch {
     return false;
   }
 }
-
 
 function FaqPage() {
   return (
@@ -304,7 +317,7 @@ function AdminShell({
   active,
   children,
 }: {
-  active: "orders" | "users" | "logs";
+  active: "orders" | "menu" | "users" | "logs";
   children: React.ReactNode;
 }) {
   return (
@@ -315,12 +328,11 @@ function AdminShell({
   );
 }
 
-function AdminRoute({ page }: { page: "orders" | "users" | "logs" }) {
+function AdminRoute({ page }: { page: "orders" | "menu" | "users" | "logs" }) {
   const [guard, setGuard] = useState<GuardState>("loading");
   const [lastPath, setLastPath] = useState(getPathname());
 
   useEffect(() => {
-    // sync on route changes (path-based admin, no router)
     const id = window.setInterval(() => {
       const p = getPathname();
       if (p !== lastPath) setLastPath(p);
@@ -360,7 +372,6 @@ function AdminRoute({ page }: { page: "orders" | "users" | "logs" }) {
 
         setGuard("admin");
 
-        // keep guard in sync with auth changes (logout, token refresh, etc.)
         unsubscribe = subscribeAuthChanges(supabaseAdminAuth.auth, async (nextSession) => {
           if (!mounted) return;
 
@@ -457,7 +468,6 @@ function AdminRoute({ page }: { page: "orders" | "users" | "logs" }) {
     );
   }
 
-  // guard === "admin"
   if (isLogin) {
     window.location.replace("/admin");
     return null;
@@ -468,6 +478,16 @@ function AdminRoute({ page }: { page: "orders" | "users" | "logs" }) {
       <AdminShell active="orders">
         <Suspense fallback={<AdminChunkFallback />}>
           <AdminOrders />
+        </Suspense>
+      </AdminShell>
+    );
+  }
+
+  if (page === "menu") {
+    return (
+      <AdminShell active="menu">
+        <Suspense fallback={<AdminChunkFallback />}>
+          <AdminMenu />
         </Suspense>
       </AdminShell>
     );
@@ -504,7 +524,6 @@ export default function App() {
     setOgUrl(isFaqPage ? "https://padrinobudva.com/faq" : "https://padrinobudva.com");
     setRobots("index,follow");
 
-    // JSON-LD
     upsertJsonLd("padrino-jsonld-restaurant", {
       "@context": "https://schema.org",
       "@type": "Restaurant",
@@ -527,7 +546,6 @@ export default function App() {
   }, [pathname]);
 
   useEffect(() => {
-    // simple hash scroll on landing
     if (!hash) return;
     const id = hash.replace("#", "");
     if (!id) return;
@@ -535,7 +553,6 @@ export default function App() {
     const el = document.getElementById(id);
     if (!el) return;
 
-    // slight delay so sections render
     const t = window.setTimeout(() => {
       try {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -548,12 +565,12 @@ export default function App() {
   }, [hash]);
 
   useEffect(() => {
-    // GA4 pageview
     ga4PageView(pathname);
   }, [pathname]);
 
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") return <AdminRoute page="orders" />;
+    if (pathname === "/admin/menu") return <AdminRoute page="menu" />;
     if (pathname === "/admin/users") return <AdminRoute page="users" />;
     if (pathname === "/admin/logs") return <AdminRoute page="logs" />;
     return <AdminRoute page="orders" />;
