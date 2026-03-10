@@ -12,6 +12,7 @@ type DbMenuItem = {
   image: string | null;
   price_eur_cents: number | null;
   price: number | null;
+  is_active: boolean | null;
 };
 
 const PIZZA_ORDER: string[] = [
@@ -239,11 +240,11 @@ export default function Menu() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const { data } = await supabase.from("menu_items").select("*");
+      const { data } = await supabase.from("menu_items").select("*").eq("is_active", true);
       if (cancelled) return;
       setItems((data ?? []) as DbMenuItem[]);
     }
-    load();
+    void load();
     return () => {
       cancelled = true;
     };
@@ -295,6 +296,7 @@ export default function Menu() {
 
   const pizzasOrdered = useMemo(() => {
     const pizzaRows = items.filter((i) => {
+      if (i.is_active === false) return false;
       const cat = normalizeText(i.category || "");
       if (!PIZZA_ALIASES.has(cat)) return false;
       if (is50cmName(i.name)) return false;
@@ -593,11 +595,7 @@ export default function Menu() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={goToCart}
-                    className="p-btn-gold h-10 px-4 text-sm"
-                  >
+                  <button type="button" onClick={goToCart} className="p-btn-gold h-10 px-4 text-sm">
                     Idi na korpu
                   </button>
 
