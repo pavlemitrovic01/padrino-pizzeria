@@ -321,7 +321,12 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
   const uniq = Array.from(new Set(ids.filter(Boolean)));
   if (uniq.length === 0) return new Map();
 
-  const { data, error } = await supabase.from("menu_items").select("id,price_eur_cents").in("id", uniq);
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select("id,price_eur_cents")
+    .eq("is_active", true)
+    .in("id", uniq);
+
   if (error) throw new Error(`DB: pricing fetch failed (${error.message})`);
 
   const m = new Map<string, number>();
@@ -349,6 +354,11 @@ function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
   }
 
   return total;
+}
+
+function findMissingMenuItemIds(ids: string[], priceMap: Map<string, number>): string[] {
+  const uniq = Array.from(new Set(ids.filter(Boolean)));
+  return uniq.filter((id) => !priceMap.has(id));
 }
 
 function getDeliveryFeeCentsFromMeta(
@@ -990,6 +1000,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
 
     const priceMap = await fetchMenuPricesCents(idsToFetch);
+    const missingIds = findMissingMenuItemIds(idsToFetch, priceMap);
+
+    if (missingIds.length > 0) {
+      return json(res, 400, { ok: false, error: "Inactive or invalid menu item" });
+    }
 
     let subtotal_eur_cents = 0;
 
