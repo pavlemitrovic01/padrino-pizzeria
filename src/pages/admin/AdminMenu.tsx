@@ -3,6 +3,7 @@ import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 import { formatEUR } from "../../lib/money";
 
 type MenuCategory = "pizza" | "pica" | "sosovi" | "dodaci";
+type VisibilityFilter = "all" | "active" | "hidden";
 
 type AdminMenuRow = {
   id: string;
@@ -11,6 +12,7 @@ type AdminMenuRow = {
   category: MenuCategory;
   image: string | null;
   price_eur_cents: number;
+  is_active: boolean;
   created_at: string;
 };
 
@@ -45,6 +47,7 @@ type EditorState = {
   category: MenuCategory;
   image: string;
   priceInput: string;
+  isActive: boolean;
 };
 
 function resolveAdminApiBase(): string {
@@ -60,15 +63,13 @@ function resolveAdminApiBase(): string {
     const port = window.location.port;
     const isLocalHost = host === "localhost" || host === "127.0.0.1";
 
-    // Novi Phase 2 endpoint testiramo lokalno kroz vercel dev na :3000
     if (isLocalHost && port === "3000") {
       return "";
     }
   } catch {
-    // fallback ispod
+    // fallback below
   }
 
-  // Zadržavamo postojeći source-of-truth obrazac za ostale dev tokove
   return "https://padrinobudva.com";
 }
 
@@ -81,6 +82,12 @@ const CATEGORY_OPTIONS: Array<{ value: MenuCategory; label: string }> = [
   { value: "dodaci", label: "Dodaci" },
 ];
 
+const VISIBILITY_OPTIONS: Array<{ value: VisibilityFilter; label: string }> = [
+  { value: "all", label: "Sve stavke" },
+  { value: "active", label: "Aktivne" },
+  { value: "hidden", label: "Skrivene" },
+];
+
 const EMPTY_EDITOR: EditorState = {
   id: null,
   name: "",
@@ -88,6 +95,7 @@ const EMPTY_EDITOR: EditorState = {
   category: "pizza",
   image: "",
   priceInput: "",
+  isActive: true,
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -101,6 +109,16 @@ function toStr(v: unknown): string {
 function toNullableStr(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
   return s ? s : null;
+}
+
+function toBool(v: unknown): boolean | null {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true") return true;
+    if (s === "false") return false;
+  }
+  return null;
 }
 
 function normalizeText(value: string) {
@@ -189,7 +207,9 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
         ? Math.round(Number(centsRaw))
         : null;
 
-  if (!id || !name || cents === null) return null;
+  const isActive = toBool(raw.is_active);
+
+  if (!id || !name || cents === null || isActive === null) return null;
 
   return {
     id,
@@ -198,6 +218,7 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
     category,
     image,
     price_eur_cents: Math.max(0, cents),
+    is_active: isActive,
     created_at,
   };
 }
@@ -243,11 +264,12 @@ async function apiUpsertMenuItem(
   token: string,
   payload: {
     id?: string;
-    name: string;
-    description: string | null;
-    category: MenuCategory;
-    image: string | null;
-    price_eur_cents: number;
+    name?: string;
+    description?: string | null;
+    category?: MenuCategory;
+    image?: string | null;
+    price_eur_cents?: number;
+    is_active?: boolean;
   },
 ): Promise<AdminMenuPostResponse> {
   try {
@@ -293,11 +315,13 @@ function editorFromRow(row: AdminMenuRow): EditorState {
     category: row.category,
     image: row.image ?? "",
     priceInput: centsToInput(row.price_eur_cents),
+    isActive: row.is_active,
   };
 }
 
 function sortMenuItems(items: AdminMenuRow[]): AdminMenuRow[] {
   return [...items].sort((a, b) => {
+    if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
     const cat = normalizeText(a.category).localeCompare(normalizeText(b.category));
     if (cat !== 0) return cat;
     return normalizeText(a.name).localeCompare(normalizeText(b.name));
@@ -340,15 +364,32 @@ function PreviewImage(props: { image: string; alt: string }) {
   );
 }
 
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={[
+        "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]",
+        active
+          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+          : "border-amber-500/20 bg-amber-500/10 text-amber-200",
+      ].join(" ")}
+    >
+      {active ? "Aktivna" : "Skrivena"}
+    </span>
+  );
+}
+
 export default function AdminMenu() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [items, setItems] = useState<AdminMenuRow[]>([]);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | MenuCategory>("all");
+  const [visibilityFilter, setVisibilityFilter] = useState<VisibilityFilter>("all");
 
   const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
   const [saving, setSaving] = useState(false);
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const nameError = editor.name.trim() === "";
@@ -361,12 +402,16 @@ export default function AdminMenu() {
 
     return items.filter((item) => {
       if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
+      if (visibilityFilter === "active" && !item.is_active) return false;
+      if (visibilityFilter === "hidden" && item.is_active) return false;
       if (!q) return true;
 
-      const haystack = normalizeText([item.name, item.description ?? "", item.category, item.image ?? ""].join(" "));
+      const haystack = normalizeText(
+        [item.name, item.description ?? "", item.category, item.image ?? "", item.is_active ? "aktivna" : "skrivena"].join(" "),
+      );
       return haystack.includes(q);
     });
-  }, [items, query, categoryFilter]);
+  }, [items, query, categoryFilter, visibilityFilter]);
 
   const selectedExisting = useMemo(() => {
     if (!editor.id) return null;
@@ -490,6 +535,7 @@ export default function AdminMenu() {
         category: editor.category,
         image: image || null,
         price_eur_cents: priceCents,
+        is_active: editor.isActive,
       });
 
       if (!response.ok) {
@@ -510,6 +556,38 @@ export default function AdminMenu() {
       setToast(editor.id ? "Izmjene su sačuvane." : "Nova stavka je uspješno dodata.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onToggleVisibility() {
+    if (!selectedExisting || togglingVisibility) return;
+
+    setTogglingVisibility(true);
+    setErrorMsg(null);
+    setToast(null);
+
+    try {
+      const token = await getSessionToken();
+      if (!token) {
+        setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
+        return;
+      }
+
+      const response = await apiUpsertMenuItem(token, {
+        id: selectedExisting.id,
+        is_active: !selectedExisting.is_active,
+      });
+
+      if (!response.ok) {
+        setErrorMsg(response.error);
+        return;
+      }
+
+      setItems((prev) => sortMenuItems(prev.map((item) => (item.id === response.item.id ? response.item : item))));
+      setEditor(editorFromRow(response.item));
+      setToast(response.item.is_active ? "Stavka je ponovo prikazana." : "Stavka je sakrivena.");
+    } finally {
+      setTogglingVisibility(false);
     }
   }
 
@@ -557,7 +635,7 @@ export default function AdminMenu() {
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_220px_auto]">
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_220px_200px_auto]">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -572,6 +650,18 @@ export default function AdminMenu() {
             >
               <option value="all">Sve kategorije</option>
               {CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={visibilityFilter}
+              onChange={(e) => setVisibilityFilter(e.target.value as VisibilityFilter)}
+              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-white/20"
+            >
+              {VISIBILITY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -622,6 +712,7 @@ export default function AdminMenu() {
                             <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
                               {item.category}
                             </span>
+                            <StatusBadge active={item.is_active} />
                           </div>
 
                           <p className="mt-1 line-clamp-2 text-sm text-white/55">{item.description?.trim() || "Bez opisa"}</p>
@@ -643,7 +734,7 @@ export default function AdminMenu() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">{selectedExisting ? "Izmjena stavke" : "Nova stavka"}</h2>
               <p className="mt-1 text-sm text-white/55">
@@ -653,12 +744,38 @@ export default function AdminMenu() {
               </p>
             </div>
 
-            {selectedExisting ? (
-              <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/55">
-                ID: <span className="font-mono text-white/75">{selectedExisting.id}</span>
-              </div>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedExisting ? <StatusBadge active={selectedExisting.is_active} /> : null}
+
+              {selectedExisting ? (
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/55">
+                  ID: <span className="font-mono text-white/75">{selectedExisting.id}</span>
+                </div>
+              ) : null}
+            </div>
           </div>
+
+          {selectedExisting ? (
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void onToggleVisibility()}
+                disabled={togglingVisibility || saving}
+                className={[
+                  "rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
+                  selectedExisting.is_active
+                    ? "border-amber-500/20 bg-amber-500/10 text-amber-200 hover:border-amber-500/30"
+                    : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200 hover:border-emerald-500/30",
+                ].join(" ")}
+              >
+                {togglingVisibility
+                  ? "Čuvam status…"
+                  : selectedExisting.is_active
+                    ? "Sakrij stavku"
+                    : "Prikaži stavku"}
+              </button>
+            </div>
+          ) : null}
 
           <form className="mt-5 space-y-4" onSubmit={onSubmit}>
             <div>
@@ -724,6 +841,27 @@ export default function AdminMenu() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-white/80">Status javnog prikaza</p>
+                <StatusBadge active={editor.isActive} />
+              </div>
+
+              <p className="mt-2 text-xs text-white/45">
+                Aktivna stavka se vidi na sajtu. Skrivena ostaje u bazi i može kasnije ponovo da se prikaže.
+              </p>
+
+              <label className="mt-4 flex items-center gap-3 text-sm text-white/80">
+                <input
+                  type="checkbox"
+                  checked={editor.isActive}
+                  onChange={(e) => setEditor((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  className="h-4 w-4 rounded border-white/20 bg-black/20"
+                />
+                Stavka je aktivna
+              </label>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <p className="text-sm font-semibold text-white/80">Preview slike</p>
 
               <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -750,7 +888,7 @@ export default function AdminMenu() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="submit"
-                disabled={saving}
+                disabled={saving || togglingVisibility}
                 className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? "Čuvam…" : selectedExisting ? "Sačuvaj izmjene" : "Dodaj stavku"}
@@ -759,7 +897,7 @@ export default function AdminMenu() {
               <button
                 type="button"
                 onClick={resetEditor}
-                disabled={saving}
+                disabled={saving || togglingVisibility}
                 className="rounded-2xl border border-white/10 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-white/20 disabled:opacity-60"
               >
                 Očisti formu
