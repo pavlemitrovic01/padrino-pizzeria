@@ -12,6 +12,7 @@ type AdminMenuRow = {
   category: MenuCategory;
   image: string | null;
   price_eur_cents: number;
+  sort_order: number;
   is_active: boolean;
   created_at: string;
 };
@@ -121,6 +122,21 @@ function toBool(v: unknown): boolean | null {
   return null;
 }
 
+function toNonNegativeInt(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return v >= 0 ? Math.trunc(v) : null;
+  }
+
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) {
+      return Math.trunc(n);
+    }
+  }
+
+  return null;
+}
+
 function normalizeText(value: string) {
   return String(value ?? "")
     .toLowerCase()
@@ -207,9 +223,10 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
         ? Math.round(Number(centsRaw))
         : null;
 
+  const sortOrder = toNonNegativeInt(raw.sort_order);
   const isActive = toBool(raw.is_active);
 
-  if (!id || !name || cents === null || isActive === null) return null;
+  if (!id || !name || cents === null || sortOrder === null || isActive === null) return null;
 
   return {
     id,
@@ -218,6 +235,7 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
     category,
     image,
     price_eur_cents: Math.max(0, cents),
+    sort_order: sortOrder,
     is_active: isActive,
     created_at,
   };
@@ -269,6 +287,7 @@ async function apiUpsertMenuItem(
     category?: MenuCategory;
     image?: string | null;
     price_eur_cents?: number;
+    sort_order?: number;
     is_active?: boolean;
   },
 ): Promise<AdminMenuPostResponse> {
@@ -321,11 +340,16 @@ function editorFromRow(row: AdminMenuRow): EditorState {
 
 function sortMenuItems(items: AdminMenuRow[]): AdminMenuRow[] {
   return [...items].sort((a, b) => {
-    if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+    if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
     const cat = normalizeText(a.category).localeCompare(normalizeText(b.category));
     if (cat !== 0) return cat;
     return normalizeText(a.name).localeCompare(normalizeText(b.name));
   });
+}
+
+function getNextSortOrder(items: AdminMenuRow[]): number {
+  const maxOrder = items.reduce((max, item) => Math.max(max, item.sort_order), 0);
+  return maxOrder + 1;
 }
 
 function fieldClassName(hasError: boolean) {
@@ -390,6 +414,7 @@ export default function AdminMenu() {
   const [editor, setEditor] = useState<EditorState>(EMPTY_EDITOR);
   const [saving, setSaving] = useState(false);
   const [togglingVisibility, setTogglingVisibility] = useState(false);
+  const [movingOrder, setMovingOrder] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const nameError = editor.name.trim() === "";
@@ -407,7 +432,14 @@ export default function AdminMenu() {
       if (!q) return true;
 
       const haystack = normalizeText(
-        [item.name, item.description ?? "", item.category, item.image ?? "", item.is_active ? "aktivna" : "skrivena"].join(" "),
+        [
+          item.name,
+          item.description ?? "",
+          item.category,
+          item.image ?? "",
+          item.is_active ? "aktivna" : "skrivena",
+          String(item.sort_order),
+        ].join(" "),
       );
       return haystack.includes(q);
     });
@@ -417,6 +449,21 @@ export default function AdminMenu() {
     if (!editor.id) return null;
     return items.find((item) => item.id === editor.id) ?? null;
   }, [editor.id, items]);
+
+  const reorderScope = useMemo(() => {
+    if (!selectedExisting) return [];
+    if (query.trim()) return [];
+
+    return filteredItems.filter((item) => item.category === selectedExisting.category);
+  }, [filteredItems, selectedExisting, query]);
+
+  const selectedReorderIndex = useMemo(() => {
+    if (!selectedExisting) return -1;
+    return reorderScope.findIndex((item) => item.id === selectedExisting.id);
+  }, [reorderScope, selectedExisting]);
+
+  const canMoveUp = selectedReorderIndex > 0;
+  const canMoveDown = selectedReorderIndex >= 0 && selectedReorderIndex < reorderScope.length - 1;
 
   const refreshMenu = useCallback(async (preserveSelectionId?: string | null) => {
     setLoading(true);
@@ -535,6 +582,7 @@ export default function AdminMenu() {
         category: editor.category,
         image: image || null,
         price_eur_cents: priceCents,
+        sort_order: editor.id ? selectedExisting?.sort_order : getNextSortOrder(items),
         is_active: editor.isActive,
       });
 
@@ -547,7 +595,7 @@ export default function AdminMenu() {
         const exists = prev.some((item) => item.id === response.item.id);
         const nextItems = exists
           ? prev.map((item) => (item.id === response.item.id ? response.item : item))
-          : [response.item, ...prev];
+          : [...prev, response.item];
 
         return sortMenuItems(nextItems);
       });
@@ -591,6 +639,82 @@ export default function AdminMenu() {
     }
   }
 
+  async function onMoveSelected(direction: -1 | 1) {
+    if (!selectedExisting || movingOrder) return;
+    if (query.trim()) {
+      setErrorMsg("Za pomjeranje prvo očisti pretragu.");
+      return;
+    }
+
+    const currentIndex = reorderScope.findIndex((item) => item.id === selectedExisting.id);
+    if (currentIndex < 0) return;
+
+    const target = reorderScope[currentIndex + direction] ?? null;
+    if (!target) return;
+
+    setMovingOrder(true);
+    setErrorMsg(null);
+    setToast(null);
+
+    const originalSelectedOrder = selectedExisting.sort_order;
+    const originalTargetOrder = target.sort_order;
+    const tempOrder = getNextSortOrder(items) + 1000;
+
+    try {
+      const token = await getSessionToken();
+      if (!token) {
+        setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
+        return;
+      }
+
+      const step1 = await apiUpsertMenuItem(token, {
+        id: selectedExisting.id,
+        sort_order: tempOrder,
+      });
+      if (!step1.ok) {
+        setErrorMsg(step1.error);
+        return;
+      }
+
+      const step2 = await apiUpsertMenuItem(token, {
+        id: target.id,
+        sort_order: originalSelectedOrder,
+      });
+      if (!step2.ok) {
+        await apiUpsertMenuItem(token, {
+          id: selectedExisting.id,
+          sort_order: originalSelectedOrder,
+        });
+        setErrorMsg(step2.error);
+        await refreshMenu(selectedExisting.id);
+        return;
+      }
+
+      const step3 = await apiUpsertMenuItem(token, {
+        id: selectedExisting.id,
+        sort_order: originalTargetOrder,
+      });
+      if (!step3.ok) {
+        await apiUpsertMenuItem(token, {
+          id: selectedExisting.id,
+          sort_order: originalSelectedOrder,
+        });
+        await apiUpsertMenuItem(token, {
+          id: target.id,
+          sort_order: originalTargetOrder,
+        });
+        setErrorMsg(step3.error);
+        await refreshMenu(selectedExisting.id);
+        return;
+      }
+
+      await refreshMenu(selectedExisting.id);
+      setToast(direction < 0 ? "Stavka je pomjerena nagore." : "Stavka je pomjerena nadole.");
+    } finally {
+      setMovingOrder(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6">
@@ -599,8 +723,8 @@ export default function AdminMenu() {
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/45">Phase 2</p>
             <h1 className="mt-2 text-2xl font-semibold text-white md:text-3xl">Meni</h1>
             <p className="mt-2 max-w-2xl text-sm text-white/60">
-              Vlasnik ovde dobija osnovu za uređivanje postojećih stavki iz baze: naziv, opis, kategorija, slika i
-              cijena.
+              Vlasnik ovde dobija osnovu za uređivanje postojećih stavki iz baze: naziv, opis, kategorija, slika,
+              cijena, vidljivost i redoslijed.
             </p>
           </div>
 
@@ -623,7 +747,7 @@ export default function AdminMenu() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">Lista stavki</h2>
-              <p className="mt-1 text-sm text-white/55">Pronađi stavku i otvori je za izmjene.</p>
+              <p className="mt-1 text-sm text-white/55">Pronađi stavku, proveri redoslijed i otvori je za izmjene.</p>
             </div>
 
             <button
@@ -677,6 +801,10 @@ export default function AdminMenu() {
                 Osveži
               </button>
             </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/45">
+              Redoslijed radi unutar iste kategorije. Dok je pretraga aktivna, pomjeranje je zaključano.
+            </div>
           </div>
 
           <div className="mt-5">
@@ -710,10 +838,16 @@ export default function AdminMenu() {
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                              #{item.sort_order}
+                            </span>
+
                             <p className="text-sm font-semibold text-white">{item.name}</p>
+
                             <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
                               {item.category}
                             </span>
+
                             <StatusBadge active={item.is_active} />
                           </div>
 
@@ -747,7 +881,14 @@ export default function AdminMenu() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              {selectedExisting ? <StatusBadge active={selectedExisting.is_active} /> : null}
+              {selectedExisting ? (
+                <>
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                    Redoslijed #{selectedExisting.sort_order}
+                  </span>
+                  <StatusBadge active={selectedExisting.is_active} />
+                </>
+              ) : null}
 
               {selectedExisting ? (
                 <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/55">
@@ -758,24 +899,49 @@ export default function AdminMenu() {
           </div>
 
           {selectedExisting ? (
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => void onToggleVisibility()}
-                disabled={togglingVisibility || saving}
-                className={[
-                  "rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
-                  selectedExisting.is_active
-                    ? "border-amber-500/20 bg-amber-500/10 text-amber-200 hover:border-amber-500/30"
-                    : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200 hover:border-emerald-500/30",
-                ].join(" ")}
-              >
-                {togglingVisibility
-                  ? "Čuvam status…"
-                  : selectedExisting.is_active
-                    ? "Sakrij stavku"
-                    : "Prikaži stavku"}
-              </button>
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => void onToggleVisibility()}
+                  disabled={togglingVisibility || saving || movingOrder}
+                  className={[
+                    "rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
+                    selectedExisting.is_active
+                      ? "border-amber-500/20 bg-amber-500/10 text-amber-200 hover:border-amber-500/30"
+                      : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200 hover:border-emerald-500/30",
+                  ].join(" ")}
+                >
+                  {togglingVisibility
+                    ? "Čuvam status…"
+                    : selectedExisting.is_active
+                      ? "Sakrij stavku"
+                      : "Prikaži stavku"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void onMoveSelected(-1)}
+                  disabled={!canMoveUp || movingOrder || saving || togglingVisibility}
+                  className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {movingOrder ? "Pomjeram…" : "Pomjeri gore"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void onMoveSelected(1)}
+                  disabled={!canMoveDown || movingOrder || saving || togglingVisibility}
+                  className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {movingOrder ? "Pomjeram…" : "Pomjeri dolje"}
+                </button>
+              </div>
+
+              <p className="text-xs text-white/45">
+                Pomjeranje radi unutar iste kategorije i trenutno vidljivog filtera. Ako je uključena pretraga,
+                prvo je očisti.
+              </p>
             </div>
           ) : null}
 
@@ -864,6 +1030,19 @@ export default function AdminMenu() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-white/80">Redoslijed</p>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                  {selectedExisting ? `#${selectedExisting.sort_order}` : `#${getNextSortOrder(items)}`}
+                </span>
+              </div>
+
+              <p className="mt-2 text-xs text-white/45">
+                Nova stavka ide na kraj liste. Postojeće stavke pomjeraj dugmadima gore/dolje.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
               <p className="text-sm font-semibold text-white/80">Preview slike</p>
 
               <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -890,7 +1069,7 @@ export default function AdminMenu() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="submit"
-                disabled={saving || togglingVisibility}
+                disabled={saving || togglingVisibility || movingOrder}
                 className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? "Čuvam…" : selectedExisting ? "Sačuvaj izmjene" : "Dodaj stavku"}
@@ -899,7 +1078,7 @@ export default function AdminMenu() {
               <button
                 type="button"
                 onClick={resetEditor}
-                disabled={saving || togglingVisibility}
+                disabled={saving || togglingVisibility || movingOrder}
                 className="rounded-2xl border border-white/10 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-white/20 disabled:opacity-60"
               >
                 Očisti formu

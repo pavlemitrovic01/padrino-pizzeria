@@ -28,6 +28,7 @@ type AdminMenuRow = {
   image: string | null;
   price: number | null;
   price_eur_cents: number;
+  sort_order: number;
   is_active: boolean;
   created_at: string;
 };
@@ -179,6 +180,14 @@ function parseOptionalBoolean(v: unknown): boolean | null {
   return null;
 }
 
+function parseOptionalSortOrder(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = toSafeInt(v, Number.NaN);
+  if (!Number.isFinite(n)) return null;
+  if (n < 0) return null;
+  return n;
+}
+
 function parseJsonBody(req: ReqLike): Record<string, unknown> | null {
   if (isPlainObject(req.body)) return req.body;
 
@@ -216,11 +225,13 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
         : null;
 
   const isActive = parseOptionalBoolean(raw.is_active);
+  const sortOrder = parseOptionalSortOrder(raw.sort_order);
   if (!id) return null;
   if (!name) return null;
   if (!category) return null;
   if (priceCents === null) return null;
   if (isActive === null) return null;
+  if (sortOrder === null) return null;
 
   return {
     id,
@@ -230,6 +241,7 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
     image,
     price: legacyPrice,
     price_eur_cents: priceCents,
+    sort_order: sortOrder,
     is_active: isActive,
     created_at: createdAt,
   };
@@ -264,7 +276,8 @@ export default async function handler(req: ReqLike, res: ResLike) {
     if (req.method === "GET") {
       const { data, error } = await supabase
         .from("menu_items")
-        .select("id, name, description, category, image, price, price_eur_cents, is_active, created_at")
+        .select("id, name, description, category, image, price, price_eur_cents, sort_order, is_active, created_at")
+        .order("sort_order", { ascending: true })
         .order("category", { ascending: true })
         .order("name", { ascending: true });
 
@@ -303,6 +316,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       parsePositiveCents(body.price);
 
     const isActive = parseOptionalBoolean(body.is_active ?? body.isActive);
+    const sortOrder = parseOptionalSortOrder(body.sort_order ?? body.sortOrder);
 
     if (!id) {
       if (!name) return json(res, 400, { ok: false, error: "Name is required" });
@@ -331,6 +345,10 @@ export default async function handler(req: ReqLike, res: ResLike) {
         price_eur_cents: priceCents,
       };
 
+      if (sortOrder !== null) {
+        insertPayload.sort_order = sortOrder;
+      }
+
       if (isActive !== null) {
         insertPayload.is_active = isActive;
       }
@@ -338,7 +356,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       const { data, error } = await supabase
         .from("menu_items")
         .insert(insertPayload)
-        .select("id, name, description, category, image, price, price_eur_cents, is_active, created_at")
+        .select("id, name, description, category, image, price, price_eur_cents, sort_order, is_active, created_at")
         .single();
 
       if (error) {
@@ -393,6 +411,13 @@ export default async function handler(req: ReqLike, res: ResLike) {
       updatePayload.price_eur_cents = priceCents;
     }
 
+    if ("sort_order" in body || "sortOrder" in body) {
+      if (sortOrder === null) {
+        return json(res, 400, { ok: false, error: "Invalid sort_order" });
+      }
+      updatePayload.sort_order = sortOrder;
+    }
+
     if ("is_active" in body || "isActive" in body) {
       if (isActive === null) {
         return json(res, 400, { ok: false, error: "Invalid is_active" });
@@ -408,7 +433,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .from("menu_items")
       .update(updatePayload)
       .eq("id", id)
-      .select("id, name, description, category, image, price, price_eur_cents, is_active, created_at")
+      .select("id, name, description, category, image, price, price_eur_cents, sort_order, is_active, created_at")
       .single();
 
     if (error) {
