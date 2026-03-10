@@ -13,24 +13,8 @@ type DbMenuItem = {
   price_eur_cents: number | null;
   price: number | null;
   is_active: boolean | null;
+  sort_order: number | null;
 };
-
-const PIZZA_ORDER: string[] = [
-  "Capricciosa",
-  "Margherita",
-  "Chicken",
-  "Diavolo",
-  "Quattro formaggi",
-  "Padrino",
-  "Montenegro",
-  "Anatoli",
-  "Vegetariana",
-  "Tuna",
-  "Don Pesto",
-  "Don Pamidoro",
-  "Bianco",
-  "Piroska",
-];
 
 const PIZZA_ALIASES = new Set<string>(["pizza", "pizze", "pice", "pizz"]);
 
@@ -240,7 +224,12 @@ export default function Menu() {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const { data } = await supabase.from("menu_items").select("*").eq("is_active", true);
+      const { data } = await supabase
+        .from("menu_items")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
       if (cancelled) return;
       setItems((data ?? []) as DbMenuItem[]);
     }
@@ -295,13 +284,20 @@ export default function Menu() {
   }, []);
 
   const pizzasOrdered = useMemo(() => {
-    const pizzaRows = items.filter((i) => {
-      if (i.is_active === false) return false;
-      const cat = normalizeText(i.category || "");
-      if (!PIZZA_ALIASES.has(cat)) return false;
-      if (is50cmName(i.name)) return false;
-      return true;
-    });
+    const pizzaRows = items
+      .filter((i) => {
+        if (i.is_active === false) return false;
+        const cat = normalizeText(i.category || "");
+        if (!PIZZA_ALIASES.has(cat)) return false;
+        if (is50cmName(i.name)) return false;
+        return true;
+      })
+      .slice()
+      .sort((a, b) => {
+        const bySortOrder = (a.sort_order ?? 0) - (b.sort_order ?? 0);
+        if (bySortOrder !== 0) return bySortOrder;
+        return a.name.localeCompare(b.name, "sr", { sensitivity: "base" });
+      });
 
     const map = new Map<string, DbMenuItem>();
     for (const row of pizzaRows) {
@@ -310,25 +306,7 @@ export default function Menu() {
       if (!map.has(key)) map.set(key, row);
     }
 
-    const ordered: DbMenuItem[] = [];
-    const usedIds = new Set<string>();
-    const entries = [...map.entries()];
-
-    for (const wantedName of PIZZA_ORDER) {
-      const wanted = normalizeText(wantedName);
-      const direct = map.get(wanted);
-      const found = direct || entries.find(([k]) => k.includes(wanted) || wanted.includes(k))?.[1];
-      if (found && !usedIds.has(found.id)) {
-        ordered.push(found);
-        usedIds.add(found.id);
-      }
-    }
-
-    for (const row of pizzaRows) {
-      if (!usedIds.has(row.id)) ordered.push(row);
-    }
-
-    return ordered;
+    return [...map.values()];
   }, [items]);
 
   function showToast(next: ToastState) {
