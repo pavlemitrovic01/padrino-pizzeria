@@ -1485,7 +1485,8 @@ export default function CartDrawer() {
       try {
         const { data, error } = await supabase
           .from("menu_items")
-          .select("id,name,price,price_eur_cents,category")
+          .select("id,name,price,price_eur_cents,category,is_active")
+          .eq("is_active", true)
           .order("name", { ascending: true });
 
         if (!mounted || error) return;
