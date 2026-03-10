@@ -635,7 +635,7 @@ export default function AdminMenu() {
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_220px_200px_auto]">
+          <div className="mt-5 space-y-3">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -643,38 +643,40 @@ export default function AdminMenu() {
               className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/20"
             />
 
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value as "all" | MenuCategory)}
-              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-white/20"
-            >
-              <option value="all">Sve kategorije</option>
-              {CATEGORY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as "all" | MenuCategory)}
+                className="w-full min-w-0 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-white/20"
+              >
+                <option value="all">Sve kategorije</option>
+                {CATEGORY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={visibilityFilter}
-              onChange={(e) => setVisibilityFilter(e.target.value as VisibilityFilter)}
-              className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-white/20"
-            >
-              {VISIBILITY_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+              <select
+                value={visibilityFilter}
+                onChange={(e) => setVisibilityFilter(e.target.value as VisibilityFilter)}
+                className="w-full min-w-0 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-white/20"
+              >
+                {VISIBILITY_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
 
-            <button
-              type="button"
-              onClick={() => void refreshMenu(editor.id)}
-              className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20"
-            >
-              Osveži
-            </button>
+              <button
+                type="button"
+                onClick={() => void refreshMenu(editor.id)}
+                className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20"
+              >
+                Osveži
+              </button>
+            </div>
           </div>
 
           <div className="mt-5">
