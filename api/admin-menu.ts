@@ -28,12 +28,13 @@ type AdminMenuRow = {
   image: string | null;
   price: number | null;
   price_eur_cents: number;
+  is_active: boolean;
   created_at: string;
 };
 
 /**
- * Break-glass fallback samo ako admin_users tabela ne postoji (deploy/migracija).
- * Pošto si tabelu već napravio, realno se ovo neće koristiti.
+ * Break-glass fallback samo ako admin_users tabela ne postoji.
+ * U tvom projektu tabela postoji, pa se ovo realno ne koristi.
  */
 const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 
@@ -168,6 +169,16 @@ function parsePositiveCents(v: unknown): number | null {
   return n;
 }
 
+function parseOptionalBoolean(v: unknown): boolean | null {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true") return true;
+    if (s === "false") return false;
+  }
+  return null;
+}
+
 function parseJsonBody(req: ReqLike): Record<string, unknown> | null {
   if (isPlainObject(req.body)) return req.body;
 
@@ -204,10 +215,12 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
         ? Math.trunc(Number(legacyPriceRaw))
         : null;
 
+  const isActive = parseOptionalBoolean(raw.is_active);
   if (!id) return null;
   if (!name) return null;
   if (!category) return null;
   if (priceCents === null) return null;
+  if (isActive === null) return null;
 
   return {
     id,
@@ -217,6 +230,7 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
     image,
     price: legacyPrice,
     price_eur_cents: priceCents,
+    is_active: isActive,
     created_at: createdAt,
   };
 }
@@ -250,7 +264,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     if (req.method === "GET") {
       const { data, error } = await supabase
         .from("menu_items")
-        .select("id, name, description, category, image, price, price_eur_cents, created_at")
+        .select("id, name, description, category, image, price, price_eur_cents, is_active, created_at")
         .order("category", { ascending: true })
         .order("name", { ascending: true });
 
@@ -288,48 +302,53 @@ export default async function handler(req: ReqLike, res: ResLike) {
       parsePositiveCents(body.priceEurCents) ??
       parsePositiveCents(body.price);
 
-    if (!name) return json(res, 400, { ok: false, error: "Name is required" });
-    if (name.length > 120) return json(res, 400, { ok: false, error: "Name is too long" });
+    const isActive = parseOptionalBoolean(body.is_active ?? body.isActive);
 
-    if (description && description.length > 2000) {
-      return json(res, 400, { ok: false, error: "Description is too long" });
-    }
+    if (!id) {
+      if (!name) return json(res, 400, { ok: false, error: "Name is required" });
+      if (name.length > 120) return json(res, 400, { ok: false, error: "Name is too long" });
 
-    if (!category) return json(res, 400, { ok: false, error: "Invalid category" });
+      if (description && description.length > 2000) {
+        return json(res, 400, { ok: false, error: "Description is too long" });
+      }
 
-    if (priceCents === null) {
-      return json(res, 400, { ok: false, error: "Invalid price_eur_cents" });
-    }
+      if (!category) return json(res, 400, { ok: false, error: "Invalid category" });
 
-    if (image && image.length > 500) {
-      return json(res, 400, { ok: false, error: "Image path is too long" });
-    }
+      if (priceCents === null) {
+        return json(res, 400, { ok: false, error: "Invalid price_eur_cents" });
+      }
 
-    const payload = {
-      name,
-      description,
-      category,
-      image,
-      price: priceCents,
-      price_eur_cents: priceCents,
-    };
+      if (image && image.length > 500) {
+        return json(res, 400, { ok: false, error: "Image path is too long" });
+      }
 
-    if (id) {
+      const insertPayload: Record<string, unknown> = {
+        name,
+        description,
+        category,
+        image,
+        price: priceCents,
+        price_eur_cents: priceCents,
+      };
+
+      if (isActive !== null) {
+        insertPayload.is_active = isActive;
+      }
+
       const { data, error } = await supabase
         .from("menu_items")
-        .update(payload)
-        .eq("id", id)
-        .select("id, name, description, category, image, price, price_eur_cents, created_at")
+        .insert(insertPayload)
+        .select("id, name, description, category, image, price, price_eur_cents, is_active, created_at")
         .single();
 
       if (error) {
-        const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB update failed";
+        const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB insert failed";
         return json(res, 500, { ok: false, error: msg });
       }
 
       const item = normalizeMenuRow(data);
       if (!item) {
-        return json(res, 500, { ok: false, error: "Updated row is invalid" });
+        return json(res, 500, { ok: false, error: "Inserted row is invalid" });
       }
 
       return json(res, 200, {
@@ -339,20 +358,67 @@ export default async function handler(req: ReqLike, res: ResLike) {
       });
     }
 
+    const updatePayload: Record<string, unknown> = {};
+
+    if ("name" in body) {
+      if (!name) return json(res, 400, { ok: false, error: "Name is required" });
+      if (name.length > 120) return json(res, 400, { ok: false, error: "Name is too long" });
+      updatePayload.name = name;
+    }
+
+    if ("description" in body) {
+      if (description && description.length > 2000) {
+        return json(res, 400, { ok: false, error: "Description is too long" });
+      }
+      updatePayload.description = description;
+    }
+
+    if ("category" in body) {
+      if (!category) return json(res, 400, { ok: false, error: "Invalid category" });
+      updatePayload.category = category;
+    }
+
+    if ("image" in body) {
+      if (image && image.length > 500) {
+        return json(res, 400, { ok: false, error: "Image path is too long" });
+      }
+      updatePayload.image = image;
+    }
+
+    if ("price_eur_cents" in body || "priceEurCents" in body || "price" in body) {
+      if (priceCents === null) {
+        return json(res, 400, { ok: false, error: "Invalid price_eur_cents" });
+      }
+      updatePayload.price = priceCents;
+      updatePayload.price_eur_cents = priceCents;
+    }
+
+    if ("is_active" in body || "isActive" in body) {
+      if (isActive === null) {
+        return json(res, 400, { ok: false, error: "Invalid is_active" });
+      }
+      updatePayload.is_active = isActive;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      return json(res, 400, { ok: false, error: "No fields to update" });
+    }
+
     const { data, error } = await supabase
       .from("menu_items")
-      .insert(payload)
-      .select("id, name, description, category, image, price, price_eur_cents, created_at")
+      .update(updatePayload)
+      .eq("id", id)
+      .select("id, name, description, category, image, price, price_eur_cents, is_active, created_at")
       .single();
 
     if (error) {
-      const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB insert failed";
+      const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB update failed";
       return json(res, 500, { ok: false, error: msg });
     }
 
     const item = normalizeMenuRow(data);
     if (!item) {
-      return json(res, 500, { ok: false, error: "Inserted row is invalid" });
+      return json(res, 500, { ok: false, error: "Updated row is invalid" });
     }
 
     return json(res, 200, {
