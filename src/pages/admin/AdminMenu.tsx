@@ -370,13 +370,13 @@ async function apiUploadMenuImage(
   },
 ): Promise<AdminMenuUploadResponse> {
   try {
-    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-upload`, {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-image`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ action: "upload", ...payload }),
     });
 
     const body: unknown = await res.json().catch(() => null);
@@ -404,7 +404,7 @@ async function apiUploadMenuImage(
       };
     }
 
-    return { ok: false, error: "Neočekivan odgovor sa admin-menu-upload." };
+    return { ok: false, error: "Neočekivan odgovor sa admin-menu-image." };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Network request failed";
     return { ok: false, error: msg || "Network request failed" };
@@ -416,13 +416,13 @@ async function apiDeleteMenuImage(
   payload: { image: string },
 ): Promise<AdminMenuImageDeleteResponse> {
   try {
-    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-image-delete`, {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-image`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ action: "delete", ...payload }),
     });
 
     const body: unknown = await res.json().catch(() => null);
@@ -444,7 +444,7 @@ async function apiDeleteMenuImage(
       return { ok: true, deleted: body.deleted, bucket: body.bucket };
     }
 
-    return { ok: false, error: "Neočekivan odgovor sa admin-menu-image-delete." };
+    return { ok: false, error: "Neočekivan odgovor sa admin-menu-image." };
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Network request failed";
     return { ok: false, error: msg || "Network request failed" };

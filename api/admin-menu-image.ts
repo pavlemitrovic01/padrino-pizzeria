@@ -21,6 +21,7 @@ type AdminRole = "owner" | "staff";
 
 const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 const MENU_IMAGES_BUCKET = "menu-images";
+const ADMIN_PATH_PREFIX = "admin/";
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -68,7 +69,7 @@ function buildSupabaseAdmin() {
 
   return createClient(supabaseUrl, serviceRole, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/admin-menu-upload" } },
+    global: { headers: { "X-Client-Info": "padrino-vercel-api/admin-menu-image" } },
   });
 }
 
@@ -140,6 +141,8 @@ function parseJsonBody(req: ReqLike): Record<string, unknown> | null {
   return null;
 }
 
+// ── Upload helpers ──
+
 function decodeBase64Payload(input: string): Buffer | null {
   const cleaned = input.trim();
   if (!cleaned) return null;
@@ -184,6 +187,144 @@ function sanitizeBaseName(value: string): string {
   return safe || "menu-item";
 }
 
+// ── Delete helpers ──
+
+function extractStoragePath(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith(ADMIN_PATH_PREFIX) && !trimmed.startsWith("http")) {
+    return trimmed;
+  }
+
+  const marker = `/storage/v1/object/public/${MENU_IMAGES_BUCKET}/`;
+  const idx = trimmed.indexOf(marker);
+  if (idx < 0) return null;
+
+  const raw = trimmed.slice(idx + marker.length);
+  if (!raw) return null;
+
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function isValidAdminPath(path: string): boolean {
+  if (!path.startsWith(ADMIN_PATH_PREFIX)) return false;
+  if (path.includes("..")) return false;
+  if (path.includes("//")) return false;
+
+  const afterPrefix = path.slice(ADMIN_PATH_PREFIX.length);
+  if (!afterPrefix || afterPrefix.length < 3) return false;
+
+  return true;
+}
+
+// ── Action handlers ──
+
+async function handleUpload(body: Record<string, unknown>, actorEmail: string, actorRole: string, res: ResLike) {
+  const fileName = toTrimmedString(body.fileName);
+  const contentType = toTrimmedString(body.contentType).toLowerCase();
+  const base64 = toTrimmedString(body.base64);
+  const itemName = toTrimmedString(body.itemName);
+
+  if (!base64) {
+    return json(res, 400, { ok: false, error: "Image payload is required" });
+  }
+
+  if (!contentType || !contentType.startsWith("image/")) {
+    return json(res, 400, { ok: false, error: "Only image uploads are allowed" });
+  }
+
+  const bytes = decodeBase64Payload(base64);
+  if (!bytes) {
+    return json(res, 400, { ok: false, error: "Invalid base64 image payload" });
+  }
+
+  if (bytes.length > 5 * 1024 * 1024) {
+    return json(res, 400, { ok: false, error: "Image is too large (max 5MB)" });
+  }
+
+  const ext = detectExtension(contentType, fileName);
+  if (!["jpg", "png", "webp", "gif"].includes(ext)) {
+    return json(res, 400, { ok: false, error: "Unsupported image format" });
+  }
+
+  const baseName = sanitizeBaseName(itemName || fileName || "menu-item");
+  const path = `admin/${Date.now()}-${baseName}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage.from(MENU_IMAGES_BUCKET).upload(path, bytes, {
+    contentType,
+    upsert: false,
+    cacheControl: "31536000",
+  });
+
+  if (uploadError) {
+    const msg =
+      typeof uploadError.message === "string" && uploadError.message.trim()
+        ? uploadError.message.trim()
+        : "Storage upload failed";
+    return json(res, 500, { ok: false, error: msg });
+  }
+
+  const { data: publicUrlData } = supabase.storage.from(MENU_IMAGES_BUCKET).getPublicUrl(path);
+  const publicUrl = typeof publicUrlData?.publicUrl === "string" ? publicUrlData.publicUrl.trim() : "";
+
+  if (!publicUrl) {
+    return json(res, 500, { ok: false, error: "Public URL generation failed" });
+  }
+
+  return json(res, 200, {
+    ok: true,
+    actor: { email: actorEmail, role: actorRole },
+    bucket: MENU_IMAGES_BUCKET,
+    path,
+    publicUrl,
+  });
+}
+
+async function handleDelete(body: Record<string, unknown>, res: ResLike) {
+  const rawInput =
+    toTrimmedString(body.path) ||
+    toTrimmedString(body.image) ||
+    toTrimmedString(body.publicUrl);
+
+  if (!rawInput) {
+    return json(res, 400, { ok: false, error: "Missing path, image, or publicUrl" });
+  }
+
+  const storagePath = extractStoragePath(rawInput);
+  if (!storagePath) {
+    return json(res, 400, { ok: false, error: "Could not resolve storage path from input" });
+  }
+
+  if (!isValidAdminPath(storagePath)) {
+    return json(res, 400, { ok: false, error: "Path is outside allowed admin/ prefix" });
+  }
+
+  const { error: removeError } = await supabase.storage
+    .from(MENU_IMAGES_BUCKET)
+    .remove([storagePath]);
+
+  if (removeError) {
+    const msg =
+      typeof removeError.message === "string" && removeError.message.trim()
+        ? removeError.message.trim()
+        : "Storage delete failed";
+    return json(res, 500, { ok: false, error: msg });
+  }
+
+  return json(res, 200, {
+    ok: true,
+    deleted: storagePath,
+    bucket: MENU_IMAGES_BUCKET,
+  });
+}
+
+// ── Main handler ──
+
 export default async function handler(req: ReqLike, res: ResLike) {
   setCors(req, res);
 
@@ -227,64 +368,17 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Invalid JSON body" });
     }
 
-    const fileName = toTrimmedString(body.fileName);
-    const contentType = toTrimmedString(body.contentType).toLowerCase();
-    const base64 = toTrimmedString(body.base64);
-    const itemName = toTrimmedString(body.itemName);
+    const action = toTrimmedString(body.action);
 
-    if (!base64) {
-      return json(res, 400, { ok: false, error: "Image payload is required" });
+    if (action === "upload") {
+      return await handleUpload(body, actorEmail, actor.role ?? "owner", res);
     }
 
-    if (!contentType || !contentType.startsWith("image/")) {
-      return json(res, 400, { ok: false, error: "Only image uploads are allowed" });
+    if (action === "delete") {
+      return await handleDelete(body, res);
     }
 
-    const bytes = decodeBase64Payload(base64);
-    if (!bytes) {
-      return json(res, 400, { ok: false, error: "Invalid base64 image payload" });
-    }
-
-    if (bytes.length > 5 * 1024 * 1024) {
-      return json(res, 400, { ok: false, error: "Image is too large (max 5MB)" });
-    }
-
-    const ext = detectExtension(contentType, fileName);
-    if (!["jpg", "png", "webp", "gif"].includes(ext)) {
-      return json(res, 400, { ok: false, error: "Unsupported image format" });
-    }
-
-    const baseName = sanitizeBaseName(itemName || fileName || "menu-item");
-    const path = `admin/${Date.now()}-${baseName}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage.from(MENU_IMAGES_BUCKET).upload(path, bytes, {
-      contentType,
-      upsert: false,
-      cacheControl: "31536000",
-    });
-
-    if (uploadError) {
-      const msg =
-        typeof uploadError.message === "string" && uploadError.message.trim()
-          ? uploadError.message.trim()
-          : "Storage upload failed";
-      return json(res, 500, { ok: false, error: msg });
-    }
-
-    const { data: publicUrlData } = supabase.storage.from(MENU_IMAGES_BUCKET).getPublicUrl(path);
-    const publicUrl = typeof publicUrlData?.publicUrl === "string" ? publicUrlData.publicUrl.trim() : "";
-
-    if (!publicUrl) {
-      return json(res, 500, { ok: false, error: "Public URL generation failed" });
-    }
-
-    return json(res, 200, {
-      ok: true,
-      actor: { email: actorEmail, role: actor.role ?? "owner" },
-      bucket: MENU_IMAGES_BUCKET,
-      path,
-      publicUrl,
-    });
+    return json(res, 400, { ok: false, error: 'Missing or invalid action. Use "upload" or "delete".' });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return json(res, 500, { ok: false, error: msg || "Unknown error" });

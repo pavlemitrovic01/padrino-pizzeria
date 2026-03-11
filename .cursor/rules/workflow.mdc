@@ -29,6 +29,13 @@ git diff         # Pre commita
 git status       # Posle commita
 ```
 
+## NULTO PRAVILO — Ne dirati funkcionisanje i izgled sajta bez dozvole
+
+- NIKAD ne menjati ponašanje, izgled, UX ili funkcionalnost sajta bez eksplicitnog odobrenja.
+- NIKAD ne raditi "usputne" popravke, polish, refaktor ili cleanup koji nisu traženi.
+- Svaka promena mora biti tačno ono što je dogovoreno — ništa manje, ništa više.
+- Ako uočiš problem koji nije tražen, PRIJAVI ga — ne popravljaj ga sam.
+
 ## Principi (iz PSCP iskustva)
 
 - **Bez nagađanja** — Uvek čitaj fajl pre editovanja. Nikad ne rekonstruiši velike fajlove iz memorije.
@@ -36,6 +43,7 @@ git status       # Posle commita
 - **Golden tests** — Svaka promena ima definisan kriterijum uspeha. Reci korisniku kako da testira.
 - **Build je obavezan** — `npm run build` posle svake promene, bez izuzetka.
 - **Build passed != deploy dokaz** — Po potrebi proveriti `git show HEAD:<path>` i production bundle.
+- **Samo tražene promene** — Nikad ne dodavati, brisati ili menjati kod koji nije deo odobrenog taska.
 
 ## Commit konvencija
 
