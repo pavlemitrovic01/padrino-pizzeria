@@ -1,0 +1,31 @@
+---
+description: Conventions for Vercel serverless API endpoints
+globs: api/**/*.ts
+alwaysApply: false
+---
+
+# API Endpoint Conventions
+
+## Structure
+
+Each endpoint in `api/` is a Vercel serverless function exporting `handler(req, res)`.
+
+## Required patterns
+
+- CORS via `setCors(req, res)` on every handler
+- Handle `OPTIONS` preflight with 204
+- Return JSON via helper: `json(res, status, body)`
+- Auth via Bearer token + `supabase.auth.getUser(token)`
+- Admin check via `admin_users` table with fallback to `FALLBACK_ADMIN_EMAILS`
+- Owner-only operations must check `actor.role === "owner"`
+
+## Environment variables
+
+- Server-side: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (NO `VITE_` prefix)
+- Frontend: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+
+## TypeScript
+
+- `tsconfig.node.json` covers `api/` folder with Node types
+- `tsconfig.app.json` covers `src/` with DOM types
+- Never mix — api/ files must not import from src/

@@ -1,0 +1,55 @@
+---
+description: Core workflow rules for Padrino Budva project - applies to every session
+alwaysApply: true
+---
+
+# Padrino Budva — Workflow
+
+## Ciklus za svaku promenu
+
+1. **ANALIZA** — Pročitaj relevantne fajlove, razumi kontekst
+2. **PREDLOG** — Objasni šta se menja, zašto, i šta dobijamo
+3. **ODOBRENJE** — Čekaj eksplicitno "da" od korisnika
+4. **KOD** — Unesi promenu direktno u fajlove
+5. **VERIFIKACIJA** — Pokreni `npm run build`, pokreni `npm run lint`, prijavi rezultat
+6. **COMMIT** — Predloži commit poruku, čekaj odobrenje
+
+## Hybrid režim (rizik određuje kontrolu)
+
+- **Nizak rizik** (typo fix, style, copy izmena): uradi odmah, prijavi šta je urađeno
+- **Srednji rizik** (novi helper, UI izmena u jednom fajlu): predloži -> odobrenje -> uradi
+- **Visok rizik** (multi-file, API, DB, payment, auth): detaljno predloži -> odobrenje -> uradi -> verifikuj
+
+## Obavezne komande posle svake promene
+
+```
+npm run build    # MORA proći bez grešaka
+npm run lint     # Prijavi ako ima upozorenja
+git diff         # Pre commita
+git status       # Posle commita
+```
+
+## Principi (iz PSCP iskustva)
+
+- **Bez nagađanja** — Uvek čitaj fajl pre editovanja. Nikad ne rekonstruiši velike fajlove iz memorije.
+- **1 dokaz -> 1 hipoteza -> 1 fix -> verifikacija** — Naučni metod za debug.
+- **Golden tests** — Svaka promena ima definisan kriterijum uspeha. Reci korisniku kako da testira.
+- **Build je obavezan** — `npm run build` posle svake promene, bez izuzetka.
+- **Build passed != deploy dokaz** — Po potrebi proveriti `git show HEAD:<path>` i production bundle.
+
+## Commit konvencija
+
+Format: `<tip>: kratak opis`
+
+Tipovi: `feat`, `fix`, `refactor`, `style`, `docs`, `chore`
+
+Commit poruka mora biti jasna i opisna — nikad samo "fix" ili "update".
+
+## Tehnički stack
+
+- Vite 7 + React 19 + TypeScript strict + Tailwind CSS
+- Supabase (PostgreSQL + Auth + Storage)
+- Vercel serverless functions (api/*.ts)
+- Bankart/NLB payment
+- Telegram notifikacije
+- PowerShell terminal (ne koristiti `&&` za chain, koristiti `;`)

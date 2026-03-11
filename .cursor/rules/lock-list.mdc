@@ -1,0 +1,27 @@
+---
+description: LOCK lista - fajlovi i sistemi koji se NE DIRAJU bez eksplicitnog zahteva
+alwaysApply: true
+---
+
+# LOCK Lista — Ne dirati bez eksplicitnog zahteva
+
+## Zaključani sistemi
+
+- **Bankart / NLB payment flow** — callback, status, debit, HMAC
+- **Refund sync** — poznati bug, odložen za kasnije
+- **Telegram logika** — best-effort notifikacije
+- **Auth logika** — osim ako postoji dokaz problema
+- **create-order arhitektura** — serverska validacija cena, ne dirati
+- **CartDrawer.tsx** — prevelik, refaktor nije target dok se ne zatraži
+
+## Zaključani fajlovi (ne menjati bez zahteva)
+
+- `api/create-order.ts`
+- `api/bankart-callback.ts`
+- `api/bankart-order-status.ts`
+- `api/telegram-new-order.ts`
+- `src/components/CartDrawer.tsx` (ili gde god se nalazi)
+
+## Pravilo
+
+Ako task zahteva promenu nečeg sa LOCK liste, STOP i pitaj korisnika za eksplicitno odobrenje pre bilo kakve izmene.
