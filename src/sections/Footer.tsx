@@ -1,4 +1,5 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 const PAYMENT_BADGES = [
   { label: "Bankart", accent: "gold" as const },
@@ -6,6 +7,8 @@ const PAYMENT_BADGES = [
   { label: "Mastercard", accent: "light" as const },
   { label: "Maestro", accent: "light" as const },
 ];
+
+const DEFAULT_ADDRESS_LINE = "Jadranski put BB • Budva";
 
 function scrollToTop() {
   const hero = document.getElementById("top");
@@ -40,10 +43,45 @@ function PaymentBadge({
   );
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function toStr(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
 export default function Footer() {
+  const [addressLine, setAddressLine] = useState(DEFAULT_ADDRESS_LINE);
+
   const onTop = useCallback(() => {
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
     scrollToTop();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSettings() {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("id, address_line")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (cancelled || error || !isRecord(data)) return;
+
+      const nextAddress = toStr(data.address_line);
+      if (!nextAddress) return;
+
+      setAddressLine(nextAddress);
+    }
+
+    void loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -110,7 +148,7 @@ export default function Footer() {
 
         <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-5 text-xs sm:flex-row sm:items-center sm:justify-between">
           <div className="text-white/44">© 2026 Padrino Pizzeria Budva</div>
-          <div className="text-white/36">Jadranski put BB • Budva</div>
+          <div className="text-white/36">{addressLine}</div>
           <div className="uppercase tracking-[0.26em] text-white/34">Since 2021</div>
         </div>
       </div>

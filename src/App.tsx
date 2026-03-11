@@ -12,6 +12,7 @@ import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
 
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
+import { supabase } from "./lib/supabaseClient";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
@@ -22,6 +23,24 @@ type SessionLike = {
   } | null;
 } | null;
 
+type SiteSettingsSeo = {
+  id: number;
+  phone_display: string;
+  phone_e164: string;
+  email: string;
+  address_line: string;
+  default_city: string;
+};
+
+const DEFAULT_SITE_SETTINGS: SiteSettingsSeo = {
+  id: 1,
+  phone_display: "+382 67 603 780",
+  phone_e164: "+38267603780",
+  email: "padrinobudva@gmail.com",
+  address_line: "Jadranski put BB (Kotorski Semafori)",
+  default_city: "Budva",
+};
+
 const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -29,6 +48,7 @@ const AdminOrders = lazy(() => import("./components/AdminOrders"));
 const AdminMenu = lazy(() => import("./pages/admin/AdminMenu"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
+const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 
 function AdminChunkFallback() {
   return (
@@ -39,7 +59,7 @@ function AdminChunkFallback() {
   );
 }
 
-function AdminNav({ active }: { active: "orders" | "menu" | "users" | "logs" }) {
+function AdminNav({ active }: { active: "orders" | "menu" | "users" | "logs" | "settings" }) {
   const btnBase = "rounded-xl border px-3 py-2 text-xs font-semibold transition";
   const btnActive = "border-white/20 bg-black/40 text-white";
   const btnIdle = "border-white/10 bg-black/20 text-white/80 hover:border-white/20";
@@ -114,6 +134,16 @@ function AdminNav({ active }: { active: "orders" | "menu" | "users" | "logs" }) 
             </button>
 
             <button
+              className={`${btnBase} ${active === "settings" ? btnActive : btnIdle}`}
+              onClick={() => {
+                window.location.href = "/admin/settings";
+              }}
+              title="Admin — Settings"
+            >
+              Settings
+            </button>
+
+            <button
               className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 hover:border-red-500/30 disabled:opacity-60"
               onClick={() => void signOut()}
               disabled={signingOut}
@@ -146,10 +176,7 @@ async function readSessionFromAuth(auth: unknown): Promise<SessionLike> {
   return null;
 }
 
-function subscribeAuthChanges(
-  auth: unknown,
-  onSession: (next: SessionLike) => void
-): (() => void) | null {
+function subscribeAuthChanges(auth: unknown, onSession: (next: SessionLike) => void): (() => void) | null {
   const a = auth as {
     onAuthStateChange?: (
       cb: (_event: unknown, session: SessionLike) => void
@@ -244,6 +271,34 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+function toStr(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function toSafeInt(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
+    return Math.trunc(Number(v));
+  }
+  return null;
+}
+
+function normalizeSeoSettings(raw: unknown): SiteSettingsSeo | null {
+  if (!isRecord(raw)) return null;
+
+  const id = toSafeInt(raw.id);
+  if (id !== 1) return null;
+
+  return {
+    id,
+    phone_display: toStr(raw.phone_display) || DEFAULT_SITE_SETTINGS.phone_display,
+    phone_e164: toStr(raw.phone_e164) || DEFAULT_SITE_SETTINGS.phone_e164,
+    email: toStr(raw.email) || DEFAULT_SITE_SETTINGS.email,
+    address_line: toStr(raw.address_line) || DEFAULT_SITE_SETTINGS.address_line,
+    default_city: toStr(raw.default_city) || DEFAULT_SITE_SETTINGS.default_city,
+  };
+}
+
 function getAccessToken(session: SessionLike): string {
   if (!session) return "";
   if (!isRecord(session)) return "";
@@ -261,9 +316,7 @@ async function verifyAdminAccess(accessToken: string): Promise<boolean> {
 
     if (!res.ok) return false;
 
-    const data = (await res.json().catch(() => null)) as
-      | { ok?: boolean; is_admin?: boolean | null }
-      | null;
+    const data = (await res.json().catch(() => null)) as { ok?: boolean; is_admin?: boolean | null } | null;
 
     return data?.ok === true && data?.is_admin === true;
   } catch {
@@ -317,7 +370,7 @@ function AdminShell({
   active,
   children,
 }: {
-  active: "orders" | "menu" | "users" | "logs";
+  active: "orders" | "menu" | "users" | "logs" | "settings";
   children: React.ReactNode;
 }) {
   return (
@@ -328,7 +381,7 @@ function AdminShell({
   );
 }
 
-function AdminRoute({ page }: { page: "orders" | "menu" | "users" | "logs" }) {
+function AdminRoute({ page }: { page: "orders" | "menu" | "users" | "logs" | "settings" }) {
   const [guard, setGuard] = useState<GuardState>("loading");
   const [lastPath, setLastPath] = useState(getPathname());
 
@@ -503,10 +556,20 @@ function AdminRoute({ page }: { page: "orders" | "menu" | "users" | "logs" }) {
     );
   }
 
+  if (page === "logs") {
+    return (
+      <AdminShell active="logs">
+        <Suspense fallback={<AdminChunkFallback />}>
+          <AdminLogs />
+        </Suspense>
+      </AdminShell>
+    );
+  }
+
   return (
-    <AdminShell active="logs">
+    <AdminShell active="settings">
       <Suspense fallback={<AdminChunkFallback />}>
-        <AdminLogs />
+        <AdminSettings />
       </Suspense>
     </AdminShell>
   );
@@ -515,6 +578,32 @@ function AdminRoute({ page }: { page: "orders" | "menu" | "users" | "logs" }) {
 export default function App() {
   const pathname = useMemo(() => getPathname(), []);
   const hash = useMemo(() => getHash(), []);
+  const [siteSettings, setSiteSettings] = useState<SiteSettingsSeo>(DEFAULT_SITE_SETTINGS);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSeoSettings() {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("id, phone_display, phone_e164, email, address_line, default_city")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (cancelled || error) return;
+
+      const normalized = normalizeSeoSettings(data);
+      if (!normalized) return;
+
+      setSiteSettings(normalized);
+    }
+
+    void loadSeoSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const isFaqPage = pathname === "/faq";
@@ -529,11 +618,12 @@ export default function App() {
       "@type": "Restaurant",
       name: "Padrino Budva",
       url: "https://padrinobudva.com",
-      telephone: "+38269123456",
+      telephone: siteSettings.phone_e164 || siteSettings.phone_display || DEFAULT_SITE_SETTINGS.phone_e164,
+      email: siteSettings.email || DEFAULT_SITE_SETTINGS.email,
       address: {
         "@type": "PostalAddress",
-        streetAddress: "Budva",
-        addressLocality: "Budva",
+        streetAddress: siteSettings.address_line || DEFAULT_SITE_SETTINGS.address_line,
+        addressLocality: siteSettings.default_city || DEFAULT_SITE_SETTINGS.default_city,
         addressCountry: "ME",
       },
       servesCuisine: ["Pizza", "Italian"],
@@ -543,7 +633,7 @@ export default function App() {
     return () => {
       removeJsonLd("padrino-jsonld-restaurant");
     };
-  }, [pathname]);
+  }, [pathname, siteSettings.address_line, siteSettings.default_city, siteSettings.email, siteSettings.phone_display, siteSettings.phone_e164]);
 
   useEffect(() => {
     if (!hash) return;
@@ -573,6 +663,7 @@ export default function App() {
     if (pathname === "/admin/menu") return <AdminRoute page="menu" />;
     if (pathname === "/admin/users") return <AdminRoute page="users" />;
     if (pathname === "/admin/logs") return <AdminRoute page="logs" />;
+    if (pathname === "/admin/settings") return <AdminRoute page="settings" />;
     return <AdminRoute page="orders" />;
   }
 

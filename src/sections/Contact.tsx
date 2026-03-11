@@ -1,20 +1,38 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { FaWhatsapp, FaViber, FaInstagram } from "react-icons/fa";
 import { SiGooglemaps } from "react-icons/si";
+import { supabase } from "../lib/supabaseClient";
 
-const PHONE_DISPLAY = "+382 67 603 780";
-const PHONE_E164 = "+38267603780";
+type SiteSettings = {
+  id: number;
+  phone_display: string;
+  phone_e164: string;
+  email: string;
+  address_line: string;
+  hours_display: string;
+  maps_url: string;
+  instagram_url: string;
+  whatsapp_url: string;
+  viber_url: string;
+  default_city: string;
+  default_postcode: string;
+};
 
-const EMAIL = "padrinobudva@gmail.com";
-const ADDRESS_LINE = "Jadranski put BB (Kotorski Semafori)";
-const HOURS = "12–00";
-
-const MAPS_URL = "https://maps.app.goo.gl/ouqBC1P8rD62qij99";
-const INSTAGRAM_URL = "https://www.instagram.com/padrino_budva"; // po potrebi stavi tačan profil
-
-const WHATSAPP_WEB_URL = "https://wa.me/38267603780";
-const VIBER_URL = `viber://chat?number=${PHONE_E164.replace("+", "")}`;
+const DEFAULT_SETTINGS: SiteSettings = {
+  id: 1,
+  phone_display: "+382 67 603 780",
+  phone_e164: "+38267603780",
+  email: "padrinobudva@gmail.com",
+  address_line: "Jadranski put BB (Kotorski Semafori)",
+  hours_display: "12–00",
+  maps_url: "https://maps.app.goo.gl/ouqBC1P8rD62qij99",
+  instagram_url: "https://www.instagram.com/padrino_budva",
+  whatsapp_url: "https://wa.me/38267603780",
+  viber_url: "viber://chat?number=38267603780",
+  default_city: "Budva",
+  default_postcode: "85310",
+};
 
 type SocialItem = {
   label: string;
@@ -22,15 +40,82 @@ type SocialItem = {
   icon: ReactNode;
   accentHex: string;
   iconClass: string;
-  glowBg: string; // CSS background-image string
+  glowBg: string;
 };
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function toStr(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function toSafeInt(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
+    return Math.trunc(Number(v));
+  }
+  return null;
+}
+
+function normalizeSettings(raw: unknown): SiteSettings | null {
+  if (!isRecord(raw)) return null;
+
+  const id = toSafeInt(raw.id);
+  if (id !== 1) return null;
+
+  return {
+    id,
+    phone_display: toStr(raw.phone_display) || DEFAULT_SETTINGS.phone_display,
+    phone_e164: toStr(raw.phone_e164) || DEFAULT_SETTINGS.phone_e164,
+    email: toStr(raw.email) || DEFAULT_SETTINGS.email,
+    address_line: toStr(raw.address_line) || DEFAULT_SETTINGS.address_line,
+    hours_display: toStr(raw.hours_display) || DEFAULT_SETTINGS.hours_display,
+    maps_url: toStr(raw.maps_url) || DEFAULT_SETTINGS.maps_url,
+    instagram_url: toStr(raw.instagram_url) || DEFAULT_SETTINGS.instagram_url,
+    whatsapp_url: toStr(raw.whatsapp_url) || DEFAULT_SETTINGS.whatsapp_url,
+    viber_url: toStr(raw.viber_url) || DEFAULT_SETTINGS.viber_url,
+    default_city: toStr(raw.default_city) || DEFAULT_SETTINGS.default_city,
+    default_postcode: toStr(raw.default_postcode) || DEFAULT_SETTINGS.default_postcode,
+  };
+}
+
 export default function Contact() {
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSettings() {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select(
+          "id, phone_display, phone_e164, email, address_line, hours_display, maps_url, instagram_url, whatsapp_url, viber_url, default_city, default_postcode"
+        )
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (cancelled || error) return;
+
+      const normalized = normalizeSettings(data);
+      if (!normalized) return;
+
+      setSettings(normalized);
+    }
+
+    void loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const social = useMemo<SocialItem[]>(
     () => [
       {
         label: "Instagram",
-        href: INSTAGRAM_URL,
+        href: settings.instagram_url,
         icon: <FaInstagram size={18} />,
         accentHex: "#E1306C",
         iconClass: "text-[#E1306C]",
@@ -42,7 +127,7 @@ export default function Contact() {
       },
       {
         label: "Viber",
-        href: VIBER_URL,
+        href: settings.viber_url,
         icon: <FaViber size={18} />,
         accentHex: "#7360F2",
         iconClass: "text-[#7360F2]",
@@ -53,7 +138,7 @@ export default function Contact() {
       },
       {
         label: "WhatsApp",
-        href: WHATSAPP_WEB_URL,
+        href: settings.whatsapp_url,
         icon: <FaWhatsapp size={18} />,
         accentHex: "#25D366",
         iconClass: "text-[#25D366]",
@@ -64,7 +149,7 @@ export default function Contact() {
       },
       {
         label: "Maps",
-        href: MAPS_URL,
+        href: settings.maps_url,
         icon: <SiGooglemaps size={18} />,
         accentHex: "#EA4335",
         iconClass: "text-[#EA4335]",
@@ -74,7 +159,7 @@ export default function Contact() {
           "linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(0,0,0,0.30))",
       },
     ],
-    []
+    [settings.instagram_url, settings.maps_url, settings.viber_url, settings.whatsapp_url]
   );
 
   const yellowBubble =
@@ -85,7 +170,6 @@ export default function Contact() {
       id="kontakt"
       className="relative overflow-hidden bg-black text-white scroll-mt-20"
     >
-      {/* BACKGROUND */}
       <div className="pointer-events-none absolute inset-0">
         <img
           src="/sections/contact.webp"
@@ -95,7 +179,6 @@ export default function Contact() {
           loading="lazy"
           decoding="async"
           onError={(e) => {
-            // Stabilan fallback chain (bez nagađanja koji fajl postoji)
             const target = e.currentTarget as HTMLImageElement;
 
             if (!target.src.includes("/sections/contact.jpg")) {
@@ -131,9 +214,7 @@ export default function Contact() {
         </div>
 
         <div className="mt-14 grid gap-6 lg:grid-cols-2">
-          {/* LEFT */}
           <div className="p-glass p-glass-hover p-8 sm:p-10 space-y-6">
-            {/* TELEFON */}
             <div>
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                 Telefon
@@ -141,10 +222,10 @@ export default function Contact() {
 
               <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="text-white/92 font-semibold text-lg">
-                  {PHONE_DISPLAY}
+                  {settings.phone_display}
                 </div>
 
-                <a href={`tel:${PHONE_E164}`} className={yellowBubble}>
+                <a href={`tel:${settings.phone_e164}`} className={yellowBubble}>
                   Pozovi nas
                 </a>
               </div>
@@ -152,7 +233,6 @@ export default function Contact() {
 
             <div className="h-px w-full bg-white/10" />
 
-            {/* EMAIL */}
             <div>
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                 Email
@@ -160,11 +240,11 @@ export default function Contact() {
 
               <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="text-white/92 font-semibold text-lg">
-                  {EMAIL}
+                  {settings.email}
                 </div>
 
                 <a
-                  href={`mailto:${EMAIL}?subject=Porudžbina%20-%20Padrino%20Pizzeria%20Budva&body=Zdravo%2C%0A%0AŽelim%20da%20poručim%3A%0A-%20%0A%0AAdresa%3A%20%0ATelefon%3A%20%0A%0AHvala!`}
+                  href={`mailto:${settings.email}?subject=Porudžbina%20-%20Padrino%20Pizzeria%20Budva&body=Zdravo%2C%0A%0AŽelim%20da%20poručim%3A%0A-%20%0A%0AAdresa%3A%20%0ATelefon%3A%20%0A%0AHvala!`}
                   className={yellowBubble}
                 >
                   Pošalji mail
@@ -174,30 +254,27 @@ export default function Contact() {
 
             <div className="h-px w-full bg-white/10" />
 
-            {/* ADDRESS */}
             <div>
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                 Adresa
               </div>
               <div className="mt-2 text-white/92 font-semibold text-lg">
-                {ADDRESS_LINE}
+                {settings.address_line}
               </div>
             </div>
 
             <div className="h-px w-full bg-white/10" />
 
-            {/* HOURS */}
             <div>
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
                 Radno vreme
               </div>
               <div className="mt-2 text-white/92 font-semibold text-lg">
-                {HOURS}
+                {settings.hours_display}
               </div>
             </div>
           </div>
 
-          {/* RIGHT */}
           <div className="space-y-4">
             {social.map((s) => (
               <a
