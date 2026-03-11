@@ -27,6 +27,11 @@ type MenuItemData = {
   category: string;
 };
 
+type SiteSettingsCheckoutDefaults = {
+  default_city: string;
+  default_postcode: string;
+};
+
 type DrawerView = "cart" | "checkout" | "success";
 
 type BankartOrderPaymentStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded" | null;
@@ -94,6 +99,8 @@ function formatFeeEurShort(cents: number) {
 }
 
 const BANKART_RETURN_STORAGE_KEY = "padrino:bankart:return";
+const DEFAULT_BILLING_CITY = "Budva";
+const DEFAULT_BILLING_POSTCODE = "85310";
 const BANKART_PAYMENTJS_NUMBER_DIV_ID = "bankart-paymentjs-number";
 const BANKART_PAYMENTJS_CVV_DIV_ID = "bankart-paymentjs-cvv";
 const BANKART_PAYMENTJS_POLISH_CSS = `
@@ -236,6 +243,17 @@ function normalizeText(value: string) {
 
 function normalizeCategory(value: string) {
   return normalizeText(value);
+}
+
+function toSiteSettingsCheckoutDefaults(value: unknown): SiteSettingsCheckoutDefaults {
+  const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const defaultCity = typeof raw.default_city === "string" ? raw.default_city.trim() : "";
+  const defaultPostcode = typeof raw.default_postcode === "string" ? raw.default_postcode.trim() : "";
+
+  return {
+    default_city: defaultCity || DEFAULT_BILLING_CITY,
+    default_postcode: defaultPostcode || DEFAULT_BILLING_POSTCODE,
+  };
 }
 
 function isDrinkCategory(category: string) {
@@ -619,8 +637,8 @@ export default function CartDrawer() {
   const [address, setAddress] = useState("");
   const [orderNote, setOrderNote] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
-  const [billingCity, setBillingCity] = useState("Budva");
-  const [billingPostcode, setBillingPostcode] = useState("85310");
+  const [billingCity, setBillingCity] = useState(DEFAULT_BILLING_CITY);
+  const [billingPostcode, setBillingPostcode] = useState(DEFAULT_BILLING_POSTCODE);
   const [cardholder, setCardholder] = useState("");
   const [expMonth, setExpMonth] = useState("");
   const [expYear, setExpYear] = useState("");
@@ -682,6 +700,8 @@ export default function CartDrawer() {
   const paymentJsRequested = paymentMethod === "card" && paymentJsFeatureEnabled && !!paymentJsPublicKey;
   const paymentJsMissingKey = paymentMethod === "card" && paymentJsFeatureEnabled && !paymentJsPublicKey;
   const paymentJsControllerRef = useRef<BankartPaymentJsController | null>(null);
+  const billingCityTouchedRef = useRef(false);
+  const billingPostcodeTouchedRef = useRef(false);
   const [paymentJsReady, setPaymentJsReady] = useState(false);
   const [paymentJsLoading, setPaymentJsLoading] = useState(false);
   const [paymentJsInitError, setPaymentJsInitError] = useState<string | null>(null);
@@ -690,6 +710,15 @@ export default function CartDrawer() {
     setPaymentMethod?.(m);
   };
 
+  const handleBillingCityChange = (value: string) => {
+    billingCityTouchedRef.current = true;
+    setBillingCity(value);
+  };
+
+  const handleBillingPostcodeChange = (value: string) => {
+    billingPostcodeTouchedRef.current = true;
+    setBillingPostcode(value);
+  };
 
   // (Blokirajući useEffect uklonjen)
 
@@ -732,6 +761,36 @@ export default function CartDrawer() {
       if (bankartStatusTimerRef.current) window.clearTimeout(bankartStatusTimerRef.current);
       paymentJsControllerRef.current?.dispose();
       paymentJsControllerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCheckoutDefaults = async () => {
+      const { data, error } = await supabase
+        .from("site_settings")
+        .select("default_city, default_postcode")
+        .eq("id", 1)
+        .maybeSingle();
+
+      if (!active || error) return;
+
+      const defaults = toSiteSettingsCheckoutDefaults(data);
+
+      if (!billingCityTouchedRef.current) {
+        setBillingCity(defaults.default_city);
+      }
+
+      if (!billingPostcodeTouchedRef.current) {
+        setBillingPostcode(defaults.default_postcode);
+      }
+    };
+
+    void loadCheckoutDefaults();
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -2182,7 +2241,7 @@ export default function CartDrawer() {
                                     <label className="mb-2 block text-sm font-semibold text-white/80">Grad</label>
                                     <input
                                       value={billingCity}
-                                      onChange={(e) => setBillingCity(e.target.value)}
+                                      onChange={(e) => handleBillingCityChange(e.target.value)}
                                       className={[
                                         "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
                                         billingCityError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
@@ -2195,7 +2254,7 @@ export default function CartDrawer() {
                                     <label className="mb-2 block text-sm font-semibold text-white/80">Poštanski broj</label>
                                     <input
                                       value={billingPostcode}
-                                      onChange={(e) => setBillingPostcode(e.target.value)}
+                                      onChange={(e) => handleBillingPostcodeChange(e.target.value)}
                                       inputMode="numeric"
                                       className={[
                                         "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
