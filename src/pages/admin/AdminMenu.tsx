@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 import { formatEUR } from "../../lib/money";
 
@@ -41,6 +41,20 @@ type AdminMenuPostErr = {
 
 type AdminMenuPostResponse = AdminMenuPostOk | AdminMenuPostErr;
 
+type AdminMenuUploadOk = {
+  ok: true;
+  bucket: string;
+  path: string;
+  publicUrl: string;
+};
+
+type AdminMenuUploadErr = {
+  ok: false;
+  error: string;
+};
+
+type AdminMenuUploadResponse = AdminMenuUploadOk | AdminMenuUploadErr;
+
 type EditorState = {
   id: string | null;
   name: string;
@@ -75,6 +89,7 @@ function resolveAdminApiBase(): string {
 }
 
 const ADMIN_API_BASE = resolveAdminApiBase();
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const CATEGORY_OPTIONS: Array<{ value: MenuCategory; label: string }> = [
   { value: "pizza", label: "Pizza" },
@@ -326,6 +341,78 @@ async function apiUpsertMenuItem(
   }
 }
 
+async function apiUploadMenuImage(
+  token: string,
+  payload: {
+    fileName: string;
+    contentType: string;
+    base64: string;
+    itemName: string;
+  },
+): Promise<AdminMenuUploadResponse> {
+  try {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-upload`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body: unknown = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg =
+        isRecord(body) && typeof body.error === "string" && body.error.trim()
+          ? body.error.trim()
+          : `HTTP ${res.status}`;
+      return { ok: false, error: msg };
+    }
+
+    if (
+      isRecord(body) &&
+      body.ok === true &&
+      typeof body.bucket === "string" &&
+      typeof body.path === "string" &&
+      typeof body.publicUrl === "string"
+    ) {
+      return {
+        ok: true,
+        bucket: body.bucket,
+        path: body.path,
+        publicUrl: body.publicUrl,
+      };
+    }
+
+    return { ok: false, error: "Neočekivan odgovor sa admin-menu-upload." };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Network request failed";
+    return { ok: false, error: msg || "Network request failed" };
+  }
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) {
+        reject(new Error("Neuspješno čitanje fajla."));
+        return;
+      }
+      resolve(result);
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Neuspješno čitanje fajla."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
 function editorFromRow(row: AdminMenuRow): EditorState {
   return {
     id: row.id,
@@ -415,7 +502,9 @@ export default function AdminMenu() {
   const [saving, setSaving] = useState(false);
   const [togglingVisibility, setTogglingVisibility] = useState(false);
   const [movingOrder, setMovingOrder] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
 
   const nameError = editor.name.trim() === "";
   const categoryError = !editor.category;
@@ -534,12 +623,18 @@ export default function AdminMenu() {
     setEditor(EMPTY_EDITOR);
     setToast(null);
     setErrorMsg(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+    }
   }
 
   function selectItem(item: AdminMenuRow) {
     setEditor(editorFromRow(item));
     setToast(null);
     setErrorMsg(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+    }
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -713,6 +808,66 @@ export default function AdminMenu() {
     } finally {
       setMovingOrder(false);
     }
+  }
+
+  async function onImageFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    setErrorMsg(null);
+    setToast(null);
+
+    if (!file.type.startsWith("image/")) {
+      setErrorMsg("Dozvoljen je samo image fajl.");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setErrorMsg("Slika je prevelika. Maksimum je 5MB.");
+      e.target.value = "";
+      return;
+    }
+
+    setUploadingImage(true);
+
+    try {
+      const token = await getSessionToken();
+      if (!token) {
+        setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
+        return;
+      }
+
+      const base64 = await fileToDataUrl(file);
+      const response = await apiUploadMenuImage(token, {
+        fileName: file.name,
+        contentType: file.type,
+        base64,
+        itemName: editor.name.trim() || file.name,
+      });
+
+      if (!response.ok) {
+        setErrorMsg(response.error);
+        return;
+      }
+
+      setEditor((prev) => ({ ...prev, image: response.publicUrl }));
+      setToast("Slika je uspješno uploadovana i upisana u image polje.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Upload slike nije uspio.";
+      setErrorMsg(msg || "Upload slike nije uspio.");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  }
+
+  function openImagePicker() {
+    if (saving || togglingVisibility || movingOrder || uploadingImage) return;
+    imageInputRef.current?.click();
   }
 
   return (
@@ -904,7 +1059,7 @@ export default function AdminMenu() {
                 <button
                   type="button"
                   onClick={() => void onToggleVisibility()}
-                  disabled={togglingVisibility || saving || movingOrder}
+                  disabled={togglingVisibility || saving || movingOrder || uploadingImage}
                   className={[
                     "rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
                     selectedExisting.is_active
@@ -922,7 +1077,7 @@ export default function AdminMenu() {
                 <button
                   type="button"
                   onClick={() => void onMoveSelected(-1)}
-                  disabled={!canMoveUp || movingOrder || saving || togglingVisibility}
+                  disabled={!canMoveUp || movingOrder || saving || togglingVisibility || uploadingImage}
                   className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {movingOrder ? "Pomjeram…" : "Pomjeri gore"}
@@ -931,7 +1086,7 @@ export default function AdminMenu() {
                 <button
                   type="button"
                   onClick={() => void onMoveSelected(1)}
-                  disabled={!canMoveDown || movingOrder || saving || togglingVisibility}
+                  disabled={!canMoveDown || movingOrder || saving || togglingVisibility || uploadingImage}
                   className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {movingOrder ? "Pomjeram…" : "Pomjeri dolje"}
@@ -997,14 +1152,38 @@ export default function AdminMenu() {
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-white/80">Slika (path ili URL)</label>
-              <input
-                value={editor.image}
-                onChange={(e) => setEditor((prev) => ({ ...prev, image: e.target.value }))}
-                placeholder="/menu/capricciosa.webp"
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/20"
-              />
+
+              <div className="space-y-3">
+                <input
+                  value={editor.image}
+                  onChange={(e) => setEditor((prev) => ({ ...prev, image: e.target.value }))}
+                  placeholder="/menu/capricciosa.webp"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/20"
+                />
+
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={onImageFileChange}
+                  className="hidden"
+                />
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={openImagePicker}
+                    disabled={saving || togglingVisibility || movingOrder || uploadingImage}
+                    className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {uploadingImage ? "Uploadujem sliku…" : "Upload image"}
+                  </button>
+                </div>
+              </div>
+
               <p className="mt-2 text-xs text-white/40">
-                U ovoj fazi slika je string path/URL. Upload radimo kasnije samo ako bude potreban.
+                Možeš i dalje ručno unijeti path/URL. Upload dugme šalje sliku u storage i automatski popunjava image
+                polje.
               </p>
             </div>
 
@@ -1069,7 +1248,7 @@ export default function AdminMenu() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="submit"
-                disabled={saving || togglingVisibility || movingOrder}
+                disabled={saving || togglingVisibility || movingOrder || uploadingImage}
                 className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? "Čuvam…" : selectedExisting ? "Sačuvaj izmjene" : "Dodaj stavku"}
@@ -1078,7 +1257,7 @@ export default function AdminMenu() {
               <button
                 type="button"
                 onClick={resetEditor}
-                disabled={saving || togglingVisibility || movingOrder}
+                disabled={saving || togglingVisibility || movingOrder || uploadingImage}
                 className="rounded-2xl border border-white/10 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-white/20 disabled:opacity-60"
               >
                 Očisti formu
