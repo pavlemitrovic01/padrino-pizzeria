@@ -55,6 +55,19 @@ type AdminMenuUploadErr = {
 
 type AdminMenuUploadResponse = AdminMenuUploadOk | AdminMenuUploadErr;
 
+type AdminMenuImageDeleteOk = {
+  ok: true;
+  deleted: string;
+  bucket: string;
+};
+
+type AdminMenuImageDeleteErr = {
+  ok: false;
+  error: string;
+};
+
+type AdminMenuImageDeleteResponse = AdminMenuImageDeleteOk | AdminMenuImageDeleteErr;
+
 type EditorState = {
   id: string | null;
   name: string;
@@ -218,6 +231,12 @@ function buildPreviewCandidates(image: string): string[] {
   }
 
   return [...uniq];
+}
+
+function isAdminStorageUrl(image: string): boolean {
+  const t = image.trim();
+  if (!t) return false;
+  return t.includes("/storage/v1/object/public/menu-images/admin/");
 }
 
 function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
@@ -392,6 +411,46 @@ async function apiUploadMenuImage(
   }
 }
 
+async function apiDeleteMenuImage(
+  token: string,
+  payload: { image: string },
+): Promise<AdminMenuImageDeleteResponse> {
+  try {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-image-delete`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body: unknown = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      const msg =
+        isRecord(body) && typeof body.error === "string" && body.error.trim()
+          ? body.error.trim()
+          : `HTTP ${res.status}`;
+      return { ok: false, error: msg };
+    }
+
+    if (
+      isRecord(body) &&
+      body.ok === true &&
+      typeof body.deleted === "string" &&
+      typeof body.bucket === "string"
+    ) {
+      return { ok: true, deleted: body.deleted, bucket: body.bucket };
+    }
+
+    return { ok: false, error: "Neočekivan odgovor sa admin-menu-image-delete." };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Network request failed";
+    return { ok: false, error: msg || "Network request failed" };
+  }
+}
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -503,6 +562,7 @@ export default function AdminMenu() {
   const [togglingVisibility, setTogglingVisibility] = useState(false);
   const [movingOrder, setMovingOrder] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [deletingImage, setDeletingImage] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -866,8 +926,57 @@ export default function AdminMenu() {
   }
 
   function openImagePicker() {
-    if (saving || togglingVisibility || movingOrder || uploadingImage) return;
+    if (saving || togglingVisibility || movingOrder || uploadingImage || deletingImage) return;
     imageInputRef.current?.click();
+  }
+
+  async function onDeleteImage() {
+    const currentImage = editor.image.trim();
+    if (!currentImage || deletingImage) return;
+
+    const confirmed = window.confirm(
+      "Da li si siguran da želiš obrisati ovu sliku iz storage-a? Ova akcija je nepovratna.",
+    );
+    if (!confirmed) return;
+
+    setDeletingImage(true);
+    setErrorMsg(null);
+    setToast(null);
+
+    try {
+      const token = await getSessionToken();
+      if (!token) {
+        setErrorMsg("Nijeste prijavljeni. Otvorite /admin/login.");
+        return;
+      }
+
+      const deleteResponse = await apiDeleteMenuImage(token, { image: currentImage });
+      if (!deleteResponse.ok) {
+        setErrorMsg(deleteResponse.error);
+        return;
+      }
+
+      if (editor.id) {
+        const updateResponse = await apiUpsertMenuItem(token, { id: editor.id, image: null });
+        if (!updateResponse.ok) {
+          setEditor((prev) => ({ ...prev, image: "" }));
+          setToast("Slika obrisana iz storage-a, ali ažuriranje baze nije uspjelo. Sačuvaj izmjene ručno.");
+          return;
+        }
+
+        setItems((prev) =>
+          sortMenuItems(prev.map((item) => (item.id === updateResponse.item.id ? updateResponse.item : item))),
+        );
+      }
+
+      setEditor((prev) => ({ ...prev, image: "" }));
+      setToast(editor.id ? "Slika je obrisana iz storage-a i iz baze." : "Slika je obrisana iz storage-a.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Brisanje slike nije uspjelo.";
+      setErrorMsg(msg || "Brisanje slike nije uspjelo.");
+    } finally {
+      setDeletingImage(false);
+    }
   }
 
   return (
@@ -1059,7 +1168,7 @@ export default function AdminMenu() {
                 <button
                   type="button"
                   onClick={() => void onToggleVisibility()}
-                  disabled={togglingVisibility || saving || movingOrder || uploadingImage}
+                  disabled={togglingVisibility || saving || movingOrder || uploadingImage || deletingImage}
                   className={[
                     "rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60",
                     selectedExisting.is_active
@@ -1077,7 +1186,7 @@ export default function AdminMenu() {
                 <button
                   type="button"
                   onClick={() => void onMoveSelected(-1)}
-                  disabled={!canMoveUp || movingOrder || saving || togglingVisibility || uploadingImage}
+                  disabled={!canMoveUp || movingOrder || saving || togglingVisibility || uploadingImage || deletingImage}
                   className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {movingOrder ? "Pomjeram…" : "Pomjeri gore"}
@@ -1086,7 +1195,7 @@ export default function AdminMenu() {
                 <button
                   type="button"
                   onClick={() => void onMoveSelected(1)}
-                  disabled={!canMoveDown || movingOrder || saving || togglingVisibility || uploadingImage}
+                  disabled={!canMoveDown || movingOrder || saving || togglingVisibility || uploadingImage || deletingImage}
                   className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {movingOrder ? "Pomjeram…" : "Pomjeri dolje"}
@@ -1173,11 +1282,22 @@ export default function AdminMenu() {
                   <button
                     type="button"
                     onClick={openImagePicker}
-                    disabled={saving || togglingVisibility || movingOrder || uploadingImage}
+                    disabled={saving || togglingVisibility || movingOrder || uploadingImage || deletingImage}
                     className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/85 transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {uploadingImage ? "Uploadujem sliku…" : "Upload image"}
                   </button>
+
+                  {isAdminStorageUrl(editor.image) ? (
+                    <button
+                      type="button"
+                      onClick={() => void onDeleteImage()}
+                      disabled={saving || togglingVisibility || movingOrder || uploadingImage || deletingImage}
+                      className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200 transition hover:border-red-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deletingImage ? "Brišem sliku…" : "Obriši sliku"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -1248,7 +1368,7 @@ export default function AdminMenu() {
             <div className="flex flex-wrap gap-3 pt-2">
               <button
                 type="submit"
-                disabled={saving || togglingVisibility || movingOrder || uploadingImage}
+                disabled={saving || togglingVisibility || movingOrder || uploadingImage || deletingImage}
                 className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? "Čuvam…" : selectedExisting ? "Sačuvaj izmjene" : "Dodaj stavku"}
@@ -1257,7 +1377,7 @@ export default function AdminMenu() {
               <button
                 type="button"
                 onClick={resetEditor}
-                disabled={saving || togglingVisibility || movingOrder || uploadingImage}
+                disabled={saving || togglingVisibility || movingOrder || uploadingImage || deletingImage}
                 className="rounded-2xl border border-white/10 bg-black/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-white/20 disabled:opacity-60"
               >
                 Očisti formu
