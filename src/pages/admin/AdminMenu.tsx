@@ -1122,7 +1122,7 @@ export default function AdminMenu() {
 
                         <div className="shrink-0 text-right">
                           <p className="text-sm font-semibold text-white">{formatEUR(item.price_eur_cents)}</p>
-                          <p className="mt-1 text-xs text-white/35">{item.image?.trim() || "Bez slike"}</p>
+                          <p className="mt-1 max-w-[180px] truncate text-xs text-white/35">{item.image?.trim() || "Bez slike"}</p>
                         </div>
                       </div>
                     </button>
@@ -1267,7 +1267,7 @@ export default function AdminMenu() {
                   value={editor.image}
                   onChange={(e) => setEditor((prev) => ({ ...prev, image: e.target.value }))}
                   placeholder="/menu/capricciosa.webp"
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/20"
+                  className="w-full min-w-0 overflow-hidden text-ellipsis rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/20"
                 />
 
                 <input
@@ -1348,7 +1348,7 @@ export default function AdminMenu() {
                 <PreviewImage image={editor.image} alt={editor.name.trim() || "Preview"} />
               </div>
 
-              <div className="mt-3 text-xs text-white/45">
+              <div className="mt-3 truncate text-xs text-white/45">
                 {editor.image.trim() ? `Path/URL: ${editor.image.trim()}` : "Unesi path ili URL slike za preview."}
               </div>
             </div>
