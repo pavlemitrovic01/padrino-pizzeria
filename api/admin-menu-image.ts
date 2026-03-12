@@ -262,11 +262,7 @@ async function handleUpload(body: Record<string, unknown>, actorEmail: string, a
   });
 
   if (uploadError) {
-    const msg =
-      typeof uploadError.message === "string" && uploadError.message.trim()
-        ? uploadError.message.trim()
-        : "Storage upload failed";
-    return json(res, 500, { ok: false, error: msg });
+    return json(res, 500, { ok: false, error: "Storage upload failed" });
   }
 
   const { data: publicUrlData } = supabase.storage.from(MENU_IMAGES_BUCKET).getPublicUrl(path);
@@ -309,11 +305,7 @@ async function handleDelete(body: Record<string, unknown>, res: ResLike) {
     .remove([storagePath]);
 
   if (removeError) {
-    const msg =
-      typeof removeError.message === "string" && removeError.message.trim()
-        ? removeError.message.trim()
-        : "Storage delete failed";
-    return json(res, 500, { ok: false, error: msg });
+    return json(res, 500, { ok: false, error: "Storage delete failed" });
   }
 
   return json(res, 200, {

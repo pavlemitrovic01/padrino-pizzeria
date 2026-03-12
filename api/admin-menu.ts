@@ -282,8 +282,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
         .order("name", { ascending: true });
 
       if (error) {
-        const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB select failed";
-        return json(res, 500, { ok: false, error: msg });
+        return json(res, 500, { ok: false, error: "DB select failed" });
       }
 
       const items = Array.isArray(data)
@@ -360,8 +359,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
         .single();
 
       if (error) {
-        const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB insert failed";
-        return json(res, 500, { ok: false, error: msg });
+        return json(res, 500, { ok: false, error: "DB insert failed" });
       }
 
       const item = normalizeMenuRow(data);
@@ -437,8 +435,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .single();
 
     if (error) {
-      const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB update failed";
-      return json(res, 500, { ok: false, error: msg });
+      return json(res, 500, { ok: false, error: "DB update failed" });
     }
 
     const item = normalizeMenuRow(data);

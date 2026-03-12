@@ -164,9 +164,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .single();
 
     if (readErr) {
-      const msg = typeof readErr.message === "string" && readErr.message.trim() ? readErr.message : "DB read failed";
-      // Supabase often throws for "single()" when no row; treat as 404-friendly
-      return json(res, 404, { ok: false, error: msg });
+      return json(res, 404, { ok: false, error: "DB read failed" });
     }
 
     const fromStatus = current?.status;
@@ -186,8 +184,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .single();
 
     if (updErr) {
-      const msg = typeof updErr.message === "string" && updErr.message.trim() ? updErr.message : "DB update failed";
-      return json(res, 500, { ok: false, error: msg });
+      return json(res, 500, { ok: false, error: "DB update failed" });
     }
 
     const finalStatus = updated?.status;

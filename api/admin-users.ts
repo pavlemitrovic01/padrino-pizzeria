@@ -205,8 +205,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
         .order("created_at", { ascending: false });
 
       if (error) {
-        const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB select failed";
-        return json(res, 500, { ok: false, error: msg });
+        return json(res, 500, { ok: false, error: "DB select failed" });
       }
 
       const list = Array.isArray(data)
@@ -253,11 +252,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .maybeSingle();
 
     if (existingErr && !looksLikeMissingTable(existingErr)) {
-      const msg =
-        typeof existingErr.message === "string" && existingErr.message.trim()
-          ? existingErr.message
-          : "DB read failed";
-      return json(res, 500, { ok: false, error: msg });
+      return json(res, 500, { ok: false, error: "DB read failed" });
     }
 
     const existingRole = isAdminRole(existing?.role) ? existing.role : null;
@@ -281,8 +276,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     );
 
     if (upErr) {
-      const msg = typeof upErr.message === "string" && upErr.message.trim() ? upErr.message : "DB upsert failed";
-      return json(res, 500, { ok: false, error: msg });
+      return json(res, 500, { ok: false, error: "DB upsert failed" });
     }
 
     return json(res, 200, { ok: true, email: targetEmail, role, enabled });

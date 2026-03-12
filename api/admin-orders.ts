@@ -159,8 +159,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .limit(limit);
 
     if (error) {
-      const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB select failed";
-      return json(res, 500, { ok: false, error: msg });
+      return json(res, 500, { ok: false, error: "DB select failed" });
     }
 
     return json(res, 200, { ok: true, orders: data ?? [] });

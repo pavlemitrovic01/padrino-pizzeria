@@ -470,8 +470,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const { data: order, error: readErr } = await supabase.from("orders").select("*").eq("id", orderId).single();
     if (readErr) {
-      const msg = typeof readErr.message === "string" && readErr.message.trim() ? readErr.message : "DB read failed";
-      return json(res, 500, { ok: false, error: msg });
+      return json(res, 500, { ok: false, error: "DB read failed" });
     }
 
     const message = formatOrderForTelegram((order ?? {}) as OrderRow);

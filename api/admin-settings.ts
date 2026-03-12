@@ -273,11 +273,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     if (req.method === "GET") {
       const ensured = await ensureSingletonRow();
       if (ensured.error) {
-        const msg =
-          typeof ensured.error.message === "string" && ensured.error.message.trim()
-            ? ensured.error.message
-            : "DB select failed";
-        return json(res, 500, { ok: false, error: msg });
+        return json(res, 500, { ok: false, error: "DB select failed" });
       }
 
       if (!ensured.data) {
@@ -382,8 +378,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .single();
 
     if (error) {
-      const msg = typeof error.message === "string" && error.message.trim() ? error.message : "DB update failed";
-      return json(res, 500, { ok: false, error: msg });
+      return json(res, 500, { ok: false, error: "DB update failed" });
     }
 
     const settings = normalizeSiteSettingsRow(data);
