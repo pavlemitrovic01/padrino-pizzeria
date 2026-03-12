@@ -477,7 +477,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const sent = await sendTelegramMessage(message);
 
     if (!sent.ok) {
-      return json(res, 502, { ok: false, error: sent.error || "Telegram failed" });
+      return json(res, 502, { ok: false, error: "Telegram notification failed" });
     }
 
     return json(res, 200, { ok: true, telegram: "sent" });
