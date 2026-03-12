@@ -33,6 +33,7 @@ function setCors(req: ReqLike, res: ResLike) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
+  res.setHeader("Access-Control-Max-Age", "86400");
 }
 
 function json(res: ResLike, code: number, body: Json) {
@@ -151,7 +152,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
       email,
       is_admin: r.isAdmin,
       role: r.role,
-      admin_users_table: r.table,
     });
   } catch {
     return json(res, 500, { ok: false, error: "Internal server error" });
