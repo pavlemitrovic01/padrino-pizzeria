@@ -293,6 +293,37 @@ async function findOrderForCallback(callback: BankartCallbackBody): Promise<Orde
     }
   }
 
+  const uuidPattern = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+  const embeddedUuid = merchantTransactionId.match(uuidPattern)?.[0];
+  if (embeddedUuid && embeddedUuid !== merchantTransactionId) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+      .eq("id", embeddedUuid)
+      .maybeSingle();
+
+    if (!error && data) {
+      return data as OrderRow;
+    }
+  }
+
+  const purchaseId = toTrimmedString(callback.purchaseId);
+  const dashIdx = purchaseId.indexOf("-");
+  if (dashIdx > 0) {
+    const purchaseIdSuffix = purchaseId.substring(dashIdx + 1);
+    if (purchaseIdSuffix && purchaseIdSuffix !== uuid) {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+        .eq("payment_reference", purchaseIdSuffix)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as OrderRow;
+      }
+    }
+  }
+
   return null;
 }
 
