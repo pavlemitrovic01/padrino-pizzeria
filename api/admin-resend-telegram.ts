@@ -482,8 +482,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
 
     return json(res, 200, { ok: true, telegram: "sent" });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+  } catch {
+    return json(res, 500, { ok: false, error: "Internal server error" });
   }
 }

@@ -379,8 +379,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
 
     return json(res, 400, { ok: false, error: 'Missing or invalid action. Use "upload" or "delete".' });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+  } catch {
+    return json(res, 500, { ok: false, error: "Internal server error" });
   }
 }

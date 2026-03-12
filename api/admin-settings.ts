@@ -396,8 +396,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       actor: { email: actorEmail, role: actor.role ?? "owner" },
       settings,
     });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+  } catch {
+    return json(res, 500, { ok: false, error: "Internal server error" });
   }
 }

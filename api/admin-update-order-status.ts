@@ -199,7 +199,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
     return json(res, 200, { ok: true, status: nextStatus });
   } catch (err: unknown) {
     console.error("admin-update-order-status fatal error:", err);
-    const msg = err instanceof Error ? err.message : String(err);
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+    return json(res, 500, { ok: false, error: "Internal server error" });
   }
 }

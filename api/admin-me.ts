@@ -153,8 +153,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       role: r.role,
       admin_users_table: r.table,
     });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json(res, 500, { ok: false, error: msg });
+  } catch {
+    return json(res, 500, { ok: false, error: "Internal server error" });
   }
 }
