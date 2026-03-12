@@ -110,11 +110,8 @@ export function log(level: LogLevel, message: string, context?: Record<string, u
   };
 
   // 1) console (svjesno, bez eksternog servisa)
-  // eslint-disable-next-line no-console
   if (level === "error") console.error(message, context);
-  // eslint-disable-next-line no-console
   else if (level === "warn") console.warn(message, context);
-  // eslint-disable-next-line no-console
   else console.log(message, context);
 
   // 2) localStorage buffer

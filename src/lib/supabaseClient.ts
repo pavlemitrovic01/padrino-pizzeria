@@ -87,16 +87,14 @@ function devAssertSupabaseConfigMatchesProject() {
   };
 
   // Samo console log (bez globalThis hackova koji znaju da naprave TS probleme)
-  // eslint-disable-next-line no-console
   console.info("[Padrino][Supabase Debug]", debug);
 
   const refFromToken = payload?.ref;
   const iss = payload?.iss ?? "";
   const refMatches =
-    !!refFromUrl && (!!refFromToken ? refFromToken === refFromUrl : iss.includes(refFromUrl));
+    !!refFromUrl && (refFromToken ? refFromToken === refFromUrl : iss.includes(refFromUrl));
 
   if (!refMatches) {
-    // eslint-disable-next-line no-console
     console.error(
       "[Padrino][Supabase Debug] MISMATCH: VITE_SUPABASE_URL projekat i VITE_SUPABASE_ANON_KEY nisu isti."
     );
