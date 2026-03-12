@@ -20,6 +20,7 @@ type OrderRow = {
 
   items: unknown[] | null;
   status: OrderStatus | null;
+  payment_status: string | null;
 };
 
 type ParsedItem = {
@@ -226,6 +227,17 @@ function pillClass(status: OrderStatus) {
   }
 }
 
+const PAYMENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  paid: { label: "Plaćeno", cls: "bg-emerald-500/15 text-emerald-200 border-emerald-500/20" },
+  refunded: { label: "Refundirano", cls: "bg-amber-500/15 text-amber-200 border-amber-500/20" },
+  failed: { label: "Neuspelo", cls: "bg-red-500/15 text-red-200 border-red-500/20" },
+  pending: { label: "Čeka plaćanje", cls: "bg-white/10 text-white/70 border-white/10" },
+};
+
+function paymentPill(ps: string): { label: string; cls: string } {
+  return PAYMENT_STATUS_MAP[ps] ?? { label: ps, cls: "bg-white/10 text-white/70 border-white/10" };
+}
+
 // DEV poziva prod API; koristimo public domen radi stabilnosti.
 const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
 
@@ -297,6 +309,7 @@ function normalizeOrderRow(raw: unknown): OrderRow | null {
   const items = Array.isArray(raw.items) ? (raw.items as unknown[]) : null;
 
   const status: OrderStatus | null = isOrderStatus(raw.status) ? raw.status : null;
+  const payment_status = safeString(raw.payment_status) || null;
 
   return {
     id,
@@ -310,6 +323,7 @@ function normalizeOrderRow(raw: unknown): OrderRow | null {
     fx_rsd_per_eur,
     items,
     status,
+    payment_status,
   };
 }
 
@@ -765,6 +779,18 @@ export default function AdminOrders() {
                           >
                             {STATUS_LABEL[status]}
                           </span>
+
+                          {o.payment_status ? (() => {
+                            const pp = paymentPill(o.payment_status);
+                            return (
+                              <span
+                                className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${pp.cls}`}
+                                title={o.payment_status}
+                              >
+                                {pp.label}
+                              </span>
+                            );
+                          })() : null}
 
                           <p className="text-xs text-gray-400">{safeDateTime(o.created_at)}</p>
 

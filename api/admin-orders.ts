@@ -153,7 +153,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const { data, error } = await supabase
       .from("orders")
       .select(
-        "id, created_at, customer_name, customer_phone, customer_address, total_price, currency, total_eur_cents, fx_rsd_per_eur, items, status",
+        "id, created_at, customer_name, customer_phone, customer_address, total_price, currency, total_eur_cents, fx_rsd_per_eur, items, status, payment_status",
       )
       .order("created_at", { ascending: false })
       .limit(limit);
