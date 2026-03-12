@@ -21,6 +21,7 @@ type OrderRow = {
   items: unknown[] | null;
   status: OrderStatus | null;
   payment_status: string | null;
+  payment_method: string | null;
 };
 
 type ParsedItem = {
@@ -112,12 +113,6 @@ function splitNoteLines(note: string): string[] {
     .split(/\r?\n/)
     .map((s) => s.trim())
     .filter(Boolean);
-}
-
-function extractPaymentValueFromNote(note: string): string | null {
-  const m = String(note ?? "").match(/pla[ćc]anje\s*:\s*(.+)/i);
-  const v = m?.[1]?.trim() ?? "";
-  return v ? v : null;
 }
 
 function stripPaymentLines(lines: string[]): string[] {
@@ -310,6 +305,7 @@ function normalizeOrderRow(raw: unknown): OrderRow | null {
 
   const status: OrderStatus | null = isOrderStatus(raw.status) ? raw.status : null;
   const payment_status = safeString(raw.payment_status) || null;
+  const payment_method = safeString(raw.payment_method) || null;
 
   return {
     id,
@@ -324,6 +320,7 @@ function normalizeOrderRow(raw: unknown): OrderRow | null {
     items,
     status,
     payment_status,
+    payment_method,
   };
 }
 
@@ -412,6 +409,7 @@ export default function AdminOrders() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "all">("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortDir, setSortDir] = useState<"newest" | "oldest">("newest");
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -489,10 +487,10 @@ export default function AdminOrders() {
     return c;
   }, [orders]);
 
-  const renderedOrders = useMemo(() => {
+  const statusAndSearchFiltered = useMemo(() => {
     const q = normalizeText(searchQuery);
 
-    const filtered = orders.filter((o) => {
+    return orders.filter((o) => {
       const status = (o.status ?? "pending") as OrderStatus;
 
       if (statusFilter !== "all" && status !== statusFilter) return false;
@@ -524,6 +522,25 @@ export default function AdminOrders() {
       const hay = normalizeText([base, metaBits, itemBits].filter(Boolean).join(" "));
       return hay.includes(q);
     });
+  }, [orders, searchQuery, statusFilter]);
+
+  const paymentStatusCounts = useMemo(() => {
+    const c = { all: statusAndSearchFiltered.length, paid: 0, refunded: 0, failed: 0, pending: 0 };
+    for (const o of statusAndSearchFiltered) {
+      const ps = o.payment_status ?? "";
+      if (ps === "paid") c.paid += 1;
+      else if (ps === "refunded") c.refunded += 1;
+      else if (ps === "failed") c.failed += 1;
+      else if (ps === "pending") c.pending += 1;
+    }
+    return c;
+  }, [statusAndSearchFiltered]);
+
+  const renderedOrders = useMemo(() => {
+    const filtered =
+      paymentStatusFilter === "all"
+        ? statusAndSearchFiltered
+        : statusAndSearchFiltered.filter((o) => (o.payment_status ?? "") === paymentStatusFilter);
 
     const sorted = [...filtered].sort((a, b) => {
       const ta = parseTimeMs(a.created_at);
@@ -532,7 +549,7 @@ export default function AdminOrders() {
     });
 
     return sorted;
-  }, [orders, searchQuery, sortDir, statusFilter]);
+  }, [statusAndSearchFiltered, sortDir, paymentStatusFilter]);
 
   const updateStatus = useCallback(
     async (orderId: string, next: OrderStatus) => {
@@ -600,10 +617,9 @@ export default function AdminOrders() {
     lines.push(`Adresa: ${safeString(o.customer_address) || "-"}`);
 
     const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
-    const payment = extractPaymentValueFromNote(metaNote);
 
-    if (payment) {
-      lines.push(`Plaćanje: ${payment}`);
+    if (o.payment_method) {
+      lines.push(`Plaćanje: ${o.payment_method === "card" ? "Kartica" : "Gotovina"}`);
     }
 
     const other = stripPaymentLines(splitNoteLines(metaNote));
@@ -675,9 +691,10 @@ export default function AdminOrders() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {(["all", "pending", "preparing", "done", "cancelled"] as const).map((s) => {
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                {(["all", "pending", "preparing", "done", "cancelled"] as const).map((s) => {
                 const active = statusFilter === s;
                 const label = s === "all" ? "Sve" : STATUS_LABEL[s];
                 const count = s === "all" ? orders.length : counts[s];
@@ -697,6 +714,30 @@ export default function AdminOrders() {
                   </button>
                 );
               })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(["all", "paid", "refunded", "failed", "pending"] as const).map((ps) => {
+                const active = paymentStatusFilter === ps;
+                const label =
+                  ps === "all" ? "Sve plaćanje" : ps === "paid" ? "Plaćeno" : ps === "refunded" ? "Refundirano" : ps === "failed" ? "Neuspelo" : "Čeka plaćanje";
+                const count = paymentStatusCounts[ps];
+
+                return (
+                  <button
+                    key={ps}
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                      active
+                        ? "border-white/20 bg-black/40 text-white"
+                        : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
+                    }`}
+                    onClick={() => setPaymentStatusFilter(ps)}
+                    title="Filter po statusu plaćanja"
+                  >
+                    {label} <span className="text-white/50">({count})</span>
+                  </button>
+                );
+              })}
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -753,9 +794,6 @@ export default function AdminOrders() {
 
                 const parsed = parseOrderItems(o.items);
                 const eur = isEurOrder(o);
-
-                const metaNote = parsed.meta ? safeString(parsed.meta.order_note ?? parsed.meta.note) : "";
-                const payment = extractPaymentValueFromNote(metaNote);
 
                 const computedCount =
                   parsed.meta && parsed.meta.total_items != null
@@ -815,10 +853,12 @@ export default function AdminOrders() {
                           <span className="text-white/50">Adresa:</span> {safeString(o.customer_address) || "—"}
                         </p>
 
-                        {payment ? (
+                        {o.payment_method ? (
                           <p className="mt-2 text-xs text-white/70">
                             <span className="text-white/50">Plaćanje:</span>{" "}
-                            <span className="text-white/90 font-semibold">{payment}</span>
+                            <span className="text-white/90 font-semibold">
+                              {o.payment_method === "card" ? "Kartica" : "Gotovina"}
+                            </span>
                           </p>
                         ) : null}
 
