@@ -26,6 +26,7 @@ type BankartCallbackBody = {
   originalCurrency?: unknown;
   chargebackData?: unknown;
   chargebackReversalData?: unknown;
+  referenceUuid?: unknown;
 };
 
 type OrderRow = {
@@ -272,6 +273,19 @@ async function findOrderForCallback(callback: BankartCallbackBody): Promise<Orde
       .from("orders")
       .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
       .eq("payment_reference", uuid)
+      .maybeSingle();
+
+    if (!error && data) {
+      return data as OrderRow;
+    }
+  }
+
+  const referenceUuid = toTrimmedString(callback.referenceUuid);
+  if (referenceUuid && referenceUuid !== uuid) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+      .eq("payment_reference", referenceUuid)
       .maybeSingle();
 
     if (!error && data) {
