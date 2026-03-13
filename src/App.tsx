@@ -44,6 +44,7 @@ const DEFAULT_SITE_SETTINGS: SiteSettingsSeo = {
 const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminOrders = lazy(() => import("./components/AdminOrders"));
 const AdminMenu = lazy(() => import("./pages/admin/AdminMenu"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
@@ -59,7 +60,7 @@ function AdminChunkFallback() {
   );
 }
 
-function AdminNav({ active }: { active: "orders" | "menu" | "users" | "logs" | "settings" }) {
+function AdminNav({ active }: { active: "dashboard" | "orders" | "menu" | "users" | "logs" | "settings" }) {
   const btnBase = "rounded-xl border px-3 py-2 text-xs font-semibold transition";
   const btnActive = "border-white/20 bg-black/40 text-white";
   const btnIdle = "border-white/10 bg-black/20 text-white/80 hover:border-white/20";
@@ -94,9 +95,19 @@ function AdminNav({ active }: { active: "orders" | "menu" | "users" | "logs" | "
 
           <div className="flex flex-wrap gap-2">
             <button
-              className={`${btnBase} ${active === "orders" ? btnActive : btnIdle}`}
+              className={`${btnBase} ${active === "dashboard" ? btnActive : btnIdle}`}
               onClick={() => {
                 window.location.href = "/admin";
+              }}
+              title="Admin — Pregled"
+            >
+              Pregled
+            </button>
+
+            <button
+              className={`${btnBase} ${active === "orders" ? btnActive : btnIdle}`}
+              onClick={() => {
+                window.location.href = "/admin/orders";
               }}
               title="Admin — Porudžbine"
             >
@@ -370,7 +381,7 @@ function AdminShell({
   active,
   children,
 }: {
-  active: "orders" | "menu" | "users" | "logs" | "settings";
+  active: "dashboard" | "orders" | "menu" | "users" | "logs" | "settings";
   children: React.ReactNode;
 }) {
   return (
@@ -381,7 +392,7 @@ function AdminShell({
   );
 }
 
-function AdminRoute({ page }: { page: "orders" | "menu" | "users" | "logs" | "settings" }) {
+function AdminRoute({ page }: { page: "dashboard" | "orders" | "menu" | "users" | "logs" | "settings" }) {
   const [guard, setGuard] = useState<GuardState>("loading");
   const [lastPath, setLastPath] = useState(getPathname());
 
@@ -526,6 +537,16 @@ function AdminRoute({ page }: { page: "orders" | "menu" | "users" | "logs" | "se
     return null;
   }
 
+  if (page === "dashboard") {
+    return (
+      <AdminShell active="dashboard">
+        <Suspense fallback={<AdminChunkFallback />}>
+          <AdminDashboard />
+        </Suspense>
+      </AdminShell>
+    );
+  }
+
   if (page === "orders") {
     return (
       <AdminShell active="orders">
@@ -660,11 +681,12 @@ export default function App() {
 
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") return <AdminRoute page="orders" />;
+    if (pathname === "/admin/orders") return <AdminRoute page="orders" />;
     if (pathname === "/admin/menu") return <AdminRoute page="menu" />;
     if (pathname === "/admin/users") return <AdminRoute page="users" />;
     if (pathname === "/admin/logs") return <AdminRoute page="logs" />;
     if (pathname === "/admin/settings") return <AdminRoute page="settings" />;
-    return <AdminRoute page="orders" />;
+    return <AdminRoute page="dashboard" />;
   }
 
   if (pathname === "/faq") return <FaqPage />;
