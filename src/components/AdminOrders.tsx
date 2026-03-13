@@ -402,6 +402,69 @@ function formatTimeOnly(ts: number): string {
   }
 }
 
+const BUSINESS_TIMEZONE = "Europe/Belgrade";
+
+function getBusinessDateKey(created_at: string): string {
+  try {
+    const d = new Date(created_at);
+    if (!Number.isFinite(d.getTime())) return "unknown";
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = fmt.formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value ?? "";
+    const month = parts.find((p) => p.type === "month")?.value ?? "";
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    if (!year || !month || !day) return "unknown";
+    return `${year}-${month}-${day}`;
+  } catch {
+    return "unknown";
+  }
+}
+
+function groupOrdersByBusinessDay(
+  orders: OrderRow[],
+  sortDir: "newest" | "oldest",
+): [string, OrderRow[]][] {
+  const map = new Map<string, OrderRow[]>();
+  for (const o of orders) {
+    const key = getBusinessDateKey(o.created_at);
+    const arr = map.get(key) ?? [];
+    arr.push(o);
+    map.set(key, arr);
+  }
+  const entries = Array.from(map.entries());
+  entries.sort(([a], [b]) => {
+    if (a === "unknown") return 1;
+    if (b === "unknown") return -1;
+    return sortDir === "newest" ? b.localeCompare(a) : a.localeCompare(b);
+  });
+  return entries;
+}
+
+function formatDayHeader(dateKey: string): string {
+  if (dateKey === "unknown") return "Nepoznat datum";
+  try {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+    if (!match) return dateKey;
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return dateKey;
+    const d = new Date(Date.UTC(year, month, day));
+    if (!Number.isFinite(d.getTime())) return dateKey;
+    return new Intl.DateTimeFormat("sr-Latn-ME", {
+      timeZone: BUSINESS_TIMEZONE,
+      dateStyle: "long",
+    }).format(d);
+  } catch {
+    return dateKey;
+  }
+}
+
 export default function AdminOrders() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -787,8 +850,13 @@ export default function AdminOrders() {
               Nema porudžbina.
             </div>
           ) : (
-            <div className="space-y-3">
-              {renderedOrders.map((o) => {
+            <div className="space-y-6">
+              {groupOrdersByBusinessDay(renderedOrders, sortDir).map(([dateKey, dayOrders]) => (
+                <div key={dateKey} className="space-y-3">
+                  <h3 className="text-sm font-bold text-white/90 border-b border-white/10 pb-2">
+                    {formatDayHeader(dateKey)}
+                  </h3>
+                  {dayOrders.map((o) => {
                 const status = (o.status ?? "pending") as OrderStatus;
                 const isExpanded = expandedId === o.id;
 
@@ -1015,6 +1083,8 @@ export default function AdminOrders() {
                   </div>
                 );
               })}
+                </div>
+              ))}
             </div>
           )}
         </div>
