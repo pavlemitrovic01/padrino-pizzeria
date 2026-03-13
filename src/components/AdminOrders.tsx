@@ -465,6 +465,72 @@ function formatDayHeader(dateKey: string): string {
   }
 }
 
+function escapeCsvValue(val: string): string {
+  const s = String(val ?? "").replace(/\r?\n/g, " ").trim();
+  if (/[;"\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function formatExportDateTime(created_at: string): string {
+  try {
+    const d = new Date(created_at);
+    if (!Number.isFinite(d.getTime())) return "";
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const parts = fmt.formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value ?? "";
+    const month = parts.find((p) => p.type === "month")?.value ?? "";
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    const hour = parts.find((p) => p.type === "hour")?.value ?? "";
+    const minute = parts.find((p) => p.type === "minute")?.value ?? "";
+    return `${year}-${month}-${day} ${hour}:${minute}`;
+  } catch {
+    return "";
+  }
+}
+
+function buildItemsSummaryNoAddons(o: OrderRow): string {
+  const { items } = parseOrderItems(o.items);
+  return items
+    .map((it) => {
+      const qty = Math.max(1, it.quantity);
+      const size = it.size ? ` (${it.size})` : "";
+      return `${it.name}${size} x${qty}`;
+    })
+    .join(", ");
+}
+
+function generateCsvExport(orders: OrderRow[]): string {
+  const header = "id;datum_vreme;kupac;telefon;adresa;status;status_placanja;nacin_placanja;stavke;ukupno_eur";
+  const rows = orders.map((o) => {
+    const status = (o.status ?? "pending") as OrderStatus;
+    const ukupnoEur =
+      typeof o.total_eur_cents === "number" && Number.isFinite(o.total_eur_cents)
+        ? (o.total_eur_cents / 100).toFixed(2)
+        : "";
+    return [
+      escapeCsvValue(o.id),
+      escapeCsvValue(formatExportDateTime(o.created_at)),
+      escapeCsvValue(o.customer_name ?? ""),
+      escapeCsvValue(o.customer_phone ?? ""),
+      escapeCsvValue(o.customer_address ?? ""),
+      escapeCsvValue(STATUS_LABEL[status] ?? status),
+      escapeCsvValue(o.payment_status ?? ""),
+      escapeCsvValue(o.payment_method === "card" ? "Kartica" : o.payment_method === "cash" ? "Gotovina" : o.payment_method ?? ""),
+      escapeCsvValue(buildItemsSummaryNoAddons(o)),
+      escapeCsvValue(ukupnoEur),
+    ].join(";");
+  });
+  const bom = "\uFEFF";
+  return bom + header + "\r\n" + rows.join("\r\n");
+}
+
 export default function AdminOrders() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -480,6 +546,7 @@ export default function AdminOrders() {
   const [busyStatusById, setBusyStatusById] = useState<Record<string, boolean>>({});
   const [busyTelegramById, setBusyTelegramById] = useState<Record<string, string>>({});
   const [toastById, setToastById] = useState<Record<string, string>>({});
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
 
   const [lastRefreshedAt, setLastRefreshedAt] = useState<number | null>(null);
 
@@ -665,6 +732,26 @@ export default function AdminOrders() {
     setToastById((m) => ({ ...m, [orderId]: ok ? "ID kopiran ✓" : "Kopiranje nije uspjelo" }));
   }, []);
 
+  const handleExportCsv = useCallback(
+    (orders: OrderRow[]) => {
+      setExportFeedback(null);
+      if (orders.length === 0) {
+        setExportFeedback("Nema porudžbina za export.");
+        setTimeout(() => setExportFeedback(null), 4000);
+        return;
+      }
+      const csv = generateCsvExport(orders);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `porudzbine-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [],
+  );
+
   function buildOrderSummary(o: OrderRow, parsed: { meta: MetaItem | null; items: ParsedItem[] }) {
     const eur = isEurOrder(o);
 
@@ -818,6 +905,18 @@ export default function AdminOrders() {
               >
                 Sort: {sortDir === "newest" ? "Najnovije" : "Najstarije"}
               </button>
+
+              <button
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20"
+                onClick={() => handleExportCsv(renderedOrders)}
+                title="Export trenutno filtriranih porudžbina u CSV"
+              >
+                Export CSV
+              </button>
+
+              {exportFeedback ? (
+                <span className="text-xs text-amber-300">{exportFeedback}</span>
+              ) : null}
 
               <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/80">
                 <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
