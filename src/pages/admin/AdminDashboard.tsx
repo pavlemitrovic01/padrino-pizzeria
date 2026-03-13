@@ -4,11 +4,14 @@ import { formatEUR } from "../../lib/money";
 
 const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
 
+const BUSINESS_TIMEZONE = "Europe/Belgrade";
+
 type DashboardOrder = {
   id: string;
   created_at: string;
   status: string | null;
   total_eur_cents: number | null;
+  payment_status: string | null;
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -40,14 +43,33 @@ function safeNumberOrNull(v: unknown): number | null {
   return null;
 }
 
-function isTodayLocal(isoString: string): boolean {
-  const d = new Date(isoString);
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
+function getBusinessDateKey(created_at: string): string {
+  try {
+    const d = new Date(created_at);
+    if (!Number.isFinite(d.getTime())) return "unknown";
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS_TIMEZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = fmt.formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value ?? "";
+    const month = parts.find((p) => p.type === "month")?.value ?? "";
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    if (!year || !month || !day) return "unknown";
+    return `${year}-${month}-${day}`;
+  } catch {
+    return "unknown";
+  }
+}
+
+function getTodayBusinessDateKey(): string {
+  return getBusinessDateKey(new Date().toISOString());
+}
+
+function isTodayBusiness(created_at: string): boolean {
+  return getBusinessDateKey(created_at) === getTodayBusinessDateKey();
 }
 
 function formatTimeOnly(ts: number): string {
@@ -95,6 +117,7 @@ async function fetchOrders(limit: number): Promise<FetchResult> {
         created_at: safeString(o.created_at),
         status: safeString(o.status) || null,
         total_eur_cents: safeNumberOrNull(o.total_eur_cents),
+        payment_status: safeString(o.payment_status) || null,
       }));
     return { ok: true, orders };
   }
@@ -151,11 +174,13 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const todayOrders = orders.filter((o) => isTodayLocal(o.created_at));
+  const todayOrders = orders.filter((o) => isTodayBusiness(o.created_at));
   const pending = todayOrders.filter((o) => (o.status ?? "pending") === "pending");
   const preparing = todayOrders.filter((o) => o.status === "preparing");
   const done = todayOrders.filter((o) => o.status === "done");
-  const revenueCents = done.reduce((sum, o) => sum + safeInt(o.total_eur_cents, 0), 0);
+  const revenueCents = todayOrders
+    .filter((o) => (o.payment_status ?? "") !== "refunded")
+    .reduce((sum, o) => sum + safeInt(o.total_eur_cents, 0), 0);
 
   return (
     <div>
@@ -203,7 +228,7 @@ export default function AdminDashboard() {
             <p className="mt-2 text-2xl font-bold text-emerald-200">{done.length}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs font-semibold text-white/50">Promet danas (završeno)</p>
+            <p className="text-xs font-semibold text-white/50">Ukupna vrednost danas</p>
             <p className="mt-2 text-2xl font-bold text-white">{formatEUR(revenueCents)}</p>
           </div>
         </div>
