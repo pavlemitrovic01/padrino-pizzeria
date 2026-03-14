@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { DEFAULT_PUBLIC_BUSINESS_SETTINGS, toStr } from "../lib/publicBusinessSettings";
 import { supabase } from "../lib/supabaseClient";
 
 const PAYMENT_BADGES = [
@@ -7,8 +8,6 @@ const PAYMENT_BADGES = [
   { label: "Mastercard", accent: "light" as const },
   { label: "Maestro", accent: "light" as const },
 ];
-
-const DEFAULT_ADDRESS_LINE = "Jadranski put BB • Budva";
 
 function scrollToTop() {
   const hero = document.getElementById("top");
@@ -43,16 +42,8 @@ function PaymentBadge({
   );
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function toStr(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
-}
-
 export default function Footer() {
-  const [addressLine, setAddressLine] = useState(DEFAULT_ADDRESS_LINE);
+  const [addressLine, setAddressLine] = useState(DEFAULT_PUBLIC_BUSINESS_SETTINGS.address_line);
 
   const onTop = useCallback(() => {
     window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -69,9 +60,9 @@ export default function Footer() {
         .eq("id", 1)
         .maybeSingle();
 
-      if (cancelled || error || !isRecord(data)) return;
+      if (cancelled || error || typeof data !== "object" || data === null || Array.isArray(data)) return;
 
-      const nextAddress = toStr(data.address_line);
+      const nextAddress = toStr((data as { address_line?: unknown }).address_line);
       if (!nextAddress) return;
 
       setAddressLine(nextAddress);

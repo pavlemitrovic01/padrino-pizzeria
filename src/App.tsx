@@ -12,6 +12,7 @@ import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
 
 import { getAdminApiBase } from "./lib/adminApiBase";
+import { DEFAULT_PUBLIC_BUSINESS_SETTINGS, normalizePublicBusinessSettings } from "./lib/publicBusinessSettings";
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
 import { supabase } from "./lib/supabaseClient";
 
@@ -31,15 +32,6 @@ type SiteSettingsSeo = {
   email: string;
   address_line: string;
   default_city: string;
-};
-
-const DEFAULT_SITE_SETTINGS: SiteSettingsSeo = {
-  id: 1,
-  phone_display: "+382 67 603 780",
-  phone_e164: "+38267603780",
-  email: "padrinobudva@gmail.com",
-  address_line: "Jadranski put BB (Kotorski Semafori)",
-  default_city: "Budva",
 };
 
 const ADMIN_API_BASE = getAdminApiBase();
@@ -283,31 +275,15 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function toStr(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
-}
-
-function toSafeInt(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
-  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
-    return Math.trunc(Number(v));
-  }
-  return null;
-}
-
-function normalizeSeoSettings(raw: unknown): SiteSettingsSeo | null {
-  if (!isRecord(raw)) return null;
-
-  const id = toSafeInt(raw.id);
-  if (id !== 1) return null;
-
+function toSiteSettingsSeo(normalized: ReturnType<typeof normalizePublicBusinessSettings>): SiteSettingsSeo | null {
+  if (!normalized) return null;
   return {
-    id,
-    phone_display: toStr(raw.phone_display) || DEFAULT_SITE_SETTINGS.phone_display,
-    phone_e164: toStr(raw.phone_e164) || DEFAULT_SITE_SETTINGS.phone_e164,
-    email: toStr(raw.email) || DEFAULT_SITE_SETTINGS.email,
-    address_line: toStr(raw.address_line) || DEFAULT_SITE_SETTINGS.address_line,
-    default_city: toStr(raw.default_city) || DEFAULT_SITE_SETTINGS.default_city,
+    id: normalized.id,
+    phone_display: normalized.phone_display,
+    phone_e164: normalized.phone_e164,
+    email: normalized.email,
+    address_line: normalized.address_line,
+    default_city: normalized.default_city,
   };
 }
 
@@ -597,10 +573,19 @@ function AdminRoute({ page }: { page: "dashboard" | "orders" | "menu" | "users" 
   );
 }
 
+const D = DEFAULT_PUBLIC_BUSINESS_SETTINGS;
+
 export default function App() {
   const pathname = useMemo(() => getPathname(), []);
   const hash = useMemo(() => getHash(), []);
-  const [siteSettings, setSiteSettings] = useState<SiteSettingsSeo>(DEFAULT_SITE_SETTINGS);
+  const [siteSettings, setSiteSettings] = useState<SiteSettingsSeo>({
+    id: D.id,
+    phone_display: D.phone_display,
+    phone_e164: D.phone_e164,
+    email: D.email,
+    address_line: D.address_line,
+    default_city: D.default_city,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -614,7 +599,7 @@ export default function App() {
 
       if (cancelled || error) return;
 
-      const normalized = normalizeSeoSettings(data);
+      const normalized = toSiteSettingsSeo(normalizePublicBusinessSettings(data));
       if (!normalized) return;
 
       setSiteSettings(normalized);
@@ -640,12 +625,12 @@ export default function App() {
       "@type": "Restaurant",
       name: "Padrino Budva",
       url: "https://padrinobudva.com",
-      telephone: siteSettings.phone_e164 || siteSettings.phone_display || DEFAULT_SITE_SETTINGS.phone_e164,
-      email: siteSettings.email || DEFAULT_SITE_SETTINGS.email,
+      telephone: siteSettings.phone_e164 || siteSettings.phone_display || D.phone_e164,
+      email: siteSettings.email || D.email,
       address: {
         "@type": "PostalAddress",
-        streetAddress: siteSettings.address_line || DEFAULT_SITE_SETTINGS.address_line,
-        addressLocality: siteSettings.default_city || DEFAULT_SITE_SETTINGS.default_city,
+        streetAddress: siteSettings.address_line || D.address_line,
+        addressLocality: siteSettings.default_city || D.default_city,
         addressCountry: "ME",
       },
       servesCuisine: ["Pizza", "Italian"],

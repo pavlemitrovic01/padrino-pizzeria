@@ -2,37 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { FaWhatsapp, FaViber, FaInstagram } from "react-icons/fa";
 import { SiGooglemaps } from "react-icons/si";
+import { DEFAULT_PUBLIC_BUSINESS_SETTINGS, normalizePublicBusinessSettings, type PublicBusinessSettings } from "../lib/publicBusinessSettings";
 import { supabase } from "../lib/supabaseClient";
-
-type SiteSettings = {
-  id: number;
-  phone_display: string;
-  phone_e164: string;
-  email: string;
-  address_line: string;
-  hours_display: string;
-  maps_url: string;
-  instagram_url: string;
-  whatsapp_url: string;
-  viber_url: string;
-  default_city: string;
-  default_postcode: string;
-};
-
-const DEFAULT_SETTINGS: SiteSettings = {
-  id: 1,
-  phone_display: "+382 67 603 780",
-  phone_e164: "+38267603780",
-  email: "padrinobudva@gmail.com",
-  address_line: "Jadranski put BB (Kotorski Semafori)",
-  hours_display: "12–00",
-  maps_url: "https://maps.app.goo.gl/ouqBC1P8rD62qij99",
-  instagram_url: "https://www.instagram.com/padrino_budva",
-  whatsapp_url: "https://wa.me/38267603780",
-  viber_url: "viber://chat?number=38267603780",
-  default_city: "Budva",
-  default_postcode: "85310",
-};
 
 type SocialItem = {
   label: string;
@@ -43,46 +14,8 @@ type SocialItem = {
   glowBg: string;
 };
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function toStr(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
-}
-
-function toSafeInt(v: unknown): number | null {
-  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
-  if (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) {
-    return Math.trunc(Number(v));
-  }
-  return null;
-}
-
-function normalizeSettings(raw: unknown): SiteSettings | null {
-  if (!isRecord(raw)) return null;
-
-  const id = toSafeInt(raw.id);
-  if (id !== 1) return null;
-
-  return {
-    id,
-    phone_display: toStr(raw.phone_display) || DEFAULT_SETTINGS.phone_display,
-    phone_e164: toStr(raw.phone_e164) || DEFAULT_SETTINGS.phone_e164,
-    email: toStr(raw.email) || DEFAULT_SETTINGS.email,
-    address_line: toStr(raw.address_line) || DEFAULT_SETTINGS.address_line,
-    hours_display: toStr(raw.hours_display) || DEFAULT_SETTINGS.hours_display,
-    maps_url: toStr(raw.maps_url) || DEFAULT_SETTINGS.maps_url,
-    instagram_url: toStr(raw.instagram_url) || DEFAULT_SETTINGS.instagram_url,
-    whatsapp_url: toStr(raw.whatsapp_url) || DEFAULT_SETTINGS.whatsapp_url,
-    viber_url: toStr(raw.viber_url) || DEFAULT_SETTINGS.viber_url,
-    default_city: toStr(raw.default_city) || DEFAULT_SETTINGS.default_city,
-    default_postcode: toStr(raw.default_postcode) || DEFAULT_SETTINGS.default_postcode,
-  };
-}
-
 export default function Contact() {
-  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<PublicBusinessSettings>(DEFAULT_PUBLIC_BUSINESS_SETTINGS);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +31,7 @@ export default function Contact() {
 
       if (cancelled || error) return;
 
-      const normalized = normalizeSettings(data);
+      const normalized = normalizePublicBusinessSettings(data);
       if (!normalized) return;
 
       setSettings(normalized);
