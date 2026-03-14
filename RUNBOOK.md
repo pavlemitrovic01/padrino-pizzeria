@@ -41,8 +41,9 @@ Ove varijable su dostupne u browseru i MORAJU imati `VITE_` prefiks:
 - `VITE_CARD_PAYMENTS_ENABLED` (opciono)
 - `VITE_BANKART_PAYMENTJS_ENABLED` (opciono)
 - `VITE_BANKART_PAYMENTJS_PUBLIC_KEY` (opciono)
+- `VITE_API_BASE_URL` (opciono, override API base u dev-u)
 
-Koriste se za: Supabase client, toggle kartica, PaymentJS.
+Koriste se za: Supabase client, toggle kartica, PaymentJS, API base.
 
 ---
 
@@ -73,20 +74,23 @@ Ove varijable su **server-side** i NE SMIJU imati `VITE_` prefiks:
 ### 3.1 Prvi put / nova mašina
 ```bash
 vercel link
-3.2 Povlačenje env varijabli lokalno
 vercel pull
+```
 
+➡️ `vercel pull` povlači env varijable u `.env.local`
 
-➡️ Ovo pravi / ažurira .env.local
-
-3.3 Production deploy
+### 3.2 Production deploy
+```bash
 vercel --prod
-
+```
 
 Ako su env varijable promijenjene na Vercel-u → OBAVEZNO novi deploy
 
-4) Testiranje (obavezno prije svake isporuke)
-4.1 PowerShell test Telegram endpointa (PROD)
+---
+
+## 4) Testiranje (obavezno prije svake isporuke)
+
+### 4.1 PowerShell test Telegram endpointa (PROD)
 
 ⚠️ U PowerShell-u curl je alias za Invoke-WebRequest
 ➡️ Uvijek koristiti Invoke-RestMethod
@@ -107,7 +111,7 @@ Očekivani odgovor:
 
 I poruka mora stići u Telegram grupu.
 
-4.2 End-to-end test (najbitniji)
+### 4.2 End-to-end test (najbitniji)
 
 Napravi porudžbinu kroz UI (production)
 
