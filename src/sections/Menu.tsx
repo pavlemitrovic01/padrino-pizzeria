@@ -207,6 +207,7 @@ export default function Menu() {
   const { addToCart, openCart } = useCart();
 
   const [items, setItems] = useState<DbMenuItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [flowOpen, setFlowOpen] = useState(false);
 
   const [addedId, setAddedId] = useState<string | null>(null);
@@ -223,15 +224,20 @@ export default function Menu() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     async function load() {
-      const { data } = await supabase
-        .from("menu_items")
-        .select("*")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
-      if (cancelled) return;
-      setItems((data ?? []) as DbMenuItem[]);
+      try {
+        const { data } = await supabase
+          .from("menu_items")
+          .select("*")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true });
+        if (cancelled) return;
+        setItems((data ?? []) as DbMenuItem[]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
     void load();
     return () => {
@@ -430,7 +436,25 @@ export default function Menu() {
 
             <div className="relative h-full overflow-y-auto overscroll-contain pb-24 pr-1 [-webkit-overflow-scrolling:touch] sm:pb-4 sm:pr-2">
               <div className="grid grid-cols-2 gap-4 pb-3 sm:gap-5 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7">
-                {pizzasOrdered.map((row, idx) => {
+                {loading && items.length === 0
+                  ? Array.from({ length: 8 }).map((_, i) => (
+                      <div
+                        key={`skeleton-${i}`}
+                        className="flex flex-col overflow-hidden rounded-[28px] p-glass animate-pulse"
+                        aria-hidden="true"
+                      >
+                        <div className="h-[118px] w-full bg-white/10 sm:h-[132px]" />
+                        <div className="flex flex-1 flex-col p-4 sm:p-[18px]">
+                          <div className="h-4 w-3/4 rounded bg-white/15" />
+                          <div className="mt-2 h-3 w-full rounded bg-white/10" />
+                          <div className="mt-1 h-3 w-5/6 rounded bg-white/10" />
+                          <div className="mt-4 h-5 w-16 rounded bg-white/15" />
+                        </div>
+                      </div>
+                    ))
+                  : null}
+                {!loading || items.length > 0
+                  ? pizzasOrdered.map((row, idx) => {
                   const price = getSafeCents(row);
                   const desc = row.description ? clampText(row.description, 78) : "";
                   const isAdded = addedId === row.id;
@@ -544,7 +568,8 @@ export default function Menu() {
                   }
 
                   return card;
-                })}
+                })
+                  : null}
               </div>
             </div>
           </div>
