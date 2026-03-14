@@ -220,6 +220,11 @@ function isFinalPaymentStatus(value: string | null | undefined): boolean {
   return value === "paid" || value === "failed" || value === "cancelled" || value === "refunded";
 }
 
+/** Skip Bankart fetch only for truly terminal statuses. Paid orders can become refunded. */
+function shouldSkipStatusRefreshForPaymentStatus(status: string | null | undefined): boolean {
+  return status === "failed" || status === "cancelled" || status === "refunded";
+}
+
 function getStatusRefreshMinIntervalMs(): number {
   const seconds = safeNumber(getFirstEnv("BANKART_STATUS_MIN_INTERVAL_SECONDS"), 15);
   const normalizedSeconds = Math.max(12, Math.trunc(seconds));
@@ -240,7 +245,7 @@ function getLastStatusCheckedAt(paymentMeta: unknown): number | null {
 
 function shouldFetchBankartStatus(order: OrderRow): boolean {
   if (order.payment_method !== "card") return false;
-  if (isFinalPaymentStatus(order.payment_status)) return false;
+  if (shouldSkipStatusRefreshForPaymentStatus(order.payment_status)) return false;
 
   const lastCheckedAt = getLastStatusCheckedAt(order.payment_meta);
   if (lastCheckedAt == null) return true;
@@ -484,7 +489,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 200, buildResponseBody(order, { source: "db_cash", refreshed: false }));
     }
 
-    if (isFinalPaymentStatus(order.payment_status)) {
+    if (shouldSkipStatusRefreshForPaymentStatus(order.payment_status)) {
       return json(res, 200, buildResponseBody(order, { source: "db", refreshed: false }));
     }
 
