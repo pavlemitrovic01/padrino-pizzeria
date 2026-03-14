@@ -38,12 +38,12 @@ Ove varijable su dostupne u browseru i MORAJU imati `VITE_` prefiks:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_CARD_PAYMENTS_ENABLED` (opciono)
-- `VITE_BANKART_PAYMENTJS_ENABLED` (opciono)
-- `VITE_BANKART_PAYMENTJS_PUBLIC_KEY` (opciono)
+- `VITE_BANKART_PAYMENTJS_ENABLED` (opciono) — runtime toggle za kartice
+- `VITE_BANKART_PAYMENTJS_PUBLIC_KEY` (opciono) — PaymentJS public key
+- `VITE_CARD_PAYMENTS_ENABLED` (opciono, legacy) — umbrella flag; runtime koristi BANKART_* par
 - `VITE_API_BASE_URL` (opciono, override API base u dev-u)
 
-Koriste se za: Supabase client, toggle kartica, PaymentJS, API base.
+Koriste se za: Supabase client, toggle kartica (BANKART_*), PaymentJS, API base.
 
 ---
 
