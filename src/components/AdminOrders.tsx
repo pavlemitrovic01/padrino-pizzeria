@@ -821,7 +821,7 @@ export default function AdminOrders() {
             <h2 className="text-3xl font-extrabold">Admin — Porudžbine</h2>
             <p className="mt-2 text-white/70">Admin koristi server-side API (service role) za SELECT/UPDATE.</p>
             {import.meta.env.DEV ? (
-              <p className="mt-1 text-xs text-white/50">DEV: Admin API ide na https://padrinobudva.com</p>
+              <p className="mt-1 text-xs text-white/50">DEV: Admin API base: {ADMIN_API_BASE || "(same origin)"}</p>
             ) : null}
             {lastRefreshLabel ? (
               <p className="mt-1 text-xs text-white/50">Posljednje osvježavanje: {lastRefreshLabel}</p>
