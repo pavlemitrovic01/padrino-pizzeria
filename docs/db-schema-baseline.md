@@ -5,6 +5,18 @@ Dokumentira samo ono što se može dokazati iz trenutnog koda. Koristi se za odr
 
 ---
 
+## Schema Strategy (policy)
+
+**Trenutno stanje:** Repo NEMA pravu migration istoriju. Nema `supabase/migrations`, nema `config.toml`, nema SQL fajlova.
+
+**Ovaj dokument:** Samo informativan / referenca. NIJE source-of-truth za schema.
+
+**Budući prvi DB task:** Kreirati pravi baseline iz LIVE Supabase baze. Od tog momenta, sve schema promene moraju ići kroz migracije.
+
+**Zabranjeno sada:** Nagađani SQL, lažni baseline, DB/schema promene, pretvaranje da repo već ima migration story.
+
+---
+
 ## Proven from code
 
 ### `site_settings`
@@ -119,5 +131,6 @@ Dokumentira samo ono što se može dokazati iz trenutnog koda. Koristi se za odr
 
 ## Napomene
 
-- Nema migracija u repou. Schema promene treba raditi manualno u Supabase dashboardu ili kroz prave migracije.
-- Ako dodaš novu kolonu ili tabelu, ažuriraj ovaj dokument ako je potrebno za održavanje.
+- Repo nema migration setup. Do prvog realnog baseline-a iz live DB-a, schema promene idu manualno (Supabase dashboard).
+- Posle uspostavljenog baseline-a, sve promene kroz migracije.
+- Ako dodaš novu kolonu/tabelu, ažuriraj ovaj dokument za održavanje.

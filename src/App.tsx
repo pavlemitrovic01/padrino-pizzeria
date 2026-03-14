@@ -635,6 +635,7 @@ export default function App() {
       },
       servesCuisine: ["Pizza", "Italian"],
       priceRange: "$$",
+      paymentAccepted: ["Cash", "CreditCard"],
     });
 
     return () => {
