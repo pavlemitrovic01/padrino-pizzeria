@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 
 type AdminRole = "owner" | "staff";
@@ -65,30 +66,7 @@ type AdminSettingsPostErr = {
 
 type AdminSettingsPostResponse = AdminSettingsPostOk | AdminSettingsPostErr;
 
-function resolveAdminApiBase(): string {
-  const isDev =
-    typeof import.meta !== "undefined" &&
-    typeof import.meta.env !== "undefined" &&
-    import.meta.env.DEV === true;
-
-  if (!isDev) return "";
-
-  try {
-    const host = window.location.hostname;
-    const port = window.location.port;
-    const isLocalHost = host === "localhost" || host === "127.0.0.1";
-
-    if (isLocalHost && port === "3000") {
-      return "";
-    }
-  } catch {
-    // fallback ispod
-  }
-
-  return "https://padrinobudva.com";
-}
-
-const ADMIN_API_BASE = resolveAdminApiBase();
+const ADMIN_API_BASE = getAdminApiBase();
 
 const EMPTY_EDITOR: EditorState = {
   phone_display: "",

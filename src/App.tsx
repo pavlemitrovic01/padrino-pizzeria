@@ -11,6 +11,7 @@ import About from "./sections/About";
 import Contact from "./sections/Contact";
 import Footer from "./sections/Footer";
 
+import { getAdminApiBase } from "./lib/adminApiBase";
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
 import { supabase } from "./lib/supabaseClient";
 
@@ -41,7 +42,7 @@ const DEFAULT_SITE_SETTINGS: SiteSettingsSeo = {
   default_city: "Budva",
 };
 
-const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+const ADMIN_API_BASE = getAdminApiBase();
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));

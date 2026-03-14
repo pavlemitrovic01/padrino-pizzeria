@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getAdminApiBase } from "../lib/adminApiBase";
 import { supabaseAdminAuth } from "../lib/supabaseAdminAuthClient";
 import { formatEUR, formatRSD, toSafeInt } from "../lib/money";
 
@@ -233,8 +234,7 @@ function paymentPill(ps: string): { label: string; cls: string } {
   return PAYMENT_STATUS_MAP[ps] ?? { label: ps, cls: "bg-white/10 text-white/70 border-white/10" };
 }
 
-// DEV poziva prod API; koristimo public domen radi stabilnosti.
-const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+const ADMIN_API_BASE = getAdminApiBase();
 
 type AdminStatusUpdateResponse = { ok: true; status: OrderStatus } | { ok: false; error: string };
 

@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 
 type AdminRole = "owner" | "staff";
@@ -67,7 +68,7 @@ function safeDateTime(value: string) {
   }
 }
 
-const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+const ADMIN_API_BASE = getAdminApiBase();
 
 async function getSessionToken(): Promise<string> {
   const { data } = await supabaseAdminAuth.auth.getSession();

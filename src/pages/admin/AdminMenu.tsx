@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 import { formatEUR } from "../../lib/money";
 
@@ -78,30 +79,7 @@ type EditorState = {
   isActive: boolean;
 };
 
-function resolveAdminApiBase(): string {
-  const isDev =
-    typeof import.meta !== "undefined" &&
-    typeof import.meta.env !== "undefined" &&
-    import.meta.env.DEV === true;
-
-  if (!isDev) return "";
-
-  try {
-    const host = window.location.hostname;
-    const port = window.location.port;
-    const isLocalHost = host === "localhost" || host === "127.0.0.1";
-
-    if (isLocalHost && port === "3000") {
-      return "";
-    }
-  } catch {
-    // fallback below
-  }
-
-  return "https://padrinobudva.com";
-}
-
-const ADMIN_API_BASE = resolveAdminApiBase();
+const ADMIN_API_BASE = getAdminApiBase();
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const CATEGORY_OPTIONS: Array<{ value: MenuCategory; label: string }> = [

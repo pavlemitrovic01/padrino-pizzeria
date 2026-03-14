@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 
 type AdminRoleState = "checking" | "none" | "admin" | "not-admin";
@@ -39,7 +40,7 @@ function extractSupabaseErrorMessage(err: unknown): string {
   return "Greška pri prijavi. Pokušajte ponovo.";
 }
 
-const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+const ADMIN_API_BASE = getAdminApiBase();
 
 async function checkAdminByToken(token: string): Promise<AdminMeVerdict> {
   try {

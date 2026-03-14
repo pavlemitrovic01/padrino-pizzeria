@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 import { formatEUR } from "../../lib/money";
 
-const ADMIN_API_BASE = import.meta.env.DEV ? "https://padrinobudva.com" : "";
+const ADMIN_API_BASE = getAdminApiBase();
 
 const BUSINESS_TIMEZONE = "Europe/Belgrade";
 
