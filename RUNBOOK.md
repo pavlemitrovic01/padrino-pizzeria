@@ -30,15 +30,19 @@ Flow porudžbine:
 
 ## 2) Environment variables (OBAVEZNO 1:1)
 
+**Setup:** Kopiraj `.env.example` u `.env.local` i popuni stvarne vrednosti. Na Vercel-u postavi env u dashboardu. Supabase Edge funkcije koriste iste varijable — postavi ih u Supabase dashboardu za svaku funkciju.
+
 ### 2.1 Frontend (Vite / browser)
 
 Ove varijable su dostupne u browseru i MORAJU imati `VITE_` prefiks:
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+- `VITE_CARD_PAYMENTS_ENABLED` (opciono)
+- `VITE_BANKART_PAYMENTJS_ENABLED` (opciono)
+- `VITE_BANKART_PAYMENTJS_PUBLIC_KEY` (opciono)
 
-Koriste se isključivo za:
-- Supabase client u frontend-u
+Koriste se za: Supabase client, toggle kartica, PaymentJS.
 
 ---
 
@@ -46,10 +50,15 @@ Koriste se isključivo za:
 
 Ove varijable su **server-side** i NE SMIJU imati `VITE_` prefiks:
 
+**Obavezne:**
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
+
+**Za kartice (Bankart):** `BANKART_API_KEY`, `BANKART_API_USERNAME`, `BANKART_API_PASSWORD`, `BANKART_SHARED_SECRET`
+
+**Opcione:** `TELEGRAM_WEBHOOK_SECRET`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (rate limit), `ADMIN_FALLBACK_EMAIL`, `PUBLIC_SITE_URL`, `PAYMENTS_EDGE_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_ANON_KEY`
 
 #### Bitne napomene
 - `SUPABASE_SERVICE_ROLE_KEY` ≠ `VITE_SUPABASE_ANON_KEY`

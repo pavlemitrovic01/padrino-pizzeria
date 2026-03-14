@@ -33,12 +33,6 @@ type AdminMenuRow = {
   created_at: string;
 };
 
-/**
- * Break-glass fallback samo ako admin_users tabela ne postoji.
- * U tvom projektu tabela postoji, pa se ovo realno ne koristi.
- */
-const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
-
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
@@ -95,6 +89,11 @@ function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
 }
 
+function isFallbackAdmin(email: string): boolean {
+  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
+  return !!fallback && fallback === normalizeEmail(email);
+}
+
 function getBearerToken(req: ReqLike): string {
   const h = headerString(req, "authorization") || headerString(req, "Authorization");
   if (!h) return "";
@@ -125,7 +124,7 @@ async function getAdminFromDb(
 
   if (error) {
     if (looksLikeMissingTable(error)) {
-      const fallback = FALLBACK_ADMIN_EMAILS.has(e);
+      const fallback = isFallbackAdmin(e);
       return { table: "missing", isAdmin: fallback, role: fallback ? "owner" : null };
     }
     return { table: "error", isAdmin: false, role: null };

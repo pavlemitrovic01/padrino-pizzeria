@@ -45,12 +45,6 @@ type OrderRow = {
   note?: unknown;
 };
 
-/**
- * Break-glass fallback samo ako admin_users tabela ne postoji (deploy/migracija).
- * Pošto si tabelu već napravio, realno se ovo neće koristiti.
- */
-const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
-
 // Hard timeout da Vercel funkcija nikad ne visi na Telegram fetch-u
 const TELEGRAM_FETCH_TIMEOUT_MS = 7000;
 
@@ -125,6 +119,11 @@ function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
 }
 
+function isFallbackAdmin(email: string): boolean {
+  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
+  return !!fallback && fallback === normalizeEmail(email);
+}
+
 function looksLikeMissingTable(err: unknown): boolean {
   const msg =
     typeof (err as { message?: unknown })?.message === "string"
@@ -141,7 +140,7 @@ async function isAdminEmailDb(email: unknown): Promise<boolean> {
   const { data, error } = await supabase.from("admin_users").select("email, enabled").eq("email", e).maybeSingle();
 
   if (error) {
-    if (looksLikeMissingTable(error)) return FALLBACK_ADMIN_EMAILS.has(e);
+    if (looksLikeMissingTable(error)) return isFallbackAdmin(e);
     return false;
   }
 

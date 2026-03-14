@@ -25,6 +25,7 @@
   },
   "include": ["src", "vite-env.d.ts"],
   "exclude": [
+    "**/*.test.ts",
     "node_modules",
     "dist",
     "supabase",

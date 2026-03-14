@@ -75,11 +75,10 @@ function buildSupabaseAdmin() {
 
 const supabase = buildSupabaseAdmin();
 
-/**
- * Break-glass fallback (samo dok admin_users tabela NE postoji).
- * Čim tabela postoji, koristi se ISKLJUČIVO DB allowlist.
- */
-const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
+function isFallbackAdmin(email: string): boolean {
+  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
+  return !!fallback && fallback === normalizeEmail(email);
+}
 
 function looksLikeMissingTable(err: unknown): boolean {
   const msg =
@@ -109,7 +108,7 @@ async function getAdminRoleFromDb(email: string): Promise<{ table: TableState; i
 
   if (error) {
     if (looksLikeMissingTable(error)) {
-      const fallback = FALLBACK_ADMIN_EMAILS.has(normalized);
+      const fallback = isFallbackAdmin(normalized);
       return { table: "missing", isAdmin: fallback, role: fallback ? "owner" : null };
     }
 

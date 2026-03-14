@@ -267,7 +267,7 @@ export default function Contact() {
 
             <div>
               <div className="text-xs tracking-[0.22em] uppercase text-white/50">
-                Radno vreme
+                Radno Vrijeme
               </div>
               <div className="mt-2 text-white/92 font-semibold text-lg">
                 {settings.hours_display}

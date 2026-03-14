@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
 type PaymentMethod = "cash" | "card";
 type Json = Record<string, unknown>;
@@ -537,6 +539,22 @@ function getClientIp(req: ReqLike): string {
   return headerStringCI(req, "x-real-ip");
 }
 
+let ratelimitInstance: Ratelimit | null = null;
+
+function getRatelimit(): Ratelimit | null {
+  const url = getEnv("UPSTASH_REDIS_REST_URL");
+  const token = getEnv("UPSTASH_REDIS_REST_TOKEN");
+  if (!url || !token) return null;
+  if (!ratelimitInstance) {
+    ratelimitInstance = new Ratelimit({
+      redis: new Redis({ url, token }),
+      limiter: Ratelimit.fixedWindow(10, "60 s"),
+      analytics: false,
+    });
+  }
+  return ratelimitInstance;
+}
+
 function centsToAmountString(cents: number): string {
   const normalized = Number.isFinite(cents) ? Math.max(0, Math.trunc(cents)) : 0;
   return (normalized / 100).toFixed(2);
@@ -927,6 +945,34 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
   if (req.method !== "POST") {
     return json(res, 405, { ok: false, error: "Method not allowed" });
+  }
+
+  const ratelimit = getRatelimit();
+  if (!ratelimit) {
+    console.warn("[create-order] Rate limiting not active: UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN not set");
+  } else {
+    try {
+      const ip = getClientIp(req);
+      const result = await ratelimit.limit(ip);
+      if (!result.success) {
+        const retryAfter = result.reset && Number.isFinite(result.reset)
+          ? Math.max(1, Math.ceil((result.reset - Date.now()) / 1000))
+          : 60;
+        res.status(429);
+        res.setHeader("Retry-After", String(retryAfter));
+        res.setHeader("content-type", "application/json; charset=utf-8");
+        res.setHeader("Cache-Control", "no-store");
+        res.send(
+          JSON.stringify({
+            ok: false,
+            error: `Previše zahteva. Pokušajte ponovo za ${retryAfter} sekundi.`,
+          }),
+        );
+        return;
+      }
+    } catch (err) {
+      console.warn("[create-order] Rate limit check failed, allowing request:", err);
+    }
   }
 
   try {

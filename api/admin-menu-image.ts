@@ -19,7 +19,6 @@ type ResLike = {
 
 type AdminRole = "owner" | "staff";
 
-const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
 const MENU_IMAGES_BUCKET = "menu-images";
 const ADMIN_PATH_PREFIX = "admin/";
 
@@ -79,6 +78,11 @@ function normalizeEmail(v: string): string {
   return v.trim().toLowerCase();
 }
 
+function isFallbackAdmin(email: string): boolean {
+  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
+  return !!fallback && fallback === normalizeEmail(email);
+}
+
 function getBearerToken(req: ReqLike): string {
   const h = headerString(req, "authorization") || headerString(req, "Authorization");
   if (!h) return "";
@@ -113,7 +117,7 @@ async function getAdminFromDb(
 
   if (error) {
     if (looksLikeMissingTable(error)) {
-      const fallback = FALLBACK_ADMIN_EMAILS.has(e);
+      const fallback = isFallbackAdmin(e);
       return { table: "missing", isAdmin: fallback, role: fallback ? "owner" : null };
     }
     return { table: "error", isAdmin: false, role: null };

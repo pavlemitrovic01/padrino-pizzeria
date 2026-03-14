@@ -75,14 +75,13 @@ function buildSupabaseAdmin() {
 
 const supabase = buildSupabaseAdmin();
 
-/**
- * Break-glass fallback samo ako admin_users tabela ne postoji (deploy/migracija).
- * Pošto si ti tabelu već napravio, realno se ovo neće koristiti.
- */
-const FALLBACK_ADMIN_EMAILS = new Set<string>(["pavlemitrovic01@gmail.com"]);
-
 function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
+}
+
+function isFallbackAdmin(email: string): boolean {
+  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
+  return !!fallback && fallback === normalizeEmail(email);
 }
 
 function getBearerToken(req: ReqLike): string {
@@ -115,7 +114,7 @@ async function isAdminEmailDb(email: string): Promise<boolean> {
 
   if (error) {
     if (looksLikeMissingTable(error)) {
-      return FALLBACK_ADMIN_EMAILS.has(e);
+      return isFallbackAdmin(e);
     }
     return false;
   }
