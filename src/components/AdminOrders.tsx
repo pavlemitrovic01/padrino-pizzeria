@@ -840,97 +840,98 @@ export default function AdminOrders() {
           </div>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="flex flex-col gap-2">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] shadow-[0_4px_24px_rgba(0,0,0,0.25)]">
+          <div className="p-5 space-y-5">
+            {/* Status filters */}
+            <div className="space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/45">Status porudžbine</span>
               <div className="flex flex-wrap gap-2">
                 {(["all", "pending", "preparing", "done", "cancelled"] as const).map((s) => {
-                const active = statusFilter === s;
-                const label = s === "all" ? "Sve" : STATUS_LABEL[s];
-                const count = s === "all" ? orders.length : counts[s];
-
-                return (
-                  <button
-                    key={s}
-                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
-                      active
-                        ? "border-white/20 bg-black/40 text-white"
-                        : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
-                    }`}
-                    onClick={() => setStatusFilter(s)}
-                    title="Filter po statusu"
-                  >
-                    {label} <span className="text-white/50">({count})</span>
-                  </button>
-                );
-              })}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(["all", "paid", "refunded", "failed", "pending"] as const).map((ps) => {
-                const active = paymentStatusFilter === ps;
-                const label =
-                  ps === "all" ? "Sve plaćanje" : ps === "paid" ? "Plaćeno" : ps === "refunded" ? "Refundirano" : ps === "failed" ? "Neuspelo" : "Čeka plaćanje";
-                const count = paymentStatusCounts[ps];
-
-                return (
-                  <button
-                    key={ps}
-                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
-                      active
-                        ? "border-white/20 bg-black/40 text-white"
-                        : "border-white/10 bg-black/20 text-white/80 hover:border-white/20"
-                    }`}
-                    onClick={() => setPaymentStatusFilter(ps)}
-                    title="Filter po statusu plaćanja"
-                  >
-                    {label} <span className="text-white/50">({count})</span>
-                  </button>
-                );
-              })}
+                  const active = statusFilter === s;
+                  const label = s === "all" ? "Sve" : STATUS_LABEL[s];
+                  const count = s === "all" ? orders.length : counts[s];
+                  return (
+                    <button
+                      key={s}
+                      className={`rounded-lg border px-3.5 py-2 text-xs font-semibold transition ${
+                        active
+                          ? "border-white/25 bg-white/15 text-white shadow-sm"
+                          : "border-white/10 bg-black/20 text-white/85 hover:border-white/18 hover:bg-black/30"
+                      }`}
+                      onClick={() => setStatusFilter(s)}
+                      title="Filter po statusu"
+                    >
+                      {label} <span className={active ? "text-white/70" : "text-white/45"}>({count})</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            {/* Payment filters */}
+            <div className="space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/45">Status plaćanja</span>
+              <div className="flex flex-wrap gap-2">
+                {(["all", "paid", "refunded", "failed", "pending"] as const).map((ps) => {
+                  const active = paymentStatusFilter === ps;
+                  const label =
+                    ps === "all" ? "Sve plaćanje" : ps === "paid" ? "Plaćeno" : ps === "refunded" ? "Refundirano" : ps === "failed" ? "Neuspelo" : "Čeka plaćanje";
+                  const count = paymentStatusCounts[ps];
+                  return (
+                    <button
+                      key={ps}
+                      className={`rounded-lg border px-3.5 py-2 text-xs font-semibold transition ${
+                        active
+                          ? "border-white/25 bg-white/15 text-white shadow-sm"
+                          : "border-white/10 bg-black/20 text-white/85 hover:border-white/18 hover:bg-black/30"
+                      }`}
+                      onClick={() => setPaymentStatusFilter(ps)}
+                      title="Filter po statusu plaćanja"
+                    >
+                      {label} <span className={active ? "text-white/70" : "text-white/45"}>({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Search + actions */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-white/8">
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Pretraga: ime / telefon / adresa / ID / napomena…"
-                className="w-full md:w-[360px] rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 outline-none focus:border-white/20"
+                className="flex-1 min-w-0 max-w-md rounded-lg border border-white/10 bg-black/40 px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-white/25 focus:ring-1 focus:ring-white/10 transition"
               />
-
-              <button
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20"
-                onClick={() => setSortDir((p) => (p === "newest" ? "oldest" : "newest"))}
-                title="Promijeni sortiranje"
-              >
-                Sort: {sortDir === "newest" ? "Najnovije" : "Najstarije"}
-              </button>
-
-              <button
-                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs font-semibold text-white hover:border-white/20"
-                onClick={() => handleExportCsv(renderedOrders)}
-                title="Export trenutno filtriranih porudžbina u CSV"
-              >
-                Export CSV
-              </button>
-
-              {exportFeedback ? (
-                <span className="text-xs text-amber-300">{exportFeedback}</span>
-              ) : null}
-
-              <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/80">
-                <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
-                Auto osvježavanje (20s)
-              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  className="rounded-lg border border-white/10 bg-black/30 px-3.5 py-2.5 text-xs font-semibold text-white/90 hover:border-white/20 hover:bg-black/40 transition"
+                  onClick={() => setSortDir((p) => (p === "newest" ? "oldest" : "newest"))}
+                  title="Promijeni sortiranje"
+                >
+                  Sort: {sortDir === "newest" ? "Najnovije" : "Najstarije"}
+                </button>
+                <button
+                  className="rounded-lg border border-white/10 bg-black/30 px-3.5 py-2.5 text-xs font-semibold text-white/90 hover:border-white/20 hover:bg-black/40 transition"
+                  onClick={() => handleExportCsv(renderedOrders)}
+                  title="Export trenutno filtriranih porudžbina u CSV"
+                >
+                  Export CSV
+                </button>
+                {exportFeedback ? (
+                  <span className="text-xs text-amber-300/90">{exportFeedback}</span>
+                ) : null}
+                <label className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3.5 py-2.5 text-xs text-white/75 hover:border-white/15 cursor-pointer transition">
+                  <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="rounded border-white/20" />
+                  Auto osvježavanje (20s)
+                </label>
+              </div>
             </div>
-          </div>
 
-          <p className="mt-3 text-xs text-white/60">
-            Novo: <span className="text-white/80">{counts.pending}</span> · U pripremi:{" "}
-            <span className="text-white/80">{counts.preparing}</span> · Završeno:{" "}
-            <span className="text-white/80">{counts.done}</span> · Otkazano:{" "}
-            <span className="text-white/80">{counts.cancelled}</span>
-          </p>
+            <p className="text-[11px] text-white/40 pt-1">
+              Novo: {counts.pending} · U pripremi: {counts.preparing} · Završeno: {counts.done} · Otkazano: {counts.cancelled}
+            </p>
+          </div>
         </div>
 
         <div className="mt-6">
