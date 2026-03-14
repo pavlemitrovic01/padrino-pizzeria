@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { DEFAULT_PUBLIC_BUSINESS_SETTINGS, toStr } from "../lib/publicBusinessSettings";
+import { FOOTER_ADDRESS_FALLBACK, toStr } from "../lib/publicBusinessSettings";
 import { supabase } from "../lib/supabaseClient";
 
 const PAYMENT_BADGES = [
@@ -43,7 +43,7 @@ function PaymentBadge({
 }
 
 export default function Footer() {
-  const [addressLine, setAddressLine] = useState(DEFAULT_PUBLIC_BUSINESS_SETTINGS.address_line);
+  const [addressLine, setAddressLine] = useState(FOOTER_ADDRESS_FALLBACK);
 
   const onTop = useCallback(() => {
     window.history.replaceState(null, "", window.location.pathname + window.location.search);

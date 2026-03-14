@@ -33,6 +33,9 @@ export const DEFAULT_PUBLIC_BUSINESS_SETTINGS: PublicBusinessSettings = {
   viber_url: "viber://chat?number=38267603780",
 };
 
+/** Footer display fallback (short format) — used when DB returns empty */
+export const FOOTER_ADDRESS_FALLBACK = "Jadranski put BB • Budva";
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
