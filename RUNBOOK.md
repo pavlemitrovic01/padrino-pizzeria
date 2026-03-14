@@ -74,12 +74,16 @@ Ove varijable su **server-side** i NE SMIJU imati `VITE_` prefiks:
 ### 3.1 Prvi put / nova mašina
 ```bash
 vercel link
+```
+
+### 3.2 Povlačenje env varijabli lokalno
+```bash
 vercel pull
 ```
 
-➡️ `vercel pull` povlači env varijable u `.env.local`
+➡️ Ovo pravi / ažurira `.env.local`
 
-### 3.2 Production deploy
+### 3.3 Production deploy
 ```bash
 vercel --prod
 ```
