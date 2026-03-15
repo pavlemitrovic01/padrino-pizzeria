@@ -1,9 +1,9 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 
 import Navbar from "./components/Navbar";
-import CartDrawer from "./components/CartDrawer";
-
 import Hero from "./sections/Hero";
+
+const CartDrawer = lazy(() => import("./components/CartDrawer"));
 import Menu from "./sections/Menu";
 import Delivery from "./sections/Delivery";
 import Faq from "./sections/Faq";
@@ -316,7 +316,9 @@ function FaqPage() {
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
-      <CartDrawer />
+      <Suspense fallback={null}>
+        <CartDrawer />
+      </Suspense>
 
       <main className="pt-24 md:pt-28">
         <div className="mx-auto max-w-4xl px-6 pb-4">
@@ -340,7 +342,9 @@ function Landing() {
   return (
     <div className="min-h-screen bg-black text-white">
       <Navbar />
-      <CartDrawer />
+      <Suspense fallback={null}>
+        <CartDrawer />
+      </Suspense>
 
       <Hero />
       <Menu />
