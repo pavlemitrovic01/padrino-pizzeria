@@ -243,23 +243,6 @@ function removeJsonLd(id: string) {
   if (existing) existing.remove();
 }
 
-function ga4PageView(path: string) {
-  const w = window as unknown as {
-    gtag?: (...args: unknown[]) => void;
-  };
-
-  if (typeof w.gtag !== "function") return;
-
-  try {
-    w.gtag("event", "page_view", {
-      page_location: window.location.href,
-      page_path: path,
-    });
-  } catch {
-    // ignore
-  }
-}
-
 function SeoAnchorBlock() {
   return (
     <div className="sr-only" aria-hidden="true">
@@ -665,10 +648,6 @@ export default function App() {
 
     return () => window.clearTimeout(t);
   }, [hash]);
-
-  useEffect(() => {
-    ga4PageView(pathname);
-  }, [pathname]);
 
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") return <AdminRoute page="orders" />;
