@@ -13,6 +13,8 @@ export default function Hero() {
       <div className="absolute inset-0">
         <img
           src="/sections/hero.webp"
+          srcSet="/sections/hero-mobile.webp 768w, /sections/hero.webp 1920w"
+          sizes="(max-width: 768px) 100vw, 100vw"
           alt="Padrino Pizzeria Budva dostava pizze"
           className={[
             "h-full w-full object-cover",

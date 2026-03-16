@@ -4,17 +4,16 @@ import Navbar from "./components/Navbar";
 import Hero from "./sections/Hero";
 
 const CartDrawer = lazy(() => import("./components/CartDrawer"));
-import Menu from "./sections/Menu";
-import Delivery from "./sections/Delivery";
+const Menu = lazy(() => import("./sections/Menu"));
+const Delivery = lazy(() => import("./sections/Delivery"));
+const About = lazy(() => import("./sections/About"));
+const Contact = lazy(() => import("./sections/Contact"));
+const Footer = lazy(() => import("./sections/Footer"));
 import Faq from "./sections/Faq";
-import About from "./sections/About";
-import Contact from "./sections/Contact";
-import Footer from "./sections/Footer";
 
 import { getAdminApiBase } from "./lib/adminApiBase";
 import { DEFAULT_PUBLIC_BUSINESS_SETTINGS, normalizePublicBusinessSettings } from "./lib/publicBusinessSettings";
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
-import { supabase } from "./lib/supabaseClient";
 
 type GuardState = "loading" | "unauthenticated" | "not-admin" | "admin";
 
@@ -321,6 +320,10 @@ function FaqPage() {
   );
 }
 
+function SectionFallback({ id, className }: { id: string; className?: string }) {
+  return <div id={id} className={className ?? "min-h-[200px]"} aria-hidden="true" />;
+}
+
 function Landing() {
   return (
     <div className="min-h-screen bg-black text-white">
@@ -330,11 +333,21 @@ function Landing() {
       </Suspense>
 
       <Hero />
-      <Menu />
-      <Delivery />
-      <About />
-      <Contact />
-      <Footer />
+      <Suspense fallback={<SectionFallback id="meni" className="min-h-[300px] scroll-mt-20" />}>
+        <Menu />
+      </Suspense>
+      <Suspense fallback={<SectionFallback id="delivery" className="min-h-[200px] scroll-mt-20" />}>
+        <Delivery />
+      </Suspense>
+      <Suspense fallback={<SectionFallback id="o-nama" className="min-h-[200px] scroll-mt-20" />}>
+        <About />
+      </Suspense>
+      <Suspense fallback={<SectionFallback id="kontakt" className="min-h-[200px] scroll-mt-20" />}>
+        <Contact />
+      </Suspense>
+      <Suspense fallback={<SectionFallback id="footer" className="min-h-[120px]" />}>
+        <Footer />
+      </Suspense>
 
       <SeoAnchorBlock />
     </div>
@@ -578,6 +591,7 @@ export default function App() {
     let cancelled = false;
 
     async function loadSeoSettings() {
+      const { supabase } = await import("./lib/supabaseClient");
       const { data, error } = await supabase
         .from("site_settings")
         .select("id, phone_display, phone_e164, email, address_line, default_city")
