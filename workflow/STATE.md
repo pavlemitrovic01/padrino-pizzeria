@@ -22,20 +22,21 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W0 — Workflow v3 init (2026-05-10)
-**Sledeći:** B1 — Lint fix (3 React Hooks errors, čeka /plan)
+**Poslednji završen:** B2 — Delivery fee audit (2026-05-11)
+**Sledeći:** B3 — Schema baseline (supabase db pull, Docker required)
 **Aktivan batch:** NONE
-**Blocker:** NONE
+**Blocker:** Docker Desktop potreban za B3
 
 **Faza progres:**
 - Pre-W0 (Padrino history): 9 closed batches B1-B9 from old workflow
   (full record in DECISIONS.md). Old workflow used ChatGPT Plan +
   Composer Execute pattern.
 - W0 (Workflow v3 init) — DONE 2026-05-10
-- Faza A — Stabilization & Audit (B1-B4) — ready to start
+- B1 (Lint fix) — DONE no-op 2026-05-11
+- B2 (Delivery fee audit) — DONE 2026-05-11
+- Faza A — Stabilization & Audit (B3-B4) — in progress
 
-**Workflow v3 status:** live (newly initialized in Padrino, not yet
-battle-tested — first real test is B1).
+**Workflow v3 status:** live, 2 batches completed (B1 no-op, B2 audit).
 
 ---
 
