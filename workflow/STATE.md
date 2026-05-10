@@ -22,10 +22,10 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B2 — Delivery fee audit (2026-05-11)
-**Sledeći:** B3 — Schema baseline (supabase db pull, Docker required)
+**Poslednji završen:** B3 — Schema baseline (2026-05-11)
+**Sledeći:** B3.5 — Doc update for Telegram DB trigger (LEAN)
 **Aktivan batch:** NONE
-**Blocker:** Docker Desktop potreban za B3
+**Blocker:** NONE
 
 **Faza progres:**
 - Pre-W0 (Padrino history): 9 closed batches B1-B9 from old workflow
@@ -34,9 +34,16 @@
 - W0 (Workflow v3 init) — DONE 2026-05-10
 - B1 (Lint fix) — DONE no-op 2026-05-11
 - B2 (Delivery fee audit) — DONE 2026-05-11
-- Faza A — Stabilization & Audit (B3-B4) — in progress
+- B3 (Schema baseline) — DONE 2026-05-11
+- Faza A — Stabilization & Audit (B4) — remaining
 
-**Workflow v3 status:** live, 2 batches completed (B1 no-op, B2 audit).
+**Roadmap additions (decided 2026-05-11):**
+- B3.5 — Telegram DB trigger documentation (LEAN, doc-only) — next
+- B14 — Security audit: RLS hardcoded email + admin_users RLS (STRICT)
+  — to be planned after Faza A complete
+
+**Workflow v3 status:** live, 3 batches completed (B1 no-op, B2 audit,
+B3 schema baseline).
 
 ---
 
