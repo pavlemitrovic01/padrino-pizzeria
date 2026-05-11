@@ -5,6 +5,43 @@
 
 ---
 
+## W1 — 2026-05-11 — Workflow merge to main + branch cleanup — DONE
+
+**Tier:** STRICT (workflow structural change per RULES §21)
+**Branch:** main
+**Merge SHA:** fc05439 (merge commit, no-ff, brings in 6 commits
+from workflow-v3-init: f538d40, 97ef306, e1fabad, a1f450c, 057c998,
+79ba688)
+**Files:**
+  - workflow/STATE.md (MODIFY — branch field, faza progres entry,
+    workflow v3 status, roadmap additions)
+  - workflow/LOG.md (APPEND — this entry)
+**Verify:**
+  build:    PASS(machine) — npm run build, exit 0
+  test:     PASS(machine) — 32/32 vitest
+  typecheck: PASS(machine) — tsc -b passes
+  drift:    PASS(machine) — only the 2 expected files in diff
+  manual:   PASS(human) — Pavle verified padrinobudva.com healthy
+            pre-push and post-push (Vercel deploy clean, no console
+            errors, 3 independent test orders confirmed Telegram
+            flow pattern across 2026-05-11 sessions)
+**SCOPE_DRIFT:** none — only STATE.md and LOG.md
+**Branch cleanup actions:**
+  - Worktrees removed: elegant-margulis-3b4c56, practical-moser-add445
+    (both at 279c6fc, Claude Code session artifacts, no work lost)
+  - Branches deleted: claude/elegant-margulis-3b4c56,
+    claude/practical-moser-add445, workflow-v3-init (local + origin)
+  - Remaining branches: main (local), origin/main, origin/master (legacy)
+**Notes:**
+  - First batch under "direct on main" model. Default flow now is:
+    plan → preview commit on main → Pavle approves → push → /close.
+  - Per-batch feature branches reserved for STRICT-tier batches that
+    touch src/** or api/** (e.g., future B6 CartProvider, B11 Bankart).
+  - origin/master is legacy from initial repo creation; not used,
+    deletion deferred to future housekeeping.
+
+---
+
 ## B3 — 2026-05-11 — Schema baseline (supabase db pull) — DONE
 
 **Tier:** STRICT
