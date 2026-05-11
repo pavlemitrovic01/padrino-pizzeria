@@ -9,7 +9,7 @@
 
 **Tier:** LEAN (doc-only)
 **Branch:** main
-**SHA:** (set after commit)
+**SHA:** df62808
 **Files:**
   - workflow/STATE.md (MODIFY — lock zone cleaned to 7 entries, faza progres updated, roadmap additions cleared, W2 DONE)
   - workflow/projects/padrino/CONTEXT.md (MODIFY — branch: main, removed api/_shared/* + 2 phantom hook rows from Ključni fajlovi, removed 3 phantom rows from Lock zone)
