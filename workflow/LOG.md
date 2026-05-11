@@ -5,6 +5,34 @@
 
 ---
 
+## B3.5 — 2026-05-11 — Telegram flow doc correction — DONE
+
+**Tier:** LEAN
+**Branch:** main
+**SHA:** 11d0f4d
+**Files:**
+  - RUNBOOK.md (MODIFY — §1 flow rewrite, §1.1 dead trigger note, §6 timeout 5s→12s)
+  - workflow/projects/padrino/DECISIONS.md (APPEND — B3.5 audit finding)
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.85s (includes tsc -b)
+  typecheck: PASS(machine) — via npm run build
+  test:      NIJE POKRENUTO — LEAN tier
+  manual:    PASS(human) — Pavle approved diff pre-commit
+**SCOPE_DRIFT:** none — exactly 2 expected files
+**Notes:**
+  - RUNBOOK §1 now names api/create-order.ts as DB writer and direct
+    caller of api/telegram-new-order (server-to-server, 12s timeout)
+  - §1.1 added: dead DB trigger documented (vercel.app → 401 Vercel
+    Protection, confirmed 3 production orders 2026-05-11)
+  - §6 timeout corrected: 5s (DB trigger value) → 12s (actual
+    bestEffortTelegramNotify timeout)
+  - Finding recorded in DECISIONS.md for audit trail
+  - B15 queued: DROP dead trigger (LEAN, ~15min migration)
+  - Out-of-scope flag: RUNBOOK §4.1 test URL still uses
+    padrino-pizzeria.vercel.app (→ 401) — 1-line fix deferred to B15
+
+---
+
 ## W1 — 2026-05-11 — Workflow merge to main + branch cleanup — DONE
 
 **Tier:** STRICT (workflow structural change per RULES §21)

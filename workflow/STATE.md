@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W1 — Workflow merge to main + branch cleanup (2026-05-11)
-**Sledeći:** B3.5 — Doc update for Telegram DB trigger (LEAN)
+**Poslednji završen:** B3.5 — Telegram flow doc correction (2026-05-11)
+**Sledeći:** B4 — Kritični testovi (HMAC + CAS + Bankart callback) (STANDARD)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
