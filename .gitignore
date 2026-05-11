@@ -41,3 +41,8 @@ dist-ssr
 
 # Supabase CLI temp
 supabase/.temp/
+
+# Claude Code local files (do not commit)
+.claude/settings.local.json
+.claude/worktrees
+.claude/workflow-trace.jsonl
