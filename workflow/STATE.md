@@ -22,7 +22,7 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B3.5 — Telegram flow doc correction (2026-05-11)
+**Poslednji završen:** W2 — Workflow reconciliation (2026-05-11)
 **Sledeći:** B4 — Kritični testovi (HMAC + CAS + Bankart callback) (STANDARD)
 **Aktivan batch:** NONE
 **Blocker:** NONE
@@ -36,32 +36,19 @@
 - B2 (Delivery fee audit) — DONE 2026-05-11
 - B3 (Schema baseline) — DONE 2026-05-11
 - W1 (Workflow merge to main + branch cleanup) — DONE 2026-05-11
+- B3.5 (Telegram flow doc correction) — DONE 2026-05-11
+- W2 (Workflow reconciliation — post-audit drift fix) — DONE 2026-05-11
 - Faza A — Stabilization & Audit (B4) — remaining
 
-**Roadmap additions (decided 2026-05-11):**
-
-Note: B14 in ROADMAP.md (CartDrawer Phase 3 + AdminOrders/AdminMenu
-split, Faza D) is superseded by B14 below (security audit). Old
-CartDrawer item deferred to B16+ "Long-term, defer until concrete
-blocker". Full ROADMAP.md reconciliation deferred to a future
-workflow housekeeping batch.
-
-- **B3.5** — Telegram flow doc correction (LEAN, doc-only) — NEXT
-- **B14** — Security audit: RLS hardcoded email + admin_users RLS
-  (STRICT, ~2h) — after Faza A complete
-- **B15** — Telegram DB trigger DROP (LEAN, ~15min) — single
-  migration to drop dead `telegram-new-order` trigger. Real Telegram
-  delivery is via `api/create-order.ts`; trigger hits vercel.app URL
-  which is under Vercel Protection (401, see LESSONS L2) and sends
-  empty body. Fix-in-place rejected (would need 3 coordinated
-  changes for redundant functionality). Schedule after B3.5 doc
-  update is committed.
+**Roadmap additions:** None pending — all queued items now live
+in `workflow/projects/padrino/ROADMAP.md` (W2 reconciliation).
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-4 batches completed (B1 no-op, B2 audit, B3 schema baseline, W1 housekeeping).
+6 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+W1 housekeeping, B3.5 Telegram doc, W2 reconciliation).
 
 ---
 
@@ -77,9 +64,6 @@ Full list with reasons in `workflow/projects/padrino/CONTEXT.md`.
 - `api/bankart-callback.ts`
 - `api/bankart-order-status.ts`
 - `api/telegram-new-order.ts`
-- `api/_shared/*`
-- `src/hooks/useBankartPaymentJsInit.ts`
-- `src/hooks/useDeliveryZone.ts`
 
 ---
 

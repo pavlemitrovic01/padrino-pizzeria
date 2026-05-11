@@ -5,7 +5,7 @@
 | Polje | Vrednost |
 |-------|----------|
 | Stack | React 19.2.0 + TypeScript 5.9.3 + Vite 7.2.4 + Tailwind 3.4.19 + Framer Motion 12.29.0 + Vercel |
-| Repo | github.com/pavlemitrovic01/padrino-pizzeria, branch: workflow-v3-init |
+| Repo | github.com/pavlemitrovic01/padrino-pizzeria, branch: main |
 | Production | https://padrinobudva.com |
 
 ## Arhitektura
@@ -34,9 +34,6 @@
 | `api/bankart-callback.ts` | HMAC-verified payment notifications — LOCK |
 | `api/bankart-order-status.ts` | Bankart status sync — LOCK |
 | `api/telegram-new-order.ts` | Telegram notification dispatch — LOCK |
-| `api/_shared/*` | Shared backend utilities (env, cors, admin-auth, supabase-admin, bankart-signature) — LOCK |
-| `src/hooks/useBankartPaymentJsInit.ts` | Payment.js controller — LOCK |
-| `src/hooks/useDeliveryZone.ts` | Zone selection state — LOCK |
 | `src/lib/cartDrawerHelpers.ts` | Pure cart helpers (Phase 1 extracted) |
 
 ## Lock zone
@@ -50,9 +47,6 @@
 | `api/bankart-callback.ts` | HMAC verification, payment status updates |
 | `api/bankart-order-status.ts` | Bankart status sync, refund detection |
 | `api/telegram-new-order.ts` | Telegram notification flow |
-| `api/_shared/*` | Shared contracts (signature change breaks 14 files) |
-| `src/hooks/useBankartPaymentJsInit.ts` | Payment.js init lifecycle |
-| `src/hooks/useDeliveryZone.ts` | Zone selection state |
 
 LOCK = planski rad, STANDARD ili STRICT tier, jači verify, bez usputnih promena.
 

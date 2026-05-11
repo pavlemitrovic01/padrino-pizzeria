@@ -5,6 +5,32 @@
 
 ---
 
+## W2 — 2026-05-11 — Workflow reconciliation — post-audit drift fix — DONE
+
+**Tier:** LEAN (doc-only)
+**Branch:** main
+**SHA:** (set after commit)
+**Files:**
+  - workflow/STATE.md (MODIFY — lock zone cleaned to 7 entries, faza progres updated, roadmap additions cleared, W2 DONE)
+  - workflow/projects/padrino/CONTEXT.md (MODIFY — branch: main, removed api/_shared/* + 2 phantom hook rows from Ključni fajlovi, removed 3 phantom rows from Lock zone)
+  - workflow/projects/padrino/ROADMAP.md (MODIFY — B1/B2/B3/B3.5 marked DONE; B15+B16 added to Faza B; B14 superseded to security audit; old B14 → Long-term; B8/B10 reframed as CREATE; B13 annotated near-no-op; reconciliation log section appended)
+  - workflow/projects/padrino/DECISIONS.md (APPEND — Phase History RECORD-UNRELIABLE section with evidence table, D4 CAS race finding, B8/B10/B9/B14/B15/B16 action items, lock zone phantom cleanup documented)
+**Verify:**
+  build:     PASS(machine) — exit 0, 6.96s (includes tsc -b)
+  typecheck: PASS(machine) — via npm run build
+  test:      PASS(machine) — 32/32 vitest
+  manual:    PASS(human) — Pavle approved
+**SCOPE_DRIFT:** none — exactly 4 expected files (supabase/.temp/* not staged)
+**Notes:**
+  - 8 drift items (D1-D8) found in /audit 2026-05-11 — all resolved in this batch
+  - D1-D3: phantom entries removed from lock zone + Ključni fajlovi + ROADMAP reframes
+  - D4: CAS race → B16 STRICT batch queued
+  - D5-D8: branch, B13 scope, B14 supersession, B9 confirmation — all documented
+  - Pre-W0 Phase History marked REFERENCE-ONLY in DECISIONS.md (not authoritative)
+  - New items in ROADMAP: B14 (security audit), B15 (trigger DROP), B16 (CAS fix)
+
+---
+
 ## B3.5 — 2026-05-11 — Telegram flow doc correction — DONE
 
 **Tier:** LEAN

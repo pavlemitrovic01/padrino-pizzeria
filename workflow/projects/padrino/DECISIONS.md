@@ -128,3 +128,64 @@ POST `{ order_id }` → `padrinobudva.com/api/telegram-new-order` (12s timeout).
 Scheduled DROP: B15 (LEAN, ~15min, single migration).
 
 **RUNBOOK:** §1 corrected in this batch (B3.5).
+
+---
+
+### 2026-05-11 — Audit findings — Phase History RECORD-UNRELIABLE
+
+**Finding:** /audit 2026-05-11 (post-B3.5) discovered that several
+pre-W0 batches recorded as DONE in this file's "Phase History" do
+not match repo evidence:
+
+| Batch | Claim | Evidence |
+|-------|-------|----------|
+| 2A | API shared helpers extraction (`api/_shared/`) | `git log --all -- "api/_shared/*"` returns ZERO commits. Directory has NEVER existed in this repo. |
+| 3A | `normalizeText` centralization | `src/lib/normalizeText.ts` is MISSING |
+| 3B-1 | Unknown primitives (`safeString`, `safeNumberOrNull`) extraction | `src/lib/unknownPrimitives.ts` is MISSING |
+| 3B-2 | Object guards (`isPlainObject`, `isNonNullObject`) extraction | `src/lib/objectGuards.ts` is MISSING |
+| 4C | Admin status TOCTOU atomic update + conflict handling | `api/admin-update-order-status.ts` L159-186 has SELECT-then-UPDATE WITHOUT `.eq("status", fromStatus)` guard. Classic read-then-write race; NOT atomic. |
+
+**Most plausible explanation:** Old workflow (ChatGPT Plan + Composer
+Execute) generated "DONE" tags optimistically. Code may have existed
+in a separate repo/branch that was never merged here, or the work
+was never actually executed.
+
+**Decision:**
+- Pre-W0 "Phase History" treated as **REFERENCE-ONLY**, not
+  authoritative.
+- Source of truth going forward: workflow v3 `LOG.md` + git history
+  (W0 onward, 2026-05-10+).
+- Existing Phase History text PRESERVED (this file is append-only) —
+  this entry marks it unreliable without deletion.
+
+**Action items materialized in `ROADMAP.md` via W2:**
+
+- **B14** (Security audit, STRICT, ~2h) — Faza D table. Supersedes
+  old B14 (CartDrawer Phase 3, now Long-term).
+- **B15** (Telegram DB trigger DROP, LEAN, ~15min) — Faza B table.
+- **B16** (CAS atomicity fix, STRICT, ~30min) — Faza B table. NEW
+  from this audit (D4): real production race in
+  `api/admin-update-order-status.ts`.
+
+**Items reframed in ROADMAP:**
+
+- **B8** — explicitly CREATE `api/_shared/` (not "consolidate INTO").
+- **B10** — explicitly CREATE `api/_shared/admin-auth.ts`.
+
+**Items confirmed:**
+
+- **B9** (AuthProvider removal) — audit confirmed `useAuth()` defined
+  in `src/auth/AuthProvider.tsx` line 98 but called nowhere else in
+  `src/`. Wrap at `src/main.tsx` line 136 provides no consumed value.
+  Safe-remove confirmed.
+
+**Items lock-zone cleaned (STATE + CONTEXT):**
+
+- Removed `api/_shared/*`, `src/hooks/useBankartPaymentJsInit.ts`,
+  `src/hooks/useDeliveryZone.ts` from lock zone — all phantom
+  references with no underlying files.
+
+**Production health at time of audit:** padrinobudva.com healthy,
+build PASS, 32/32 tests pass, no observed runtime regressions. No
+customer impact from these doc-level drifts. D4 (CAS race) is the
+only real production concern; tracked as B16.
