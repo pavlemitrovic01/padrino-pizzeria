@@ -22,7 +22,7 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B3 — Schema baseline (2026-05-11)
+**Poslednji završen:** W1 — Workflow merge to main + branch cleanup (2026-05-11)
 **Sledeći:** B3.5 — Doc update for Telegram DB trigger (LEAN)
 **Aktivan batch:** NONE
 **Blocker:** NONE
