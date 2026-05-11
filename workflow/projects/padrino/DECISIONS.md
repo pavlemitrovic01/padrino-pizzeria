@@ -105,3 +105,26 @@ Padrino has audit documents in `docs/`. Treated as authoritative for their topic
 - `docs/phase2-implementation-brief.md`
 - `docs/phase2-presentational-extraction-audit.md`
 - `docs/refund-sync-audit.md`
+
+---
+
+### 2026-05-11 — B3.5: Telegram flow audit — DB trigger is dead code
+
+**Finding:** Supabase DB trigger `telegram-new-order` fires AFTER INSERT on
+`orders` and POSTs `{}` to `https://padrino-pizzeria.vercel.app/api/telegram-new-order`.
+That URL is under Vercel Deployment Protection → 401 before request reaches
+endpoint code. Trigger has never successfully sent a Telegram notification.
+
+**Live evidence (production, 2026-05-11, 3 independent orders):**
+- padrinobudva.com /api/telegram-new-order → 200 (create-order.ts caller)
+- padrino-pizzeria.vercel.app /api/telegram-new-order → 401 (DB trigger)
+
+**Actual flow:** `api/create-order.ts` → `bestEffortTelegramNotify()` →
+POST `{ order_id }` → `padrinobudva.com/api/telegram-new-order` (12s timeout).
+
+**Pattern:** Matches LESSONS L2 (PUBLIC_SITE_URL never VERCEL_URL).
+
+**Decision:** Trigger left in place for now — removal requires schema migration.
+Scheduled DROP: B15 (LEAN, ~15min, single migration).
+
+**RUNBOOK:** §1 corrected in this batch (B3.5).

@@ -18,13 +18,27 @@ Cilj: da se nikad više ne gubi vrijeme na iste probleme.
 Flow porudžbine:
 
 1. Frontend (Vite + React) validira i šalje porudžbinu
-2. Porudžbina se upisuje u Supabase tabelu `orders`
-3. Vercel serverless endpoint `/api/telegram-new-order`:
-   - fetchuje order iz Supabase-a
-   - šalje Telegram poruku (best-effort)
+2. `api/create-order.ts` — server-side pricing validation, upisuje order u Supabase `orders`
+3. Nakon uspješnog DB write-a, `create-order.ts` direktno poziva
+   `api/telegram-new-order` (server-to-server, best-effort, 12s timeout) —
+   fetchuje order detalje iz Supabase-a i šalje Telegram notifikaciju
 4. Telegram je **notifikacija**, ne dio transakcije
 
 ❗ Telegram failure **nikad ne smije blokirati order**
+
+### 1.1 DB trigger `telegram-new-order` — dead code
+
+Na `orders` tabeli postoji DB trigger koji puca na AFTER INSERT i poziva
+`https://padrino-pizzeria.vercel.app/api/telegram-new-order` (5s timeout).
+
+**Trigger nikad nije funkcionisao u produkciji:**
+- `.vercel.app` URL je pod Vercel Deployment Protection → vraća 401
+- Endpoint kod nikad ne biva izvršen; request body je prazan `{}`
+- Potvrđeno produkcijskim logovima 2026-05-11 (3 porudžbine):
+  padrinobudva.com/api/telegram-new-order → 200 (via `create-order.ts`),
+  padrino-pizzeria.vercel.app/api/telegram-new-order → 401 (via trigger)
+
+**Scheduled DROP:** B15 (LEAN, ~15min — single `DROP TRIGGER` migration).
 
 ---
 
@@ -165,7 +179,7 @@ Endpoint /api/telegram-new-order:
 
 uvijek pokušava poslati Telegram
 
-ima timeout (5s)
+ima timeout (12s)
 
 ako Telegram padne:
 
