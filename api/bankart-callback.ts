@@ -39,7 +39,7 @@ type OrderRow = {
   payment_meta: unknown;
 };
 
-type ReqLike = IncomingMessage & {
+export type ReqLike = IncomingMessage & {
   url?: string;
 };
 
@@ -189,7 +189,7 @@ function getRequestUri(req: ReqLike): string {
   }
 }
 
-function createBankartSignature(
+export function createBankartSignature(
   sharedSecret: string,
   method: string,
   contentType: string,
@@ -202,14 +202,14 @@ function createBankartSignature(
   return crypto.createHmac("sha512", sharedSecret).update(message, "utf8").digest("base64");
 }
 
-function safeEqualSignature(a: string, b: string): boolean {
+export function safeEqualSignature(a: string, b: string): boolean {
   const left = Buffer.from(a, "utf8");
   const right = Buffer.from(b, "utf8");
   if (left.length !== right.length) return false;
   return crypto.timingSafeEqual(left, right);
 }
 
-function isDateFresh(dateHeader: string): boolean {
+export function isDateFresh(dateHeader: string): boolean {
   const maxSkewSeconds = safeNumber(getFirstEnv("BANKART_CALLBACK_MAX_SKEW_SECONDS"), 300);
   const parsed = Date.parse(dateHeader);
   if (!Number.isFinite(parsed)) return false;
@@ -219,7 +219,7 @@ function isDateFresh(dateHeader: string): boolean {
   return diffMs <= Math.max(30, Math.trunc(maxSkewSeconds)) * 1000;
 }
 
-function verifyBankartCallbackSignature(req: ReqLike, rawBody: string): { ok: boolean; reason?: string } {
+export function verifyBankartCallbackSignature(req: ReqLike, rawBody: string): { ok: boolean; reason?: string } {
   const sharedSecret = getFirstEnv("BANKART_SHARED_SECRET", "NLB_SHARED_SECRET");
   if (!sharedSecret) return { ok: false, reason: "Missing shared secret env" };
 

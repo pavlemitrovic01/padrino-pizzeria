@@ -17,7 +17,7 @@ type ResLike = {
   send: (body: string) => void;
 };
 
-type OrderStatus = "pending" | "preparing" | "done" | "cancelled";
+export type OrderStatus = "pending" | "preparing" | "done" | "cancelled";
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -111,11 +111,11 @@ async function isAdminEmailDb(email: unknown): Promise<boolean> {
   return enabled === true;
 }
 
-function isOrderStatus(v: unknown): v is OrderStatus {
+export function isOrderStatus(v: unknown): v is OrderStatus {
   return v === "pending" || v === "preparing" || v === "done" || v === "cancelled";
 }
 
-function canTransition(from: OrderStatus, to: OrderStatus): boolean {
+export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   if (from === to) return true;
 
   if (from === "pending") return to === "preparing" || to === "done" || to === "cancelled";
