@@ -5,6 +5,27 @@
 
 ---
 
+## B15 — 2026-05-12 — Telegram DB trigger DROP — DONE
+
+**Tier:** LEAN (doc + migration, direct on main)
+**SHA:** dcd64bc
+**Files:**
+  - supabase/migrations/20260512150000_drop_telegram_trigger.sql (NEW — DROP TRIGGER IF EXISTS)
+  - RUNBOOK.md (MODIFY — §1.1 status "dead code"→"REMOVED (B15, 2026-05-12)" + migration ref; §4.1 test URL vercel.app→padrinobudva.com)
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.76s (tsc -b + vite)
+  typecheck: PASS(machine) — via npm run build
+  test:      NIJE POKRENUTO — LEAN tier
+  manual:    PASS(human) — Pavle ran SQL in Supabase Dashboard; pg_trigger confirms only `orders_set_total_price` remains on orders table; Vercel logs no longer show 401 errors for trigger URL
+**SCOPE_DRIFT:** none — exactly 2 expected files
+**Notes:**
+  - Trigger `telegram-new-order` was calling https://padrino-pizzeria.vercel.app/api/telegram-new-order
+    which returned 401 (Vercel Deployment Protection). Confirmed non-functional via 3 prod orders 2026-05-11.
+  - Active Telegram flow untouched: api/create-order.ts → api/telegram-new-order direct server-to-server (12s timeout).
+  - Out-of-scope flag from B3.5 (RUNBOOK §4.1 wrong URL) resolved in this batch.
+
+---
+
 ## B4.1 — 2026-05-12 — safeNumber call-site fix — DONE
 
 **Tier:** STRICT (branch: b4.1-safenumber-fix → merged to main, FF merge)

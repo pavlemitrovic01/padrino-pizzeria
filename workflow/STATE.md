@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B4.1 — safeNumber call-site fix (2026-05-12)
-**Sledeći:** B15 — Telegram DB trigger DROP (LEAN) — needs /plan
+**Poslednji završen:** B15 — Telegram DB trigger DROP (2026-05-12)
+**Sledeći:** B11 — Bankart raw error sanitization (STANDARD) — needs /plan
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -41,14 +41,16 @@
 - B4 (Kritični testovi — HMAC + canTransition) — DONE 2026-05-12
 - B4.1 (safeNumber call-site fix) — DONE 2026-05-12
 - **Faza A — DONE** ✓
-- Faza B — in progress: B15 next, then B11/B16
+- B15 (Telegram DB trigger DROP) — DONE 2026-05-12
+- Faza B — in progress: B11/B16 next
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-8 batches completed (B1 no-op, B2 audit, B3 schema baseline,
-W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix).
+9 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
+B15 trigger drop).
 
 ---
 
