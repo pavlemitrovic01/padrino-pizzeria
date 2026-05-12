@@ -602,6 +602,26 @@ function safeBankartErrorMessage(body: unknown, status: number, fallback: string
   return `${fallback} (HTTP ${status})`;
 }
 
+/**
+ * Sanitizes errors returned to the browser client. Never relays raw
+ * Bankart/network/DB error text — those go to server logs only.
+ *
+ * NOTE: kind="payment_init" routing in the handler depends on the substring
+ * "bankart" in err.message. All current Bankart throw sites in startBankartDebit
+ * use a "Bankart" prefix (verified 2026-05-12, lines 758/770/791/796/810/818/833/
+ * 838/853). If a future refactor drops the prefix, replace this heuristic with
+ * a custom BankartInitError class (B11.1).
+ */
+export function clientSafeError(
+  _err: unknown,
+  kind: "order_create" | "payment_init",
+): string {
+  if (kind === "order_create") {
+    return "Greška pri kreiranju porudžbine. Pokušajte ponovo.";
+  }
+  return "Plaćanje karticom trenutno nije moguće. Pokušajte ponovo ili izaberite plaćanje pouzećem.";
+}
+
 function bankartMetaSnapshot(input: {
   phase: string;
   requestBody?: BankartDebitRequest;
@@ -1117,8 +1137,8 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .single();
 
     if (insErr || !inserted?.id) {
-      const msg = insErr?.message ? `DB insert failed (${insErr.message})` : "DB insert failed";
-      return json(res, 500, { ok: false, error: msg });
+      console.error("[create-order] DB insert failed:", insErr);
+      return json(res, 500, { ok: false, error: clientSafeError(insErr, "order_create") });
     }
 
     const orderId = toTrimmedString(inserted.id);
@@ -1166,7 +1186,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
       bankart_return_type: bankart.bankartReturnType,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+    console.error("[create-order] order creation failed:", err);
+    const kind: "order_create" | "payment_init" =
+      err instanceof Error && err.message.toLowerCase().includes("bankart")
+        ? "payment_init"
+        : "order_create";
+    return json(res, 500, { ok: false, error: clientSafeError(err, kind) });
   }
 }
