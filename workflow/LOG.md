@@ -5,6 +5,39 @@
 
 ---
 
+## B4 — 2026-05-12 — Kritični testovi (HMAC + canTransition coverage) — DONE
+
+**Tier:** STRICT (branch: b4-critical-tests → merged to main, FF merge)
+**SHA:** 2a02276
+**Files:**
+  - api/bankart-callback.ts (MODIFY — 5 export keywords: export type ReqLike + 4 export function; ZERO logic change)
+  - api/admin-update-order-status.ts (MODIFY — 3 export keywords: export type OrderStatus + 2 export function; ZERO logic change)
+  - api/bankart-callback.test.ts (NEW — 22 tests: createBankartSignature×5, safeEqualSignature×3, isDateFresh×6, verifyBankartCallbackSignature×7, handler smoke×1)
+  - api/admin-update-order-status.test.ts (NEW — 22 tests: isOrderStatus×6, canTransition×14, handler smoke×2)
+  - vitest.config.ts (MODIFY — added api/**/*.test.ts to include + setupFiles: [./vitest.setup.ts])
+  - vitest.setup.ts (NEW — env stubs: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, BANKART_SHARED_SECRET, BANKART_CALLBACK_MAX_SKEW_SECONDS)
+**Verify:**
+  build:     PASS(machine) — exit 0, 8.05s (tsc -b + vite)
+  typecheck: PASS(machine) — via npm run build (no separate typecheck script)
+  test:      PASS(machine) — 5 test files, 76/76 (32 pre-existing + 44 new)
+  manual:    PASS(human) — Pavle approved post Opus+Sonnet review
+**SCOPE_DRIFT:** none — exactly 6 expected files (supabase/.temp/* not staged)
+  Note: vitest.setup.ts has 4 env stubs (plan showed 3); 4th (BANKART_CALLBACK_MAX_SKEW_SECONDS)
+  required due to L4 finding — same file, not extra file.
+**Notes:**
+  - L4 FINDING (expanded during B4): safeNumber("", fallback) returns 0 not fallback because
+    Number("") = 0 is Number.isFinite() = true; fallback never activates for empty string input.
+    Affects 2 env-var call sites:
+    (1) api/bankart-callback.ts:213 — BANKART_CALLBACK_MAX_SKEW_SECONDS unset → 30s floor (intended 300s)
+    (2) api/bankart-order-status.ts:229 — BANKART_STATUS_MIN_INTERVAL_SECONDS unset → 12s floor (intended 15s)
+  - Mitigation: both env vars explicitly set on Vercel (Production+Preview) + deploy, 2026-05-12.
+  - Permanent code fix queued: B4.1 STRICT mini-batch — add `|| "N"` guard at 2 call sites
+    in lock-zone files; estimated ~4 lines diff across 3 files (2 api + vitest.setup.ts cleanup).
+  - safeNumber duplicated 3× in api/ (create-order, bankart-callback, bankart-order-status);
+    centralization deferred to B8 (api/_shared extraction, already in ROADMAP Faza C).
+
+---
+
 ## W2 — 2026-05-11 — Workflow reconciliation — post-audit drift fix — DONE
 
 **Tier:** LEAN (doc-only)

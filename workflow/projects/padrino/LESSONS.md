@@ -61,3 +61,31 @@ Deprecated entries → `DECISIONS.md` "Deprecated Lessons" section.
 
 **STATUS:** ACTIVE
 **NEXT REVIEW:** —
+
+---
+
+## 2026-05-12 — safeNumber("", fallback) vraća 0, ne fallback (L4)
+
+**PROBLEM:** `safeNumber(getFirstEnv("BANKART_CALLBACK_MAX_SKEW_SECONDS"), 300)` vraća 0 kada
+env var nije postavljen. Razlog: `getFirstEnv()` vraća `""`, `Number("") = 0`,
+`Number.isFinite(0) = true` → fallback 300 nikada ne aktivira. Efektivno:
+skew prozor srušen na `Math.max(30, 0) = 30s`, ne 300s. Otkriven u B4 kada
+je test "60s in past" padao bez BANKART_CALLBACK_MAX_SKEW_SECONDS stub-a.
+Isti bug na 2 call sites: bankart-callback.ts (skew) i bankart-order-status.ts
+(rate limit interval).
+
+**LEKCIJA:** `Number("") === 0` u JavaScript-u. `safeNumber(v, fallback)` fallback
+se aktivira samo za NaN/Infinity — ne za prazan string. Empty string env var
+prolazi kao 0, ne kao defaultna vrednost. Guard pattern koji radi:
+`safeNumber(getEnv("X") || "300", 300)` — prazan string pada na string "300"
+pre prosleđivanja u safeNumber.
+
+**PRIMENA:** Svaki numerički env var gde 0 nije validna vrednost (timeout, skew,
+rate-limit, interval): koristiti `getEnv("X") || "defaultVrednost"` pre
+prosleđivanja u safeNumber. Ili eksplicitno setovati env var na Vercel.
+Ne oslanjati se na fallback argument safeNumber za env-var-derived stringove.
+
+**STATUS:** ACTIVE — code fix queued kao B4.1 STRICT batch; Vercel env vars
+  BANKART_CALLBACK_MAX_SKEW_SECONDS=300 i BANKART_STATUS_MIN_INTERVAL_SECONDS=15
+  postavljeni kao interim mitigacija (2026-05-12).
+**NEXT REVIEW:** Posle B4.1 merge.
