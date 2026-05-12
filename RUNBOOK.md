@@ -26,19 +26,20 @@ Flow porudžbine:
 
 ❗ Telegram failure **nikad ne smije blokirati order**
 
-### 1.1 DB trigger `telegram-new-order` — dead code
+### 1.1 DB trigger `telegram-new-order` — REMOVED (B15, 2026-05-12)
 
-Na `orders` tabeli postoji DB trigger koji puca na AFTER INSERT i poziva
-`https://padrino-pizzeria.vercel.app/api/telegram-new-order` (5s timeout).
+Trigger je bio mrtav kod na `orders` tabeli (AFTER INSERT). Pozivao je
+`https://padrino-pizzeria.vercel.app/api/telegram-new-order` (5s timeout)
+koji je pod Vercel Deployment Protection → 401. Nikada nije funkcionisao;
+verifikovano produkcijskim logovima 2026-05-11 nad 3 porudžbine
+(padrinobudva.com/api/telegram-new-order → 200 via `create-order.ts`,
+padrino-pizzeria.vercel.app/api/telegram-new-order → 401 via trigger).
 
-**Trigger nikad nije funkcionisao u produkciji:**
-- `.vercel.app` URL je pod Vercel Deployment Protection → vraća 401
-- Endpoint kod nikad ne biva izvršen; request body je prazan `{}`
-- Potvrđeno produkcijskim logovima 2026-05-11 (3 porudžbine):
-  padrinobudva.com/api/telegram-new-order → 200 (via `create-order.ts`),
-  padrino-pizzeria.vercel.app/api/telegram-new-order → 401 (via trigger)
+**Removed via:** `supabase/migrations/20260512150000_drop_telegram_trigger.sql`
+(`DROP TRIGGER IF EXISTS`).
 
-**Scheduled DROP:** B15 (LEAN, ~15min — single `DROP TRIGGER` migration).
+**Aktivni Telegram flow:** `api/create-order.ts` poziva
+`api/telegram-new-order` direct server-to-server (12s timeout) — vidi §1 i §6.
 
 ---
 
@@ -112,7 +113,7 @@ Ako su env varijable promijenjene na Vercel-u → OBAVEZNO novi deploy
 ➡️ Uvijek koristiti Invoke-RestMethod
 
 Invoke-RestMethod -Method Post `
-  -Uri "https://padrino-pizzeria.vercel.app/api/telegram-new-order" `
+  -Uri "https://padrinobudva.com/api/telegram-new-order" `
   -ContentType "application/json" `
   -Body '{"order_id":"<REAL_UUID_IZ_SUPABASE>"}'
 
