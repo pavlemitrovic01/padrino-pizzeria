@@ -85,7 +85,32 @@ rate-limit, interval): koristiti `getEnv("X") || "defaultVrednost"` pre
 prosleđivanja u safeNumber. Ili eksplicitno setovati env var na Vercel.
 Ne oslanjati se na fallback argument safeNumber za env-var-derived stringove.
 
-**STATUS:** ACTIVE — code fix queued kao B4.1 STRICT batch; Vercel env vars
+**STATUS:** ACTIVE — B4.1 DONE (2026-05-12). Code fix deployed. Vercel env vars
   BANKART_CALLBACK_MAX_SKEW_SECONDS=300 i BANKART_STATUS_MIN_INTERVAL_SECONDS=15
-  postavljeni kao interim mitigacija (2026-05-12).
-**NEXT REVIEW:** Posle B4.1 merge.
+  ostavljeni kao belt-and-suspenders (harmless).
+**NEXT REVIEW:** —
+
+---
+
+## 2026-05-12 — Nikad ne prosleđuj sirovu err.message klijentu (L5)
+
+**PROBLEM:** `api/create-order.ts` vraćao raw `err.message` (Postgres constraint names,
+Bankart `adapterCode`/`adapterMessage`, ENOTFOUND hostname-e) direktno u JSON response
+koji browser prikazuje korisniku. Verifikovano B11 audit — 2 leak site-a:
+DB insert catch (Postgres schema details) i top-level catch (Bankart/network/DB re-throw).
+
+**LEKCIJA:** Sve 500 error responses prema browser klijentu moraju koristiti generic
+user-friendly poruku. `console.error` zadržava pun context za Vercel ops triage.
+Nikad: `{ error: err.message }` ili `{ error: String(err) }` na server-browser granici.
+Razdvoji "šta vidi korisnik" od "šta vidi devops".
+
+**PRIMENA:** Svaki novi API endpoint koji može throwati izuzetak:
+- Top-level catch: `console.error("[endpoint] failed:", err)` za ops
+- Response: `json(res, 500, { ok: false, error: GENERIC_MSG })` za klijenta
+- Pattern: `clientSafeError(err, kind)` iz `api/create-order.ts` kao referentni primjer
+- Izuzetak: server-to-server pozivi (Bankart callback → gateway, admin-only)
+  imaju drugačiji threat model — mogu biti granularniji
+- Validacioni 400 errors su intentionalno user-facing — ne sanitizuju se
+
+**STATUS:** ACTIVE
+**NEXT REVIEW:** —

@@ -5,6 +5,32 @@
 
 ---
 
+## B11 — 2026-05-12 — Bankart raw error sanitization — DONE
+
+**Tier:** STRICT (lock-zone file: api/create-order.ts; branch: b11-bankart-error-sanitize → FF-merged to main)
+**SHA:** 604461f
+**Files:**
+  - api/create-order.ts (MODIFY — add `export function clientSafeError`, patch 2 leak sites with console.error + generic Serbian messages)
+  - api/create-order.test.ts (NEW — 4 unit tests for clientSafeError: Error/string/undefined/null × both kinds)
+**Verify:**
+  build:     PASS(machine) — exit 0, 4.21s (tsc -b + vite, on main post-merge)
+  typecheck: PASS(machine) — via npm run build
+  test:      PASS(machine) — 6 files, 80/80 (76 prethodnih + 4 nova)
+  manual:    PASS(human) — Opus reviewed + approved diff; Pavle okayed merge
+**SCOPE_DRIFT:** none — exactly 2 expected files
+**Notes:**
+  - Fixed 2 leak sites in api/create-order.ts where raw error text reached browser client:
+    (1) L1119-1121: insErr.message (Postgres constraint/column names) returned on DB insert failure
+    (2) L1168-1170: top-level catch relayed raw Bankart/network/DB err.message to client
+  - Both now: console.error for Vercel ops triage + generic Serbian message to client
+  - clientSafeError(err, kind) helper exported for testability; kind param is forward-compat
+    for per-kind categorization if needed later (B11.1)
+  - Substring heuristic `includes("bankart")` for kind routing documented with exit strategy
+  - Out-of-scope: api/bankart-callback.ts (server-to-server), api/bankart-order-status.ts (admin)
+  - ROADMAP listed B11 as STANDARD; upgraded to STRICT because api/create-order.ts is lock zone
+
+---
+
 ## B15 — 2026-05-12 — Telegram DB trigger DROP — DONE
 
 **Tier:** LEAN (doc + migration, direct on main)

@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B15 — Telegram DB trigger DROP (2026-05-12)
-**Sledeći:** B11 — Bankart raw error sanitization (STANDARD) — needs /plan
+**Poslednji završen:** B11 — Bankart raw error sanitization (2026-05-12)
+**Sledeći:** B16 — CAS atomicity fix in admin-update-order-status.ts (STRICT) — needs /plan
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -42,15 +42,16 @@
 - B4.1 (safeNumber call-site fix) — DONE 2026-05-12
 - **Faza A — DONE** ✓
 - B15 (Telegram DB trigger DROP) — DONE 2026-05-12
-- Faza B — in progress: B11/B16 next
+- B11 (Bankart raw error sanitization) — DONE 2026-05-12
+- Faza B — in progress: B16 next
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-9 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+10 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
-B15 trigger drop).
+B15 trigger drop, B11 error sanitization).
 
 ---
 
