@@ -210,7 +210,7 @@ export function safeEqualSignature(a: string, b: string): boolean {
 }
 
 export function isDateFresh(dateHeader: string): boolean {
-  const maxSkewSeconds = safeNumber(getFirstEnv("BANKART_CALLBACK_MAX_SKEW_SECONDS"), 300);
+  const maxSkewSeconds = safeNumber(getFirstEnv("BANKART_CALLBACK_MAX_SKEW_SECONDS") || "300", 300);
   const parsed = Date.parse(dateHeader);
   if (!Number.isFinite(parsed)) return false;
 

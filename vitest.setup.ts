@@ -6,5 +6,3 @@ process.env.SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || "test-service-role-key";
 process.env.BANKART_SHARED_SECRET =
   process.env.BANKART_SHARED_SECRET || "test-bankart-secret";
-process.env.BANKART_CALLBACK_MAX_SKEW_SECONDS =
-  process.env.BANKART_CALLBACK_MAX_SKEW_SECONDS || "300";

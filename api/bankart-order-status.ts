@@ -226,7 +226,7 @@ function shouldSkipStatusRefreshForPaymentStatus(status: string | null | undefin
 }
 
 function getStatusRefreshMinIntervalMs(): number {
-  const seconds = safeNumber(getFirstEnv("BANKART_STATUS_MIN_INTERVAL_SECONDS"), 15);
+  const seconds = safeNumber(getFirstEnv("BANKART_STATUS_MIN_INTERVAL_SECONDS") || "15", 15);
   const normalizedSeconds = Math.max(12, Math.trunc(seconds));
   return normalizedSeconds * 1000;
 }
