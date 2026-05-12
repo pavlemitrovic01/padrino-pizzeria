@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B4 — Kritični testovi (HMAC + canTransition coverage) (2026-05-12)
-**Sledeći:** B4.1 — safeNumber call-site fix (STRICT) — needs /plan
+**Poslednji završen:** B4.1 — safeNumber call-site fix (2026-05-12)
+**Sledeći:** B15 — Telegram DB trigger DROP (LEAN) — needs /plan
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -39,21 +39,16 @@
 - B3.5 (Telegram flow doc correction) — DONE 2026-05-11
 - W2 (Workflow reconciliation — post-audit drift fix) — DONE 2026-05-11
 - B4 (Kritični testovi — HMAC + canTransition) — DONE 2026-05-12
+- B4.1 (safeNumber call-site fix) — DONE 2026-05-12
 - **Faza A — DONE** ✓
-- Faza B — starting: B4.1 queued (safeNumber call-site fix), then B11/B15/B16
-
-**B4.1 scope (queued, not yet planned):**
-  Fix `safeNumber(getFirstEnv("X"), N)` → `safeNumber(getFirstEnv("X") || "N", N)`
-  at 2 lock-zone call sites (bankart-callback.ts:213, bankart-order-status.ts:229).
-  Also: remove BANKART_CALLBACK_MAX_SKEW_SECONDS stub from vitest.setup.ts (becomes redundant).
-  Vercel config mitigates production risk in interim (set 2026-05-12).
+- Faza B — in progress: B15 next, then B11/B16
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-7 batches completed (B1 no-op, B2 audit, B3 schema baseline,
-W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests).
+8 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix).
 
 ---
 

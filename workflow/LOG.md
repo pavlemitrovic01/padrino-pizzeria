@@ -5,6 +5,30 @@
 
 ---
 
+## B4.1 — 2026-05-12 — safeNumber call-site fix — DONE
+
+**Tier:** STRICT (branch: b4.1-safenumber-fix → merged to main, FF merge)
+**SHA:** fe397ab
+**Files:**
+  - api/bankart-callback.ts (MODIFY — add `|| "300"` guard on getFirstEnv call, line 213)
+  - api/bankart-order-status.ts (MODIFY — add `|| "15"` guard on getFirstEnv call, line 229)
+  - vitest.setup.ts (MODIFY — remove 2-line BANKART_CALLBACK_MAX_SKEW_SECONDS workaround stub)
+**Verify:**
+  build:     PASS(machine) — exit 0, 4.05s (tsc -b + vite)
+  typecheck: PASS(machine) — via npm run build
+  test:      PASS(machine) — 5 files, 76/76
+  manual:    PASS(human) — Pavle approved diff preview
+**SCOPE_DRIFT:** none — exactly 3 expected files
+**Notes:**
+  - Permanent fix for L4 finding (B4): safeNumber("", fallback) returned 0 not fallback.
+    Guard `|| "N"` ensures empty env string falls through to string default before safeNumber.
+  - vitest.setup.ts stub was workaround; removed because code now self-defaults correctly.
+  - Vercel env vars (BANKART_CALLBACK_MAX_SKEW_SECONDS=300, BANKART_STATUS_MIN_INTERVAL_SECONDS=15)
+    remain set on Vercel as belt-and-suspenders (harmless, no regression risk).
+  - safeNumber deduplication (3 copies in api/) still deferred to B8 (api/_shared, Faza C).
+
+---
+
 ## B4 — 2026-05-12 — Kritični testovi (HMAC + canTransition coverage) — DONE
 
 **Tier:** STRICT (branch: b4-critical-tests → merged to main, FF merge)
