@@ -32,7 +32,7 @@ See `DECISIONS.md` "Phase History" for full record.
 |----|--------|------|----------|-------|
 | B6 | CartProvider duplikati → cartDrawerHelpers | STANDARD | 30min | 5 functions duplicated; cartDrawerHelpers.ts exists |
 | B7 | Menu.tsx NAME_TO_FILE cleanup | STANDARD | 20min | Two sources of truth (Menu.tsx + cartDrawerHelpers.ts) |
-| B8 | CREATE api/_shared/ with resolvePublicBaseUrl + telegram helpers | STANDARD | 45min | Directory does NOT yet exist (audit 2026-05-11); extracts 3-file duplication into new shared module |
+| B8 | CREATE api/_shared/ with resolvePublicBaseUrl + telegram helpers | STRICT | ~1.5-2h | DEFERRED to Phase D — design LOCKED in DECISIONS 2026-05-16. resolvePublicBaseUrl has intentional bankart-callback divergence (NO Origin branch, security). Execute only as STRICT w/ trustOriginHeader param + ReqLike/getEnv unification. Phase C continues B9. |
 | B9 | AuthProvider removal | LEAN | 30min | Audit confirms useAuth() not called anywhere; safe-remove from main.tsx + delete src/auth/AuthProvider.tsx |
 | B10 | CREATE api/_shared/admin-auth.ts; consolidate getAdminFromDb | STANDARD | 1h | 8+ inline copies across api handlers (admin-orders, admin-menu, admin-settings, etc.) |
 | B13 | Mrtvi fajlovi cleanup | LEAN | 15min | Audit 2026-05-11: padrinoo.txt and tsbuildinfo absent; verify scope on /plan — likely near-no-op |

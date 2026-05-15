@@ -189,3 +189,48 @@ was never actually executed.
 build PASS, 32/32 tests pass, no observed runtime regressions. No
 customer impact from these doc-level drifts. D4 (CAS race) is the
 only real production concern; tracked as B16.
+
+---
+
+## 2026-05-16 — B8 deferred + locked shared design (ChatGPT-confirmed)
+
+**Finding:** `resolvePublicBaseUrl(req)` exists in 3 lock-zone files.
+NOT a clean duplicate:
+- `api/create-order.ts` + `api/bankart-order-status.ts`: env → **Origin
+  branch** → x-forwarded → fallback, via `headerStringCI`.
+- `api/bankart-callback.ts`: env → x-forwarded → fallback, **NO Origin
+  branch**, via lowercase-forcing `headerString`.
+`buildTelegramPayload` IS byte-identical across all 3 but calls
+`resolvePublicBaseUrl` internally → cannot extract independently.
+
+**Verdict (ChatGPT, original Padrino author context, 2026-05-16):**
+- bankart-callback Origin omission = **intentional/correct, MUST be
+  preserved**. Server-to-server HMAC callback must not trust
+  browser-controlled `Origin` to build `notify_url` (security). Backed
+  by `VERCEL_URL` 401 history (env canonical URL is source of truth;
+  callback must not improvise via browser headers). No verbatim
+  "security decision" record found, but inferred firmly from
+  architecture.
+- `headerString` vs `headerStringCI` = accidental drift; may
+  canonicalize to `headerStringCI` — but canonicalization MUST NOT add
+  Origin to callback.
+
+**Locked shared design (for whenever B8 executes):**
+
+    resolvePublicBaseUrl(req, { trustOriginHeader = false })  // safe default
+    // order: env (PUBLIC_SITE_URL|SITE_URL|APP_URL|NEXT_PUBLIC_SITE_URL)
+    //        → Origin (only if trustOriginHeader) → x-fwd-proto+host/host
+    //        → https://padrinobudva.com
+    // create-order.ts          → trustOriginHeader: true
+    // bankart-order-status.ts  → trustOriginHeader: true
+    // bankart-callback.ts      → trustOriginHeader: false
+
+**Decision:** B8 DEFERRED to Phase D character. Tier corrected
+STANDARD→**STRICT** (3 lock-zone files; B11 precedent). Re-estimate
+~1.5–2h (must unify divergent `ReqLike`×3, `getEnv`, header helpers).
+Not "drop" — executable later with this locked spec. Phase C continues
+with B9.
+
+**Lock-zone rule:** Bankart callback must not trust `Origin` for public
+base URL. Origin fallback allowed only on browser-facing endpoints, only
+as fallback behind env canonical URL.
