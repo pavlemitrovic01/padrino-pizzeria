@@ -5,6 +5,37 @@
 
 ---
 
+## B7 — 2026-05-16 — Menu.tsx image resolver dedup → cartDrawerHelpers — DONE
+
+**Tier:** STANDARD (single file, customer-facing image render; not lock zone; direct on main)
+**SHA:** c3ece05
+**Files:**
+  - src/sections/Menu.tsx (MODIFY — import buildImageCandidates from ../lib/cartDrawerHelpers; remove 5 private resolver functions)
+**Verify:**
+  build:     PASS(machine) — exit 0 (tsc -b + vite), 2026-05-16 01:08
+  typecheck: PASS(machine) — via npm run build (tsc -b)
+  test:      PASS(machine) — 6 files, 83/83
+  lint:      PASS(machine) — exit 0 (confirms no orphan/unused-import)
+  manual:    PASS(human) — Pavle potvrdio: ceo meni (pizze/sosevi/dodaci/pića) renderuje, nema slomljenih pločica
+**SCOPE_DRIFT:** none — tačno 1 expected fajl (src/sections/Menu.tsx)
+**Notes:**
+  - Uklonjeno 5 privatnih duplikata: `normalizeImagePath`, `NAME_TO_FILE`,
+    `buildFileCandidatesFromFilename`, `buildFileCandidatesFromName`, `buildImageCandidates`
+  - Importovan samo `buildImageCandidates` (ostala 3 simbola korišćena samo interno u uklonjenim funkcijama)
+  - `normalizeText`/`stripSize` namjerno ostavljeni — i dalje korišćeni u non-image Menu logici (linije 296/310/466)
+  - `normalizeImagePath` uklonjen kao orphan (koristio ga samo lokalni `buildImageCandidates`)
+  - **Latentni fiks:** Menu-ov lokalni `NAME_TO_FILE` mapirao na `.png`, a `public/menu/` ima
+    isključivo `.webp` (33 fajla, 0 png) → mapped-name fallback je produkovao mrtve kandidate.
+    Shared helper rešava `.webp` + brand-prefix/volume logika + `padrino.webp` placeholder.
+    DB `image` putanja se i dalje proba prva → DB-popunjeni redovi netaknuti (nema regresije).
+  - Rezultat: 1 insertion(+), 81 deletions(-) — neto -80 linija
+  - Pre-B7 housekeeping (zaseban commit 16a6f0f, NIJE B7 scope): `git rm --cached supabase/.temp/`
+    — 8 tracked fajlova već u .gitignore:43 ali tracked od ranije; uklonjeni iz indexa,
+    fajlovi ostaju na disku za Supabase CLI. Rešava recurring dirty-tree šum.
+  - **Faza C — B7 DONE** ✓
+
+---
+
 ## B6 — 2026-05-16 — CartProvider duplikati → cartDrawerHelpers — DONE
 
 **Tier:** STRICT (lock zone file: src/context/CartProvider.tsx; branch: b6-cartprovider-dedup → FF-merged to main)
