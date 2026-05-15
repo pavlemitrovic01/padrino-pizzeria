@@ -5,6 +5,31 @@
 
 ---
 
+## B16 — 2026-05-15 — CAS atomicity fix in admin-update-order-status — DONE
+
+**Tier:** STRICT (race-condition fix in payment-state machine; branch: b16-cas-atomicity-fix → FF-merged to main)
+**SHA:** e797c43
+**Files:**
+  - api/admin-update-order-status.ts (MODIFY — add `.eq("status", fromStatus)` CAS guard + `.maybeSingle()` + 409 conflict response with re-read)
+  - api/admin-update-order-status.test.ts (MODIFY — 3 new handler CAS tests: happy path 200, CAS miss 409 with current_status, identity transition guard)
+**Verify:**
+  build:     PASS(machine) — exit 0, tsc -b + vite 7.71s
+  typecheck: PASS(machine) — via npm run build (tsc -b)
+  test:      PASS(machine) — 6 files, 83/83 (80 prethodnih + 3 nova CAS testa)
+  manual:    PASS(human) — Pavle potvrdio: status promjena → 200 OK
+**SCOPE_DRIFT:** none — tačno 2 expected fajla
+**Notes:**
+  - Race window: admin READ-then-WRITE sa sekundama između. Bankart callback (api/bankart-callback.ts)
+    može promijeniti status tokom tog window-a → payment-state divergence (paid ali "cancelled", ili
+    refunded ali "done"). CAS guard eliminiše ovu klasu bug-ova.
+  - Asimetrija namjerna: Bankart callback i create-order ostaju bez CAS (event-driven authority + atomic init).
+  - 409 response vraća current_status (best-effort re-read), attempted_from, attempted_to i srpsku poruku.
+    Admin osvježi listu i odlučuje — nema auto-retry u handler-u.
+  - Identity transition (X → X) prošao CAS guard (`.eq("status", X)` match sopstveni red) → 200 OK, no-op.
+  - **Faza B — DONE** ✓
+
+---
+
 ## B11 — 2026-05-12 — Bankart raw error sanitization — DONE
 
 **Tier:** STRICT (lock-zone file: api/create-order.ts; branch: b11-bankart-error-sanitize → FF-merged to main)
