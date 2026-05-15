@@ -18,20 +18,17 @@ import {
   isPizzaSize,
 } from "./CartContext";
 import { toSafeInt } from "../lib/money";
+import {
+  isStuffedCrustAddonName,
+  stripPizzaSizeFromName,
+  stuffedCrustPriceForSize,
+} from "../lib/cartDrawerHelpers";
 
 function parsePizzaSizeFromText(text: string): PizzaSize | null {
   const t = String(text ?? "").toLowerCase();
   if (/\b50\s*cm\b|pizza\s*50\s*cm[.,]?/i.test(t)) return "50";
   if (/\b33\s*cm\b|pizza\s*33\s*cm[.,]?/i.test(t)) return "33";
   return null;
-}
-
-function stripSizeFromName(name: string) {
-  return name
-    .replace(/33\s*cm/gi, "")
-    .replace(/50\s*cm/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function isPizzaLike(category: string, name: string) {
@@ -43,37 +40,6 @@ function isPizzaLike(category: string, name: string) {
   );
 }
 
-/** -------------------- STUFFED CRUST (PUNJENE IVICE) -------------------- */
-function normalizeAddonName(value: string) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("ž", "z")
-    .replaceAll("đ", "dj")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isStuffedCrustAddon(addonName: string) {
-  const n = normalizeAddonName(addonName);
-
-  if (n.includes("ivice punjene")) return true;
-  if (n.includes("punjene ivice")) return true;
-  if (n.includes("ivica punjena")) return true;
-  if (n.includes("punjena ivica")) return true;
-
-  if (n === "rub") return true;
-
-  return false;
-}
-
-function stuffedCrustPriceForSize(size: PizzaSize | string | number | null | undefined): number {
-  const s = String(size ?? "").toLowerCase();
-  return s.includes("50") ? 400 : 200;
-}
-
 function adjustAddonsForSize(size: PizzaSize | null | undefined, addons: CartAddon[]): CartAddon[] {
   if (!addons.length) return addons;
 
@@ -81,7 +47,7 @@ function adjustAddonsForSize(size: PizzaSize | null | undefined, addons: CartAdd
 
   let changed = false;
   const next = addons.map((a) => {
-    if (!isStuffedCrustAddon(a.name)) return a;
+    if (!isStuffedCrustAddonName(a.name)) return a;
 
     const qty = Math.max(1, toSafeInt(a.quantity ?? 1, 1));
     const currentPrice = toSafeInt(a.price ?? 0, 0);
@@ -152,7 +118,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     };
   }
 
-  const baseKey = item.baseKey ?? stripSizeFromName(item.name);
+  const baseKey = item.baseKey ?? stripPizzaSizeFromName(item.name);
 
   const detected = item.size ?? parsePizzaSizeFromText(item.name);
   const detectedSize: PizzaSize | null = isPizzaSize(detected) ? detected : null;
@@ -353,7 +319,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
         const existing = i.addons ?? [];
 
-        const normalizedAddon: Omit<CartAddon, "quantity"> = isStuffedCrustAddon(addon.name)
+        const normalizedAddon: Omit<CartAddon, "quantity"> = isStuffedCrustAddonName(addon.name)
           ? { ...addon, price: stuffedCrustPriceForSize(i.size ?? "33") }
           : { ...addon, price: toSafeInt(addon.price, 0) };
 
