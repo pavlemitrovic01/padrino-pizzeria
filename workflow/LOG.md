@@ -5,6 +5,30 @@
 
 ---
 
+## B6 — 2026-05-16 — CartProvider duplikati → cartDrawerHelpers — DONE
+
+**Tier:** STRICT (lock zone file: src/context/CartProvider.tsx; branch: b6-cartprovider-dedup → FF-merged to main)
+**SHA:** 13c57af
+**Files:**
+  - src/context/CartProvider.tsx (MODIFY — remove 4 duplicate local functions, import canonical versions from cartDrawerHelpers)
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.31s
+  typecheck: PASS(machine) — via npm run build (tsc -b)
+  test:      PASS(machine) — 6 files, 83/83 (all passing)
+  lint:      PASS(machine) — exit 0
+  manual:    PASS(human) — Pavle potvrdio: smoke test pass
+**SCOPE_DRIFT:** none — tačno 1 expected fajl
+**Notes:**
+  - Uklonjene 4 duplikat funkcije: `normalizeAddonName`, `stuffedCrustPriceForSize`, `stripSizeFromName`, `isStuffedCrustAddon`
+  - Dodana 1 import linija: `{ isStuffedCrustAddonName, stripPizzaSizeFromName, stuffedCrustPriceForSize }` iz `../lib/cartDrawerHelpers`
+  - 2 call-site renaming: `stripSizeFromName` → `stripPizzaSizeFromName`, `isStuffedCrustAddon` → `isStuffedCrustAddonName`
+  - `normalizeAddonName` nije importovana — koristila se samo unutar uklonjene `isStuffedCrustAddon`
+  - `parsePizzaSizeFromText` i `isPizzaLike` namjerno ostavljene (različite od cartDrawerHelpers verzija)
+  - Rezultat: 8 insertions(+), 42 deletions(-) — neto -34 linije
+  - **Faza C — B6 DONE** ✓
+
+---
+
 ## B16 — 2026-05-15 — CAS atomicity fix in admin-update-order-status — DONE
 
 **Tier:** STRICT (race-condition fix in payment-state machine; branch: b16-cas-atomicity-fix → FF-merged to main)
