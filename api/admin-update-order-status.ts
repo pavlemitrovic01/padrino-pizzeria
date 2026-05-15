@@ -179,19 +179,38 @@ export default async function handler(req: ReqLike, res: ResLike) {
       .from("orders")
       .update({ status: nextStatus })
       .eq("id", orderId)
+      .eq("status", fromStatus)
       .select("status")
-      .single();
+      .maybeSingle();
 
     if (updErr) {
       return json(res, 500, { ok: false, error: "DB update failed" });
     }
 
-    const finalStatus = updated?.status;
+    if (!updated) {
+      const { data: actualRow } = await supabase
+        .from("orders")
+        .select("status")
+        .eq("id", orderId)
+        .maybeSingle();
+      const currentStatus = isOrderStatus(actualRow?.status) ? actualRow.status : null;
+      return json(res, 409, {
+        ok: false,
+        error: currentStatus
+          ? `Status promijenjen u međuvremenu (trenutno: ${currentStatus}). Osvježite listu.`
+          : "Status promijenjen u međuvremenu. Osvježite listu.",
+        current_status: currentStatus,
+        attempted_from: fromStatus,
+        attempted_to: nextStatus,
+      });
+    }
+
+    const finalStatus = updated.status;
     if (isOrderStatus(finalStatus)) {
       return json(res, 200, { ok: true, status: finalStatus });
     }
 
-    // fallback (should not happen)
+    // Unreachable — updated.status is valid when row is returned
     return json(res, 200, { ok: true, status: nextStatus });
   } catch (err: unknown) {
     console.error("admin-update-order-status fatal error:", err);

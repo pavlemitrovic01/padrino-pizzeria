@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 // Must be hoisted before module load — admin-update-order-status.ts calls buildSupabaseAdmin() at top level.
 vi.mock("@supabase/supabase-js", () => ({
@@ -136,5 +136,146 @@ describe("handler (smoke)", () => {
     };
     await handler({ method: "POST", headers: {} }, res);
     expect(capturedStatus).toBe(401);
+  });
+});
+
+// ─── handler (CAS) ───────────────────────────────────────────
+describe("handler (CAS)", () => {
+  afterEach(() => {
+    vi.resetModules();
+  });
+
+  function buildAuthChain() {
+    return {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { email: "admin@test.com", enabled: true },
+            error: null,
+          }),
+        }),
+      }),
+    };
+  }
+
+  function buildReadChain(status: string) {
+    return {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { id: "o1", status },
+            error: null,
+          }),
+        }),
+      }),
+    };
+  }
+
+  function buildUpdateChain(resultData: { status: string } | null) {
+    const maybeSingleFn = vi.fn().mockResolvedValue({ data: resultData, error: null });
+    const selectFn = vi.fn().mockReturnValue({ maybeSingle: maybeSingleFn });
+    const eq2Fn = vi.fn().mockReturnValue({ select: selectFn });
+    const eq1Fn = vi.fn().mockReturnValue({ eq: eq2Fn });
+    const updateFn = vi.fn().mockReturnValue({ eq: eq1Fn });
+    return { update: updateFn };
+  }
+
+  function buildReReadChain(status: string) {
+    return {
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: { status },
+            error: null,
+          }),
+        }),
+      }),
+    };
+  }
+
+  function setupHandler(fromCalls: object[]) {
+    const fromMock = vi.fn();
+    fromCalls.forEach((chain) => fromMock.mockReturnValueOnce(chain));
+    vi.resetModules();
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: vi.fn(() => ({
+        from: fromMock,
+        auth: {
+          getUser: vi.fn().mockResolvedValue({
+            data: { user: { email: "admin@test.com" } },
+            error: null,
+          }),
+        },
+      })),
+    }));
+  }
+
+  function makeRes() {
+    let capturedStatus = 0;
+    let capturedBody = "";
+    const res: HandlerRes = {
+      status(code) { capturedStatus = code; return this; },
+      setHeader: vi.fn(),
+      send(body) { capturedBody = body; },
+    };
+    return {
+      res,
+      getStatus: () => capturedStatus,
+      getBody: () => JSON.parse(capturedBody) as Record<string, unknown>,
+    };
+  }
+
+  it("happy path: pending → preparing returns 200 with status 'preparing'", async () => {
+    setupHandler([
+      buildAuthChain(),
+      buildReadChain("pending"),
+      buildUpdateChain({ status: "preparing" }),
+    ]);
+    const { default: handler } = await import("./admin-update-order-status");
+    const { res, getStatus, getBody } = makeRes();
+    await handler(
+      { method: "POST", headers: { authorization: "Bearer tok" }, body: { order_id: "o1", next_status: "preparing" } },
+      res,
+    );
+    expect(getStatus()).toBe(200);
+    expect(getBody()).toMatchObject({ ok: true, status: "preparing" });
+  });
+
+  it("CAS miss: concurrent change returns 409 with current_status", async () => {
+    setupHandler([
+      buildAuthChain(),
+      buildReadChain("pending"),
+      buildUpdateChain(null),
+      buildReReadChain("cancelled"),
+    ]);
+    const { default: handler } = await import("./admin-update-order-status");
+    const { res, getStatus, getBody } = makeRes();
+    await handler(
+      { method: "POST", headers: { authorization: "Bearer tok" }, body: { order_id: "o1", next_status: "preparing" } },
+      res,
+    );
+    expect(getStatus()).toBe(409);
+    const body = getBody();
+    expect(body.ok).toBe(false);
+    expect(body.current_status).toBe("cancelled");
+    expect(body.attempted_from).toBe("pending");
+    expect(body.attempted_to).toBe("preparing");
+    expect(body.error as string).toContain("cancelled");
+  });
+
+  it("identity transition: done → done passes CAS guard and returns 200", async () => {
+    setupHandler([
+      buildAuthChain(),
+      buildReadChain("done"),
+      buildUpdateChain({ status: "done" }),
+    ]);
+    const { default: handler } = await import("./admin-update-order-status");
+    const { res, getStatus, getBody } = makeRes();
+    await handler(
+      { method: "POST", headers: { authorization: "Bearer tok" }, body: { order_id: "o1", next_status: "done" } },
+      res,
+    );
+    expect(getStatus()).toBe(200);
+    expect(getBody()).toMatchObject({ ok: true, status: "done" });
   });
 });
