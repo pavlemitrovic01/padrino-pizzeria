@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import { useCart } from "../context/CartProvider";
 import type { CartItem } from "../context/CartContext";
 import { formatEUR } from "../lib/money";
+import { buildImageCandidates } from "../lib/cartDrawerHelpers";
 
 type DbMenuItem = {
   id: string;
@@ -47,87 +48,6 @@ function detectSizeLabel(name: string): string | null {
   if (/\b50\s*cm\b/i.test(s) || /\b50cm\b/i.test(s)) return "50 cm";
   if (/\b33\s*cm\b/i.test(s) || /\b33cm\b/i.test(s)) return "33 cm";
   return null;
-}
-
-function normalizeImagePath(image: string | null): string | null {
-  if (!image) return null;
-  const t = image.trim();
-  if (!t) return null;
-  if (t.startsWith("/menu/")) return t;
-
-  const parts = t.split("/").filter(Boolean);
-  const file = parts.length ? parts[parts.length - 1] : "";
-  if (!file) return null;
-
-  return `/menu/${file}`;
-}
-
-const NAME_TO_FILE: Record<string, string> = {
-  "quattro formaggi": "quattro.png",
-  "don pesto": "pesto.png",
-  "don pamidoro": "pomodoro.png",
-  "ljuti sos": "ljuti sos.png",
-  "slatko ljuti": "slatko ljuti.png",
-};
-
-function buildFileCandidatesFromFilename(file: string): string[] {
-  const f = String(file ?? "").trim();
-  if (!f) return [];
-
-  const lower = f.toLowerCase();
-  const spaceTo20 = f.replaceAll(" ", "%20");
-  const spaceTo20Lower = lower.replaceAll(" ", "%20");
-
-  const encodedFile = encodeURIComponent(f).replaceAll("%2F", "/");
-  const encodedLower = encodeURIComponent(lower).replaceAll("%2F", "/");
-
-  const uniq = new Set<string>([
-    `/menu/${f}`,
-    `/menu/${lower}`,
-    `/menu/${encodedFile}`,
-    `/menu/${encodedLower}`,
-    `/menu/${spaceTo20}`,
-    `/menu/${spaceTo20Lower}`,
-  ]);
-
-  return [...uniq];
-}
-
-function buildFileCandidatesFromName(name: string): string[] {
-  const raw = stripSize(name);
-  const n = normalizeText(raw);
-  if (!n) return [];
-
-  const mapped = NAME_TO_FILE[n];
-  if (mapped) return buildFileCandidatesFromFilename(mapped);
-
-  const withDash = n.replaceAll(" ", "-");
-  const withSpace = n;
-  const noDash = withDash.replaceAll("-", "");
-
-  const candidates = [`${withDash}.png`, `${withSpace}.png`, `${noDash}.png`];
-
-  const djToD = withDash.replaceAll("dj", "d");
-  if (djToD !== withDash) candidates.push(`${djToD}.png`);
-
-  const uniq = new Set<string>();
-  for (const file of candidates) {
-    for (const c of buildFileCandidatesFromFilename(file)) uniq.add(c);
-  }
-  return [...uniq];
-}
-
-function buildImageCandidates(image: string | null, name: string): string[] {
-  const base = normalizeImagePath(image);
-  const uniq = new Set<string>();
-
-  if (base) {
-    const file = base.replace("/menu/", "");
-    for (const c of buildFileCandidatesFromFilename(file)) uniq.add(c);
-  }
-  for (const c of buildFileCandidatesFromName(name)) uniq.add(c);
-
-  return [...uniq];
 }
 
 function clampText(value: string, max = 78) {
