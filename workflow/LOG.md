@@ -5,6 +5,35 @@
 
 ---
 
+## B14.1 — 2026-05-17 — Enable RLS on admin_users + revoke anon grants (F1 fix) — DONE
+
+**Tier:** STRICT (schema-change; direct on main — no src/api changes)
+**SHA:** 2dbc1ec
+**Files (2):**
+  - supabase/migrations/20260517000000_enable_rls_admin_users.sql (CREATE — F1 remediation migration)
+  - workflow/projects/padrino/DECISIONS.md (MODIFY — B14.1 decision + apply status)
+**Verify:**
+  build:     PASS(machine) — exit 0
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 7 files / 95 tests
+  DB verify: PASS(machine) — pg_tables.rowsecurity=true ✓,
+             anon/authenticated grants absent (14 rows: postgres×7 + service_role×7 only) ✓
+  manual:    PASS(human) — Pavle confirmed: login OK, AdminOrders OK,
+             AdminUsers OK, console clean @ padrinobudva.com/admin
+**SCOPE_DRIFT:** none
+  EXPECTED: supabase/migrations/20260517000000_enable_rls_admin_users.sql,
+            workflow/projects/padrino/DECISIONS.md
+  ACTUAL:   exact match ✓
+**Notes:**
+  - F1 CRITICAL closed: admin_users RLS enabled + anon/authenticated grants revoked.
+  - service_role bypasses RLS unconditionally → all api/admin-*.ts unaffected (confirmed).
+  - Frontend has zero .from("admin_users") → no frontend impact.
+  - Apply method: Supabase dashboard SQL editor (NOT db push — baseline may have drifted).
+  - F2 (orders hardcoded email) deferred per Option C — vestigial, service_role bypasses it.
+  - Rollback SQL documented in migration file and DECISIONS.md.
+
+---
+
 ## B14 — 2026-05-16 — Security audit: RLS hardcoded email + admin_users RLS — DONE
 
 **Tier:** STRICT (audit-only, doc batch — direct on main)

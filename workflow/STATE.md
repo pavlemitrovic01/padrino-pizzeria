@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B14 — Security audit: RLS hardcoded email + admin_users RLS (2026-05-16, STRICT)
-**Sledeći:** B14.1 — Enable RLS on admin_users + REVOKE anon grants (F1 fix, po /plan)
+**Poslednji završen:** B14.1 — Enable RLS on admin_users + revoke anon grants (2026-05-17, STRICT)
+**Sledeći:** B8 — api/_shared resolvePublicBaseUrl (deferred Phase D; awaiting /plan)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -67,19 +67,22 @@
 - B14 (Security audit: RLS hardcoded email + admin_users RLS) — DONE 2026-05-16
   (STRICT; audit-only; F1 CRITICAL potvrđen iz live DB — admin_users nema RLS + GRANT ALL TO anon;
   remediation u docs/rls-security-audit.md; B14.1 = F1-only execution follow-up)
-- **Faza D — IN PROGRESS** (B8 deferred, B12 done, B14 done; B14.1 next)
+- B14.1 (Enable RLS on admin_users + revoke anon grants) — DONE 2026-05-17
+  (STRICT; F1 CRITICAL fix applied to production; rowsecurity=true, anon/authenticated
+  grants revoked, service_role retained; admin smoke PASS; F2 deferred per Option C)
+- **Faza D — IN PROGRESS** (B8 deferred, B12 done, B14 done, B14.1 done; B8 next)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-20 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+21 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
 B10 admin-auth dedup → api/_shared/, W3 ROADMAP reconciliation post-B10/L6,
 B10.1 isAdminEmailDb dedup → api/_shared/, B12 edge functions dedup decision,
-B14 RLS security audit).
+B14 RLS security audit, B14.1 RLS admin_users F1 fix).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 B8 deferred to Phase D (commit 5e6cbd3, DECISIONS 2026-05-16 — locked trustOriginHeader design).
 
