@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { buildTelegramPayload } from "./_shared/public-url.js";
 
 type Json = Record<string, unknown>;
 type HeaderValue = string | string[] | undefined;
@@ -130,28 +131,9 @@ function buildSupabaseAdmin() {
 
 const supabase = buildSupabaseAdmin();
 
-function resolvePublicBaseUrl(req: ReqLike): string {
-  const envSite =
-    getEnv("PUBLIC_SITE_URL") || getEnv("SITE_URL") || getEnv("APP_URL") || getEnv("NEXT_PUBLIC_SITE_URL");
-  if (envSite) return envSite.replace(/\/+$/, "");
-
-  const origin = headerStringCI(req, "origin");
-  if (origin) return origin.replace(/\/+$/, "");
-
-  const proto = headerStringCI(req, "x-forwarded-proto") || "https";
-  const host = headerStringCI(req, "x-forwarded-host") || headerStringCI(req, "host");
-  if (host) return `${proto}://${host}`.replace(/\/+$/, "");
-
-  return "https://padrinobudva.com";
-}
-
-function buildTelegramPayload(req: ReqLike, orderId: string) {
-  const url = resolvePublicBaseUrl(req);
-  return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
-}
 
 async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
-  const url = buildTelegramPayload(req, orderId).notify_url;
+  const url = buildTelegramPayload(req.headers, orderId, { trustOriginHeader: true }).notify_url;
 
   const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
   const headers: Record<string, string> = { "content-type": "application/json" };

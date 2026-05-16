@@ -235,6 +235,14 @@ with B9.
 base URL. Origin fallback allowed only on browser-facing endpoints, only
 as fallback behind env canonical URL.
 
+**B8 execution refinement (2026-05-17):** Locked signature
+`resolvePublicBaseUrl(req, …)` refined to `resolvePublicBaseUrl(headers, …)`
+(caller passes `req.headers`, not the whole request). Matches
+`api/_shared/admin-auth.ts` pattern (primitives, no handler coupling);
+lowers TS structural-compat risk under Vercel nodenext. Behavior +
+`trustOriginHeader` semantics unchanged. Repo > docs (RULES source-of-truth).
+Pavle-approved 2026-05-17.
+
 ---
 
 ### 2026-05-16 — B12: Edge functions dedup decision (STRICT)
