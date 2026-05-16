@@ -275,3 +275,56 @@ Pavla. Bez akcije: deployovane mrtve funkcije su unreferenced i bezopasne
 **Action item (Pavle, ops, non-blocking):** proveriti Supabase dashboard
 → Edge Functions; ako `admin-orders`/`telegram-new-order` postoje,
 `supabase functions delete` da se ukloni dead deployed surface.
+
+---
+
+### 2026-05-17 — B14.1: F1 remediation — RLS on admin_users (STRICT)
+
+**Source:** `docs/rls-security-audit.md` (B14, finding F1 — CRITICAL).
+
+**Decision:** Apply RLS hardening to `admin_users` via new migration
+`supabase/migrations/20260517000000_enable_rls_admin_users.sql`:
+
+```sql
+alter table "public"."admin_users" enable row level security;
+revoke all on table "public"."admin_users" from "anon";
+revoke all on table "public"."admin_users" from "authenticated";
+```
+
+**Rationale:** `admin_users` (the admin allowlist) had RLS disabled and
+`GRANT ALL TO anon`. The Supabase anon key is public (frontend bundle), so
+the allowlist was readable/writable via PostgREST → privilege escalation +
+admin DoS. Confirmed against live DB (Pavle, 2026-05-16: "u supabase nam
+je disableovan ROW level security").
+
+**Anti-regression (no code path broken):** every `admin_users` access uses
+the `service_role` key, which bypasses RLS unconditionally:
+- `api/admin-users.ts` — `buildSupabaseAdmin()` → `SERVICE_ROLE` (line 80)
+- `api/_shared/admin-auth.ts` — caller passes its service_role client (line 83)
+- `supabase/functions/payments-create-session` — service_role; does NOT
+  touch `admin_users`
+- frontend `src/` — ZERO `.from("admin_users")` (UI strings only)
+
+**Apply method:** Supabase dashboard SQL editor. NOT `supabase db push`
+(the 20260510 baseline is a db-pull snapshot that may have drifted from
+live; a push could attempt a full reconcile). Same operational caution as
+B12 ops caveat.
+
+**Rollback (3 lines, in migration footer + here):**
+```sql
+alter table "public"."admin_users" disable row level security;
+grant all on table "public"."admin_users" to "anon";
+grant all on table "public"."admin_users" to "authenticated";
+```
+
+**F2 (orders hardcoded-email policies):** NOT addressed. Deferred per audit
+Option C — vestigial (service_role bypasses it; no production effect). Only
+revisit if staff accounts ever get direct Supabase Auth sessions (→ B14.2).
+
+**Apply status:** APPLIED & VERIFIED on production 2026-05-17 (Pavle, via
+Supabase dashboard SQL editor). Post-apply verification confirmed:
+- `pg_tables.rowsecurity` for `admin_users` = `true`
+- `information_schema.role_table_grants`: `anon` ABSENT, `authenticated`
+  ABSENT; `postgres` (owner) + `service_role` retain all (14 rows)
+- Admin smoke PASS: login + AdminOrders + AdminUsers load, console clean
+  (service_role path unaffected by RLS, as predicted by anti-regression)
