@@ -5,6 +5,30 @@
 
 ---
 
+## B14 — 2026-05-16 — Security audit: RLS hardcoded email + admin_users RLS — DONE
+
+**Tier:** STRICT (audit-only, doc batch — direct on main)
+**SHA:** fb945bf
+**Files (1):**
+  - docs/rls-security-audit.md (CREATE — security audit deliverable)
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.10s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 7 files / 95 tests
+  manual:    N/A (doc-only batch, nema code/schema promene)
+**SCOPE_DRIFT:** none
+  EXPECTED: docs/rls-security-audit.md
+  ACTUAL:   docs/rls-security-audit.md ✓
+**Notes:**
+  - +282/-0: novi audit dokument.
+  - F1 (CRITICAL): admin_users nema RLS + GRANT ALL TO anon — privilege
+    escalation via public anon key (potvrđeno od Pavle iz live DB).
+  - F2 (MEDIUM): orders policies hardkoduju email — vestigialno, API
+    path neafektovan (service_role bypasses RLS).
+  - Remediation predložena u dokumentu; B14.1 (STRICT) = F1-only follow-up.
+
+---
+
 ## B12 — 2026-05-16 — Edge functions dedup decision — DONE
 
 **Tier:** STRICT (direct on main — cleanup/decision batch, no src/api changes)
