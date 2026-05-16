@@ -5,6 +5,31 @@
 
 ---
 
+## W3 — 2026-05-16 — ROADMAP reconciliation (post-B10/L6 drift fix) — DONE
+
+**Tier:** LEAN (doc-only, direct commit on main)
+**SHA:** 99c97e3
+**Files (1):**
+  - workflow/projects/padrino/ROADMAP.md (2 izmene):
+      1. Linija 51: "Backend ESLint coverage — currently api/** is in eslint ignore" → ispravljena.
+         Stvarnost (L6/B10): eslint lintuje api/ (`eslint.config.js` ignoriše samo `dist`,
+         `files: **/*.{ts,tsx}`). Rezidual (globals.browser na Node api/) tačno formulisan.
+      2. B10.1 formalni red dodat u Faza C tabelu (isAdminEmailDb dedup, STANDARD, 30min).
+**Verify:**
+  build:     PASS(machine) — exit 0, vite ~7.64s
+  typecheck: PASS(machine) — exit 0
+  test:      NIJE POKRENUTO (LEAN tier)
+**SCOPE_DRIFT:** none
+  EXPECTED: workflow/projects/padrino/ROADMAP.md
+  ACTUAL:   workflow/projects/padrino/ROADMAP.md ✓
+**Notes:**
+  - Netačna tvrdnja bila direktan uzrok B10 ZABRANA "ne diraj lokalne helpere" (plan je
+    koristio ROADMAP kao izvor — repo > dokumentacija važnija). Korekcija sprečava
+    ponavljanje iste pretpostavke u budućim batchevima.
+  - B10.1 sada formalno praćen u ROADMAP; sledeći /plan B10.1 ima čist polazni ROADMAP.
+
+---
+
 ## B10 — 2026-05-16 — Consolidate getAdminFromDb → api/_shared/admin-auth — DONE
 
 **Tier:** STRICT (first api/_shared/ module ever; branch: b10-shared-admin-auth → FF-merged to main)

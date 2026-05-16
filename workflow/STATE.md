@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B10 — Consolidate getAdminFromDb → api/_shared/admin-auth (2026-05-16, STRICT)
-**Sledeći:** B10.1 — isAdminEmailDb dedup → api/_shared/admin-auth (STANDARD, ~30min) ili Faza D — awaiting /plan
+**Poslednji završen:** W3 — ROADMAP reconciliation post-B10/L6 (2026-05-16, LEAN)
+**Sledeći:** B10.1 — isAdminEmailDb dedup → api/_shared/admin-auth (STANDARD, ~30min)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -56,19 +56,21 @@
   (STRICT; first api/_shared/ module; R2 materialized → nodenext .js fix
   commit 65a5fac caught by preview smoke → L6; isAdminEmailDb → B10.1)
 - **Faza C — DONE** ✓ (B6, B7, B9, B13, B10 done; B8 deferred to Phase D)
-- Next: B10.1 (isAdminEmailDb dedup, STANDARD) or Faza D — awaiting /plan
+- W3 (ROADMAP reconciliation — post-B10/L6 drift fix) — DONE 2026-05-16
+  (LEAN; fixed false eslint-ignore claim linija 51; added B10.1 formal row)
+- Next: B10.1 (isAdminEmailDb dedup, STANDARD, ~30min) — now formally in ROADMAP
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-16 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+17 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
-B10 admin-auth dedup → api/_shared/). Plus pre-B7 housekeeping commit 16a6f0f
-(supabase/.temp/ untrack — not a batch). B8 deferred to Phase D
-(commit 5e6cbd3, DECISIONS 2026-05-16 — locked trustOriginHeader design).
+B10 admin-auth dedup → api/_shared/, W3 ROADMAP reconciliation post-B10/L6).
+Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
+B8 deferred to Phase D (commit 5e6cbd3, DECISIONS 2026-05-16 — locked trustOriginHeader design).
 
 ---
 
