@@ -36,6 +36,7 @@ See `DECISIONS.md` "Phase History" for full record.
 | B9 | AuthProvider removal | LEAN | 30min | Audit confirms useAuth() not called anywhere; safe-remove from main.tsx + delete src/auth/AuthProvider.tsx |
 | B10 | CREATE api/_shared/admin-auth.ts; consolidate getAdminFromDb | STANDARD | 1h | 8+ inline copies across api handlers (admin-orders, admin-menu, admin-settings, etc.) |
 | B13 | Mrtvi fajlovi cleanup | LEAN | 15min | Audit 2026-05-11: padrinoo.txt and tsbuildinfo absent; verify scope on /plan — likely near-no-op |
+| B10.1 | isAdminEmailDb dedup → api/_shared/admin-auth | STANDARD | 30min | Follow-up to B10 (identified during B10 exec). isAdminEmailDb inline-duplicated in admin-orders.ts, admin-update-order-status.ts, admin-resend-telegram.ts; consolidate into existing api/_shared/admin-auth.ts. `.js` import per L6. |
 
 ## Upcoming — Faza D (Architectural decisions)
 
@@ -48,7 +49,7 @@ See `DECISIONS.md` "Phase History" for full record.
 
 - **Refund sync verification** — kod je popravljen u prethodnoj fazi (commit ed51537), čeka realan refund event u produkciji za operativnu potvrdu. Neće blokirati ostatak roadmap-a.
 - **CartDrawer Phase 3 + AdminOrders/AdminMenu split** — JSX cart-view i checkout-view extraction (~790 lines remaining); plus splitting AdminOrders.tsx and AdminMenu.tsx monoliths. Was old B14; deferred per W1/W2 to long-term until concrete blocker. Re-evaluate after Faza B/C complete.
-- **Backend ESLint coverage** — currently `api/**` is in eslint ignore.
+- **Backend ESLint env precision** — `api/**` JESTE pokriven eslint-om (`eslint.config.js` ignoriše samo `dist`, `files: **/*.{ts,tsx}`; potvrđeno B10/L6 — api/ dedup oborio 14 `no-unused-vars`). Rezidual: `languageOptions.globals` = `globals.browser` se primenjuje i na Node `api/**` (nema poseban node-globals blok) — bezopasno (typescript-eslint gasi `no-undef`, TS tipizira `process`/`Buffer` preko @types/node), opcioni nice-to-have.
 - **Logger server endpoint** — current logger writes to localStorage ring buffer only.
 - **Build version SHA** — git SHA in monitoring init for production debug.
 
