@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W3 — ROADMAP reconciliation post-B10/L6 (2026-05-16, LEAN)
-**Sledeći:** B10.1 — isAdminEmailDb dedup → api/_shared/admin-auth (STANDARD, ~30min)
+**Poslednji završen:** B10.1 — isAdminEmailDb dedup → api/_shared/admin-auth (2026-05-16, STANDARD)
+**Sledeći:** B12 ili B14 — Phase D start (po /plan)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -55,10 +55,13 @@
 - B10 (Consolidate getAdminFromDb → api/_shared/admin-auth) — DONE 2026-05-16
   (STRICT; first api/_shared/ module; R2 materialized → nodenext .js fix
   commit 65a5fac caught by preview smoke → L6; isAdminEmailDb → B10.1)
-- **Faza C — DONE** ✓ (B6, B7, B9, B13, B10 done; B8 deferred to Phase D)
 - W3 (ROADMAP reconciliation — post-B10/L6 drift fix) — DONE 2026-05-16
   (LEAN; fixed false eslint-ignore claim linija 51; added B10.1 formal row)
-- Next: B10.1 (isAdminEmailDb dedup, STANDARD, ~30min) — now formally in ROADMAP
+- B10.1 (isAdminEmailDb dedup → api/_shared/admin-auth) — DONE 2026-05-16
+  (STANDARD; 4 fajla, +21/-108; cascade-deleted 3×(isFallbackAdmin+looksLikeMissingTable+normalizeEmail);
+  Vercel build logs pass + smoke pass; L6 .js pattern potvrđen first-try)
+- **Faza C — DONE** ✓ (B6, B7, B9, B13, B10, B10.1 done; B8 deferred to Phase D)
+- Next: Phase D — B12 ili B14 (po /plan)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

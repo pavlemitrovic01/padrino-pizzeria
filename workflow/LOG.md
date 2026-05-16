@@ -5,6 +5,36 @@
 
 ---
 
+## B10.1 — 2026-05-16 — isAdminEmailDb dedup → api/_shared/admin-auth — DONE
+
+**Tier:** STANDARD (branch: batch/B10.1-isadminemaildb-dedup → merged to main)
+**SHA:** 0bcb7da (refactor commit); merge 61174dd
+**Files (4):**
+  - api/_shared/admin-auth.ts (MODIFY — dodat isAdminEmailDb export: thin wrapper nad getAdminFromDb; ažuriran header komentar)
+  - api/admin-orders.ts (MODIFY — isAdminEmailDb/isFallbackAdmin/looksLikeMissingTable/normalizeEmail obrisani; import dodat; call site +supabase arg)
+  - api/admin-update-order-status.ts (MODIFY — iste promene kao admin-orders.ts)
+  - api/admin-resend-telegram.ts (MODIFY — iste promene; getEnv zadržan: koristi Telegram token pored Supabase client-a)
+**Verify:**
+  build:     PASS(machine) — exit 0, vite ~7.23s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 7 files, 95 tests
+  Vercel:    PASS(human) — Build Logs bez TS2835 (L6 gate)
+  smoke:     PASS(human) — Pavle: admin-orders, admin-update-order-status, admin-resend-telegram 200/403
+**SCOPE_DRIFT:** none
+  EXPECTED: 4 fajla
+  ACTUAL:   api/_shared/admin-auth.ts, api/admin-orders.ts,
+            api/admin-resend-telegram.ts, api/admin-update-order-status.ts ✓
+**Notes:**
+  - +21 / -108 linija: cascade-deleted isFallbackAdmin + looksLikeMissingTable +
+    normalizeEmail × 3 fajla (L6: dedup → orphan-cleanup u istom batch-u, nije scope creep).
+  - getEnv zadržan u sva 3 caller-a (Supabase client + Telegram token u resend fajlu).
+  - isAdminEmailDb je thin wrapper: (await getAdminFromDb(supabase, e)).isAdmin —
+    jedan izvor DB logike, behavior-preserving za sve 3 varijante (string/unknown).
+  - L6 NEXT REVIEW ažuriran: "posle B10.1 / B8" → "posle B8" (.js pattern potvrđen
+    first-try na B10.1; B8 Phase D dolazi i dalje treba L6 kao aktivan reminder).
+
+---
+
 ## W3 — 2026-05-16 — ROADMAP reconciliation (post-B10/L6 drift fix) — DONE
 
 **Tier:** LEAN (doc-only, direct commit on main)

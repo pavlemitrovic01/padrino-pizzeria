@@ -145,4 +145,4 @@ uhvatio dve greške koje su sva 4 lokalna gate-a propustila.
   nije scope creep; pokreni ciljni lint da potvrdiš tooling scope.
 
 **STATUS:** ACTIVE
-**NEXT REVIEW:** posle B10.1 / B8 (potvrda da je `.js` pattern usvojen)
+**NEXT REVIEW:** posle B8 (B10.1 potvrdio .js pattern first-try; B8 Phase D dolazi)
