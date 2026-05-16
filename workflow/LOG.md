@@ -5,6 +5,30 @@
 
 ---
 
+## B9 — 2026-05-16 — AuthProvider removal — DONE
+
+**Tier:** LEAN (dead-code deletion; direct on main)
+**SHA:** 24306a1
+**Files:**
+  - src/auth/AuthProvider.tsx (DELETE — 105 lines; jedini fajl u src/auth/)
+  - src/main.tsx (MODIFY — uklonjen import + `<AuthProvider>` JSX wrapper)
+**Verify:**
+  build:     PASS(machine) — exit 0, tsc -b + vite, 7.77s
+  typecheck: PASS(machine) — exit 0 (npm run typecheck)
+  test:      PASS(machine) — 6 files, 83/83 (LEAN bonus gate)
+  lint:      PASS(machine) — exit 0 (LEAN bonus gate)
+  manual:    NIJE POKRENUTO — LEAN tier, dead-code deletion bez UI promene
+**SCOPE_DRIFT:** none — tačno 2 expected fajla
+**Notes:**
+  - useAuth() nema potrošača u src/ — grep 0 hitova, W2 audit 2026-05-11 potvrdio
+  - De-lock verifikovan: DECISIONS 2026-05-10 (uslovno), W2 audit potvrdio safe-remove
+  - onAuthStateChange listener bio inertno: hranio lokalni state koji niko nije čitao
+    (useAuth() nikad pozvan van AuthProvider.tsx; supabaseClient.ts netaknut)
+  - Rezultat: 1 insertion(+), 108 deletions(-) — neto -107 linija
+  - **Faza C — B9 DONE** ✓
+
+---
+
 ## B7 — 2026-05-16 — Menu.tsx image resolver dedup → cartDrawerHelpers — DONE
 
 **Tier:** STANDARD (single file, customer-facing image render; not lock zone; direct on main)

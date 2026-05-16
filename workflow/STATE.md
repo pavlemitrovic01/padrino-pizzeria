@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B7 — Menu.tsx image resolver dedup → cartDrawerHelpers (2026-05-16)
-**Sledeći:** B9 — AuthProvider removal (LEAN, ~30min)
+**Poslednji završen:** B9 — AuthProvider removal (2026-05-16)
+**Sledeći:** B10 — CREATE api/_shared/admin-auth.ts (STANDARD, ~1h)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -50,16 +50,17 @@
 - B8 (api/_shared resolvePublicBaseUrl) — DEFERRED to Phase D 2026-05-16
   (intentional bankart-callback Origin divergence; design locked in
   DECISIONS 2026-05-16; tier corrected STANDARD→STRICT)
-- Faza C — next: B9
+- B9 (AuthProvider removal) — DONE 2026-05-16
+- Faza C — next: B10
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-13 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+14 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
-B7 Menu.tsx image resolver dedup). Plus pre-B7 housekeeping commit 16a6f0f
+B7 Menu.tsx image resolver dedup, B9 AuthProvider removal). Plus pre-B7 housekeeping commit 16a6f0f
 (supabase/.temp/ untrack — not a batch). B8 deferred to Phase D
 (commit 5e6cbd3, DECISIONS 2026-05-16 — locked trustOriginHeader design).
 
