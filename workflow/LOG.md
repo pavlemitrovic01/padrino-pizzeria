@@ -5,6 +5,27 @@
 
 ---
 
+## B13 — 2026-05-16 — Mrtvi fajlovi cleanup — DONE (no-op)
+
+**Tier:** LEAN
+**SHA:** — (no code commits; no-op)
+**Files:** none
+**Verify:**
+  typecheck: PASS(machine) — exit 0
+  build:     PASS(machine) — exit 0, 4.23s
+  test:      NIJE POKRENUTO — LEAN no-op, nema code delte
+  manual:    NIJE POKRENUTO — nema izmena za smoke-test
+**SCOPE_DRIFT:** none — 0 expected fajla, 0 izmenjenih
+**Notes:**
+  - B13 targetovao: padrinoo.txt + tracked *.tsbuildinfo
+  - padrinoo.txt — ne postoji nigde u repo-u (glob 0 hitova)
+  - *.tsbuildinfo — nijedan tracked (.gitignore:37 ih ignoriše)
+  - public/robots.txt jedini .txt match → legitiman SEO fajl, netaknut
+  - ROADMAP napomena "likely near-no-op" potvrđena. Kao B1.
+  - **Faza C — B13 DONE** ✓
+
+---
+
 ## B9 — 2026-05-16 — AuthProvider removal — DONE
 
 **Tier:** LEAN (dead-code deletion; direct on main)
