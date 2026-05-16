@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B10.1 — isAdminEmailDb dedup → api/_shared/admin-auth (2026-05-16, STANDARD)
-**Sledeći:** B12 ili B14 — Phase D start (po /plan)
+**Poslednji završen:** B12 — Edge functions dedup decision (2026-05-16, STRICT)
+**Sledeći:** B14 — Security audit: RLS hardcoded email + admin_users RLS (po /plan)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -61,18 +61,21 @@
   (STANDARD; 4 fajla, +21/-108; cascade-deleted 3×(isFallbackAdmin+looksLikeMissingTable+normalizeEmail);
   Vercel build logs pass + smoke pass; L6 .js pattern potvrđen first-try)
 - **Faza C — DONE** ✓ (B6, B7, B9, B13, B10, B10.1 done; B8 deferred to Phase D)
-- Next: Phase D — B12 ili B14 (po /plan)
+- B12 (Edge functions dedup decision) — DONE 2026-05-16
+  (STRICT; deleted supabase/functions/admin-orders/ + telegram-new-order/;
+  payments-create-session kept; decision + ops caveat in DECISIONS.md)
+- **Faza D — IN PROGRESS** (B8 deferred, B12 done; B14 next)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-18 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+19 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
 B10 admin-auth dedup → api/_shared/, W3 ROADMAP reconciliation post-B10/L6,
-B10.1 isAdminEmailDb dedup → api/_shared/).
+B10.1 isAdminEmailDb dedup → api/_shared/, B12 edge functions dedup decision).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 B8 deferred to Phase D (commit 5e6cbd3, DECISIONS 2026-05-16 — locked trustOriginHeader design).
 

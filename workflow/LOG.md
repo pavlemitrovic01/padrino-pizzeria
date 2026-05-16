@@ -5,6 +5,35 @@
 
 ---
 
+## B12 — 2026-05-16 — Edge functions dedup decision — DONE
+
+**Tier:** STRICT (direct on main — cleanup/decision batch, no src/api changes)
+**SHA:** 286ea67
+**Files (4):**
+  - supabase/functions/admin-orders/config.toml (DELETE — dead edge fn deploy config)
+  - supabase/functions/admin-orders/index.ts (DELETE — dead edge fn, 195 lines)
+  - supabase/functions/telegram-new-order/index.ts (DELETE — dead edge fn, 386 lines)
+  - workflow/projects/padrino/DECISIONS.md (MODIFY — B12 decision + evidencija appended)
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.57s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 7 files / 95 tests
+  manual:    PASS(human) — Pavle confirmed (no runtime app changes;
+             payments-create-session + deno.d.ts untouched)
+**SCOPE_DRIFT:** acknowledged
+  EXPECTED (original): 3 fajla (DECISIONS.md + 2 × index.ts)
+  AMENDMENT: admin-orders/config.toml dodat uz Pavle eksplicitno odobrenje
+             (STOP-and-report mid-batch; cascade cleanup iste mrtve jedinice)
+  ACTUAL (4): matches amended EXPECTED ✓
+**Notes:**
+  - +41 / -585: admin-orders (195+1 lines) + telegram-new-order (386 lines) obrisani.
+  - payments-create-session/ (LIVE, create-order.ts:476) + deno.d.ts netaknuti.
+  - Ops action item (Pavle, non-blocking): proveriti Supabase dashboard → Edge Functions;
+    ako admin-orders/telegram-new-order još deployovane → `supabase functions delete`.
+  - Repo-wide grep: zero callers pre i posle brisanja (dead status potvrđen).
+
+---
+
 ## B10.1 — 2026-05-16 — isAdminEmailDb dedup → api/_shared/admin-auth — DONE
 
 **Tier:** STANDARD (branch: batch/B10.1-isadminemaildb-dedup → merged to main)
