@@ -67,11 +67,12 @@
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-17 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+18 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
-B10 admin-auth dedup → api/_shared/, W3 ROADMAP reconciliation post-B10/L6).
+B10 admin-auth dedup → api/_shared/, W3 ROADMAP reconciliation post-B10/L6,
+B10.1 isAdminEmailDb dedup → api/_shared/).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 B8 deferred to Phase D (commit 5e6cbd3, DECISIONS 2026-05-16 — locked trustOriginHeader design).
 
