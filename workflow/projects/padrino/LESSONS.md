@@ -114,3 +114,35 @@ Razdvoji "šta vidi korisnik" od "šta vidi devops".
 
 **STATUS:** ACTIVE
 **NEXT REVIEW:** —
+
+---
+
+## 2026-05-16 — Lokalni machine gates ≠ Vercel api/ build; STRICT preview smoke je pravi gate (L6)
+
+**PROBLEM:** B10 (prvi `api/_shared/` modul ikad) — lokalni `npm run typecheck`/
+`lint`/`test`/`build` svi 4/4 zeleni, ali Vercel preview build PUKAO sa TS2835
+na svih 5 handlera: `@vercel/node` kompajlira `api/` funkcije sa
+`moduleResolution: node16/nodenext` (zahteva eksplicitnu `.js` ekstenziju na
+relativnim ESM importima), dok lokalni `tsc -b` koristi `tsconfig.node.json`
+→ `moduleResolution: "Bundler"` (ne zahteva ekstenziju). Dodatno: ROADMAP
+napomena "api/** je u eslint ignore" bila netačna — eslint lintuje `api/`,
+pa je dedup koji osiroti helpere oborio lint gate (14 no-unused-vars).
+Dve nezavisne "zeleno lokalno ≠ realnost" greške u jednom batch-u.
+
+**LEKCIJA:** Lokalni gate-ovi NE dokazuju Vercel serverless build. Za bilo
+koju `api/` izmenu sa relativnim cross-file importom: koristi `.js`
+ekstenziju (resolvuje se na `.ts` i pod Bundler i pod nodenext). Tvrdnje iz
+dokumentacije/memorije o tooling scope-u (šta lint/tsc pokriva/ignoriše)
+moraju se verifikovati protiv stvarnog buildera PRE ulaska u plan ZABRANA —
+repo/builder > dokumentacija. STRICT preview smoke nije formalnost: ovde je
+uhvatio dve greške koje su sva 4 lokalna gate-a propustila.
+
+**PRIMENA:**
+- Novi relativni import u `api/**` → odmah `.js` ekstenzija (`./_shared/x.js`).
+- Bilo koja `api/_shared/` izmena (B8, B10.1, buduće) → OBAVEZAN preview
+  deploy + Build Logs provera (TS2835/error lines) PRE smoke i PRE merge.
+- Dedup refaktor → orphan-cleanup helpera/tipova u ISTOM batch-u (kaskada),
+  nije scope creep; pokreni ciljni lint da potvrdiš tooling scope.
+
+**STATUS:** ACTIVE
+**NEXT REVIEW:** posle B10.1 / B8 (potvrda da je `.js` pattern usvojen)

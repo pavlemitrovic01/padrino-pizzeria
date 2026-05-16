@@ -5,6 +5,41 @@
 
 ---
 
+## B10 — 2026-05-16 — Consolidate getAdminFromDb → api/_shared/admin-auth — DONE
+
+**Tier:** STRICT (first api/_shared/ module ever; branch: b10-shared-admin-auth → FF-merged to main)
+**SHA:** 65a5fac (code: 3e55179 refactor + 65a5fac nodenext fix) — workflow close commit follows
+**Files (7):**
+  - api/_shared/admin-auth.ts (NEW — getAdminFromDb(supabase, email) + inline normalizeEmail/isFallbackAdmin/looksLikeMissingTable/isAdminRole + AdminRole/AdminLookup types)
+  - api/_shared/admin-auth.test.ts (NEW — 12 tests: empty/whitespace guard, email normalization, missing-table fallback ×3, generic error, row resolution ×5)
+  - api/admin-me.ts (MODIFY — getAdminRoleFromDb → shared; orphan cleanup: isFallbackAdmin/looksLikeMissingTable/isAdminRole/AdminRole/TableState)
+  - api/admin-menu.ts (MODIFY — getAdminFromDb → shared; orphan cleanup: isFallbackAdmin/looksLikeMissingTable/isAdminRole/AdminRole)
+  - api/admin-menu-image.ts (MODIFY — isto kao admin-menu)
+  - api/admin-settings.ts (MODIFY — isto kao admin-menu)
+  - api/admin-users.ts (MODIFY — getAdminFromDb → shared; orphan cleanup: samo isFallbackAdmin — ostali helperi/AdminRole i dalje korišćeni u normalizeAdminUserRow/AdminUserRow)
+**Verify:**
+  typecheck: PASS(machine) — exit 0 (tsc -b, Bundler resolution)
+  lint:      PASS(machine) — exit 0 (bio FAIL 14 no-unused-vars → fixed orphan cleanup)
+  test:      PASS(machine) — 7 files, 95/95 (+12 novih admin-auth)
+  build:     PASS(machine) — exit 0, vite ~7s
+  manual:    PASS(human) — Pavle (preko web Claude) potvrdio na Vercel preview commit 65a5fac: build zelen (TS2835 nestao), admin smoke prošao (login + Porudžbine/Meni/Korisnici/Podešavanja, bez 500)
+**SCOPE_DRIFT:** none (file-level — 7 = 7 EXPECTED).
+  SCOPE_DRIFT (acknowledged): orphan helper/type cleanup beyond plan ZABRANA.
+  ZABRANA ("ne dirati lokalne helpere") bila na pogrešnoj premisi (ROADMAP
+  "api/** eslint-ignored" netačno). Lint gate prinudio uklanjanje mrtvog koda
+  koji je refaktor osirotio. EXPECTED-FILES nepromenjen. Dokumentovano u commit 3e55179.
+**Notes:**
+  - 5 duplikata (getAdminFromDb ×4 byte-identičnih + admin-me getAdminRoleFromDb varijanta) → 1 parametrizovani shared modul
+  - Parametrizovan: pozivalac prosleđuje svoj per-endpoint supabase klijent → X-Client-Info očuvan (audit §6)
+  - Unifikovano telo = guarded varijanta → behavior-preserving za admin-me (admin-me.ts vraća 401 na prazan email PRE poziva → empty-guard mrtva grana tamo)
+  - Self-contained inline helperi → audit §7 step-1 (niži helperi) ostaje zaseban budući batch
+  - **R2 materijalizovao se:** lokalni `tsc -b` (Bundler) zelen ali Vercel `@vercel/node` (nodenext) zahtevao `.js` ekstenziju → TS2835 build fail na 5 handlera; fix commit 65a5fac (`./_shared/admin-auth` → `.js`). STRICT preview smoke uhvatio ono što su sva 4 lokalna gate-a propustila → L6.
+  - isAdminEmailDb (boolean varijanta, 3 fajla: admin-orders/admin-update-order-status/admin-resend-telegram) namerno odloženo → **B10.1** (novo u ROADMAP)
+  - Net -200 linija
+  - **Faza C — B10 DONE ✓ (Faza C KOMPLETNA)**
+
+---
+
 ## B13 — 2026-05-16 — Mrtvi fajlovi cleanup — DONE (no-op)
 
 **Tier:** LEAN
