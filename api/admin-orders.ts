@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { isAdminEmailDb } from "./_shared/admin-auth.js";
 
 type Json = Record<string, unknown>;
 
@@ -75,15 +76,6 @@ function buildSupabaseAdmin() {
 
 const supabase = buildSupabaseAdmin();
 
-function normalizeEmail(v: string) {
-  return v.trim().toLowerCase();
-}
-
-function isFallbackAdmin(email: string): boolean {
-  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
-  return !!fallback && fallback === normalizeEmail(email);
-}
-
 function getBearerToken(req: ReqLike): string {
   const h = headerString(req, "authorization") || headerString(req, "Authorization");
   if (!h) return "";
@@ -95,32 +87,6 @@ function parseLimit(v: string, def: number, min: number, max: number) {
   const n = Number(v);
   if (!Number.isFinite(n)) return def;
   return Math.max(min, Math.min(max, Math.floor(n)));
-}
-
-function looksLikeMissingTable(err: unknown): boolean {
-  const msg =
-    typeof (err as { message?: unknown })?.message === "string"
-      ? (err as { message: string }).message
-      : "";
-  const s = msg.toLowerCase();
-  return s.includes("admin_users") && (s.includes("does not exist") || s.includes("relation"));
-}
-
-async function isAdminEmailDb(email: string): Promise<boolean> {
-  const e = normalizeEmail(email);
-  if (!e) return false;
-
-  const { data, error } = await supabase.from("admin_users").select("email, enabled").eq("email", e).maybeSingle();
-
-  if (error) {
-    if (looksLikeMissingTable(error)) {
-      return isFallbackAdmin(e);
-    }
-    return false;
-  }
-
-  const enabled = typeof data?.enabled === "boolean" ? data.enabled : false;
-  return enabled === true;
 }
 
 export default async function handler(req: ReqLike, res: ResLike) {
@@ -143,7 +109,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     if (userErr || !userData?.user) return json(res, 401, { ok: false, error: "Invalid session" });
 
     const userEmail = typeof userData.user.email === "string" ? userData.user.email : "";
-    const isAdmin = await isAdminEmailDb(userEmail);
+    const isAdmin = await isAdminEmailDb(supabase, userEmail);
     if (!isAdmin) return json(res, 403, { ok: false, error: "Not authorized" });
 
     const limitRaw = queryString(req, "limit");

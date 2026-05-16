@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { isAdminEmailDb } from "./_shared/admin-auth.js";
 
 type Json = Record<string, unknown>;
 
@@ -114,39 +115,6 @@ function buildSupabaseAdmin() {
 }
 
 const supabase = buildSupabaseAdmin();
-
-function normalizeEmail(v: string) {
-  return v.trim().toLowerCase();
-}
-
-function isFallbackAdmin(email: string): boolean {
-  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
-  return !!fallback && fallback === normalizeEmail(email);
-}
-
-function looksLikeMissingTable(err: unknown): boolean {
-  const msg =
-    typeof (err as { message?: unknown })?.message === "string"
-      ? (err as { message: string }).message
-      : "";
-  const s = msg.toLowerCase();
-  return s.includes("admin_users") && (s.includes("does not exist") || s.includes("relation"));
-}
-
-async function isAdminEmailDb(email: unknown): Promise<boolean> {
-  const e = typeof email === "string" ? normalizeEmail(email) : "";
-  if (!e) return false;
-
-  const { data, error } = await supabase.from("admin_users").select("email, enabled").eq("email", e).maybeSingle();
-
-  if (error) {
-    if (looksLikeMissingTable(error)) return isFallbackAdmin(e);
-    return false;
-  }
-
-  const enabled = typeof data?.enabled === "boolean" ? data.enabled : false;
-  return enabled === true;
-}
 
 function getBearerToken(req: ReqLike): string {
   const h = headerString(req, "authorization") || headerString(req, "Authorization");
@@ -456,7 +424,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 401, { ok: false, error: "Invalid session" });
     }
 
-    const isAdmin = await isAdminEmailDb(userData.user.email);
+    const isAdmin = await isAdminEmailDb(supabase, userData.user.email);
     if (!isAdmin) {
       return json(res, 403, { ok: false, error: "Not authorized" });
     }

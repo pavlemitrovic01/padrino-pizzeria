@@ -1,9 +1,12 @@
 // api/_shared/admin-auth.ts
 //
-// Shared admin-auth DB lookup. Consolidates 5 prior duplicate copies:
-//   - getAdminFromDb       (byte-identical): admin-menu, admin-menu-image,
-//                                            admin-users, admin-settings
-//   - getAdminRoleFromDb   (behavior-equivalent variant): admin-me
+// Shared admin-auth DB lookup. Public exports:
+//   - getAdminFromDb    — full AdminLookup (role + enabled). Consolidates 5 prior
+//                         copies: admin-menu, admin-menu-image, admin-users,
+//                         admin-settings, admin-me (B10).
+//   - isAdminEmailDb   — boolean shorthand; thin wrapper over getAdminFromDb.
+//                         Consolidates 3 prior copies: admin-orders,
+//                         admin-update-order-status, admin-resend-telegram (B10.1).
 //
 // Self-contained by design: this module inlines its own normalizeEmail /
 // isFallbackAdmin / looksLikeMissingTable / isAdminRole copies so the callers'
@@ -95,4 +98,12 @@ export async function getAdminFromDb(
 
   if (!enabled) return { table: "ok", isAdmin: false, role: null };
   return { table: "ok", isAdmin: true, role: role ?? "staff" };
+}
+
+export async function isAdminEmailDb(
+  supabase: SupabaseClient,
+  email: unknown,
+): Promise<boolean> {
+  const e = typeof email === "string" ? email : "";
+  return (await getAdminFromDb(supabase, e)).isAdmin;
 }
