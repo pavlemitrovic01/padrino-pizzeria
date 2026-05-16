@@ -145,4 +145,5 @@ uhvatio dve greške koje su sva 4 lokalna gate-a propustila.
   nije scope creep; pokreni ciljni lint da potvrdiš tooling scope.
 
 **STATUS:** ACTIVE
-**NEXT REVIEW:** posle B8 (B10.1 potvrdio .js pattern first-try; B8 Phase D dolazi)
+**NEXT REVIEW:** potvrđen B8 Phase D (first-try, ×3 ukupno: B10/B10.1/B8).
+Sledeći review: posle sledećeg api/_shared/ batch-a.

@@ -5,6 +5,38 @@
 
 ---
 
+## B8 — 2026-05-17 — extract resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts — DONE
+
+**Tier:** STRICT (3 lock-zone payment files; per-batch branch b8-shared-public-url)
+**SHA:** 2bcab60
+**Files (6):**
+  - api/_shared/public-url.ts (NEW — shared module: resolvePublicBaseUrl + buildTelegramPayload)
+  - api/_shared/public-url.test.ts (NEW — 14 tests: env precedence, Origin trust/ignore, x-fwd, fallback)
+  - api/create-order.ts (MODIFY — remove local fns, import shared, trustOriginHeader: true)
+  - api/bankart-order-status.ts (MODIFY — remove local fns, import shared, trustOriginHeader: true)
+  - api/bankart-callback.ts (MODIFY — remove local fns, import shared, trustOriginHeader: false — SECURITY)
+  - workflow/projects/padrino/DECISIONS.md (MODIFY — B8 signature refinement note req→headers)
+**Verify:**
+  build:     PASS(machine) — exit 0, 2186 modules, 6.85s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 8 files / 113 tests
+  vercel:    PASS(human) — Pavle: Build Logs clean (no TS2835), readyState READY
+  manual:    PASS(human) — Pavle: preview radi, monitoring OK, console clean
+**SCOPE_DRIFT:** none
+  EXPECTED: 6 fajlova (api/_shared/public-url.ts, api/_shared/public-url.test.ts,
+            api/create-order.ts, api/bankart-order-status.ts, api/bankart-callback.ts,
+            workflow/projects/padrino/DECISIONS.md)
+  ACTUAL: exact match ✓
+**Notes:**
+  - Bezbednosna invarianta sačuvana: bankart-callback trustOriginHeader: false (SECURITY LOCK).
+  - headerString u bankart-callback zadržan (HMAC verifikacija, linije 226/229/233 — nije orphan).
+  - Signature refinement: resolvePublicBaseUrl(headers, opts) umesto (req, opts) —
+    admin-auth.ts pattern, TS structural-compat risk reduction. DECISIONS.md ažuriran.
+  - L6 .js import pattern potvrđen first-try (treća potvrda: B10, B10.1, B8).
+  - Faza D DONE: B12 ✓ B14 ✓ B14.1 ✓ B8 ✓
+
+---
+
 ## B14.1 — 2026-05-17 — Enable RLS on admin_users + revoke anon grants (F1 fix) — DONE
 
 **Tier:** STRICT (schema-change; direct on main — no src/api changes)

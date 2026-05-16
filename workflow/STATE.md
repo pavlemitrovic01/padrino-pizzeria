@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B14.1 — Enable RLS on admin_users + revoke anon grants (2026-05-17, STRICT)
-**Sledeći:** B8 — api/_shared resolvePublicBaseUrl (deferred Phase D; awaiting /plan)
+**Poslednji završen:** B8 — extract resolvePublicBaseUrl + buildTelegramPayload → api/_shared/ (2026-05-17, STRICT)
+**Sledeći:** awaiting /plan (Faza D DONE; Long-term items next)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -47,9 +47,9 @@
 - **Faza B — DONE** ✓
 - B6 (CartProvider dedup → cartDrawerHelpers) — DONE 2026-05-16
 - B7 (Menu.tsx image resolver dedup → cartDrawerHelpers) — DONE 2026-05-16
-- B8 (api/_shared resolvePublicBaseUrl) — DEFERRED to Phase D 2026-05-16
-  (intentional bankart-callback Origin divergence; design locked in
-  DECISIONS 2026-05-16; tier corrected STANDARD→STRICT)
+- B8 (extract resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts) — DONE 2026-05-17
+  (STRICT; 6 fajlova, +266/-58; bankart-callback trustOriginHeader:false SECURITY LOCK;
+  headers param umesto req — admin-auth pattern; L6 .js first-try ×3; Faza D DONE)
 - B9 (AuthProvider removal) — DONE 2026-05-16
 - B13 (Mrtvi fajlovi cleanup) — DONE no-op 2026-05-16
 - B10 (Consolidate getAdminFromDb → api/_shared/admin-auth) — DONE 2026-05-16
@@ -70,21 +70,21 @@
 - B14.1 (Enable RLS on admin_users + revoke anon grants) — DONE 2026-05-17
   (STRICT; F1 CRITICAL fix applied to production; rowsecurity=true, anon/authenticated
   grants revoked, service_role retained; admin smoke PASS; F2 deferred per Option C)
-- **Faza D — IN PROGRESS** (B8 deferred, B12 done, B14 done, B14.1 done; B8 next)
+- **Faza D — DONE** ✓ (B12, B14, B14.1, B8 — all done 2026-05-17)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-21 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+22 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
 B10 admin-auth dedup → api/_shared/, W3 ROADMAP reconciliation post-B10/L6,
 B10.1 isAdminEmailDb dedup → api/_shared/, B12 edge functions dedup decision,
-B14 RLS security audit, B14.1 RLS admin_users F1 fix).
+B14 RLS security audit, B14.1 RLS admin_users F1 fix,
+B8 resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
-B8 deferred to Phase D (commit 5e6cbd3, DECISIONS 2026-05-16 — locked trustOriginHeader design).
 
 ---
 
