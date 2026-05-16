@@ -234,3 +234,44 @@ with B9.
 **Lock-zone rule:** Bankart callback must not trust `Origin` for public
 base URL. Origin fallback allowed only on browser-facing endpoints, only
 as fallback behind env canonical URL.
+
+---
+
+### 2026-05-16 — B12: Edge functions dedup decision (STRICT)
+
+**Finding:** `supabase/functions/` sadrži 3 edge funkcije. Dve su mrtve
+legacy duplikati Vercel `api/` ruta iz pre-W0 edge-first arhitekture
+(Batch 9, 2026-03 — `telegram-new-order`/`admin-orders` migrirani na
+`Deno.serve`, kasnije superseded Vercel `api/`):
+
+| Edge funkcija | Status | Autoritativni put | Evidencija |
+|---------------|--------|-------------------|------------|
+| `payments-create-session` | **LIVE** | (nema Vercel ekvivalenta) | pozvana iz `api/create-order.ts:476` `https://<ref>.supabase.co/functions/v1/payments-create-session` |
+| `admin-orders` | **DEAD** | `api/admin-orders.ts` | frontend koristi `${ADMIN_API_BASE}/api/admin-orders` (`AdminOrders.tsx:333`, `AdminDashboard.tsx:96`); edge verzija unreferenced |
+| `telegram-new-order` | **DEAD** | `api/telegram-new-order.ts` | `create-order.ts` → `bestEffortTelegramNotify()` → Vercel `api/`; jedini DB trigger gađao Vercel URL i dropnut u B15 |
+
+**Verifikacija mrtvog statusa (repo-wide grep, B12):**
+- Nula referenci na `functions/v1/(admin-orders|telegram-new-order)`,
+  `supabase.invoke(...)`, ili `supabase/functions/(admin-orders|telegram-new-order)`
+  van samih edge dir-a.
+- `supabase/config.toml` nema `[functions.*]` deklaracija.
+- B3 schema baseline + migracije: jedini edge-relevantan trigger bio
+  `telegram-new-order` → **Vercel** URL (ne edge), dropnut B15.
+- RUNBOOK dokumentuje isključivo Vercel `api/` rute.
+
+**Decision:** DELETE `supabase/functions/admin-orders/` i
+`supabase/functions/telegram-new-order/` iz repo-a. KEEP
+`supabase/functions/payments-create-session/` (LIVE) i
+`supabase/functions/deno.d.ts` (deljen sa payments-create-session).
+
+**Ops caveat (NIJE deo ovog repo-only batcha):** brisanje iz repo-a NE
+radi Supabase undeploy. Ako su `admin-orders`/`telegram-new-order` edge
+funkcije i dalje deployovane na Supabase projektu, manuelni
+`supabase functions delete admin-orders` /
+`supabase functions delete telegram-new-order` je odvojen ops korak za
+Pavla. Bez akcije: deployovane mrtve funkcije su unreferenced i bezopasne
+(niko ih ne poziva), ali ostaju surface area.
+
+**Action item (Pavle, ops, non-blocking):** proveriti Supabase dashboard
+→ Edge Functions; ako `admin-orders`/`telegram-new-order` postoje,
+`supabase functions delete` da se ukloni dead deployed surface.
