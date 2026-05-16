@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getAdminFromDb } from "./_shared/admin-auth";
+import { getAdminFromDb } from "./_shared/admin-auth.js";
 
 type Json = Record<string, unknown>;
 
