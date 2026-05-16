@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getAdminFromDb } from "./_shared/admin-auth";
 
 type Json = Record<string, unknown>;
 
@@ -75,53 +76,6 @@ function buildSupabaseAdmin() {
 
 const supabase = buildSupabaseAdmin();
 
-function isFallbackAdmin(email: string): boolean {
-  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
-  return !!fallback && fallback === normalizeEmail(email);
-}
-
-function looksLikeMissingTable(err: unknown): boolean {
-  const msg =
-    typeof (err as { message?: unknown })?.message === "string"
-      ? (err as { message: string }).message
-      : "";
-
-  const s = msg.toLowerCase();
-  return s.includes("admin_users") && (s.includes("does not exist") || s.includes("relation"));
-}
-
-type AdminRole = "owner" | "staff";
-type TableState = "ok" | "missing" | "error";
-
-function isAdminRole(v: unknown): v is AdminRole {
-  return v === "owner" || v === "staff";
-}
-
-async function getAdminRoleFromDb(email: string): Promise<{ table: TableState; isAdmin: boolean; role: AdminRole | null }> {
-  const normalized = normalizeEmail(email);
-
-  const { data, error } = await supabase
-    .from("admin_users")
-    .select("email, role, enabled")
-    .eq("email", normalized)
-    .maybeSingle();
-
-  if (error) {
-    if (looksLikeMissingTable(error)) {
-      const fallback = isFallbackAdmin(normalized);
-      return { table: "missing", isAdmin: fallback, role: fallback ? "owner" : null };
-    }
-
-    return { table: "error", isAdmin: false, role: null };
-  }
-
-  const enabled = typeof data?.enabled === "boolean" ? data.enabled : false;
-  const role = isAdminRole(data?.role) ? data.role : null;
-
-  if (!enabled) return { table: "ok", isAdmin: false, role: null };
-  return { table: "ok", isAdmin: true, role: role ?? "staff" };
-}
-
 export default async function handler(req: ReqLike, res: ResLike) {
   setCors(req, res);
 
@@ -144,7 +98,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const email = typeof userData.user.email === "string" ? normalizeEmail(userData.user.email) : "";
     if (!email) return json(res, 401, { ok: false, error: "Invalid session" });
 
-    const r = await getAdminRoleFromDb(email);
+    const r = await getAdminFromDb(supabase, email);
 
     return json(res, 200, {
       ok: true,

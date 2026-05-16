@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getAdminFromDb } from "./_shared/admin-auth";
 
 type Json = Record<string, unknown>;
 
@@ -82,11 +83,6 @@ function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
 }
 
-function isFallbackAdmin(email: string): boolean {
-  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
-  return !!fallback && fallback === normalizeEmail(email);
-}
-
 function isLikelyEmail(v: string) {
   const s = normalizeEmail(v);
   if (!s) return false;
@@ -117,27 +113,6 @@ function looksLikeMissingTable(err: unknown): boolean {
 
 function isAdminRole(v: unknown): v is AdminRole {
   return v === "owner" || v === "staff";
-}
-
-async function getAdminFromDb(email: string): Promise<{ table: "ok" | "missing" | "error"; isAdmin: boolean; role: AdminRole | null }> {
-  const e = normalizeEmail(email);
-  if (!e) return { table: "ok", isAdmin: false, role: null };
-
-  const { data, error } = await supabase.from("admin_users").select("email, role, enabled").eq("email", e).maybeSingle();
-
-  if (error) {
-    if (looksLikeMissingTable(error)) {
-      const fallback = isFallbackAdmin(e);
-      return { table: "missing", isAdmin: fallback, role: fallback ? "owner" : null };
-    }
-    return { table: "error", isAdmin: false, role: null };
-  }
-
-  const enabled = typeof data?.enabled === "boolean" ? data.enabled : false;
-  const role = isAdminRole(data?.role) ? data.role : null;
-
-  if (!enabled) return { table: "ok", isAdmin: false, role: null };
-  return { table: "ok", isAdmin: true, role: role ?? "staff" };
 }
 
 async function countEnabledOwners(): Promise<number> {
@@ -193,7 +168,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const actorEmail = normalizeEmail(actorEmailRaw);
     if (!actorEmail) return json(res, 401, { ok: false, error: "Invalid session" });
 
-    const actor = await getAdminFromDb(actorEmail);
+    const actor = await getAdminFromDb(supabase, actorEmail);
     if (!actor.isAdmin) return json(res, 403, { ok: false, error: "Not authorized" });
 
     // ✅ GET: svi admini mogu da vide listu

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getAdminFromDb } from "./_shared/admin-auth";
 
 type Json = Record<string, unknown>;
 
@@ -16,8 +17,6 @@ type ResLike = {
   status: (code: number) => ResLike;
   send: (body: string) => void;
 };
-
-type AdminRole = "owner" | "staff";
 
 type SiteSettingsRow = {
   id: number;
@@ -92,52 +91,11 @@ function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
 }
 
-function isFallbackAdmin(email: string): boolean {
-  const fallback = normalizeEmail(getEnv("ADMIN_FALLBACK_EMAIL"));
-  return !!fallback && fallback === normalizeEmail(email);
-}
-
 function getBearerToken(req: ReqLike): string {
   const h = headerString(req, "authorization") || headerString(req, "Authorization");
   if (!h) return "";
   const m = h.match(/^Bearer\s+(.+)$/i);
   return m ? m[1].trim() : "";
-}
-
-function looksLikeMissingTable(err: unknown): boolean {
-  const msg =
-    typeof (err as { message?: unknown })?.message === "string"
-      ? (err as { message: string }).message
-      : "";
-  const s = msg.toLowerCase();
-  return s.includes("admin_users") && (s.includes("does not exist") || s.includes("relation"));
-}
-
-function isAdminRole(v: unknown): v is AdminRole {
-  return v === "owner" || v === "staff";
-}
-
-async function getAdminFromDb(
-  email: string,
-): Promise<{ table: "ok" | "missing" | "error"; isAdmin: boolean; role: AdminRole | null }> {
-  const e = normalizeEmail(email);
-  if (!e) return { table: "ok", isAdmin: false, role: null };
-
-  const { data, error } = await supabase.from("admin_users").select("email, role, enabled").eq("email", e).maybeSingle();
-
-  if (error) {
-    if (looksLikeMissingTable(error)) {
-      const fallback = isFallbackAdmin(e);
-      return { table: "missing", isAdmin: fallback, role: fallback ? "owner" : null };
-    }
-    return { table: "error", isAdmin: false, role: null };
-  }
-
-  const enabled = typeof data?.enabled === "boolean" ? data.enabled : false;
-  const role = isAdminRole(data?.role) ? data.role : null;
-
-  if (!enabled) return { table: "ok", isAdmin: false, role: null };
-  return { table: "ok", isAdmin: true, role: role ?? "staff" };
 }
 
 function parseJsonBody(req: ReqLike): Record<string, unknown> | null {
@@ -266,7 +224,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const actorEmail = normalizeEmail(actorEmailRaw);
     if (!actorEmail) return json(res, 401, { ok: false, error: "Invalid session" });
 
-    const actor = await getAdminFromDb(actorEmail);
+    const actor = await getAdminFromDb(supabase, actorEmail);
     if (!actor.isAdmin) return json(res, 403, { ok: false, error: "Not authorized" });
 
     if (req.method === "GET") {
