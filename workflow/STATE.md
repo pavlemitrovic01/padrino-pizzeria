@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B8 — extract resolvePublicBaseUrl + buildTelegramPayload → api/_shared/ (2026-05-17, STRICT)
-**Sledeći:** awaiting /plan (Faza D DONE; Long-term items next)
+**Poslednji završen:** E1 — create-order endpoint hostile-input test (2026-05-17, STANDARD)
+**Sledeći:** E2 — Bankart callback integration test (Faza E in progress)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -71,19 +71,25 @@
   (STRICT; F1 CRITICAL fix applied to production; rowsecurity=true, anon/authenticated
   grants revoked, service_role retained; admin smoke PASS; F2 deferred per Option C)
 - **Faza D — DONE** ✓ (B12, B14, B14.1, B8 — all done 2026-05-17)
+- E1 (create-order endpoint hostile-input test) — DONE 2026-05-17
+  (STANDARD; 1 fajl src/lib/createOrderEndpoint.test.ts, 11 testova;
+  handler driven via fake req/res + hoisted supabase mock; lock zone
+  api/create-order.ts NETAKNUT; exit-criterion #2 closed)
+- **Faza E — IN PROGRESS** (E1 done; E2–E5 pending — safety net)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-22 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+23 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
 B10 admin-auth dedup → api/_shared/, W3 ROADMAP reconciliation post-B10/L6,
 B10.1 isAdminEmailDb dedup → api/_shared/, B12 edge functions dedup decision,
 B14 RLS security audit, B14.1 RLS admin_users F1 fix,
-B8 resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts).
+B8 resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts,
+E1 create-order endpoint hostile-input test).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

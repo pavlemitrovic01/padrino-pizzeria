@@ -5,6 +5,38 @@
 
 ---
 
+## E1 — 2026-05-17 — create-order endpoint hostile-input test — DONE
+
+**Tier:** STANDARD (additive test-only; direct on main — non-lock-zone, no src/api change)
+**SHA:** 8fc65e6
+**Files (1):**
+  - src/lib/createOrderEndpoint.test.ts (NEW — 11 tests: 2 transport guard,
+    7 hostile-input rejection, 2 negative control; drives exported handler
+    via fake req/res + hoisted @supabase/supabase-js mock)
+**Verify:**
+  build:     PASS(machine) — exit 0, vite build 4.28s (2186 mod)
+  typecheck: PASS(machine) — exit 0 (tsc -b; test file out of tsc scope —
+             tsconfig.app excludes **/*.test.ts, R1 confirmed)
+  test:      PASS(machine) — exit 0, 9 files / 124 tests
+  manual:    NIJE POTREBNO — test-only, non-lock-zone, not browser-observable
+**SCOPE_DRIFT:** none
+  EXPECTED: src/lib/createOrderEndpoint.test.ts
+  ACTUAL:   exact match ✓ (1/1)
+**Notes:**
+  - Closes exit-criterion #2: E1 hostile price-tamper test GREEN — server
+    rejects/recomputes proven, not assumed (covers create-order.ts:1037-1090).
+  - Lock zone (api/create-order.ts) untouched — handler imported & driven, not edited.
+  - Within-intent simplifications vs plan (not scope creep): @upstash/* not
+    mocked (getRatelimit()→null when UPSTASH_* env unset, limiter inert);
+    fetchZones not mocked (no lat/lng → parseLatLngFromBody null → not called).
+  - Coverage: 405/204 guards, Invalid payment_method, Invalid payload,
+    Invalid item structure, Inactive/invalid menu item, Total mismatch
+    (tampered total + tampered per-item price recomputed from DB), plus
+    2 negative controls (matching total / omitted total accepted).
+  - Faza E started (safety net). Next: E2 — Bankart callback integration test.
+
+---
+
 ## B8 — 2026-05-17 — extract resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts — DONE
 
 **Tier:** STRICT (3 lock-zone payment files; per-batch branch b8-shared-public-url)
