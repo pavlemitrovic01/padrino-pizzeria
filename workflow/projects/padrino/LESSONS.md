@@ -64,34 +64,6 @@ Deprecated entries → `DECISIONS.md` "Deprecated Lessons" section.
 
 ---
 
-## 2026-05-12 — safeNumber("", fallback) vraća 0, ne fallback (L4)
-
-**PROBLEM:** `safeNumber(getFirstEnv("BANKART_CALLBACK_MAX_SKEW_SECONDS"), 300)` vraća 0 kada
-env var nije postavljen. Razlog: `getFirstEnv()` vraća `""`, `Number("") = 0`,
-`Number.isFinite(0) = true` → fallback 300 nikada ne aktivira. Efektivno:
-skew prozor srušen na `Math.max(30, 0) = 30s`, ne 300s. Otkriven u B4 kada
-je test "60s in past" padao bez BANKART_CALLBACK_MAX_SKEW_SECONDS stub-a.
-Isti bug na 2 call sites: bankart-callback.ts (skew) i bankart-order-status.ts
-(rate limit interval).
-
-**LEKCIJA:** `Number("") === 0` u JavaScript-u. `safeNumber(v, fallback)` fallback
-se aktivira samo za NaN/Infinity — ne za prazan string. Empty string env var
-prolazi kao 0, ne kao defaultna vrednost. Guard pattern koji radi:
-`safeNumber(getEnv("X") || "300", 300)` — prazan string pada na string "300"
-pre prosleđivanja u safeNumber.
-
-**PRIMENA:** Svaki numerički env var gde 0 nije validna vrednost (timeout, skew,
-rate-limit, interval): koristiti `getEnv("X") || "defaultVrednost"` pre
-prosleđivanja u safeNumber. Ili eksplicitno setovati env var na Vercel.
-Ne oslanjati se na fallback argument safeNumber za env-var-derived stringove.
-
-**STATUS:** ACTIVE — B4.1 DONE (2026-05-12). Code fix deployed. Vercel env vars
-  BANKART_CALLBACK_MAX_SKEW_SECONDS=300 i BANKART_STATUS_MIN_INTERVAL_SECONDS=15
-  ostavljeni kao belt-and-suspenders (harmless).
-**NEXT REVIEW:** —
-
----
-
 ## 2026-05-12 — Nikad ne prosleđuj sirovu err.message klijentu (L5)
 
 **PROBLEM:** `api/create-order.ts` vraćao raw `err.message` (Postgres constraint names,
@@ -147,3 +119,40 @@ uhvatio dve greške koje su sva 4 lokalna gate-a propustila.
 **STATUS:** ACTIVE
 **NEXT REVIEW:** potvrđen B8 Phase D (first-try, ×3 ukupno: B10/B10.1/B8).
 Sledeći review: posle sledećeg api/_shared/ batch-a.
+
+---
+
+## 2026-05-18 — jsdom per-file docblock: cleanup + .tsx include obavezni (L7)
+
+**PROBLEM:** E4 (prvi DOM/React test u repo-u — `CartDrawer.test.tsx`).
+Dve nezavisne "zeleno ali ne stvarno" greške:
+(1) `vitest.config.ts` include imao samo `src/**/*.test.ts` — `.tsx` fajl
+nikad nije bio discovered. `npm run test` prolazi zeleno sa 0 izvršenih
+CartDrawer testova (false green — coverage theater bez ijednog run-a).
+(2) `// @vitest-environment jsdom` kao **docblock** (per-file, ne globalni
+env) — `@testing-library/react` auto-cleanup ne okida između testova.
+DOM se akumulira: drugi `render()` vidi duple elemente iz prethodnog testa
+(`TestingLibraryElementError: multiple elements`), padaju B1/B2/C1/C2.
+
+**LEKCIJA:** Per-file jsdom docblock NE povlači automatski cleanup koji
+globalni `environment: "jsdom"` + setupFiles povlači. Eksplicitni
+`afterEach(cleanup)` je obavezan. I: vitest discovery je ekstenzija-tačan
+— `.test.ts` pattern NE hvata `.test.tsx`. "Test prošao" bez "test se
+izvršio" je isti false-green rod kao L6 (lokalno zeleno ≠ realnost):
+verifikuj broj izvršenih testova, ne samo exit 0.
+
+**PRIMENA:**
+- Novi `.tsx` test → potvrdi da je `src/**/*.test.tsx` u
+  `vitest.config.ts` include PRE pisanja; posle run-a proveri da se
+  očekivani broj testova STVARNO izvršio (ne samo exit 0).
+- Per-file `// @vitest-environment jsdom` → uvek + `afterEach(cleanup)`
+  iz `@testing-library/react`.
+- Import-time throw moduli (npr. `supabaseClient` čita VITE_* env) →
+  infrastrukturni `vi.mock` koji pokriva CEO query chain koji komponenta
+  zove (uklj. `.maybeSingle()`/`.order()`); nepokrivena metoda =
+  unhandled rejection ako useEffect nema try/catch.
+- `tsconfig.app.json` exclude mora imati `**/*.test.tsx` mirror od
+  `**/*.test.ts` da `tsc -b`/`npm run build` ostane zelen.
+
+**STATUS:** ACTIVE
+**NEXT REVIEW:** posle E5 (golden-path E2E) ili sledećeg DOM test batch-a.

@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** E3 — Refund flow test (2026-05-17, STANDARD)
-**Sledeći:** E4 — DOM test harness + CartDrawer characterization
+**Poslednji završen:** E4 — DOM test harness + CartDrawer contract characterization (2026-05-18, STRICT)
+**Sledeći:** E5 — golden-path E2E test
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -85,13 +85,19 @@
   REFUND/ERROR→no-cancel, CHARGEBACK-REVERSAL/OK→paid; status-poll: A1 refunded-skip,
   A2 paid-not-skip ed51537 proof, B1 REFUND/SUCCESS, B2 CHARGEBACK/SUCCESS, B3 cash-boundary;
   lock zone api/bankart-callback.ts + api/bankart-order-status.ts NETAKNUTI)
-- **Faza E — IN PROGRESS** (E1 E2 E3 done; E4–E5 pending — safety net)
+- E4 (DOM test harness + CartDrawer contract characterization) — DONE 2026-05-18
+  (STRICT; 5 fajlova, +1066/-17; SHA 90de2c3; 7 contract testova A1-A3/B1-B2/C1-C2
+  na mock-boundary; jsdom per-file docblock + afterEach(cleanup); SCOPE_DRIFT
+  vitest.config.ts acknowledged — .tsx include obavezan ili false green;
+  LESSONS rotacija L4→DECISIONS, L7 dodat; lock zone CartDrawer.tsx NETAKNUT;
+  karakterizovan loadCheckoutDefaults no-try/catch bug → Faza G)
+- **Faza E — IN PROGRESS** (E1 E2 E3 E4 done; E5 pending — safety net)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-25 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+26 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -101,7 +107,8 @@ B14 RLS security audit, B14.1 RLS admin_users F1 fix,
 B8 resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts,
 E1 create-order endpoint hostile-input test,
 E2 Bankart callback integration test,
-E3 Refund flow test).
+E3 Refund flow test,
+E4 DOM test harness + CartDrawer contract characterization).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

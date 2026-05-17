@@ -336,3 +336,40 @@ Supabase dashboard SQL editor). Post-apply verification confirmed:
   ABSENT; `postgres` (owner) + `service_role` retain all (14 rows)
 - Admin smoke PASS: login + AdminOrders + AdminUsers load, console clean
   (service_role path unaffected by RLS, as predicted by anti-regression)
+
+---
+
+## Deprecated Lessons
+
+> Rotated out of `LESSONS.md` (cap: 7 active entries, RULES §20).
+> Kept here for the record; no longer in active rotation.
+
+### L4 — safeNumber("", fallback) vraća 0, ne fallback
+
+**Deprecated 2026-05-18** (E4 close — LESSONS.md at cap, L4 selected for
+rotation: bug fixed in code B4.1, pattern documented + applied at both
+call-sites, Vercel env vars set belt-and-suspenders, preventive value
+fully realized — lowest residual value of the 7 vs. still-live L0/L2/L5/L6).
+
+**PROBLEM:** `safeNumber(getFirstEnv("BANKART_CALLBACK_MAX_SKEW_SECONDS"), 300)` vraća 0 kada
+env var nije postavljen. Razlog: `getFirstEnv()` vraća `""`, `Number("") = 0`,
+`Number.isFinite(0) = true` → fallback 300 nikada ne aktivira. Efektivno:
+skew prozor srušen na `Math.max(30, 0) = 30s`, ne 300s. Otkriven u B4 kada
+je test "60s in past" padao bez BANKART_CALLBACK_MAX_SKEW_SECONDS stub-a.
+Isti bug na 2 call sites: bankart-callback.ts (skew) i bankart-order-status.ts
+(rate limit interval).
+
+**LEKCIJA:** `Number("") === 0` u JavaScript-u. `safeNumber(v, fallback)` fallback
+se aktivira samo za NaN/Infinity — ne za prazan string. Empty string env var
+prolazi kao 0, ne kao defaultna vrednost. Guard pattern koji radi:
+`safeNumber(getEnv("X") || "300", 300)` — prazan string pada na string "300"
+pre prosleđivanja u safeNumber.
+
+**PRIMENA:** Svaki numerički env var gde 0 nije validna vrednost (timeout, skew,
+rate-limit, interval): koristiti `getEnv("X") || "defaultVrednost"` pre
+prosleđivanja u safeNumber. Ili eksplicitno setovati env var na Vercel.
+Ne oslanjati se na fallback argument safeNumber za env-var-derived stringove.
+
+**STATUS pri deprekaciji:** ACTIVE — B4.1 DONE (2026-05-12). Code fix deployed.
+Vercel env vars BANKART_CALLBACK_MAX_SKEW_SECONDS=300 i
+BANKART_STATUS_MIN_INTERVAL_SECONDS=15 ostavljeni kao belt-and-suspenders.

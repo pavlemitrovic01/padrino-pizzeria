@@ -5,6 +5,66 @@
 
 ---
 
+## E4 — 2026-05-18 — DOM test harness + CartDrawer contract characterization — DONE
+
+**Tier:** STRICT (safety net oko lock-zone CartDrawer.tsx pre Faza G;
+  per-batch branch batch/E4-domharness-cartdrawer-char; lock-zone fajl
+  SAM NIJE diran — samo nov .test.tsx)
+**SHA:** 90de2c3
+**Files (5):**
+  - package.json (MODIFY — +4 devDeps: jsdom, @testing-library/react,
+    @testing-library/jest-dom, @testing-library/user-event)
+  - package-lock.json (MODIFY — lockfile od npm install)
+  - tsconfig.app.json (MODIFY — +1 exclude "**/*.test.tsx" mirror od
+    "**/*.test.ts" da tsc -b/build ostane zelen)
+  - vitest.config.ts (MODIFY — include +"src/**/*.test.tsx"; SCOPE_DRIFT)
+  - src/components/CartDrawer.test.tsx (NEW — 277 linija, 7 contract testova)
+**Verify:**
+  build:     PASS(machine) — exit 0, vite build ~3.85s
+  typecheck: PASS(machine) — exit 0 (tsc -b)
+  test:      PASS(machine) — exit 0, 11 files / 144 tests (+7 new)
+  lint:      PASS(machine) — exit 0, eslint
+  manual:    NIJE POTREBNO — test-only, lock-zone CartDrawer.tsx NETAKNUT,
+             nije browser-observable (E1/E2/E3 presedan)
+**SCOPE_DRIFT:** acknowledged
+  EXPECTED (4): package.json, package-lock.json, tsconfig.app.json,
+                src/components/CartDrawer.test.tsx
+  ACTUAL (5):   + vitest.config.ts
+  Reason: include pattern imao samo src/**/*.test.ts → .tsx fajl nikad
+          discovered = false green (0 izvršenih CartDrawer testova).
+          Neophodna izmena da test uopšte radi. Pavle-approved.
+**LESSONS:** rotated (cap 7)
+  - L4 (safeNumber "" → 0) deprecated → DECISIONS.md "Deprecated Lessons"
+    (bug fixan B4.1, pattern primenjen, preventivna vrednost potrošena)
+  - L7 added (jsdom docblock: afterEach(cleanup) + .tsx include obavezni)
+  - Active: 7 (L0,L1,L2,L3,L5,L6,L7); LESSONS.md 114 linija (≤200)
+**Notes:**
+  - 7 contract-level karakterizacionih testova (mock-boundary, ne DOM
+    struktura) pre Faza G CartDrawer split:
+    A1-A3 render per cart-state (isOpen=false→null, prazna→"Korpa je
+    prazna", item→ime+"1 stavki");
+    B1-B2 form-validation gating (blank submit→3 error poruke + 0
+    createOrder; valid bez zone→"Izaberi zonu dostave." + 0 createOrder);
+    C1-C2 submit-branch contract (cash+Budva→createOrder payment_method
+    'cash', bez tokenize; card bez PaymentJS flag→payment_method 'card',
+    transaction_token undefined, 0 createBankartPaymentJs).
+  - 4 mocka: 3 behavior (useCart, bankartPaymentJs, createOrder) + 1
+    infrastrukturni (supabaseClient — import-time throw guard; mora
+    pokriti ceo query chain uklj. .maybeSingle()/.order()).
+  - // @vitest-environment jsdom kao per-file docblock (NE globalni env —
+    10 postojećih node testova ostaju netaknuti); zahteva eksplicitni
+    afterEach(cleanup) (auto-cleanup ne okida sa docblock env-om).
+  - Karakterizovan bug (lock-zone, NIJE fixan): loadCheckoutDefaults
+    useEffect u CartDrawer.tsx ~liniji 419 nema try/catch (za razliku od
+    loadCatalogs) → unhandled rejection ako supabase padne. Kandidat za
+    Faza G.
+  - Budva zona (feeCents:0, minCents:0) jedina testabilna bez delivery-fee
+    setup-a za C1/C2.
+  - Lock zone (src/components/CartDrawer.tsx) — NETAKNUT (diff: samo nov
+    .test.tsx). Faza E nastavlja. Next: E5 (golden-path E2E).
+
+---
+
 ## E3 — 2026-05-17 — Refund flow test — DONE
 
 **Tier:** STANDARD (additive test-only; direct on main — non-lock-zone, test files only)
