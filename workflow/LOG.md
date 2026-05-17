@@ -5,6 +5,48 @@
 
 ---
 
+## E3 — 2026-05-17 — Refund flow test — DONE
+
+**Tier:** STANDARD (additive test-only; direct on main — non-lock-zone, test files only)
+**SHA:** TBD
+**Files (2):**
+  - api/bankart-callback.test.ts (MODIFY — +4 refund/chargeback callback push tests
+    + paidOrder const; +78 lines)
+  - api/bankart-order-status.test.ts (NEW — 5 refund-sync status-poll tests; 223 lines)
+**Verify:**
+  build:     PASS(machine) — exit 0, vite build 3.35s
+  typecheck: PASS(machine) — exit 0 (tsc -b)
+  test:      PASS(machine) — exit 0, 10 files / 137 tests (+9 new)
+  lint:      PASS(machine) — exit 0, eslint
+  manual:    NIJE POTREBNO — test-only, non-lock-zone, not browser-observable
+**SCOPE_DRIFT:** none
+  EXPECTED: api/bankart-callback.test.ts, api/bankart-order-status.test.ts
+  ACTUAL:   exact match ✓ (2/2)
+**Notes:**
+  - File 1 (callback push, +4): REFUND/OK→refunded, CHARGEBACK/OK→refunded,
+    REFUND/ERROR→payment_status kept "paid" (no cancellation),
+    CHARGEBACK-REVERSAL/OK on already-paid→payment_status="paid" no Telegram.
+  - File 2 (status-poll, +5):
+    A1: refunded order skipped — shouldSkipStatusRefreshForPaymentStatus=true,
+        no Bankart fetch;
+    A2: paid order NOT skipped — ed51537 proof (paid is not a skip status),
+        Bankart fetch called, refreshed=true;
+    B1: REFUND/SUCCESS → payment_status="refunded" (applyBankartStatusToOrder);
+    B2: CHARGEBACK/SUCCESS → payment_status="refunded";
+    B3: cash order → early return source=db_cash, no fetch.
+  - BANKART_API_KEY set in vi.hoisted() (not in vitest.setup.ts) — needed for
+    getBankartConfig() called at handler runtime (not module-load time).
+  - Bankart fetch stub: { ok:true, text:()=>Promise.resolve(JSON.stringify(body)) }
+    (bankart-order-status.ts uses response.text(), not .json()).
+  - ResLike for status-poll: status(code)→returns Res (chaining), send(), setHeader().
+  - Lock zone (api/bankart-callback.ts + api/bankart-order-status.ts) — NETAKNUTI.
+  - CHARGEBACK-REVERSAL via status-poll documented as unreachable for a "refunded"
+    order (shouldSkipStatusRefreshForPaymentStatus("refunded")=true → skip gate fires
+    before applyBankartStatusToOrder). No test written — honesty > coverage theater.
+  - Faza E continues. Next: E4 (DOM harness) or E5 (golden-path E2E).
+
+---
+
 ## E2 — 2026-05-17 — Bankart callback integration test — DONE
 
 **Tier:** STANDARD (additive test-only; direct on main — non-lock-zone, test file only)

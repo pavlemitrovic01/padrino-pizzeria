@@ -389,3 +389,81 @@ describe("handler integration — Bankart callback payment→DB flow", () => {
     expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
   });
 });
+
+const paidOrder = {
+  id: "order-test-2",
+  status: "confirmed",
+  payment_method: "bankart",
+  payment_status: "paid",
+  payment_provider: "bankart",
+  payment_reference: "ref-paid",
+  payment_meta: null,
+};
+
+// ─── handler integration (refund/chargeback flow) ─────────────
+describe("handler integration — refund/chargeback flow", () => {
+  it("REFUND/OK on paid order: patches payment_status=refunded, no Telegram", async () => {
+    hoisted.state.tableResults.orders = { data: paidOrder, error: null };
+    const rawBody = JSON.stringify({
+      result: "OK",
+      transactionType: "REFUND",
+      merchantTransactionId: paidOrder.id,
+      uuid: "uuid-refund-ok",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("refunded");
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+
+  it("CHARGEBACK/OK on paid order: patches payment_status=refunded, no Telegram", async () => {
+    hoisted.state.tableResults.orders = { data: paidOrder, error: null };
+    const rawBody = JSON.stringify({
+      result: "OK",
+      transactionType: "CHARGEBACK",
+      merchantTransactionId: paidOrder.id,
+      uuid: "uuid-chargeback-ok",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("refunded");
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+
+  it("REFUND/ERROR on paid order: DB updated with existing status, no cancellation", async () => {
+    hoisted.state.tableResults.orders = { data: paidOrder, error: null };
+    const rawBody = JSON.stringify({
+      result: "ERROR",
+      transactionType: "REFUND",
+      merchantTransactionId: paidOrder.id,
+      uuid: "uuid-refund-err",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
+    expect(hoisted.state.lastUpdatePatch?.status).toBeUndefined();
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+
+  it("CHARGEBACK-REVERSAL/OK on paid order: patches payment_status=paid, no Telegram (already paid)", async () => {
+    hoisted.state.tableResults.orders = { data: paidOrder, error: null };
+    const rawBody = JSON.stringify({
+      result: "OK",
+      transactionType: "CHARGEBACK-REVERSAL",
+      merchantTransactionId: paidOrder.id,
+      uuid: "uuid-reversal-ok",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+});
