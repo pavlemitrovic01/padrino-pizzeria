@@ -1,22 +1,69 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import crypto from "node:crypto";
+import { Readable } from "node:stream";
 import type { ServerResponse, IncomingMessage } from "node:http";
 
-// Must be hoisted before module load — bankart-callback.ts calls buildSupabaseAdmin() at top level.
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(),
-    auth: { getUser: vi.fn() },
-  })),
-}));
+// ─── hoisted state — available in vi.mock factory ─────────────
 
-import {
+const hoisted = vi.hoisted(() => {
+  const state = {
+    tableResults: {} as Record<string, { data: unknown; error: unknown }>,
+    lastUpdatePatch: null as Record<string, unknown> | null,
+    updateCallCount: 0,
+  };
+  return { state };
+});
+
+// ─── supabase mock ────────────────────────────────────────────
+
+vi.mock("@supabase/supabase-js", () => {
+  function makeUpdateEqBuilder(): Record<string, unknown> {
+    const b: Record<string, unknown> = {};
+    b.eq = () => b;
+    b.then = (
+      onF: (v: { data: unknown; error: unknown }) => unknown,
+      onR?: (e: unknown) => unknown,
+    ) => Promise.resolve({ data: null, error: null }).then(onF, onR);
+    return b;
+  }
+
+  function makeBuilder(result: { data: unknown; error: unknown }): Record<string, unknown> {
+    const b: Record<string, unknown> = {};
+    b.select = () => b;
+    b.eq = () => b;
+    b.in = () => b;
+    b.maybeSingle = () => Promise.resolve(result);
+    b.single = () => Promise.resolve(result);
+    b.update = (patch: Record<string, unknown>) => {
+      hoisted.state.lastUpdatePatch = { ...patch };
+      hoisted.state.updateCallCount++;
+      return makeUpdateEqBuilder();
+    };
+    b.then = (
+      onF: (v: { data: unknown; error: unknown }) => unknown,
+      onR?: (e: unknown) => unknown,
+    ) => Promise.resolve(result).then(onF, onR);
+    return b;
+  }
+
+  return {
+    createClient: () => ({
+      from: (table: string) =>
+        makeBuilder(hoisted.state.tableResults[table] ?? { data: null, error: null }),
+      auth: { getUser: vi.fn() },
+    }),
+  };
+});
+
+import handler, {
   createBankartSignature,
   safeEqualSignature,
   isDateFresh,
   verifyBankartCallbackSignature,
   type ReqLike,
 } from "./bankart-callback";
+
+// ─── helpers ─────────────────────────────────────────────────
 
 function buildReq(opts: {
   method?: string;
@@ -38,7 +85,23 @@ function buildResMock() {
   };
 }
 
-const SECRET = "test-bankart-secret";
+function makeStreamReq(
+  rawBody: string,
+  opts: {
+    method?: string;
+    url?: string;
+    headers?: Record<string, string>;
+  } = {},
+): ReqLike {
+  const stream = Readable.from([rawBody]);
+  return Object.assign(stream, {
+    method: opts.method ?? "POST",
+    url: opts.url ?? "/api/bankart-callback",
+    headers: opts.headers ?? {},
+  }) as unknown as ReqLike;
+}
+
+const SECRET = "test-bankart-secret"; // matches vitest.setup.ts BANKART_SHARED_SECRET
 const BODY = JSON.stringify({ result: "OK", uuid: "test-uuid" });
 const CONTENT_TYPE = "application/json";
 const URI = "/api/bankart-callback";
@@ -55,6 +118,34 @@ function computeSignature(
   const message = [method.toUpperCase(), bodyHash, contentType, dateHeader, uri].join("\n");
   return crypto.createHmac("sha512", secret).update(message, "utf8").digest("base64");
 }
+
+function makeSignedReq(rawBody: string): ReqLike {
+  const dateHeader = new Date().toUTCString();
+  const sig = createBankartSignature(SECRET, "POST", CONTENT_TYPE, dateHeader, URI, rawBody);
+  return makeStreamReq(rawBody, {
+    headers: { "x-signature": sig, "x-date": dateHeader, "content-type": CONTENT_TYPE },
+  });
+}
+
+const pendingOrder = {
+  id: "order-test-1",
+  status: "pending",
+  payment_method: "bankart",
+  payment_status: "pending",
+  payment_provider: null,
+  payment_reference: null,
+  payment_meta: null,
+};
+
+beforeEach(() => {
+  hoisted.state.tableResults = {};
+  hoisted.state.lastUpdatePatch = null;
+  hoisted.state.updateCallCount = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
+  );
+});
 
 // ─── createBankartSignature ───────────────────────────────────
 describe("createBankartSignature", () => {
@@ -220,9 +311,81 @@ describe("verifyBankartCallbackSignature", () => {
 // ─── handler smoke ────────────────────────────────────────────
 describe("handler (smoke)", () => {
   it("returns 405 on GET method", async () => {
-    const { default: handler } = await import("./bankart-callback");
     const res = buildResMock();
     await handler(buildReq({ method: "GET" }), res as unknown as ServerResponse<IncomingMessage>);
     expect(res.statusCode).toBe(405);
+  });
+});
+
+// ─── handler integration (payment→DB flow) ───────────────────
+describe("handler integration — Bankart callback payment→DB flow", () => {
+  it("DEBIT/OK on pending order: patches payment_status=paid and notifies Telegram once", async () => {
+    hoisted.state.tableResults.orders = { data: pendingOrder, error: null };
+    const rawBody = JSON.stringify({
+      result: "OK",
+      transactionType: "DEBIT",
+      merchantTransactionId: pendingOrder.id,
+      uuid: "uuid-debit-ok",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.end).toHaveBeenCalledWith("OK");
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
+  });
+
+  it("DEBIT/OK duplicate (already paid): updates DB but does NOT notify Telegram", async () => {
+    hoisted.state.tableResults.orders = {
+      data: { ...pendingOrder, payment_status: "paid" },
+      error: null,
+    };
+    const rawBody = JSON.stringify({
+      result: "OK",
+      transactionType: "DEBIT",
+      merchantTransactionId: pendingOrder.id,
+      uuid: "uuid-debit-ok-dup",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+
+  it("DEBIT/ERROR: patches payment_status=failed + status=cancelled, no Telegram", async () => {
+    hoisted.state.tableResults.orders = { data: pendingOrder, error: null };
+    const rawBody = JSON.stringify({
+      result: "ERROR",
+      transactionType: "DEBIT",
+      merchantTransactionId: pendingOrder.id,
+      uuid: "uuid-debit-err",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("failed");
+    expect(hoisted.state.lastUpdatePatch?.status).toBe("cancelled");
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+
+  it("order not found: returns 200 OK without updating DB or notifying Telegram", async () => {
+    // all table lookups return {data:null} by default — no order found
+    const rawBody = JSON.stringify({
+      result: "OK",
+      transactionType: "DEBIT",
+      merchantTransactionId: "no-such-order",
+      uuid: "no-such-uuid",
+    });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.end).toHaveBeenCalledWith("OK");
+    expect(hoisted.state.updateCallCount).toBe(0);
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
   });
 });
