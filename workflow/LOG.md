@@ -8,7 +8,7 @@
 ## E3 — 2026-05-17 — Refund flow test — DONE
 
 **Tier:** STANDARD (additive test-only; direct on main — non-lock-zone, test files only)
-**SHA:** TBD
+**SHA:** c1a8961
 **Files (2):**
   - api/bankart-callback.test.ts (MODIFY — +4 refund/chargeback callback push tests
     + paidOrder const; +78 lines)
