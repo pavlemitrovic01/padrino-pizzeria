@@ -5,6 +5,38 @@
 
 ---
 
+## E2 — 2026-05-17 — Bankart callback integration test — DONE
+
+**Tier:** STANDARD (additive test-only; direct on main — non-lock-zone, test file only)
+**SHA:** 62dd659
+**Files (1):**
+  - api/bankart-callback.test.ts (MODIFY — replaced simple vi.mock with hoisted
+    controllable builder; added Readable.from() stream req helper + makeSignedReq;
+    +4 integration tests covering payment→DB flow)
+**Verify:**
+  build:     PASS(machine) — exit 0, vite build 3.22s (2186 mod)
+  typecheck: PASS(machine) — exit 0 (tsc -b)
+  test:      PASS(machine) — exit 0, 9 files / 128 tests (+4 new)
+  lint:      PASS(machine) — exit 0, eslint
+  manual:    NIJE POTREBNO — test-only, non-lock-zone, not browser-observable
+**SCOPE_DRIFT:** none
+  EXPECTED: api/bankart-callback.test.ts
+  ACTUAL:   exact match ✓ (1/1)
+**Notes:**
+  - Covers payment→DB flow (previously 0 integration tests):
+    DEBIT/OK pending → payment_status=paid, Telegram notified 1×;
+    DEBIT/OK duplicate (already paid) → no double-notify (idempotency);
+    DEBIT/ERROR → payment_status=failed + status=cancelled, no notify;
+    order-not-found → 200 OK, updateCallCount=0, fetch 0 (graceful).
+  - Lock zone (api/bankart-callback.ts) untouched — handler imported & driven, not edited.
+  - Mock enhanced: hoisted state captures lastUpdatePatch + updateCallCount;
+    makeUpdateEqBuilder handles await .update().eq() thenable chain.
+  - vitest.setup.ts pre-sets BANKART_SHARED_SECRET="test-bankart-secret" —
+    existing verifyBankartCallbackSignature unit tests still green (same secret).
+  - Faza E continues. Next: E3 — Refund flow test.
+
+---
+
 ## E1 — 2026-05-17 — create-order endpoint hostile-input test — DONE
 
 **Tier:** STANDARD (additive test-only; direct on main — non-lock-zone, no src/api change)
