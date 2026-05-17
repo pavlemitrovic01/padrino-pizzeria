@@ -2,12 +2,27 @@
 
 ## Current Phase
 
-**Phase A — Stabilization & Audit** (post-W0, ready to start)
+**Faza E — Refactor-to-9 (template-grade)** — ready to start.
+
+Faze A–D DONE (Stabilization, Critical fixes, Cleanup, Architectural
+decisions — 22 batches; see STATE.md / LOG.md). Project audited
+2026-05-17: **7.0/10**. Goal: reach **9.0/10** AND turn Padrino into a
+clean reference repo for future ordering/payment apps.
+
+**Strategic decision (2026-05-17): refactor, NOT rewrite.** Server-side
+price validation verified correct (`create-order.ts:1037-1142`), HMAC
+timing-safe + skew-bounded, critical RLS closed (B14.1). The hard and
+dangerous core is done and proven; the real debt is 4 monolith files +
+util duplication — a refactor target, not a rewrite trigger. A rewrite
+would re-pay every LESSON (L2/L4/L6) and re-discover production
+hardening with real money and no safety net. The true shared template
+crystallizes from cleaned-Padrino + app#2 — not from premature
+abstraction (deferred to Faza J).
 
 Pre-W0 history: 9 closed batches (B1-B9) under old workflow.
 See `DECISIONS.md` "Phase History" for full record.
 
-## Upcoming — Faza A (Stabilization & Audit)
+## Faza A — DONE ✓ (Stabilization & Audit)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
@@ -17,7 +32,7 @@ See `DECISIONS.md` "Phase History" for full record.
 | B3.5 | Telegram flow doc correction | LEAN | 15min | DONE 2026-05-11 — RUNBOOK §1 + §1.1 + DECISIONS append |
 | B4 | Kritični testovi (HMAC + CAS + Bankart callback) | STANDARD | 2h | Additive tests only |
 
-## Upcoming — Faza B (Critical fixes)
+## Faza B — DONE ✓ (Critical fixes)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
@@ -26,7 +41,7 @@ See `DECISIONS.md` "Phase History" for full record.
 | B15 | Telegram DB trigger DROP | LEAN | 15min | Single `DROP TRIGGER` migration; trigger is dead (Vercel Protection 401, see DECISIONS 2026-05-11 B3.5 entry) |
 | B16 | CAS atomicity fix in admin-update-order-status.ts | STRICT | 30min | From audit 2026-05-11 D4: read-then-write race; add `.eq("status", fromStatus)` guard + 409 conflict response |
 
-## Upcoming — Faza C (Cleanup & Consolidation)
+## Faza C — DONE ✓ (Cleanup & Consolidation)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
@@ -38,26 +53,86 @@ See `DECISIONS.md` "Phase History" for full record.
 | B13 | Mrtvi fajlovi cleanup | LEAN | 15min | Audit 2026-05-11: padrinoo.txt and tsbuildinfo absent; verify scope on /plan — likely near-no-op |
 | B10.1 | isAdminEmailDb dedup → api/_shared/admin-auth | STANDARD | 30min | Follow-up to B10 (identified during B10 exec). isAdminEmailDb inline-duplicated in admin-orders.ts, admin-update-order-status.ts, admin-resend-telegram.ts; consolidate into existing api/_shared/admin-auth.ts. `.js` import per L6. |
 
-## Upcoming — Faza D (Architectural decisions)
+## Faza D — DONE ✓ (Architectural decisions)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
 | B12 | Edge functions dedup decision | STRICT | 1-2h | admin-orders + telegram-new-order |
 | B14 | Security audit: RLS hardcoded email + admin_users RLS | STRICT | ~2h | From B3 schema baseline finding; supersedes old B14 (CartDrawer Phase 3 — moved to Long-term) |
 
+---
+
+# Refactor-to-9 program (Faze E–J)
+
+Audit 2026-05-17: **7.0/10 → target 9.0/10**, template-grade.
+Order logic: **safety net first, then climb.** No payment-system
+refactor without tests as the net. Each batch reversible + gated.
+
+## Upcoming — Faza E (Safety net — PREREQ for everything)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| E1 | create-order endpoint hostile-input test | STANDARD | 1-2h | #1 audit gap. Tampered price rejected, total mismatch, invalid items. Cheapest, highest ROI. Proves the price-validation defense I verified at create-order.ts:1037-1142. |
+| E2 | Bankart callback integration test | STANDARD | 2h | Duplicate-callback idempotency, paid→paid no double-notify, ERROR path → cancelled. Covers payment→DB flow (currently 0 tests). |
+| E3 | Refund flow test | STANDARD | 1-2h | Refund init + REFUND/CHARGEBACK callback handling. Currently zero. Covers test side of long-term refund-sync item. |
+| E4 | CartDrawer characterization tests | STRICT | 2-3h | Lock-zone read-only. Capture render/submit behavior for given cart state BEFORE Faza G split. The net for G. |
+
+## Upcoming — Faza F (Shared core — template foundation, low risk)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| F1 | `src/lib/parsing.ts` consolidation | STANDARD | 1h | isRecord/isPlainObject/safeInt/safeString/normalizeText — 4+ dup sites → one tested module. |
+| F2 | `src/lib/zones.ts` extraction | STRICT | 2h | Polygon math + zone resolution out of create-order.ts (lock zone) + CartDrawer. |
+| F3 | `api/_shared/` reusable surface formalization | STRICT | 2h | Continue B8/B10 line — payment/admin shared modules as the template seam. |
+| F4 | Config seam module | STANDARD | 1-2h | Padrino-specifics (fallback email/city/postcode, domain, Telegram) → one config module = explicit template swap point. |
+
+## Upcoming — Faza G (CartDrawer rebuild — STRICT, behind E4 net)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| G1 | Extract `CheckoutForm` (customer fields + validation) | STRICT | 2-3h | Lock zone. Browser smoke live checkout each step. |
+| G2 | Extract `PaymentSection` (Bankart PaymentJS lifecycle) | STRICT | 3-4h | Highest risk in whole program. Smoke every increment. |
+| G3 | Extract `CartView` (item list / qty) | STRICT | 2h | Lock zone. |
+| G4 | CartDrawer → thin orchestrator (~300 LOC) | STRICT | 2h | Final assembly; full checkout smoke. |
+
+## Upcoming — Faza H (Admin monoliths)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| H1 | AdminOrders split (table/detail/export/grouping → lib) | STANDARD | 2-3h | 1193 LOC; reuses F1 parsing lib. |
+| H2 | AdminMenu split (editor/image-upload/list) | STANDARD | 2-3h | 1368 LOC. |
+
+## Upcoming — Faza I (Security + observability → 9)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| I1 | F2 RLS — admin_users membership policy | STRICT | 1-2h | Kill hardcoded email (Option A, docs/rls-security-audit.md). Schema migration + live verify. Template win: no personal email baked in. |
+| I2 | CORS allowlist (env-driven origins) | STANDARD | 1h | Replace reflect-any-origin in create-order.ts setCors. |
+| I3 | Logger server sink (`api/log`) | STANDARD | 2h | Flush error-level ring buffer to server. Supersedes long-term "Logger server endpoint". |
+| I4 | Build SHA in monitoring init | LEAN | 30min | git SHA for prod debug. Supersedes long-term "Build version SHA". |
+
+## Upcoming — Faza J (Template crystallization)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| J1 | `TEMPLATE.md` + canonical env manifest | STANDARD | 2h | Reusable vs project-specific map; clone-and-adapt guide. Doc-only. |
+| J2 | Extract true shared template | deferred | — | Only AFTER app#2 exists. Template = what Padrino + app#2 actually share. Do NOT pre-abstract. |
+
 ## Long-term (no estimate)
 
-- **Refund sync verification** — kod je popravljen u prethodnoj fazi (commit ed51537), čeka realan refund event u produkciji za operativnu potvrdu. Neće blokirati ostatak roadmap-a.
-- **CartDrawer Phase 3 + AdminOrders/AdminMenu split** — JSX cart-view i checkout-view extraction (~790 lines remaining); plus splitting AdminOrders.tsx and AdminMenu.tsx monoliths. Was old B14; deferred per W1/W2 to long-term until concrete blocker. Re-evaluate after Faza B/C complete.
-- **Backend ESLint env precision** — `api/**` JESTE pokriven eslint-om (`eslint.config.js` ignoriše samo `dist`, `files: **/*.{ts,tsx}`; potvrđeno B10/L6 — api/ dedup oborio 14 `no-unused-vars`). Rezidual: `languageOptions.globals` = `globals.browser` se primenjuje i na Node `api/**` (nema poseban node-globals blok) — bezopasno (typescript-eslint gasi `no-undef`, TS tipizira `process`/`Buffer` preko @types/node), opcioni nice-to-have.
-- **Logger server endpoint** — current logger writes to localStorage ring buffer only.
-- **Build version SHA** — git SHA in monitoring init for production debug.
+- **Refund sync verification (operational)** — kod popravljen (commit ed51537); E3 pokriva test stranu. Ostaje operativna potvrda na realan refund event u produkciji. Ne blokira roadmap.
+- **Backend ESLint env precision** — `api/**` JESTE pokriven eslint-om (`eslint.config.js` ignoriše samo `dist`, `files: **/*.{ts,tsx}`; potvrđeno B10/L6). Rezidual: `languageOptions.globals` = `globals.browser` se primenjuje i na Node `api/**` (nema node-globals blok) — bezopasno (typescript-eslint gasi `no-undef`, TS tipizira `process`/`Buffer` preko @types/node), opcioni nice-to-have.
+
+> Superseded into Faze E–J (2026-05-17): CartDrawer Phase 3 + Admin
+> splits → Faze G/H; Logger server endpoint → I3; Build version SHA → I4.
 
 ## Notes
 
-- B5 is CONDITIONAL on B2. B2 audit (DONE 2026-05-11) found delivery fee flow works correctly via meta-note parsing; no production bug. B5 likely will not execute.
-- Old B14+ (CartDrawer Phase 3) was gated on accumulated pain — now formally deferred to Long-term (W2 reconciliation 2026-05-11). New B14 (security audit) is concrete.
-- Phase D is provisional. Re-evaluate after Phase C.
+- B5 is CONDITIONAL on B2. B2 audit (DONE 2026-05-11) found delivery fee flow works correctly via meta-note parsing; no production bug. B5 will not execute.
+- Faze A–D DONE 2026-05-17 (22 batches). Faze E–J = refactor-to-9 program.
+- Refactor-NOT-rewrite is a LOCKED strategic decision (2026-05-17): the dangerous core (server price validation, HMAC, RLS) is done + verified; debt is structural (4 monolith files), not foundational. Rationale in Current Phase block.
+- Template goal: future projects are similar ordering/payment apps. Faza F builds the reusable seam; Faza J crystallizes the real template only after app#2 (no premature abstraction).
+- Old B14+ (CartDrawer Phase 3 + Admin splits) promoted into Faze G/H — no longer a vague long-term deferral.
 
 ## Audit 2026-05-11 — Reconciliation log
 
