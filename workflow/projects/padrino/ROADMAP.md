@@ -68,6 +68,32 @@ Audit 2026-05-17: **7.0/10 → target 9.0/10**, template-grade.
 Order logic: **safety net first, then climb.** No payment-system
 refactor without tests as the net. Each batch reversible + gated.
 
+**Estimate column = human hand-coding reference ONLY.** With agentic
+execution coding time ≈ 0; the real wall clock is the STRICT gate loop:
+per-batch branch → Vercel preview deploy → Build Logs check (L6) →
+Pavle manual browser/Bankart smoke (preview tool cannot render this
+app) → /close. Fast-track (E/F/H/I/J — additive, non-lock-zone): a few
+focused sessions. **Faza G (4 STRICT payment-UI batches) is the real
+clock** — bounded by N manual Bankart test-mode checkouts + deploy
+round-trips, NOT by coding speed. Rushing G without that verification
+discards the exact safety this plan exists for.
+
+## Exit criteria for "real 9.0/10" (falsifiable — not a vibe)
+
+9.0 is NOT "E–J closed". It is ALL of:
+1. No source file > 800 LOC (CartDrawer / AdminMenu / AdminOrders / create-order all split).
+2. E1 hostile price-tamper test GREEN (server rejects/recomputes — proven, not assumed).
+3. E5 golden-path E2E GREEN (cart → create-order → redirect URL returned).
+4. F2 RLS closed (admin_users membership policy; no hardcoded personal email).
+5. Build SHA visible in production monitoring (I4).
+6. Logger flushes error-level to server sink (I3), not localStorage-only.
+7. Zero `any`/`@ts-ignore`; lint + typecheck + test + build all green.
+8. `TEMPLATE.md` exists with canonical env manifest (J1).
+
+Conditional last 0.5: a "9/10 TEMPLATE" is a CLAIM until app#2 is
+successfully cloned from cleaned-Padrino (J2). Until then max honest
+self-score = **8.5** even with 1–8 all met.
+
 ## Upcoming — Faza E (Safety net — PREREQ for everything)
 
 | ID | Naslov | Tier | Estimate | Notes |
@@ -75,7 +101,8 @@ refactor without tests as the net. Each batch reversible + gated.
 | E1 | create-order endpoint hostile-input test | STANDARD | 1-2h | #1 audit gap. Tampered price rejected, total mismatch, invalid items. Cheapest, highest ROI. Proves the price-validation defense I verified at create-order.ts:1037-1142. |
 | E2 | Bankart callback integration test | STANDARD | 2h | Duplicate-callback idempotency, paid→paid no double-notify, ERROR path → cancelled. Covers payment→DB flow (currently 0 tests). |
 | E3 | Refund flow test | STANDARD | 1-2h | Refund init + REFUND/CHARGEBACK callback handling. Currently zero. Covers test side of long-term refund-sync item. |
-| E4 | CartDrawer characterization tests | STRICT | 2-3h | Lock-zone read-only. Capture render/submit behavior for given cart state BEFORE Faza G split. The net for G. |
+| E4 | DOM test harness + CartDrawer characterization | STRICT | 2-3h | **Prereq not in stack:** add jsdom + @testing-library/react (no component-test infra exists today). Then capture CartDrawer render/submit behavior per cart state BEFORE Faza G split. Honest: this is the weakest net — partly substituted by E2/E5 + manual smoke. |
+| E5 | Golden-path E2E (cart → create-order → redirect) | STANDARD | 2-3h | Drives cart add → checkout submit → asserts create-order returns valid redirect URL. Stops at Bankart hosted-page boundary (external gateway not driven). The real net for Faza G. Exit-criteria #3. |
 
 ## Upcoming — Faza F (Shared core — template foundation, low risk)
 
