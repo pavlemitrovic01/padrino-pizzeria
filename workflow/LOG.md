@@ -5,6 +5,45 @@
 
 ---
 
+## E5 — 2026-05-18 — Golden-path E2E (cart → createOrder → redirect URL) — DONE
+
+**Tier:** STANDARD (additive test-only; direkt na main — E1/E2/E3 presedan)
+**SHA:** edbdb73
+**Files (1):**
+  - src/components/CartDrawer.e2e.test.tsx (NEW — 205 linija, 2 golden testa)
+**Verify:**
+  build:     PASS(machine) — exit 0, vite build 3.60s
+  typecheck: PASS(machine) — exit 0 (tsc -b)
+  test:      PASS(machine) — exit 0, 12 fajlova / 146 testa (+2 nova: G1, G2)
+  lint:      PASS(machine) — exit 0, eslint
+  manual:    NIJE POTREBNO — test-only, lock-zone CartDrawer.tsx NETAKNUT,
+             nije browser-observable (E1–E4 presedan)
+**SCOPE_DRIFT:** none
+  EXPECTED: src/components/CartDrawer.e2e.test.tsx
+  ACTUAL:   exact match ✓ (1/1)
+**LESSONS:** L7 updated (ne novi ulaz — cap ostaje 7)
+  Dodat vi.stubGlobal("location")/vi.unstubAllGlobals() pattern za
+  window.location.assign u jsdom (throws "Not implemented" bez stuba;
+  stub mora zadržati pathname/search za CartDrawer init reads).
+**Notes:**
+  - E5 je "real net for Faza G" (ROADMAP) — exit-criterion #3 ZATVOREN:
+    E2E green (cart → createOrder → redirect URL).
+  - G1 (card-redirect golden path): real createOrder lib, fetch mock →
+    { ok:true, id, flow:"card_redirect", redirect_url:URL } →
+    fetchMock 1× /create-order, body.payment_method="card",
+    window.location.assign(URL) 1×. Exit-criterion #3 ✓
+  - G2 (cash golden path): real createOrder lib, fetch mock →
+    { ok:true, id, flow:"cash" } → fetchMock 1× /create-order,
+    body.payment_method="cash", window.location.assign NOT called.
+  - Real createOrder lib (src/lib/createOrder.ts) drivovan bez mock-a —
+    potvrđena validacijska logika + fetch chain end-to-end u tests.
+  - E4 ff-merge (d380a35→005a8f1) + push + branch delete uključeni u
+    ovaj batch (Step 0 iz plana — autorizovao Pavle pre egzekucije).
+  - Lock zone (src/components/CartDrawer.tsx) — NETAKNUT.
+  - **Faza E — DONE** ✓ (E1 E2 E3 E4 E5 sve zatvorene — safety net komplet)
+
+---
+
 ## E4 — 2026-05-18 — DOM test harness + CartDrawer contract characterization — DONE
 
 **Tier:** STRICT (safety net oko lock-zone CartDrawer.tsx pre Faza G;

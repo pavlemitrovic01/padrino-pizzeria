@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** E4 — DOM test harness + CartDrawer contract characterization (2026-05-18, STRICT)
-**Sledeći:** E5 — golden-path E2E test
+**Poslednji završen:** E5 — Golden-path E2E (cart → createOrder → redirect URL) (2026-05-18, STANDARD)
+**Sledeći:** F1 — src/lib/parsing.ts consolidation (ili W4 reconciliation ako je potreban)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -91,13 +91,18 @@
   vitest.config.ts acknowledged — .tsx include obavezan ili false green;
   LESSONS rotacija L4→DECISIONS, L7 dodat; lock zone CartDrawer.tsx NETAKNUT;
   karakterizovan loadCheckoutDefaults no-try/catch bug → Faza G)
-- **Faza E — IN PROGRESS** (E1 E2 E3 E4 done; E5 pending — safety net)
+- E5 (Golden-path E2E — cart → createOrder → redirect URL) — DONE 2026-05-18
+  (STANDARD; 1 fajl src/components/CartDrawer.e2e.test.tsx, +205 linija;
+  2 golden testa G1 card-redirect + G2 cash; real createOrder lib bez mock-a;
+  vi.stubGlobal("location") pattern; exit-criterion #3 ZATVOREN;
+  lock zone CartDrawer.tsx NETAKNUT; L7 updated — assign stub)
+- **Faza E — DONE** ✓ (E1 E2 E3 E4 E5 sve zatvorene — safety net komplet)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-26 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+27 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -108,7 +113,8 @@ B8 resolvePublicBaseUrl + buildTelegramPayload → api/_shared/public-url.ts,
 E1 create-order endpoint hostile-input test,
 E2 Bankart callback integration test,
 E3 Refund flow test,
-E4 DOM test harness + CartDrawer contract characterization).
+E4 DOM test harness + CartDrawer contract characterization,
+E5 Golden-path E2E — cart → createOrder → redirect URL).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

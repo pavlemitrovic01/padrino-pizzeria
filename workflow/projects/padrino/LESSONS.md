@@ -153,6 +153,12 @@ verifikuj broj izvršenih testova, ne samo exit 0.
   unhandled rejection ako useEffect nema try/catch.
 - `tsconfig.app.json` exclude mora imati `**/*.test.tsx` mirror od
   `**/*.test.ts` da `tsc -b`/`npm run build` ostane zelen.
+- Komponente koje pozivaju `window.location.assign` (navigacija) →
+  `vi.stubGlobal("location", { pathname:"/", search:"", assign:vi.fn(), replace:vi.fn(), reload:vi.fn() })`
+  u `beforeEach` + `vi.unstubAllGlobals()` u `afterEach`. Stub mora zadržati
+  `pathname`/`search` jer ih CartDrawer čita na init (prazni stringovi OK).
+  `vi.spyOn(window.location, "assign")` NIJE dovoljan — jsdom Location je
+  non-configurable; jedino `vi.stubGlobal` pouzdano radi.
 
-**STATUS:** ACTIVE
-**NEXT REVIEW:** posle E5 (golden-path E2E) ili sledećeg DOM test batch-a.
+**STATUS:** ACTIVE — E5 dopuna 2026-05-18 (window.location.assign pattern).
+**NEXT REVIEW:** posle sledećeg DOM test batch-a (Faza G).
