@@ -12,6 +12,7 @@ const Footer = lazy(() => import("./sections/Footer"));
 import Faq from "./sections/Faq";
 
 import { getAdminApiBase } from "./lib/adminApiBase";
+import { isPlainObject as isRecord } from "./lib/parsing";
 import { DEFAULT_PUBLIC_BUSINESS_SETTINGS, normalizePublicBusinessSettings } from "./lib/publicBusinessSettings";
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
 
@@ -251,10 +252,6 @@ function SeoAnchorBlock() {
       <a href="#kontakt">Kontakt</a>
     </div>
   );
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function toSiteSettingsSeo(normalized: ReturnType<typeof normalizePublicBusinessSettings>): SiteSettingsSeo | null {
