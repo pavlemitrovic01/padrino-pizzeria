@@ -5,6 +5,37 @@
 
 ---
 
+## F1 — 2026-05-18 — src/lib/parsing.ts consolidation — DONE
+
+**Tier:** STANDARD (direct commit on main)
+**SHA:** f4c677f
+**Files (12):**
+  - src/lib/parsing.ts (NEW) — 4 functions: isRecord (Variant A), isPlainObject (Variant B), safeString, normalizeText. NO safeInt (W4 decision).
+  - src/lib/parsing.test.ts (NEW) — 20 tests (isRecord A/B split documented, safeString, normalizeText).
+  - src/lib/cartDrawerHelpers.ts — import+re-export normalizeText from parsing; local def removed.
+  - src/lib/createOrder.ts — import isRecord (Variant A); local def removed.
+  - src/lib/publicBusinessSettings.ts — import isPlainObject as isRecord (Variant B); local def removed.
+  - src/components/AdminOrders.tsx — import isRecord+isPlainObject+safeString+normalizeText; locals removed.
+  - src/sections/Menu.tsx — import normalizeText; local def removed.
+  - src/pages/admin/AdminDashboard.tsx — import isRecord+safeString; safeInt→toSafeInt from money; locals removed.
+  - src/pages/admin/AdminLogin.tsx — import isRecord (Variant A); local def removed.
+  - src/pages/admin/AdminMenu.tsx — import isPlainObject as isRecord (Variant B) + normalizeText; locals removed.
+  - src/pages/admin/AdminSettings.tsx — import isPlainObject as isRecord (Variant B); local def removed.
+  - src/pages/admin/AdminUsers.tsx — import isRecord (Variant A); local def removed.
+**Verify:**
+  build:     PASS(machine) — exit 0
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 13 files, 163 tests; parsing.test.ts confirmed running (20 tests green)
+  lint:      PASS(machine) — exit 0
+**SCOPE_DRIFT:** none (12 files = exact EXPECTED-FILES)
+**LESSONS:** unchanged (cap 7/7)
+**Notes:** isRecord Variant-B sites (AdminMenu:108, AdminSettings:85, publicBusinessSettings:39)
+  import `isPlainObject as isRecord` — Opus self-review catch; would have been silent regression otherwise.
+  cartDrawerHelpers.ts re-export preserves lock-zone consumers (CartDrawer, CartProvider) without touching them.
+  Lock zone NETAKNUT. Faza F started.
+
+---
+
 ## W4 — 2026-05-18 — ROADMAP reconciliation (post-orphan-files scope drift fix) — DONE
 
 **Tier:** LEAN (doc-only, direct commit on main)

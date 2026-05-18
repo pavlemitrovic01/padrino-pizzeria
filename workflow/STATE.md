@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W4 — ROADMAP reconciliation (post-orphan-files scope drift fix) (2026-05-18, LEAN)
-**Sledeći:** F1 — src/lib/parsing.ts consolidation (scope zaključan W4: src/ non-lock-zone only, safeInt OUT)
+**Poslednji završen:** F1 — src/lib/parsing.ts consolidation (2026-05-18, STANDARD)
+**Sledeći:** F1.1 — src/App.tsx isRecord dedup (STRICT, lock zone)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -104,12 +104,17 @@
   — ≥3 semantike, kanon money.ts toSafeInt, createOrder.ts NETAKNUT;
   F1.1 App.tsx isRecord lock split; F3 = api/_shared/parsing.ts;
   LESSONS cap 7/7 nepromenjen — insight u ROADMAP F1 noti)
+- F1 (src/lib/parsing.ts consolidation) — DONE 2026-05-18
+  (STANDARD; 12 fajlova, +152/-112; parsing.ts: isRecord A + isPlainObject B + safeString + normalizeText
+  NO safeInt; 3 Variant-B sites isPlainObject as isRecord alias — Opus catch;
+  cartDrawerHelpers re-export pattern; AdminDashboard safeInt→toSafeInt; 20 tests green;
+  lock zone NETAKNUT; Faza F started)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-28 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+29 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -122,7 +127,8 @@ E2 Bankart callback integration test,
 E3 Refund flow test,
 E4 DOM test harness + CartDrawer contract characterization,
 E5 Golden-path E2E — cart → createOrder → redirect URL,
-W4 ROADMAP reconciliation — post-orphan-files scope drift fix).
+W4 ROADMAP reconciliation — post-orphan-files scope drift fix,
+F1 src/lib/parsing.ts consolidation).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
