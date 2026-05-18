@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W5 — ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix (2026-05-18, STANDARD)
-**Sledeći:** F1.1 — src/App.tsx isRecord dedup (STRICT, lock zone)
+**Poslednji završen:** F1.1 — src/App.tsx isRecord dedup (2026-05-18, STRICT)
+**Sledeći:** F2 — src/lib/zones.ts extraction (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -117,12 +117,16 @@
   Faza F IN PROGRESS, "22 batches" hardcode uklonjen → STATE.md, Faza E header DONE ✓
   + E1–E5/F1 DONE markeri]; close/SKILL.md (b2) guarded ROADMAP-update korak;
   W5 prvi kroz (b2) → ispravno no-op [W bez ROADMAP reda]; LESSONS 7/7 nepromenjen)
+- F1.1 (src/App.tsx isRecord dedup — lock zone) — DONE 2026-05-18
+  (STRICT; 1 fajl, +1/-4; SHA 2548568; isPlainObject as isRecord alias —
+  Variant-B semantics preserved; last isRecord dup after F1 eliminated;
+  per-batch branch; build+typecheck+test+manual smoke PASS)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-30 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+31 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -137,7 +141,8 @@ E4 DOM test harness + CartDrawer contract characterization,
 E5 Golden-path E2E — cart → createOrder → redirect URL,
 W4 ROADMAP reconciliation — post-orphan-files scope drift fix,
 F1 src/lib/parsing.ts consolidation,
-W5 ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix).
+W5 ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix,
+F1.1 src/App.tsx isRecord dedup — lock zone).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

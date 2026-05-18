@@ -5,6 +5,30 @@
 
 ---
 
+## F1.1 — 2026-05-18 — src/App.tsx isRecord dedup (lock zone) — DONE
+
+**Tier:** STRICT (lock zone: src/App.tsx; per-batch branch)
+**SHA:** 2548568
+**Files (1):**
+  - src/App.tsx — removed local isRecord def (Variant B, lines 256-258);
+    added `import { isPlainObject as isRecord } from "./lib/parsing"`.
+    Alias preserves Variant-B semantics (arrays rejected). Zero call-site
+    changes. Last isRecord dup after F1 eliminated.
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.46s, 2187 modula
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 13 fajlova, 163 testa
+  manual:    PASS(human) — Pavle confirmed: Vercel preview build green,
+             public site OK, admin login OK
+**SCOPE_DRIFT:** none (1 file = exact EXPECTED-FILES; EXPECTED-COMMITS 1 = 2548568)
+**LESSONS:** unchanged (7/7 cap — no new lesson; alias pattern already known from F1)
+**Notes:** isPlainObject-as-isRecord alias pattern (established F1 for 3 Variant-B
+  sites) extended to lock zone. Variant-B semantic verified pre-plan:
+  App.tsx:256 had `!Array.isArray` → must alias isPlainObject, NOT import isRecord
+  (Variant A — would be silent regression). ROADMAP F1.1 row updated via /close (b2).
+
+---
+
 ## W5 — 2026-05-18 — ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix — DONE
 
 **Tier:** STANDARD (doc + workflow-process; direct commit on main)
