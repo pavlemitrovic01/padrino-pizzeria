@@ -5,6 +5,32 @@
 
 ---
 
+## W5 — 2026-05-18 — ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix — DONE
+
+**Tier:** STANDARD (doc + workflow-process; direct commit on main)
+**SHA:** 023debf
+**Files (2):**
+  - workflow/projects/padrino/ROADMAP.md — 6 drift points reconciled (status-only): Current Phase prose → "Faza F (Shared core) IN PROGRESS" + removed hardcoded "22 batches" (rots → drift; now points to STATE.md as authoritative); Faza E header `## Upcoming` → `## Faza E — DONE ✓` + E1–E5 DONE markers (E1–E3 2026-05-17, E4–E5 2026-05-18 from LOG dates); Faza F header `## Upcoming` → `## Faza F — IN PROGRESS` + F1 row `DONE 2026-05-18 (SHA f4c677f)`. Batch SCOPE text NETAKNUT (W4 already reconciled scope — W5 is status-only per ZABRANE).
+  - .claude/skills/close/SKILL.md — Step 6 root-cause fix: added guarded sub-step (b2) ROADMAP-update + ROADMAP in git add; heading → "LOG + STATE + ROADMAP + COMMIT", "all four or none".
+**Verify:**
+  build:     PASS(machine) — exit 0, built 3.63s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 13 files, 163 tests
+**SCOPE_DRIFT:** none (2 files = exact EXPECTED-FILES; EXPECTED-COMMITS 1 = 023debf)
+**LESSONS:** unchanged (cap 7/7 — W5 insight is structurally self-documented in close/SKILL.md (b2); not a recurring-mistake active-buffer lesson; same treatment as W4)
+**Notes:** Root cause confirmed from close/SKILL.md:151 — /close Step 6 wrote only
+  STATE+LOG, never ROADMAP → every phase boundary left ROADMAP stale until a manual
+  W batch (W2/W3/W4 all "ROADMAP reconciliation post-X" — same loop). Surfaced when
+  /kickoff smelled one stale line; thorough /audit then found 6 drift points while
+  the mechanical git↔STATE↔LOG chain was fully clean (drift was purely
+  ROADMAP-content vs reality). Pavle pushed back on a narrow one-line W5 → rescoped
+  to fix all 6 + the process hole (one coherent "kill the recurring-drift class"
+  tema). W5 is the first batch through the new (b2): correctly NO-OP (W batch has no
+  ROADMAP row, no phase boundary) — fix self-tested. Next: F1.1 (STRICT, lock zone —
+  App.tsx) plans against the now-reconciled ROADMAP.
+
+---
+
 ## F1 — 2026-05-18 — src/lib/parsing.ts consolidation — DONE
 
 **Tier:** STANDARD (direct commit on main)
