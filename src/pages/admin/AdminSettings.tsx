@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
+import { isPlainObject as isRecord } from "../../lib/parsing";
 
 type AdminRole = "owner" | "staff";
 
@@ -81,10 +82,6 @@ const EMPTY_EDITOR: EditorState = {
   default_city: "",
   default_postcode: "",
 };
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
 function toStr(v: unknown): string {
   return typeof v === "string" ? v : "";

@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 import { formatEUR } from "../../lib/money";
+import { isPlainObject as isRecord, normalizeText } from "../../lib/parsing";
 
 type MenuCategory = "pizza" | "pica" | "sosovi" | "dodaci";
 type VisibilityFilter = "all" | "active" | "hidden";
@@ -105,10 +106,6 @@ const EMPTY_EDITOR: EditorState = {
   isActive: true,
 };
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
 function toStr(v: unknown): string {
   return typeof v === "string" ? v : "";
 }
@@ -141,18 +138,6 @@ function toNonNegativeInt(v: unknown): number | null {
   }
 
   return null;
-}
-
-function normalizeText(value: string) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("ž", "z")
-    .replaceAll("đ", "dj")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function normalizeCategory(value: string): MenuCategory {

@@ -1,4 +1,6 @@
 import type { PizzaSize } from "../context/CartContext";
+import { normalizeText } from "./parsing";
+export { normalizeText };
 
 type SiteSettingsCheckoutDefaults = {
   default_city: string;
@@ -17,18 +19,6 @@ export function formatFeeEurShort(cents: number) {
 export function envFlagEnabled(value: string | undefined) {
   const normalized = String(value ?? "").trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
-
-export function normalizeText(value: string) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("ž", "z")
-    .replaceAll("đ", "dj")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 export function normalizeCategory(value: string) {

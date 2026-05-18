@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
+import { isRecord } from "../../lib/parsing";
 
 type AdminRole = "owner" | "staff";
 
@@ -42,10 +43,6 @@ type AdminUsersPostErr = {
 };
 
 type AdminUsersPostResponse = AdminUsersPostOk | AdminUsersPostErr;
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
 
 function toStr(v: unknown): string {
   return typeof v === "string" ? v : "";

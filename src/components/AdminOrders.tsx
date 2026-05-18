@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAdminApiBase } from "../lib/adminApiBase";
 import { supabaseAdminAuth } from "../lib/supabaseAdminAuthClient";
 import { formatEUR, formatRSD, toSafeInt } from "../lib/money";
+import { isRecord, isPlainObject, safeString, normalizeText } from "../lib/parsing";
 
 type OrderStatus = "pending" | "preparing" | "done" | "cancelled";
 
@@ -42,24 +43,6 @@ type MetaItem = {
   name?: unknown;
   category?: unknown;
 };
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-function safeString(v: unknown): string {
-  if (typeof v === "string") return v.trim();
-  if (v == null) return "";
-  try {
-    return String(v).trim();
-  } catch {
-    return "";
-  }
-}
 
 function safeInt(v: unknown, fallback = 0): number {
   return toSafeInt(v, fallback);
@@ -150,18 +133,6 @@ async function copyToClipboard(text: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function normalizeText(value: string) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("ž", "z")
-    .replaceAll("đ", "dj")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function isMetaRow(v: unknown): v is MetaItem {

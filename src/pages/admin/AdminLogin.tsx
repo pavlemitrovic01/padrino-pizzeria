@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
+import { isRecord } from "../../lib/parsing";
 
 type AdminRoleState = "checking" | "none" | "admin" | "not-admin";
 
@@ -13,10 +14,6 @@ function normalizeEmail(v: string) {
 function cleanUrl() {
   // ukloni ?code=... ili ?error=...
   window.history.replaceState({}, document.title, window.location.pathname);
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
 }
 
 function getStringProp(obj: Record<string, unknown>, key: string): string {

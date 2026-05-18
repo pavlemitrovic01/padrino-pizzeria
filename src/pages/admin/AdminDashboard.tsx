@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
-import { formatEUR } from "../../lib/money";
+import { formatEUR, toSafeInt } from "../../lib/money";
+import { isRecord, safeString } from "../../lib/parsing";
 
 const ADMIN_API_BASE = getAdminApiBase();
 
@@ -14,26 +15,6 @@ type DashboardOrder = {
   total_eur_cents: number | null;
   payment_status: string | null;
 };
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-
-function safeString(v: unknown): string {
-  if (typeof v === "string") return v.trim();
-  if (v == null) return "";
-  try {
-    return String(v).trim();
-  } catch {
-    return "";
-  }
-}
-
-function safeInt(v: unknown, fallback = 0): number {
-  const n = typeof v === "number" ? v : Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.trunc(n);
-}
 
 function safeNumberOrNull(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -181,7 +162,7 @@ export default function AdminDashboard() {
   const done = todayOrders.filter((o) => o.status === "done");
   const revenueCents = todayOrders
     .filter((o) => (o.payment_status ?? "") !== "refunded")
-    .reduce((sum, o) => sum + safeInt(o.total_eur_cents, 0), 0);
+    .reduce((sum, o) => sum + toSafeInt(o.total_eur_cents, 0), 0);
 
   return (
     <div>

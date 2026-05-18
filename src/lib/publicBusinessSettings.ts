@@ -3,6 +3,8 @@
  * Used by App.tsx (SEO), Contact.tsx, Footer.tsx.
  */
 
+import { isPlainObject as isRecord } from "./parsing";
+
 export type PublicBusinessSettings = {
   id: number;
   phone_display: string;
@@ -35,10 +37,6 @@ export const DEFAULT_PUBLIC_BUSINESS_SETTINGS: PublicBusinessSettings = {
 
 /** Footer display fallback (short format) — used when DB returns empty */
 export const FOOTER_ADDRESS_FALLBACK = "Jadranski put BB • Budva";
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
 export function toStr(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";

@@ -4,6 +4,7 @@ import { useCart } from "../context/CartProvider";
 import type { CartItem } from "../context/CartContext";
 import { formatEUR } from "../lib/money";
 import { buildImageCandidates } from "../lib/cartDrawerHelpers";
+import { normalizeText } from "../lib/parsing";
 
 type DbMenuItem = {
   id: string;
@@ -18,18 +19,6 @@ type DbMenuItem = {
 };
 
 const PIZZA_ALIASES = new Set<string>(["pizza", "pizze", "pice", "pizz"]);
-
-function normalizeText(value: string) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("ž", "z")
-    .replaceAll("đ", "dj")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function is50cmName(name: string) {
   return /\b50\s*cm\b/i.test(String(name ?? "")) || /\b50cm\b/i.test(String(name ?? ""));

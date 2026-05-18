@@ -1,5 +1,6 @@
 import { toSafeInt } from "./money";
 import { getApiBase } from "./apiBase";
+import { isRecord } from "./parsing";
 
 type PaymentMethod = "cash" | "card";
 type PaymentStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded" | null;
@@ -79,10 +80,6 @@ function safeInt(value: unknown, fallback = 0) {
 
 function isValidSize(size: unknown): size is "33" | "50" {
   return size === "33" || size === "50";
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
 }
 
 function isPaymentMethod(value: unknown): value is PaymentMethod {
