@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** E5 — Golden-path E2E (cart → createOrder → redirect URL) (2026-05-18, STANDARD)
-**Sledeći:** F1 — src/lib/parsing.ts consolidation (ili W4 reconciliation ako je potreban)
+**Poslednji završen:** W4 — ROADMAP reconciliation (post-orphan-files scope drift fix) (2026-05-18, LEAN)
+**Sledeći:** F1 — src/lib/parsing.ts consolidation (scope zaključan W4: src/ non-lock-zone only, safeInt OUT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -97,12 +97,19 @@
   vi.stubGlobal("location") pattern; exit-criterion #3 ZATVOREN;
   lock zone CartDrawer.tsx NETAKNUT; L7 updated — assign stub)
 - **Faza E — DONE** ✓ (E1 E2 E3 E4 E5 sve zatvorene — safety net komplet)
+- W4 (ROADMAP reconciliation — post-orphan-files scope drift fix) — DONE 2026-05-18
+  (LEAN; doc-only ROADMAP.md F1/F1.1/F3; trigger: drugi nalog kreirao
+  src/lib/parsing.ts+test tokom /kickoff [read-only violation], orphani
+  git clean -f; recon: F1 ~25 dup sites ne "4+"; safeInt MONEY-PATH mina
+  — ≥3 semantike, kanon money.ts toSafeInt, createOrder.ts NETAKNUT;
+  F1.1 App.tsx isRecord lock split; F3 = api/_shared/parsing.ts;
+  LESSONS cap 7/7 nepromenjen — insight u ROADMAP F1 noti)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-27 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+28 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -114,7 +121,8 @@ E1 create-order endpoint hostile-input test,
 E2 Bankart callback integration test,
 E3 Refund flow test,
 E4 DOM test harness + CartDrawer contract characterization,
-E5 Golden-path E2E — cart → createOrder → redirect URL).
+E5 Golden-path E2E — cart → createOrder → redirect URL,
+W4 ROADMAP reconciliation — post-orphan-files scope drift fix).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

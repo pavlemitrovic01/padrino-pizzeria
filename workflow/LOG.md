@@ -5,6 +5,55 @@
 
 ---
 
+## W4 — 2026-05-18 — ROADMAP reconciliation (post-orphan-files scope drift fix) — DONE
+
+**Tier:** LEAN (doc-only, direct commit on main)
+**SHA:** _(filled post-commit — see git log / final report)_
+**Files (1):**
+  - workflow/projects/padrino/ROADMAP.md (Faza F tabela — F1/F1.1/F3):
+      1. F1 ispravljen: scope `src/` non-lock-zone ONLY (~10 fajlova);
+         parsing.ts vlasništvo SAMO isRecord/isPlainObject/safeString/
+         normalizeText (verifikovano bajt-identični — true no-op);
+         safeInt EXCLUDED — money-path mina dokumentovana; 1h → ~1.5h.
+      2. F1.1 dodat (novi red): src/App.tsx:256 isRecord dedup,
+         lock zone, STRICT, 30min — izdvojen iz F1.
+      3. F3 pojašnjen: uključuje api/_shared/parsing.ts (~10 api/
+         fajlova, 4 lock-zone, L6 .js obavezno);
+         supabase/functions/payments-create-session (Deno) out per B12.
+**Verify:**
+  build:     PASS(machine) — exit 0, vite ✓ 7.53s
+  typecheck: PASS(machine) — exit 0 (tsc -b)
+  test:      NIJE POKRENUTO (LEAN tier)
+**SCOPE_DRIFT:** none
+  EXPECTED: workflow/projects/padrino/ROADMAP.md
+  ACTUAL:   workflow/projects/padrino/ROADMAP.md ✓ (1/1)
+**LESSONS:** nepromenjen (cap ostaje 7/7 — opcija b, Pavle odluka).
+  Insight zarobljen u ROADMAP F1 noti (mesto upotrebe). Generalna
+  lekcija (body-compare pre svakog util dedup-a; name ≠ semantika;
+  čuvati money path) = L8 kandidat ako se ponovi van F1 — rotacija
+  aktivne lekcije nije trošena za nešto već pokriveno na mestu upotrebe.
+**Notes:**
+  - Trigger: drugi Claude nalog kreirao src/lib/parsing.ts +
+    parsing.test.ts tokom /kickoff (kickoff MORA biti read-only —
+    cross-account drift incident). Orphani pregledani (24/24 vitest
+    pass), git clean -f obrisani pre W4 (čisto stablo za /plan gate a).
+  - Recon (grep + body-read): F1 stvarni scope ~25 dup-def sites,
+    NE "4+" iz originalnog ROADMAP-a; 5 lock-zone; api/ odvojen
+    build kontekst (Vercel serverless vs Vite) → pripada F3, ne F1.
+  - safeInt MONEY-PATH MINA (ključni nalaz): ≥3 divergentne semantike.
+    Kanon = src/lib/money.ts toSafeInt (Number()-coercion).
+    createOrder.ts:76 / AdminOrders.tsx:64 već delegiraju na njega;
+    AdminDashboard.tsx:32 inline kopija iste semantike → import iz money.
+    publicBusinessSettings.ts:47 toSafeInt (number|null, bez fallback)
+    = drugi kontrakt → OUT of F1. Orphan parsing.ts safeInt
+    (string-or-number-strict) NE odgovara stvarnoj upotrebi — naivni
+    dedup bi tiho promenio cenovni put.
+  - normalizeText / isRecord verifikovani bajt-identični (true no-op).
+  - STATE.md anticipovao W4 ("ili W4 reconciliation ako je potreban").
+  - F1 sada kreće sa zaključanim poštenim scope-om bez skrivene mine.
+
+---
+
 ## E5 — 2026-05-18 — Golden-path E2E (cart → createOrder → redirect URL) — DONE
 
 **Tier:** STANDARD (additive test-only; direkt na main — E1/E2/E3 presedan)
