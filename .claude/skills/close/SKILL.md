@@ -127,9 +127,9 @@ Present full DONE report draft:
 
 Wait for Pavle: "ok", "potvrdi", "close".
 
-### Step 6 — Write LOG + STATE + COMMIT
+### Step 6 — Write LOG + STATE + ROADMAP + COMMIT
 
-This is atomic — all three or none.
+This is atomic — all four or none.
 
 (a) Append CLOSE entry to `workflow/LOG.md`. Format:
 
@@ -153,11 +153,32 @@ Notes: [optional]
 - "Active batch" → NONE
 - "Next" → leave blank or specify if obvious
 
+(b2) Update active project `ROADMAP.md` (closes the recurring
+ROADMAP-drift loop — W2/W3/W4/W5 root cause: /close never touched
+ROADMAP). General rule, guarded so it is a no-op when inapplicable:
+
+- If a ROADMAP row exists for this BATCH-ID → prepend
+  `**DONE YYYY-MM-DD.** ` (or `**DONE YYYY-MM-DD (SHA <hash>).** ` for
+  code batches) to that row's Notes cell.
+  *Guard:* W/workflow batches have no ROADMAP row → skip silently.
+- If this batch was the last not-DONE row in its phase table → change
+  that phase header `## Upcoming — Faza X (...)` (or `## Faza X (...)`)
+  → `## Faza X — DONE ✓ (...)`.
+- If the phase advanced (a later phase now has its first DONE row) →
+  set the next phase header `## Upcoming — Faza Y` → `## Faza Y —
+  IN PROGRESS` and refresh the `## Current Phase` prose block to name
+  the active phase + next batch. Do NOT hardcode a batch count there —
+  point to STATE.md as authoritative (count rots otherwise).
+- Status-only: never edit ROADMAP batch SCOPE text, exit-criteria, or
+  strategic-decision blocks here — those are reconciled by an explicit
+  W batch, not /close.
+
 (c) Stage and commit:
 ```bash
-git add workflow/STATE.md workflow/LOG.md
+git add workflow/STATE.md workflow/LOG.md workflow/projects/<active-project>/ROADMAP.md
 git commit -m "workflow: close [BATCH-ID] [Title]"
 ```
+`<active-project>` = active project from STATE.md (Step 0 context).
 
 (d) NO push. Pavle decides when to push (workflow commits batch up).
 

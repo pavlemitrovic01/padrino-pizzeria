@@ -2,10 +2,13 @@
 
 ## Current Phase
 
-**Faza E — Refactor-to-9 (template-grade)** — ready to start.
+**Refactor-to-9 program — Faza F (Shared core) IN PROGRESS.** Faze
+A–E DONE; F1 DONE 2026-05-18; F1.1 next (STRICT, lock zone — App.tsx).
+Authoritative batch count + status: STATE.md.
 
-Faze A–D DONE (Stabilization, Critical fixes, Cleanup, Architectural
-decisions — 22 batches; see STATE.md / LOG.md). Project audited
+Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
+decisions, Safety net — see STATE.md / LOG.md for the authoritative
+batch count; not hardcoded here to avoid drift). Project audited
 2026-05-17: **7.0/10**. Goal: reach **9.0/10** AND turn Padrino into a
 clean reference repo for future ordering/payment apps.
 
@@ -94,21 +97,21 @@ Conditional last 0.5: a "9/10 TEMPLATE" is a CLAIM until app#2 is
 successfully cloned from cleaned-Padrino (J2). Until then max honest
 self-score = **8.5** even with 1–8 all met.
 
-## Upcoming — Faza E (Safety net — PREREQ for everything)
+## Faza E — DONE ✓ (Safety net — was PREREQ for everything)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
-| E1 | create-order endpoint hostile-input test | STANDARD | 1-2h | #1 audit gap. Tampered price rejected, total mismatch, invalid items. Cheapest, highest ROI. Proves the price-validation defense I verified at create-order.ts:1037-1142. |
-| E2 | Bankart callback integration test | STANDARD | 2h | Duplicate-callback idempotency, paid→paid no double-notify, ERROR path → cancelled. Covers payment→DB flow (currently 0 tests). |
-| E3 | Refund flow test | STANDARD | 1-2h | Refund init + REFUND/CHARGEBACK callback handling. Currently zero. Covers test side of long-term refund-sync item. |
-| E4 | DOM test harness + CartDrawer characterization | STRICT | 2-3h | **Prereq not in stack:** add jsdom + @testing-library/react (no component-test infra exists today). Then capture CartDrawer render/submit behavior per cart state BEFORE Faza G split. Honest: this is the weakest net — partly substituted by E2/E5 + manual smoke. |
-| E5 | Golden-path E2E (cart → create-order → redirect) | STANDARD | 2-3h | Drives cart add → checkout submit → asserts create-order returns valid redirect URL. Stops at Bankart hosted-page boundary (external gateway not driven). The real net for Faza G. Exit-criteria #3. |
+| E1 | create-order endpoint hostile-input test | STANDARD | 1-2h | **DONE 2026-05-17.** #1 audit gap. Tampered price rejected, total mismatch, invalid items. Cheapest, highest ROI. Proves the price-validation defense I verified at create-order.ts:1037-1142. |
+| E2 | Bankart callback integration test | STANDARD | 2h | **DONE 2026-05-17.** Duplicate-callback idempotency, paid→paid no double-notify, ERROR path → cancelled. Covers payment→DB flow (currently 0 tests). |
+| E3 | Refund flow test | STANDARD | 1-2h | **DONE 2026-05-17.** Refund init + REFUND/CHARGEBACK callback handling. Currently zero. Covers test side of long-term refund-sync item. |
+| E4 | DOM test harness + CartDrawer characterization | STRICT | 2-3h | **DONE 2026-05-18.** **Prereq not in stack:** add jsdom + @testing-library/react (no component-test infra exists today). Then capture CartDrawer render/submit behavior per cart state BEFORE Faza G split. Honest: this is the weakest net — partly substituted by E2/E5 + manual smoke. |
+| E5 | Golden-path E2E (cart → create-order → redirect) | STANDARD | 2-3h | **DONE 2026-05-18.** Drives cart add → checkout submit → asserts create-order returns valid redirect URL. Stops at Bankart hosted-page boundary (external gateway not driven). The real net for Faza G. Exit-criteria #3. |
 
-## Upcoming — Faza F (Shared core — template foundation, low risk)
+## Faza F — IN PROGRESS (Shared core — template foundation, low risk)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
-| F1 | `src/lib/parsing.ts` consolidation | STANDARD | ~1.5h | **parsing.ts owns ONLY: isRecord, isPlainObject, safeString, normalizeText** — verified byte-identical across dup sites (true no-op). **`safeInt` EXCLUDED from parsing.ts**: ≥3 divergent semantics exist; canonical = `src/lib/money.ts toSafeInt` (`Number()`-coercion, money-path-trusted). createOrder.ts:76 / AdminOrders.tsx:64 already delegate to it — leave untouched. AdminDashboard.tsx:32 inline copy (same semantics) → `import { toSafeInt } from money`. `publicBusinessSettings.ts:47 toSafeInt` (`number\|null`, no fallback) = different contract → OUT of F1. **Scope: `src/` non-lock-zone ONLY** (~10 files: AdminDashboard, AdminOrders, AdminMenu, AdminLogin, AdminSettings, AdminUsers, sections/Menu.tsx, lib/createOrder.ts [isRecord only], lib/publicBusinessSettings.ts [isRecord only], lib/cartDrawerHelpers.ts). Does NOT touch lock zone or `api/**`. Scope corrected + safeInt money-path landmine flagged W4 2026-05-18 (grep+body recon: ~25 dup-def sites, safeInt non-uniform across money path). |
+| F1 | `src/lib/parsing.ts` consolidation | STANDARD | ~1.5h | **DONE 2026-05-18 (SHA f4c677f).** **parsing.ts owns ONLY: isRecord, isPlainObject, safeString, normalizeText** — verified byte-identical across dup sites (true no-op). **`safeInt` EXCLUDED from parsing.ts**: ≥3 divergent semantics exist; canonical = `src/lib/money.ts toSafeInt` (`Number()`-coercion, money-path-trusted). createOrder.ts:76 / AdminOrders.tsx:64 already delegate to it — leave untouched. AdminDashboard.tsx:32 inline copy (same semantics) → `import { toSafeInt } from money`. `publicBusinessSettings.ts:47 toSafeInt` (`number\|null`, no fallback) = different contract → OUT of F1. **Scope: `src/` non-lock-zone ONLY** (~10 files: AdminDashboard, AdminOrders, AdminMenu, AdminLogin, AdminSettings, AdminUsers, sections/Menu.tsx, lib/createOrder.ts [isRecord only], lib/publicBusinessSettings.ts [isRecord only], lib/cartDrawerHelpers.ts). Does NOT touch lock zone or `api/**`. Scope corrected + safeInt money-path landmine flagged W4 2026-05-18 (grep+body recon: ~25 dup-def sites, safeInt non-uniform across money path). |
 | F1.1 | `src/App.tsx` isRecord dedup (lock zone) | STRICT | 30min | 1 dup (`App.tsx:256`) → import from `src/lib/parsing.ts`. App.tsx is lock zone → STRICT + explicit Pavle approval. Standalone or folded into another App.tsx-touching batch. Split out of F1 by W4 2026-05-18. |
 | F2 | `src/lib/zones.ts` extraction | STRICT | 2h | Polygon math + zone resolution out of create-order.ts (lock zone) + CartDrawer. |
 | F3 | `api/_shared/` reusable surface formalization | STRICT | 2h | Continue B8/B10 line — payment/admin shared modules as the template seam. **Includes `api/_shared/parsing.ts`**: ~10 `api/**` files (incl. 4 lock-zone: create-order, bankart-callback, bankart-order-status, telegram-new-order) with isPlainObject/safeInt/normalizeText dup. Separate build context from `src/` (Vercel serverless vs Vite) — own shared module required. L6 `.js` extension mandatory. Scope clarified W4 2026-05-18. `supabase/functions/payments-create-session/index.ts` (Deno) out of scope — consistent with B12 edge-function decision. |
