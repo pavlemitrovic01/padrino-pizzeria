@@ -3,6 +3,7 @@
  * Used by App.tsx (SEO), Contact.tsx, Footer.tsx.
  */
 
+import { DEFAULT_BILLING_CITY, DEFAULT_BILLING_POSTCODE } from "./config";
 import { isPlainObject as isRecord } from "./parsing";
 
 export type PublicBusinessSettings = {
@@ -26,8 +27,8 @@ export const DEFAULT_PUBLIC_BUSINESS_SETTINGS: PublicBusinessSettings = {
   phone_e164: "+38267603780",
   email: "padrinobudva@gmail.com",
   address_line: "Jadranski put BB (Kotorski Semafori)",
-  default_city: "Budva",
-  default_postcode: "85310",
+  default_city: DEFAULT_BILLING_CITY,
+  default_postcode: DEFAULT_BILLING_POSTCODE,
   hours_display: "12–00",
   maps_url: "https://maps.app.goo.gl/ouqBC1P8rD62qij99",
   instagram_url: "https://www.instagram.com/padrino_budva",

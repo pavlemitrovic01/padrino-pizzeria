@@ -1,4 +1,5 @@
 import type { PizzaSize } from "../context/CartContext";
+import { DEFAULT_BILLING_CITY, DEFAULT_BILLING_POSTCODE } from "./config";
 import { normalizeText } from "./parsing";
 export { normalizeText };
 
@@ -6,9 +7,6 @@ type SiteSettingsCheckoutDefaults = {
   default_city: string;
   default_postcode: string;
 };
-
-const DEFAULT_BILLING_CITY = "Budva";
-const DEFAULT_BILLING_POSTCODE = "85310";
 
 export function formatFeeEurShort(cents: number) {
   const n = Number(cents);
