@@ -3,7 +3,8 @@
 ## Current Phase
 
 **Refactor-to-9 program — Faza F (Shared core) IN PROGRESS.** Faze
-A–E DONE; F1 DONE 2026-05-18; F1.1 next (STRICT, lock zone — App.tsx).
+A–E DONE; F1 + F1.1 DONE 2026-05-18; F2 next (STRICT, lock zone —
+create-order.ts/CartDrawer.tsx zones extraction).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural

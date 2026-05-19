@@ -89,7 +89,7 @@
 ## W4 — 2026-05-18 — ROADMAP reconciliation (post-orphan-files scope drift fix) — DONE
 
 **Tier:** LEAN (doc-only, direct commit on main)
-**SHA:** _(filled post-commit — see git log / final report)_
+**SHA:** 5b55f42
 **Files (1):**
   - workflow/projects/padrino/ROADMAP.md (Faza F tabela — F1/F1.1/F3):
       1. F1 ispravljen: scope `src/` non-lock-zone ONLY (~10 fajlova);
