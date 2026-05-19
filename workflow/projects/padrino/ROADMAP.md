@@ -2,12 +2,11 @@
 
 ## Current Phase
 
-**Refactor-to-9 program — Faza F (Shared core) IN PROGRESS.** Faze
-A–E DONE; F1 + F1.1 DONE 2026-05-18; F2 WON'T-EXECUTE 2026-05-19
-(B2 dead-code finding — DECISIONS 2026-05-19); F3 DONE 2026-05-19
-(SHA bf5d2e8, api/_shared/parsing.ts formalization); F4 DONE 2026-05-19
-(SHA 2fdff83, Config seam module — api/ side template-swap point);
-F4.1 next (STRICT, src/ side mirror: DELIVERY_ZONES + SEO URLs).
+**Refactor-to-9 program — Faza G (CartDrawer rebuild) next.** Faze
+A–F DONE; F1 + F1.1 DONE 2026-05-18; F2 WON'T-EXECUTE 2026-05-19;
+F3 DONE 2026-05-19 (SHA bf5d2e8); F4 DONE 2026-05-19 (SHA 2fdff83);
+F4.1 DONE 2026-05-19 (SHA efa313e, src/lib/config.ts — both template-swap
+points complete). Faza G next: G1 Extract CheckoutForm (STRICT).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -111,7 +110,7 @@ self-score = **8.5** even with 1–8 all met.
 | E4 | DOM test harness + CartDrawer characterization | STRICT | 2-3h | **DONE 2026-05-18.** **Prereq not in stack:** add jsdom + @testing-library/react (no component-test infra exists today). Then capture CartDrawer render/submit behavior per cart state BEFORE Faza G split. Honest: this is the weakest net — partly substituted by E2/E5 + manual smoke. |
 | E5 | Golden-path E2E (cart → create-order → redirect) | STANDARD | 2-3h | **DONE 2026-05-18.** Drives cart add → checkout submit → asserts create-order returns valid redirect URL. Stops at Bankart hosted-page boundary (external gateway not driven). The real net for Faza G. Exit-criteria #3. |
 
-## Faza F — IN PROGRESS (Shared core — template foundation, low risk)
+## Faza F — DONE ✓ (Shared core — template foundation, low risk)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
@@ -120,7 +119,7 @@ self-score = **8.5** even with 1–8 all met.
 | F2 | `src/lib/zones.ts` extraction | STRICT | 2h | **WON'T EXECUTE 2026-05-19 (W7).** B2 audit (docs/delivery-fee-audit.md, 2026-05-11) confirmed `delivery_zones` table absent in prod DB and GPS polygon path architecturally dead (client never sends lat/lng → `fetchZones()` never called). Extracting dead lock-zone code violates "refactor not rewrite" strategy. Target `src/lib/zones.ts` also invalid for api code per L6. Analogous to B5 (CONDITIONAL on B2, won't-execute). Detail: DECISIONS 2026-05-19. Client `DELIVERY_ZONES` may fold into F4 (Config seam) if/when F4 executes. |
 | F3 | `api/_shared/` reusable surface formalization | STRICT | 2h | **DONE 2026-05-19 (SHA bf5d2e8).** Continue B8/B10 line — payment/admin shared modules as the template seam. **Includes `api/_shared/parsing.ts`**: ~10 `api/**` files (incl. 4 lock-zone: create-order, bankart-callback, bankart-order-status, telegram-new-order) with isPlainObject/safeInt/normalizeText dup. Separate build context from `src/` (Vercel serverless vs Vite) — own shared module required. L6 `.js` extension mandatory. Scope clarified W4 2026-05-18. `supabase/functions/payments-create-session/index.ts` (Deno) out of scope — consistent with B12 edge-function decision. |
 | F4 | Config seam module | STANDARD | 1-2h | **DONE 2026-05-19 (SHA 2fdff83).** Padrino-specifics (fallback email/city/postcode, domain, Telegram) → one config module = explicit template swap point. api/ side complete; F4.1 (STRICT) covers src/ side mirror (DELIVERY_ZONES, SEO URLs). |
-| F4.1 | `src/` Config seam mirror | STRICT | 1-2h | Src/ side of F4. DELIVERY_ZONES const (CartDrawer.tsx LOCK) + SEO URL literals (App.tsx LOCK, adminApiBase.ts, PizzaBudvaPage.tsx) → src/_shared/config.ts or inline env-driven. Touches 2+ lock-zone files → STRICT. |
+| F4.1 | `src/` Config seam mirror | STRICT | 1-2h | **DONE 2026-05-19 (SHA efa313e).** Src/ side of F4. DELIVERY_ZONES const (CartDrawer.tsx LOCK) + SEO URL literals (App.tsx LOCK, adminApiBase.ts, PizzaBudvaPage.tsx) → src/lib/config.ts. DELIVERY_ZONES byte-identical 8/8. Both template-swap points (api/ + src/) now complete. |
 
 ## Upcoming — Faza G (CartDrawer rebuild — STRICT, behind E4 net)
 
