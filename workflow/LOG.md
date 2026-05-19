@@ -5,6 +5,29 @@
 
 ---
 
+## G1 — 2026-05-20 — Extract CheckoutForm (name/phone/address inputs) — DONE
+
+**Tier:** STRICT
+**SHA:** 12574ce
+**Files (2):**
+  - src/components/CheckoutForm.tsx — NEW; presentational; Fragment return; 9 props (name/phone/address values + setters + errors); zero imports (React 19 auto JSX runtime, no hooks, no helpers)
+  - src/components/CartDrawer.tsx — import added + JSX block lines 1539-1582 replaced with `<CheckoutForm ... />` (9 explicit props); state/validation/error compute/handlers untouched
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.00s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 16 files 184 tests
+  lint:      PASS(machine) — exit 0
+  manual:    PASS(human) — Vercel preview smoke 2026-05-20 (Pavle): cart→checkout, empty-submit 3 errors, valid fill, cash flow success, card flow billing/card fields intact
+**SCOPE_DRIFT:** none (2 files = exact EXPECTED-FILES)
+**LESSONS:** unchanged (7/7 cap; no new lesson — G1 executed clean; pre-plan recon caught JSX boundary issue proactively)
+**Notes:** First STRICT extraction in Faza G CartDrawer rebuild sequence.
+  G1-narrow scope chosen: only name/phone/address block (lines 1539-1582).
+  Delivery zone selector, payment method panel, billing/card fields remain in CartDrawer for G2-G4.
+  CartDrawer.tsx now 2281 LOC (was 2325 before G1 code commit; net -44 in lock zone).
+  Per-batch branch batch/g1-checkout-form pushed; merge to main follows /close commit.
+
+---
+
 ## F4.2 — 2026-05-19 — cartDrawerHelpers + publicBusinessSettings config dedup — DONE
 
 **Tier:** LEAN
