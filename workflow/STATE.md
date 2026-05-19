@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** F4 — Config seam module (2026-05-19, STANDARD)
-**Sledeći:** F4.1 — src/ Config seam mirror (STRICT)
+**Poslednji završen:** F4.1 — src/ Config seam mirror (2026-05-19, STRICT)
+**Sledeći:** G1 — Extract CheckoutForm (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -148,6 +148,13 @@
   (LOCK) inline consts → config.js import; api/_shared/public-url.ts hardcoded domain →
   DEFAULT_PUBLIC_HOST; template-swap point established on api/ side; Vercel Build Logs
   clean + manual smoke PASS; sledeći F4.1 STRICT)
+- F4.1 (src/ Config seam mirror) — DONE 2026-05-19
+  (STRICT; 6 fajlova, +117/-38; SHA efa313e; NEW src/lib/config.ts (SITE_URL +
+  DEFAULT_BILLING_CITY/POSTCODE + DeliveryZoneKey/DeliveryZone types + DELIVERY_ZONES)
+  + config.test.ts (5 shape-contract tests); CartDrawer.tsx (LOCK) + App.tsx (LOCK)
+  + adminApiBase.ts + PizzaBudvaPage.tsx — inline literals → config import;
+  DELIVERY_ZONES byte-identical 8/8; manual smoke PASS; Faza F DONE ✓)
+- **Faza F — DONE** ✓
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

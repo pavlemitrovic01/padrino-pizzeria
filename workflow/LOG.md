@@ -5,6 +5,31 @@
 
 ---
 
+## F4.1 — 2026-05-19 — src/ Config seam mirror — DONE
+
+**Tier:** STRICT
+**SHA:** efa313e
+**Files (6):**
+  - src/lib/config.ts — NEW (4 exports: SITE_URL/DEFAULT_BILLING_CITY/DEFAULT_BILLING_POSTCODE + DeliveryZoneKey/DeliveryZone types + DELIVERY_ZONES array)
+  - src/lib/config.test.ts — NEW (5 shape-contract tests, no literal value assertions — F4 pattern)
+  - src/components/CartDrawer.tsx (LOCK) — inline DeliveryZoneKey/DeliveryZone types + DELIVERY_ZONES const + DEFAULT_BILLING_CITY/POSTCODE → import from src/lib/config
+  - src/App.tsx (LOCK) — 3× "https://padrinobudva.com" literals → SITE_URL import from src/lib/config
+  - src/lib/adminApiBase.ts — 1× "https://padrinobudva.com" → SITE_URL import from ./config
+  - src/seo/PizzaBudvaPage.tsx — SITE_URL/PAGE_URL local consts → SITE_URL import from ../lib/config; PAGE_URL derived from SITE_URL
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.38s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 16 files 184 tests (+5 config.test.ts shape-contract)
+  manual:    PASS(human) — Pavle confirmed smoke: cart zones, admin login, /pizza-budva JSON-LD, /faq canonical
+**SCOPE_DRIFT:** none (6 files = exact EXPECTED-FILES)
+**LESSONS:** unchanged (7/7 cap; clean refactor, DeliveryZone type unused-explicit → TypeScript inference caught pre-commit — minor, not lesson-grade)
+**Notes:** src/ template-swap point complete. DELIVERY_ZONES values byte-identical (8/8 verified).
+  DeliveryZone type removed from CartDrawer import (inferred from DELIVERY_ZONES.find() — no explicit annotation).
+  moduleResolution Bundler confirmed for src/ → L6 .js extension NOT required (api/-only constraint).
+  Faza F DONE: F1✓ F1.1✓ F2 won't-execute✓ F3✓ F4✓ F4.1✓. Sledeći: Faza G (CartDrawer rebuild, STRICT).
+
+---
+
 ## F4 — 2026-05-19 — Config seam module — DONE
 
 **Tier:** STANDARD

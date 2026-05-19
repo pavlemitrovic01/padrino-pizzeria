@@ -1,7 +1,7 @@
 import { useEffect } from "react";
+import { SITE_URL } from "../lib/config";
 
-const PAGE_URL = "https://padrinobudva.com/pizza-budva";
-const SITE_URL = "https://padrinobudva.com";
+const PAGE_URL = `${SITE_URL}/pizza-budva`;
 
 function upsertJsonLd(id: string, json: unknown) {
   if (typeof document === "undefined") return;

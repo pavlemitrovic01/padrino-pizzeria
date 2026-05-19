@@ -1,6 +1,8 @@
+import { SITE_URL } from "./config";
+
 /**
  * Admin API base URL for browser-side admin fetches.
- * - Dev: full origin (https://padrinobudva.com) for CORS when frontend runs on localhost
+ * - Dev: full origin (SITE_URL) for CORS when frontend runs on localhost
  * - Prod: "" (relative, same origin)
  */
 export function getAdminApiBase(): string {
@@ -9,5 +11,5 @@ export function getAdminApiBase(): string {
     typeof import.meta.env !== "undefined" &&
     import.meta.env.DEV === true;
 
-  return isDev ? "https://padrinobudva.com" : "";
+  return isDev ? SITE_URL : "";
 }
