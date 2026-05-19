@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W6 — post-F1.1 partial-close cleanup (2026-05-19, LEAN)
-**Sledeći:** F2 — src/lib/zones.ts extraction (STRICT)
+**Poslednji završen:** W7 — F2 won't-execute reconciliation (2026-05-19, LEAN)
+**Sledeći:** F3 — api/_shared/parsing.ts formalization (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -126,12 +126,20 @@
   F1.1→F2 advance + W4 SHA placeholder backfilled to 5b55f42;
   two-commit pattern to avoid same placeholder trap; branch
   origin/batch/f1.1-app-tsx-isrecord deleted post-merge)
+- W7 (F2 won't-execute reconciliation) — DONE 2026-05-19
+  (LEAN; 2 fajla, +69/-3; SHA 9372fad; ROADMAP F2 row marked
+  WON'T EXECUTE on B2 audit dead-code finding (delivery_zones table
+  absent + GPS path architecturally dead), Current Phase F2→F3,
+  Notes section appended; DECISIONS 2026-05-19 entry with full
+  findings + 4-option table + code disposition; analogous to B5
+  won't-execute pattern; lock-zone safety preserved; refactor-not-
+  rewrite strategy upheld; sledeći F3)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-32 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+33 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -148,7 +156,8 @@ W4 ROADMAP reconciliation — post-orphan-files scope drift fix,
 F1 src/lib/parsing.ts consolidation,
 W5 ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix,
 F1.1 src/App.tsx isRecord dedup — lock zone,
-W6 post-F1.1 partial-close cleanup).
+W6 post-F1.1 partial-close cleanup,
+W7 F2 won't-execute reconciliation).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

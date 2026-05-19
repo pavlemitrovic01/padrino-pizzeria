@@ -5,6 +5,44 @@
 
 ---
 
+## W7 — 2026-05-19 — F2 won't-execute reconciliation — DONE
+
+**Tier:** LEAN (doc-only, direct commit on main)
+**SHA:** 9372fad
+**Files (2):**
+  - workflow/projects/padrino/ROADMAP.md — F2 row marked WON'T EXECUTE
+    with B2 audit citation; Current Phase prose advanced F2 → F3
+    (api/_shared/parsing.ts formalization); Notes section appended with
+    F2 won't-execute reasoning (analogous to B5 pattern).
+  - workflow/projects/padrino/DECISIONS.md — appended dated entry
+    "2026-05-19 — W7: F2 (src/lib/zones.ts) WON'T EXECUTE" with full
+    findings (2 zone systems / dead code / target invalid for api code
+    per L6 / live-dead branch mixing in getDeliveryFeeCentsFromMeta /
+    refactor-not-rewrite strategy), 4-option table (A chosen), and
+    code disposition (server dead code stays; client DELIVERY_ZONES
+    candidate for F4 Config seam).
+**Verify:**
+  build:     PASS(machine) — exit 0, 4.30s, 19 chunks
+  typecheck: PASS(machine) — exit 0 (tsc -b)
+  test:      NIJE POKRENUTO — doc-only batch, no code changed (LEAN tier convention)
+**SCOPE_DRIFT:** none (2 files = exact EXPECTED-FILES; EXPECTED-COMMITS 1 = 9372fad)
+**LESSONS:** unchanged (cap 7/7 — W7 is a scope-recon decision, not a
+  recurring-mistake lesson; "audit-first before lock-zone extraction" is
+  already implicit in CONTEXT lock-zone rule + memory feedback_lockzone_dedup)
+**Notes:** Trigger = /plan F2 invocation. Scope recon revealed ROADMAP F2 line
+  conflated server polygon (api/create-order.ts, dead per B2 2026-05-11) with
+  client static list (CartDrawer DELIVERY_ZONES, F4 Config seam territory);
+  target `src/lib/zones.ts` invalid for api code per L6 build boundary.
+  Decision: Opcija A (skip + advance to F3), analogous to B5 won't-execute
+  pattern (B5 was CONDITIONAL on B2, B2 found no bug → B5 won't execute).
+  Server dead code remains in place — deletion = own STRICT batch if pursued,
+  not silently absorbed here. Lock-zone safety preserved; refactor-not-rewrite
+  locked strategy upheld (ROADMAP 2026-05-17 Current Phase). Close /close (b2)
+  ROADMAP-update step = no-op for W7 (W has no own ROADMAP row; F2 row already
+  updated by W7's own scope earlier in 9372fad). Sledeći → F3.
+
+---
+
 ## W6 — 2026-05-19 — post-F1.1 partial-close cleanup — DONE
 
 **Tier:** LEAN (doc-only, direct commit on main)
