@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** F4.2 — cartDrawerHelpers + publicBusinessSettings config dedup (2026-05-19, LEAN)
-**Sledeći:** G1 — Extract CheckoutForm (STRICT)
+**Poslednji završen:** G1 — Extract CheckoutForm name/phone/address (2026-05-20, STRICT)
+**Sledeći:** G2 — Extract PaymentSection (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -160,6 +160,11 @@
   DEFAULT_BILLING_CITY/POSTCODE iz ./config; "Budva"/"85310" literali sad SAMO u config.ts;
   recurring "recon depth" theme — pre-plan grep mora pokriti src/lib/, ne samo src/components/)
 - **Faza F — DONE** ✓
+- G1 (Extract CheckoutForm — name/phone/address inputs) — DONE 2026-05-20
+  (STRICT; 2 fajla, +74/-44; SHA 12574ce; CheckoutForm.tsx NEW (Fragment return, 9 props,
+  zero imports); CartDrawer.tsx lines 1539-1582 replaced; G1-narrow scope — delivery zone,
+  payment panel, billing/card fields remain in CartDrawer for G2-G4; all gates PASS;
+  Vercel preview smoke PASS; per-batch branch batch/g1-checkout-form)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

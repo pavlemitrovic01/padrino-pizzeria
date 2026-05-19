@@ -2,11 +2,9 @@
 
 ## Current Phase
 
-**Refactor-to-9 program — Faza G (CartDrawer rebuild) next.** Faze
-A–F DONE; F1 + F1.1 DONE 2026-05-18; F2 WON'T-EXECUTE 2026-05-19;
-F3 DONE 2026-05-19 (SHA bf5d2e8); F4 DONE 2026-05-19 (SHA 2fdff83);
-F4.1 DONE 2026-05-19 (SHA efa313e, src/lib/config.ts — both template-swap
-points complete). Faza G next: G1 Extract CheckoutForm (STRICT).
+**Refactor-to-9 program — Faza G (CartDrawer rebuild) IN PROGRESS.** Faze
+A–F DONE; G1 DONE 2026-05-20 (SHA 12574ce, CheckoutForm name/phone/address
+extracted). Next: G2 Extract PaymentSection (STRICT, highest risk).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -121,11 +119,11 @@ self-score = **8.5** even with 1–8 all met.
 | F4 | Config seam module | STANDARD | 1-2h | **DONE 2026-05-19 (SHA 2fdff83).** Padrino-specifics (fallback email/city/postcode, domain, Telegram) → one config module = explicit template swap point. api/ side complete; F4.1 (STRICT) covers src/ side mirror (DELIVERY_ZONES, SEO URLs). |
 | F4.1 | `src/` Config seam mirror | STRICT | 1-2h | **DONE 2026-05-19 (SHA efa313e).** Src/ side of F4. DELIVERY_ZONES const (CartDrawer.tsx LOCK) + SEO URL literals (App.tsx LOCK, adminApiBase.ts, PizzaBudvaPage.tsx) → src/lib/config.ts. DELIVERY_ZONES byte-identical 8/8. Both template-swap points (api/ + src/) now complete. |
 
-## Upcoming — Faza G (CartDrawer rebuild — STRICT, behind E4 net)
+## Faza G — IN PROGRESS (CartDrawer rebuild — STRICT, behind E4 net)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
-| G1 | Extract `CheckoutForm` (customer fields + validation) | STRICT | 2-3h | Lock zone. Browser smoke live checkout each step. |
+| G1 | Extract `CheckoutForm` (customer fields + validation) | STRICT | 2-3h | **DONE 2026-05-20 (SHA 12574ce).** Lock zone. Browser smoke live checkout each step. |
 | G2 | Extract `PaymentSection` (Bankart PaymentJS lifecycle) | STRICT | 3-4h | Highest risk in whole program. Smoke every increment. |
 | G3 | Extract `CartView` (item list / qty) | STRICT | 2h | Lock zone. |
 | G4 | CartDrawer → thin orchestrator (~300 LOC) | STRICT | 2h | Final assembly; full checkout smoke. |
