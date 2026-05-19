@@ -5,6 +5,39 @@
 
 ---
 
+## F3 — 2026-05-19 — api/_shared/parsing.ts formalization — DONE
+
+**Tier:** STRICT
+**SHA:** bf5d2e8
+**Files (12):**
+  - api/_shared/parsing.ts — NEW (4 exports: isPlainObject/normalizeText/safeInt/safeNumber)
+  - api/_shared/parsing.test.ts — NEW (11 smoke tests)
+  - api/admin-settings.ts — isPlainObject inline → import
+  - api/admin-users.ts — isPlainObject inline → import
+  - api/admin-menu.ts — isPlainObject inline → import
+  - api/admin-menu-image.ts — isPlainObject inline → import
+  - api/admin-update-order-status.ts — isPlainObject inline → import
+  - api/admin-resend-telegram.ts — isPlainObject/normalizeText/safeInt inline → imports
+  - api/create-order.ts (LOCK) — isPlainObject/normalizeText/safeInt/safeNumber inline → imports
+  - api/bankart-callback.ts (LOCK) — isPlainObject/safeNumber inline → imports
+  - api/bankart-order-status.ts (LOCK) — isPlainObject/safeNumber inline → imports
+  - api/telegram-new-order.ts (LOCK) — isPlainObject/normalizeText/safeInt inline → imports
+**Verify:**
+  build:     PASS(machine) — exit 0, ✓ built in 7.36s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 14 files 174 tests
+  preview:   PASS(machine) — Vercel Build Logs clean (SHA bf5d2e8), no TS2835
+  manual:    PASS(human) — Pavle confirmed "stize i sve radi kako treba"
+**SCOPE_DRIFT:** none (12 files = exact EXPECTED-FILES)
+**LESSONS:** unchanged (7/7 cap; F3 executed clean, no new recurring-mistake pattern)
+**Notes:** Variant A canonical isPlainObject (matches src/lib/parsing.ts:15); safeNumber
+  default normalized 0→NaN (all 7 call sites pass explicit fallback — zero behavior change);
+  safeInt byte-identical across 3 api/ sites (unlike src/ where semantics diverged — F1
+  exclusion did not apply here). L6 .js extension on all imports, first-try. Faza F:
+  F1✓ F1.1✓ F2 won't-execute✓ F3✓; F4 (Config seam module, STANDARD) next.
+
+---
+
 ## W7 — 2026-05-19 — F2 won't-execute reconciliation — DONE
 
 **Tier:** LEAN (doc-only, direct commit on main)
