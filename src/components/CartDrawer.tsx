@@ -29,6 +29,12 @@ import {
 } from "../lib/cartDrawerHelpers";
 import { SmartCartImage, SmartMiniAddonImage } from "./CartDrawerImage";
 import { CartDrawerSuccessView } from "./CartDrawerSuccessView";
+import {
+  DELIVERY_ZONES,
+  DEFAULT_BILLING_CITY,
+  DEFAULT_BILLING_POSTCODE,
+  type DeliveryZoneKey,
+} from "../lib/config";
 
 declare global {
   interface ImportMetaEnv {
@@ -77,38 +83,7 @@ type BankartReturnStorage = {
   paymentMethod: PaymentMethod;
 };
 
-/** -------------------- DELIVERY ZONES -------------------- */
-type DeliveryZoneKey =
-  | "budva"
-  | "becici"
-  | "rafailovici"
-  | "przno"
-  | "sveti-stefan"
-  | "seoce"
-  | "jaz"
-  | "lastva";
-
-type DeliveryZone = {
-  key: DeliveryZoneKey;
-  label: string;
-  minCents: number;
-  feeCents: number;
-};
-
-const DELIVERY_ZONES: DeliveryZone[] = [
-  { key: "budva", label: "Budva", minCents: 0, feeCents: 0 },
-  { key: "becici", label: "Bečići", minCents: 1500, feeCents: 300 },
-  { key: "rafailovici", label: "Rafailovići", minCents: 2000, feeCents: 500 },
-  { key: "przno", label: "Pržno", minCents: 2500, feeCents: 500 },
-  { key: "sveti-stefan", label: "Sveti Stefan", minCents: 2500, feeCents: 500 },
-  { key: "seoce", label: "Seoce", minCents: 2000, feeCents: 500 },
-  { key: "jaz", label: "Jaz", minCents: 2500, feeCents: 500 },
-  { key: "lastva", label: "Lastva", minCents: 3000, feeCents: 500 },
-];
-
 const BANKART_RETURN_STORAGE_KEY = "padrino:bankart:return";
-const DEFAULT_BILLING_CITY = "Budva";
-const DEFAULT_BILLING_POSTCODE = "85310";
 const BANKART_PAYMENTJS_NUMBER_DIV_ID = "bankart-paymentjs-number";
 const BANKART_PAYMENTJS_CVV_DIV_ID = "bankart-paymentjs-cvv";
 const BANKART_PAYMENTJS_POLISH_CSS = `

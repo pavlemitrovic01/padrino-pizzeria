@@ -12,6 +12,7 @@ const Footer = lazy(() => import("./sections/Footer"));
 import Faq from "./sections/Faq";
 
 import { getAdminApiBase } from "./lib/adminApiBase";
+import { SITE_URL } from "./lib/config";
 import { isPlainObject as isRecord } from "./lib/parsing";
 import { DEFAULT_PUBLIC_BUSINESS_SETTINGS, normalizePublicBusinessSettings } from "./lib/publicBusinessSettings";
 import { setCanonical, setOgUrl, setRobots, setTitle } from "./lib/seo";
@@ -614,15 +615,15 @@ export default function App() {
     const isFaqPage = pathname === "/faq";
 
     setTitle(isFaqPage ? "FAQ — Padrino Budva" : "Padrino Budva — Picerija & Dostava");
-    setCanonical(isFaqPage ? "https://padrinobudva.com/faq" : "https://padrinobudva.com");
-    setOgUrl(isFaqPage ? "https://padrinobudva.com/faq" : "https://padrinobudva.com");
+    setCanonical(isFaqPage ? `${SITE_URL}/faq` : SITE_URL);
+    setOgUrl(isFaqPage ? `${SITE_URL}/faq` : SITE_URL);
     setRobots("index,follow");
 
     upsertJsonLd("padrino-jsonld-restaurant", {
       "@context": "https://schema.org",
       "@type": "Restaurant",
       name: "Padrino Budva",
-      url: "https://padrinobudva.com",
+      url: SITE_URL,
       telephone: siteSettings.phone_e164 || siteSettings.phone_display || D.phone_e164,
       email: siteSettings.email || D.email,
       address: {
