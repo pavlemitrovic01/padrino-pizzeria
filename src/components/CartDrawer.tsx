@@ -29,6 +29,7 @@ import {
 } from "../lib/cartDrawerHelpers";
 import { SmartCartImage, SmartMiniAddonImage } from "./CartDrawerImage";
 import { CartDrawerSuccessView } from "./CartDrawerSuccessView";
+import CheckoutForm from "./CheckoutForm";
 import {
   DELIVERY_ZONES,
   DEFAULT_BILLING_CITY,
@@ -1536,50 +1537,17 @@ export default function CartDrawer() {
                         <div className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white/55 sm:inline-flex">Checkout</div>
                       </div>
 
-                      <div>
-                        <label className="mb-2 block text-sm font-semibold text-white/80">Ime i prezime</label>
-                        <input
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          className={[
-                            "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                            nameError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                          ].join(" ")}
-                          placeholder="Npr. Petar Petrovic"
-                          autoComplete="name"
-                        />
-                        {nameError ? <div className="mt-1 text-xs font-medium text-red-300">{nameError}</div> : null}
-                      </div>
-
-                      <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">Telefon</label>
-                        <input
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          className={[
-                            "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                            phoneError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                          ].join(" ")}
-                          placeholder="+382..."
-                          autoComplete="tel"
-                        />
-                        {phoneError ? <div className="mt-1 text-xs font-medium text-red-300">{phoneError}</div> : null}
-                      </div>
-
-                      <div className="mt-4">
-                        <label className="mb-2 block text-sm font-semibold text-white/80">Adresa</label>
-                        <input
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          className={[
-                            "p-input border border-white/10 focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                            addressError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                          ].join(" ")}
-                          placeholder="Ulica i broj"
-                          autoComplete="street-address"
-                        />
-                        {addressError ? <div className="mt-1 text-xs font-medium text-red-300">{addressError}</div> : null}
-                      </div>
+                      <CheckoutForm
+                        name={name}
+                        phone={phone}
+                        address={address}
+                        onNameChange={setName}
+                        onPhoneChange={setPhone}
+                        onAddressChange={setAddress}
+                        nameError={nameError}
+                        phoneError={phoneError}
+                        addressError={addressError}
+                      />
 
                       <div className="mt-4">
                         <label className="mb-2 block text-sm font-semibold text-white/80">Zona dostave</label>
