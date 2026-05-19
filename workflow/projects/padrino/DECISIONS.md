@@ -339,6 +339,70 @@ Supabase dashboard SQL editor). Post-apply verification confirmed:
 
 ---
 
+### 2026-05-19 — W7: F2 (`src/lib/zones.ts`) WON'T EXECUTE
+
+**Trigger:** /plan F2 invocation 2026-05-19. Pre-flight gates passed, but
+scope recon revealed ROADMAP F2 line conflated two unrelated systems and
+targeted dead code in a lock zone.
+
+**Findings:**
+
+1. **Two unrelated "zone" systems sharing only the word:**
+   - Server (`api/create-order.ts:224-412`): `Zone { polygon: number[][] }`,
+     `fetchZones()` from `delivery_zones` table, `isPointInPolygon()`
+     ray-casting, `getDeliveryFeeCentsFromMeta()` GPS resolution.
+   - Client (`src/components/CartDrawer.tsx:80-107`): `DeliveryZoneKey`
+     union + `DELIVERY_ZONES` static array (8 named zones with hardcoded
+     `feeCents`/`minCents`). No polygon math — UI dropdown selection.
+
+2. **Server polygon path is DEAD CODE** (B2 audit 2026-05-11,
+   `docs/delivery-fee-audit.md`): `delivery_zones` table absent in prod DB
+   (ERROR 42P01); client never sends `lat`/`lng` → `point = null` →
+   `fetchZones()` never called. Zero real orders activate this branch.
+
+3. **Target `src/lib/zones.ts` invalid for server code** (L6 build
+   boundary): api code cannot import from `src/` — Vercel serverless
+   build (nodenext, `.js` ext) ≠ Vite build (Bundler). B8/B10/B10.1
+   precedent: api shared code lives in `api/_shared/`.
+
+4. **`getDeliveryFeeCentsFromMeta` mixes live and dead branches:** GPS
+   branch (dead) + meta-note "Zona:"/"Dostava:" regex parsing (live — real
+   production path when `point = null`). Extraction would bundle dead
+   with live code in one module; dead rots inside the module instead of
+   staying visible at its origin.
+
+5. **"Refactor not rewrite" locked strategy** (ROADMAP 2026-05-17, Current
+   Phase): real debt is structural (4 monolith files + util duplication),
+   not foundational. Lock-zone touch for cosmetic dead-code shuffling
+   violates this principle.
+
+**Options considered:**
+
+| Opt | Action | Verdict |
+|-----|--------|---------|
+| A | Skip F2 (won't-execute), advance to F3 | **CHOSEN.** Honest about dead-code reality; preserves lock-zone safety; zero risk. |
+| B | Server polygon → `api/_shared/zones.ts` | Mechanical ROADMAP-following; extracts dead code into lock-zone-adjacent module; ~190 LOC win on create-order.ts but file still > 800 LOC exit-criterion #1 cap. Negative risk/reward. |
+| C | Client `DELIVERY_ZONES` → `src/lib/deliveryZones.ts` | Real template seam (zones-as-config) but technically F4 ("Config seam module") territory; conflates F2/F4. |
+| D | Both extractions in one batch | Violates 1-tema-1-batch (RULES §1); doubles lock-zone risk for unclear gain. |
+
+**Decision:** F2 WON'T EXECUTE. Marked in ROADMAP F2 row + Notes section.
+Current Phase prose advanced F2 → F3.
+
+**Code disposition (out of W7 scope, recorded for future):**
+
+- Server dead code (`fetchZones`/`isPointInPolygon`/`Zone` type/GPS branch
+  in `getDeliveryFeeCentsFromMeta`): **remains in place**. Deletion needs
+  its own STRICT batch with own plan + smoke gate.
+- Client `DELIVERY_ZONES` static array: **stays in CartDrawer** until F4
+  (Config seam module); candidate seam for the template-swap point.
+
+**Analogous precedent:** B5 (CONDITIONAL on B2; B2 found no production
+bug → B5 won't execute). Same pattern: audit dictated the right scope.
+
+**Pavle approval:** 2026-05-19 (Opcija A confirmed verbally + /plan W7 ok).
+
+---
+
 ## Deprecated Lessons
 
 > Rotated out of `LESSONS.md` (cap: 7 active entries, RULES §20).

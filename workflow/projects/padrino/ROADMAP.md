@@ -3,8 +3,9 @@
 ## Current Phase
 
 **Refactor-to-9 program — Faza F (Shared core) IN PROGRESS.** Faze
-A–E DONE; F1 + F1.1 DONE 2026-05-18; F2 next (STRICT, lock zone —
-create-order.ts/CartDrawer.tsx zones extraction).
+A–E DONE; F1 + F1.1 DONE 2026-05-18; F2 WON'T-EXECUTE 2026-05-19
+(B2 dead-code finding — DECISIONS 2026-05-19); F3 next (STRICT,
+api/_shared/parsing.ts formalization).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -114,7 +115,7 @@ self-score = **8.5** even with 1–8 all met.
 |----|--------|------|----------|-------|
 | F1 | `src/lib/parsing.ts` consolidation | STANDARD | ~1.5h | **DONE 2026-05-18 (SHA f4c677f).** **parsing.ts owns ONLY: isRecord, isPlainObject, safeString, normalizeText** — verified byte-identical across dup sites (true no-op). **`safeInt` EXCLUDED from parsing.ts**: ≥3 divergent semantics exist; canonical = `src/lib/money.ts toSafeInt` (`Number()`-coercion, money-path-trusted). createOrder.ts:76 / AdminOrders.tsx:64 already delegate to it — leave untouched. AdminDashboard.tsx:32 inline copy (same semantics) → `import { toSafeInt } from money`. `publicBusinessSettings.ts:47 toSafeInt` (`number\|null`, no fallback) = different contract → OUT of F1. **Scope: `src/` non-lock-zone ONLY** (~10 files: AdminDashboard, AdminOrders, AdminMenu, AdminLogin, AdminSettings, AdminUsers, sections/Menu.tsx, lib/createOrder.ts [isRecord only], lib/publicBusinessSettings.ts [isRecord only], lib/cartDrawerHelpers.ts). Does NOT touch lock zone or `api/**`. Scope corrected + safeInt money-path landmine flagged W4 2026-05-18 (grep+body recon: ~25 dup-def sites, safeInt non-uniform across money path). |
 | F1.1 | `src/App.tsx` isRecord dedup (lock zone) | STRICT | 30min | **DONE 2026-05-18 (SHA 2548568).** 1 dup (`App.tsx:256`) → import from `src/lib/parsing.ts`. App.tsx is lock zone → STRICT + explicit Pavle approval. Standalone or folded into another App.tsx-touching batch. Split out of F1 by W4 2026-05-18. |
-| F2 | `src/lib/zones.ts` extraction | STRICT | 2h | Polygon math + zone resolution out of create-order.ts (lock zone) + CartDrawer. |
+| F2 | `src/lib/zones.ts` extraction | STRICT | 2h | **WON'T EXECUTE 2026-05-19 (W7).** B2 audit (docs/delivery-fee-audit.md, 2026-05-11) confirmed `delivery_zones` table absent in prod DB and GPS polygon path architecturally dead (client never sends lat/lng → `fetchZones()` never called). Extracting dead lock-zone code violates "refactor not rewrite" strategy. Target `src/lib/zones.ts` also invalid for api code per L6. Analogous to B5 (CONDITIONAL on B2, won't-execute). Detail: DECISIONS 2026-05-19. Client `DELIVERY_ZONES` may fold into F4 (Config seam) if/when F4 executes. |
 | F3 | `api/_shared/` reusable surface formalization | STRICT | 2h | Continue B8/B10 line — payment/admin shared modules as the template seam. **Includes `api/_shared/parsing.ts`**: ~10 `api/**` files (incl. 4 lock-zone: create-order, bankart-callback, bankart-order-status, telegram-new-order) with isPlainObject/safeInt/normalizeText dup. Separate build context from `src/` (Vercel serverless vs Vite) — own shared module required. L6 `.js` extension mandatory. Scope clarified W4 2026-05-18. `supabase/functions/payments-create-session/index.ts` (Deno) out of scope — consistent with B12 edge-function decision. |
 | F4 | Config seam module | STANDARD | 1-2h | Padrino-specifics (fallback email/city/postcode, domain, Telegram) → one config module = explicit template swap point. |
 
@@ -161,6 +162,7 @@ self-score = **8.5** even with 1–8 all met.
 ## Notes
 
 - B5 is CONDITIONAL on B2. B2 audit (DONE 2026-05-11) found delivery fee flow works correctly via meta-note parsing; no production bug. B5 will not execute.
+- F2 (zones.ts extraction) is WON'T-EXECUTE on B2 audit. B2 (DONE 2026-05-11, `docs/delivery-fee-audit.md`) confirmed `delivery_zones` table absent from prod DB and GPS polygon path architecturally dead. Extracting dead lock-zone code violates the refactor-not-rewrite strategy (Current Phase). Closed 2026-05-19 via W7. See DECISIONS 2026-05-19 for full reasoning. Client `DELIVERY_ZONES` const stays in CartDrawer until F4 (Config seam module) — may fold there as a template seam.
 - Faze A–D DONE 2026-05-17 (22 batches). Faze E–J = refactor-to-9 program.
 - Refactor-NOT-rewrite is a LOCKED strategic decision (2026-05-17): the dangerous core (server price validation, HMAC, RLS) is done + verified; debt is structural (4 monolith files), not foundational. Rationale in Current Phase block.
 - Template goal: future projects are similar ordering/payment apps. Faza F builds the reusable seam; Faza J crystallizes the real template only after app#2 (no premature abstraction).
