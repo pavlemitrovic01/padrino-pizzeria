@@ -5,8 +5,9 @@
 **Refactor-to-9 program — Faza F (Shared core) IN PROGRESS.** Faze
 A–E DONE; F1 + F1.1 DONE 2026-05-18; F2 WON'T-EXECUTE 2026-05-19
 (B2 dead-code finding — DECISIONS 2026-05-19); F3 DONE 2026-05-19
-(SHA bf5d2e8, api/_shared/parsing.ts formalization); F4 next (STANDARD,
-Config seam module).
+(SHA bf5d2e8, api/_shared/parsing.ts formalization); F4 DONE 2026-05-19
+(SHA 2fdff83, Config seam module — api/ side template-swap point);
+F4.1 next (STRICT, src/ side mirror: DELIVERY_ZONES + SEO URLs).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -118,7 +119,8 @@ self-score = **8.5** even with 1–8 all met.
 | F1.1 | `src/App.tsx` isRecord dedup (lock zone) | STRICT | 30min | **DONE 2026-05-18 (SHA 2548568).** 1 dup (`App.tsx:256`) → import from `src/lib/parsing.ts`. App.tsx is lock zone → STRICT + explicit Pavle approval. Standalone or folded into another App.tsx-touching batch. Split out of F1 by W4 2026-05-18. |
 | F2 | `src/lib/zones.ts` extraction | STRICT | 2h | **WON'T EXECUTE 2026-05-19 (W7).** B2 audit (docs/delivery-fee-audit.md, 2026-05-11) confirmed `delivery_zones` table absent in prod DB and GPS polygon path architecturally dead (client never sends lat/lng → `fetchZones()` never called). Extracting dead lock-zone code violates "refactor not rewrite" strategy. Target `src/lib/zones.ts` also invalid for api code per L6. Analogous to B5 (CONDITIONAL on B2, won't-execute). Detail: DECISIONS 2026-05-19. Client `DELIVERY_ZONES` may fold into F4 (Config seam) if/when F4 executes. |
 | F3 | `api/_shared/` reusable surface formalization | STRICT | 2h | **DONE 2026-05-19 (SHA bf5d2e8).** Continue B8/B10 line — payment/admin shared modules as the template seam. **Includes `api/_shared/parsing.ts`**: ~10 `api/**` files (incl. 4 lock-zone: create-order, bankart-callback, bankart-order-status, telegram-new-order) with isPlainObject/safeInt/normalizeText dup. Separate build context from `src/` (Vercel serverless vs Vite) — own shared module required. L6 `.js` extension mandatory. Scope clarified W4 2026-05-18. `supabase/functions/payments-create-session/index.ts` (Deno) out of scope — consistent with B12 edge-function decision. |
-| F4 | Config seam module | STANDARD | 1-2h | Padrino-specifics (fallback email/city/postcode, domain, Telegram) → one config module = explicit template swap point. |
+| F4 | Config seam module | STANDARD | 1-2h | **DONE 2026-05-19 (SHA 2fdff83).** Padrino-specifics (fallback email/city/postcode, domain, Telegram) → one config module = explicit template swap point. api/ side complete; F4.1 (STRICT) covers src/ side mirror (DELIVERY_ZONES, SEO URLs). |
+| F4.1 | `src/` Config seam mirror | STRICT | 1-2h | Src/ side of F4. DELIVERY_ZONES const (CartDrawer.tsx LOCK) + SEO URL literals (App.tsx LOCK, adminApiBase.ts, PizzaBudvaPage.tsx) → src/_shared/config.ts or inline env-driven. Touches 2+ lock-zone files → STRICT. |
 
 ## Upcoming — Faza G (CartDrawer rebuild — STRICT, behind E4 net)
 

@@ -5,6 +5,33 @@
 
 ---
 
+## F4 — 2026-05-19 — Config seam module — DONE
+
+**Tier:** STANDARD
+**SHA:** 2fdff83
+**Files (4):**
+  - api/_shared/config.ts — NEW (5 exports: BANKART_FALLBACK_EMAIL/CITY/POSTCODE/BANKART_DESCRIPTION_PREFIX/DEFAULT_PUBLIC_HOST)
+  - api/_shared/config.test.ts — NEW (5 shape-contract smoke tests, no literal value assertions)
+  - api/create-order.ts (LOCK) — inline consts removed; BANKART_FALLBACK_EMAIL/CITY/POSTCODE/DESCRIPTION_PREFIX → config.js import; description literal updated to use BANKART_DESCRIPTION_PREFIX
+  - api/_shared/public-url.ts — hardcoded "https://padrinobudva.com" → DEFAULT_PUBLIC_HOST from config.js import
+**Verify:**
+  build:     PASS(machine) — exit 0
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 15 files 179 tests
+  preview:   PASS(machine) — Vercel Build Logs clean (SHA 2fdff83)
+  manual:    PASS(human) — Pavle confirmed "proslo, /close f4"
+**SCOPE_DRIFT:** none (4 files = exact EXPECTED-FILES)
+**LESSONS:** unchanged (7/7 cap; F4 executed clean, no new recurring-mistake pattern)
+**Notes:** Template-swap point established on api/ side — fork to app#2 edits config.ts + env vars,
+  no other api/ change required. Tests assert shape contracts only (non-empty, correct form) —
+  intentionally no literal value assertions so template-swap doesn't pay test maintenance cost.
+  5th constant BANKART_DESCRIPTION_PREFIX found during pre-execution recon (initial scan missed
+  create-order.ts:667 description literal). F4.1 (STRICT) deferred: src/ side mirror
+  (DELIVERY_ZONES in CartDrawer.tsx, SEO URLs in App.tsx/adminApiBase.ts/PizzaBudvaPage.tsx).
+  Faza F: F1✓ F1.1✓ F2 won't-execute✓ F3✓ F4✓; F4.1 next (STRICT).
+
+---
+
 ## F3 — 2026-05-19 — api/_shared/parsing.ts formalization — DONE
 
 **Tier:** STRICT

@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** F3 — api/_shared/parsing.ts formalization (2026-05-19, STRICT)
-**Sledeći:** F4 — Config seam module (STANDARD)
+**Poslednji završen:** F4 — Config seam module (2026-05-19, STANDARD)
+**Sledeći:** F4.1 — src/ Config seam mirror (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -140,13 +140,20 @@
   10× isPlainObject, 3× normalizeText, 3× safeInt, 3× safeNumber removed inline
   across 10 api/ files incl. 4 lock-zone; Variant-A canonical; safeNumber default
   0→NaN (all call sites pass explicit fallback); L6 .js first-try; Vercel Build
-  Logs clean + manual smoke PASS; sledeći F4)
+  Logs clean + manual smoke PASS)
+- F4 (Config seam module) — DONE 2026-05-19
+  (STANDARD; 4 fajla, +82/-6; SHA 2fdff83; NEW api/_shared/config.ts (5 exports:
+  BANKART_FALLBACK_EMAIL/CITY/POSTCODE/BANKART_DESCRIPTION_PREFIX/DEFAULT_PUBLIC_HOST)
+  + config.test.ts (5 shape-contract smoke tests, no literal assertions); api/create-order.ts
+  (LOCK) inline consts → config.js import; api/_shared/public-url.ts hardcoded domain →
+  DEFAULT_PUBLIC_HOST; template-swap point established on api/ side; Vercel Build Logs
+  clean + manual smoke PASS; sledeći F4.1 STRICT)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-34 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+35 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -165,7 +172,8 @@ W5 ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix,
 F1.1 src/App.tsx isRecord dedup — lock zone,
 W6 post-F1.1 partial-close cleanup,
 W7 F2 won't-execute reconciliation,
-F3 api/_shared/parsing.ts formalization).
+F3 api/_shared/parsing.ts formalization,
+F4 Config seam module).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
