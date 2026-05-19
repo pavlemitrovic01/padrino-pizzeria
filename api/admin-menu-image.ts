@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAdminFromDb } from "./_shared/admin-auth.js";
+import { isPlainObject } from "./_shared/parsing.js";
 
 type Json = Record<string, unknown>;
 
@@ -23,10 +24,6 @@ const ADMIN_PATH_PREFIX = "admin/";
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
-}
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
 function headerString(req: ReqLike, key: string): string {

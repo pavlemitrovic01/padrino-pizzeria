@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
+import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
 
 type PaymentMethod = "cash" | "card";
 type Json = Record<string, unknown>;
@@ -76,10 +77,6 @@ type BankartDebitResponse = {
 const BANKART_FALLBACK_EMAIL = "padrinobudva@gmail.com";
 const BANKART_FALLBACK_CITY = "Budva";
 const BANKART_FALLBACK_POSTCODE = "85310";
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -197,28 +194,6 @@ function looksLikeRealItemButInvalid(v: unknown) {
   if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
 
   return !menuItemId;
-}
-
-function safeInt(v: unknown, fallback = 0) {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : Number.NaN;
-  return Number.isFinite(n) ? Math.trunc(n) : fallback;
-}
-
-function safeNumber(v: unknown, fallback = 0) {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : Number.NaN;
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function normalizeText(value: string) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("ž", "z")
-    .replaceAll("đ", "dj")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 type Zone = {

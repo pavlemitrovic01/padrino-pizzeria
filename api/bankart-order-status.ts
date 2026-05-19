@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { buildTelegramPayload } from "./_shared/public-url.js";
+import { isPlainObject, safeNumber } from "./_shared/parsing.js";
 
 type Json = Record<string, unknown>;
 type HeaderValue = string | string[] | undefined;
@@ -56,17 +57,8 @@ type BankartConfig = {
   password: string;
 };
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
-}
-
-function safeNumber(v: unknown, fallback = Number.NaN): number {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : Number.NaN;
-  return Number.isFinite(n) ? n : fallback;
 }
 
 function headerString(req: ReqLike, key: string): string {

@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { isPlainObject, normalizeText, safeInt } from "./_shared/parsing.js";
 
 type Json = Record<string, unknown>;
 
@@ -45,10 +46,6 @@ type OrderRow = {
 };
 
 const TELEGRAM_FETCH_TIMEOUT_MS = 7000;
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
 
 function toTrimmedString(v: unknown): string {
   if (typeof v === "string") return v.trim();
@@ -125,23 +122,6 @@ function buildSupabaseAdmin() {
 }
 
 const supabase = buildSupabaseAdmin();
-
-function normalizeText(value: string) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("č", "c")
-    .replaceAll("ć", "c")
-    .replaceAll("š", "s")
-    .replaceAll("ž", "z")
-    .replaceAll("đ", "dj")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function safeInt(v: unknown, fallback = 0) {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
-  return Number.isFinite(n) ? Math.trunc(n) : fallback;
-}
 
 function formatTotalFromCents(cents: number) {
   const n = Number.isFinite(cents) ? Math.trunc(cents) : 0;
