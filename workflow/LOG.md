@@ -5,6 +5,43 @@
 
 ---
 
+## W6 — 2026-05-19 — post-F1.1 partial-close cleanup — DONE
+
+**Tier:** LEAN (doc-only, direct commit on main)
+**SHA:** d07172d
+**Files (2):**
+  - workflow/projects/padrino/ROADMAP.md — Current Phase prose advanced:
+    "F1 DONE 2026-05-18; F1.1 next (STRICT, lock zone — App.tsx)"
+    → "F1 + F1.1 DONE 2026-05-18; F2 next (STRICT, lock zone —
+    create-order.ts/CartDrawer.tsx zones extraction)".
+  - workflow/LOG.md — W4 entry SHA backfilled: placeholder
+    `_(filled post-commit — see git log / final report)_` → `5b55f42`
+    (verified: `git log -1 5b55f42` = "workflow: close W4 ROADMAP
+    reconciliation (post-orphan-files scope drift fix)").
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.65s, 19 chunks (audit pre-W6)
+  typecheck: PASS(machine) — exit 0 (audit pre-W6)
+  test:      PASS(machine) — exit 0, 13 files, 163 tests (audit pre-W6)
+**SCOPE_DRIFT:** none (2 files = exact EXPECTED-FILES; EXPECTED-COMMITS 1 = d07172d)
+**LESSONS:** unchanged (cap 7/7 — W6 is partial-close artifact cleanup,
+  not a recurring-mistake lesson)
+**Notes:** Root cause = previous /close runs interrupted by context limit
+  (Pavle reported "udario sam u limit na pola poruke"). F1.1 close left
+  ROADMAP Current Phase prose stale; W4 close (5b55f42) left its own SHA
+  placeholder in LOG.md. **Two-commit pattern used** (vs single "workflow:
+  close W6") so W6's own SHA is recorded with the close commit, not in the
+  batch commit — explicitly avoiding the same placeholder trap that W4
+  fell into. Branch hygiene also addressed this session:
+  `git push origin --delete batch/f1.1-app-tsx-isrecord` after merge
+  confirmed by `git ls-remote origin batch/f1.1-app-tsx-isrecord` →
+  SHA 2548568 (already in main via 8aa321e). Suggested defensive follow-up
+  (separate batch, NOT bundled here — cleanup ≠ skill enhancement):
+  add partial-close detector to /audit Step 4 — flags SHA placeholders in
+  last 5 LOG entries, ROADMAP Current Phase ↔ STATE "Sledeći" mismatch,
+  and unmerged per-batch branches on origin.
+
+---
+
 ## F1.1 — 2026-05-18 — src/App.tsx isRecord dedup (lock zone) — DONE
 
 **Tier:** STRICT (lock zone: src/App.tsx; per-batch branch)

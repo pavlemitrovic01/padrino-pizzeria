@@ -22,7 +22,7 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** F1.1 — src/App.tsx isRecord dedup (2026-05-18, STRICT)
+**Poslednji završen:** W6 — post-F1.1 partial-close cleanup (2026-05-19, LEAN)
 **Sledeći:** F2 — src/lib/zones.ts extraction (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
@@ -121,12 +121,17 @@
   (STRICT; 1 fajl, +1/-4; SHA 2548568; isPlainObject as isRecord alias —
   Variant-B semantics preserved; last isRecord dup after F1 eliminated;
   per-batch branch; build+typecheck+test+manual smoke PASS)
+- W6 (post-F1.1 partial-close cleanup) — DONE 2026-05-19
+  (LEAN; 2 fajla, +3/-2; SHA d07172d; ROADMAP Current Phase prose
+  F1.1→F2 advance + W4 SHA placeholder backfilled to 5b55f42;
+  two-commit pattern to avoid same placeholder trap; branch
+  origin/batch/f1.1-app-tsx-isrecord deleted post-merge)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-31 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+32 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -142,7 +147,8 @@ E5 Golden-path E2E — cart → createOrder → redirect URL,
 W4 ROADMAP reconciliation — post-orphan-files scope drift fix,
 F1 src/lib/parsing.ts consolidation,
 W5 ROADMAP DONE-status reconciliation + /close ROADMAP-update process fix,
-F1.1 src/App.tsx isRecord dedup — lock zone).
+F1.1 src/App.tsx isRecord dedup — lock zone,
+W6 post-F1.1 partial-close cleanup).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
