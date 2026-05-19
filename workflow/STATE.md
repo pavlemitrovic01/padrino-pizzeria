@@ -22,7 +22,7 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** F4.1 — src/ Config seam mirror (2026-05-19, STRICT)
+**Poslednji završen:** F4.2 — cartDrawerHelpers + publicBusinessSettings config dedup (2026-05-19, LEAN)
 **Sledeći:** G1 — Extract CheckoutForm (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
@@ -153,14 +153,19 @@
   DEFAULT_BILLING_CITY/POSTCODE + DeliveryZoneKey/DeliveryZone types + DELIVERY_ZONES)
   + config.test.ts (5 shape-contract tests); CartDrawer.tsx (LOCK) + App.tsx (LOCK)
   + adminApiBase.ts + PizzaBudvaPage.tsx — inline literals → config import;
-  DELIVERY_ZONES byte-identical 8/8; manual smoke PASS; Faza F DONE ✓)
+  DELIVERY_ZONES byte-identical 8/8; manual smoke PASS)
+- F4.2 (cartDrawerHelpers + publicBusinessSettings config dedup) — DONE 2026-05-19
+  (LEAN; 2 fajla, +4/-5; SHA d4e8876; Pavle pre-merge audit caught two-source-of-truth
+  gap u F4.1; cartDrawerHelpers.ts:10-11 + publicBusinessSettings.ts:29-30 sad importuju
+  DEFAULT_BILLING_CITY/POSTCODE iz ./config; "Budva"/"85310" literali sad SAMO u config.ts;
+  recurring "recon depth" theme — pre-plan grep mora pokriti src/lib/, ne samo src/components/)
 - **Faza F — DONE** ✓
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-35 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+37 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -180,7 +185,9 @@ F1.1 src/App.tsx isRecord dedup — lock zone,
 W6 post-F1.1 partial-close cleanup,
 W7 F2 won't-execute reconciliation,
 F3 api/_shared/parsing.ts formalization,
-F4 Config seam module).
+F4 Config seam module,
+F4.1 src/ Config seam mirror,
+F4.2 cartDrawerHelpers + publicBusinessSettings config dedup).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

@@ -5,6 +5,27 @@
 
 ---
 
+## F4.2 — 2026-05-19 — cartDrawerHelpers + publicBusinessSettings config dedup — DONE
+
+**Tier:** LEAN
+**SHA:** d4e8876
+**Files (2):**
+  - src/lib/cartDrawerHelpers.ts — inline DEFAULT_BILLING_CITY/POSTCODE consts removed; imported from ./config
+  - src/lib/publicBusinessSettings.ts — DEFAULT_PUBLIC_BUSINESS_SETTINGS.default_city/postcode literals → DEFAULT_BILLING_CITY/POSTCODE import from ./config
+**Verify:**
+  build:     PASS(machine) — exit 0, 5.11s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 16 files 184 tests (unchanged — no new tests for LEAN)
+  manual:    NIJE POKRENUTO — LEAN tier, value-identical dedup (no behavior change, value-side proven by F4.1 manual smoke)
+**SCOPE_DRIFT:** none (2 files = exact EXPECTED-FILES)
+**LESSONS:** unchanged (7/7 cap; F4.2 surfaces recurring "recon depth" theme — pre-plan grep scope must include src/lib/, not just src/components/. Insight noted but not lesson-grade: F4.1 plan-recon miss; same flavor as L7 first finding ("test pattern coverage"))
+**Notes:** Audit-driven follow-up to F4.1 (Pavle pre-merge audit caught two-source-of-truth gap).
+  src/lib/config.ts is now THE single src/ template-swap point for billing defaults.
+  Audit grep verifies "Budva"/"85310" literals in src/lib/ exist ONLY in config.ts (DELIVERY_ZONES label "Budva" is zoneLabel string, semantically separate from city default).
+  publicBusinessSettings.ts:39 FOOTER_ADDRESS_FALLBACK still contains "Budva" inline — out of scope (composite address string, not pure config; J1 template crystallization territory).
+
+---
+
 ## F4.1 — 2026-05-19 — src/ Config seam mirror — DONE
 
 **Tier:** STRICT
