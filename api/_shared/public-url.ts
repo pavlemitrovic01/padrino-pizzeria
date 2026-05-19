@@ -17,6 +17,8 @@
 // Self-contained: inlines getEnv / headerString / headerStringCI so the
 // callers' local copies (used elsewhere in each handler) stay untouched.
 
+import { DEFAULT_PUBLIC_HOST } from "./config.js";
+
 export type HeaderValue = string | string[] | undefined;
 export type HeadersLike = Record<string, HeaderValue>;
 
@@ -66,7 +68,7 @@ export function resolvePublicBaseUrl(
     headerStringCI(headers, "x-forwarded-host") || headerStringCI(headers, "host");
   if (host) return `${proto}://${host}`.replace(/\/+$/, "");
 
-  return "https://padrinobudva.com";
+  return DEFAULT_PUBLIC_HOST;
 }
 
 export function buildTelegramPayload(

@@ -4,6 +4,12 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
+import {
+  BANKART_FALLBACK_EMAIL,
+  BANKART_FALLBACK_CITY,
+  BANKART_FALLBACK_POSTCODE,
+  BANKART_DESCRIPTION_PREFIX,
+} from "./_shared/config.js";
 
 type PaymentMethod = "cash" | "card";
 type Json = Record<string, unknown>;
@@ -73,10 +79,6 @@ type BankartDebitResponse = {
   errors?: unknown;
   extraData?: unknown;
 };
-
-const BANKART_FALLBACK_EMAIL = "padrinobudva@gmail.com";
-const BANKART_FALLBACK_CITY = "Budva";
-const BANKART_FALLBACK_POSTCODE = "85310";
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -664,7 +666,7 @@ function buildBankartDebitRequest(
     cancelUrl: urls.cancelUrl,
     errorUrl: urls.errorUrl,
     callbackUrl: urls.callbackUrl,
-    description: `Padrino Budva order ${orderId}`.slice(0, 255),
+    description: `${BANKART_DESCRIPTION_PREFIX} ${orderId}`.slice(0, 255),
     language: config.language,
     merchantMetaData: orderId.slice(0, 255),
     extraData: {
