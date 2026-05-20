@@ -5,6 +5,26 @@
 
 ---
 
+## G4.3 — 2026-05-21 — Extract useDeliveryZone hook → src/hooks/cart/ — DONE
+
+**Tier:** STRICT
+**SHA:** 8e35c58 (batch) / [merge SHA]
+**Branch:** batch/g4.3-use-delivery-zone
+**Files (2):**
+  - src/hooks/cart/useDeliveryZone.ts — NEW; 158 LOC; custom React hook; takes items: CartItem[]; returns 16 values: deliveryZoneKey/isZoneOpen/setIsZoneOpen/deliveryFeeOverride/setDeliveryFeeOverride/selectZone/zoneBtnRef/zonePanelRef/totalItems/subtotalCents/selectedDeliveryZone/qualifiesForFreeDelivery/missingToFreeDeliveryCents/deliveryFeeCents/effectiveTotalCents; owns: 3 useState, 2 useRef, 6 useMemo, 3 useEffect (reset on zone change + reset when qualifies for free + click-outside/Escape panel)
+  - src/components/CartDrawer.tsx — LOCK; 1543 → 1459 LOC (net −84); deleted: 3 useState + 2 useRef + 6 useMemo + effectiveTotalCents + 3 useEffect (zone resets × 2 + click-outside) + inline handleSelectZone body; added: useDeliveryZone import + 18-LOC hook destructure + thin handleSelectZone wrapper (selectZone + setSubmitError)
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.84s, 2195 modules
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 184/184, 16 files
+  vercel:    PASS(human) — Build Logs clean (Pavle: "sve je clean, logs pass")
+  manual:    PASS(human) — Pavle confirmed: zone picker, click-outside, Escape, free delivery threshold, deliveryFeeOverride, handleCloseDrawer reset
+**SCOPE_DRIFT:** NONE — exact 2-file match EXPECTED-FILES
+**LESSONS:** unchanged (7/7 cap; eslint react-hooks/set-state-in-effect fires in hooks not components — reset patterns documented with disable-next-line in hook)
+**Notes:** LOC delta: predicted −110 (from recon baseline ~1513), actual −84 (real post-G4.2 baseline 1543 — G4.2 was +30 above predicted). Effective variance vs actual baseline: −84 vs expected ~−110 — cosmetic; verbose 18-LOC destructure. effectiveTotalCents moved from inline const to hook return (identical semantics: subtotalCents + deliveryFeeCents). canSubmit stays in CartDrawer. G4.4 next — HIGH RISK (PaymentJS controller ref + 118 LOC init effect; Bankart test-mode checkout smoke REQUIRED pre-close).
+
+---
+
 ## G4.2 — 2026-05-20 — Extract useCheckoutForm hook → src/hooks/cart/ — DONE
 
 **Tier:** STRICT

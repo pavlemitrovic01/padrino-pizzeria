@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G4.2 — Extract useCheckoutForm hook (2026-05-20, STRICT)
-**Sledeći:** G4.3 — Extract useDeliveryZone hook (STRICT)
+**Poslednji završen:** G4.3 — Extract useDeliveryZone hook (2026-05-21, STRICT)
+**Sledeći:** G4.4 — Extract useBankartPaymentJs hook (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -200,6 +200,10 @@
   CartDrawerSuccessView.tsx LOCK BankartOrderPaymentStatus dedup (F4.2 pattern);
   byte-identical relocation, no behavior change; Vercel Build Logs clean + smoke PASS;
   per-batch branch batch/g4.1-bankart-return-storage)
+- G4.3 (Extract useDeliveryZone hook → src/hooks/cart/) — DONE 2026-05-21
+  (STRICT; 2 fajla, +177/-103 LOC; SHA 8e35c58;
+  useDeliveryZone.ts NEW 158 LOC (16 returns: zone state + memos + click-outside);
+  CartDrawer.tsx LOCK 1543→1459 (net −84); Vercel Build Logs clean + smoke PASS)
 - G4.2 (Extract useCheckoutForm hook → src/hooks/cart/) — DONE 2026-05-20
   (STRICT; 2 fajla, +417/-251 LOC; SHA 98bb4ab / merge 49a533b;
   src/hooks/cart/useCheckoutForm.ts NEW 352 LOC (11 input params → 30 returns:
