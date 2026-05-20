@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G1 — Extract CheckoutForm name/phone/address (2026-05-20, STRICT)
-**Sledeći:** G2 — Extract PaymentSection (STRICT)
+**Poslednji završen:** G2.0 — G2 PaymentSection forensic recon (2026-05-20, LEAN)
+**Sledeći:** G2.1 — Extract BillingFields (STRICT) — see docs/g2-paymentsection-recon.md
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -164,7 +164,13 @@
   (STRICT; 2 fajla, +74/-44; SHA 12574ce; CheckoutForm.tsx NEW (Fragment return, 9 props,
   zero imports); CartDrawer.tsx lines 1539-1582 replaced; G1-narrow scope — delivery zone,
   payment panel, billing/card fields remain in CartDrawer for G2-G4; all gates PASS;
-  Vercel preview smoke PASS; per-batch branch batch/g1-checkout-form)
+  Vercel preview smoke PASS; per-batch branch batch/g1-checkout-form merged main SHA e258fc3)
+- G2.0 (G2 PaymentSection forensic recon — doc-only audit) — DONE 2026-05-20
+  (LEAN; 1 fajl docs/g2-paymentsection-recon.md, +336 LOC; SHA bc3dd12; pre-plan
+  forensic mapping for G2.1+G2.2; decisions locked: split G2.1 BillingFields ~38 LOC
+  + G2.2 CardFields ~120 LOC; DOM IDs/CSS via props passing (constants stay in CartDrawer);
+  L7 false-green risk documented — zero direct test coverage for PaymentSection JSX,
+  smoke is only gate; persists G2 recon across session boundary)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

@@ -4,7 +4,9 @@
 
 **Refactor-to-9 program — Faza G (CartDrawer rebuild) IN PROGRESS.** Faze
 A–F DONE; G1 DONE 2026-05-20 (SHA 12574ce, CheckoutForm name/phone/address
-extracted). Next: G2 Extract PaymentSection (STRICT, highest risk).
+extracted); G2.0 DONE 2026-05-20 (SHA bc3dd12, forensic recon doc
+`docs/g2-paymentsection-recon.md` — G2 split locked into G2.1 BillingFields
++ G2.2 CardFields). Next: G2.1 Extract BillingFields (STRICT, ~38 LOC, 7 props).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -124,7 +126,7 @@ self-score = **8.5** even with 1–8 all met.
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
 | G1 | Extract `CheckoutForm` (customer fields + validation) | STRICT | 2-3h | **DONE 2026-05-20 (SHA 12574ce).** Lock zone. Browser smoke live checkout each step. |
-| G2 | Extract `PaymentSection` (Bankart PaymentJS lifecycle) | STRICT | 3-4h | Highest risk in whole program. Smoke every increment. |
+| G2 | Extract `PaymentSection` (Bankart PaymentJS lifecycle) | STRICT | 3-4h | Split locked 2026-05-20 into G2.1+G2.2 — see `docs/g2-paymentsection-recon.md`. Highest risk in whole program. Smoke every increment. |
 | G3 | Extract `CartView` (item list / qty) | STRICT | 2h | Lock zone. |
 | G4 | CartDrawer → thin orchestrator (~300 LOC) | STRICT | 2h | Final assembly; full checkout smoke. |
 

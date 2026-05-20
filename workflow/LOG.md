@@ -5,6 +5,28 @@
 
 ---
 
+## G2.0 — 2026-05-20 — G2 PaymentSection forensic recon — DONE
+
+**Tier:** LEAN
+**SHA:** bc3dd12
+**Files (1):**
+  - docs/g2-paymentsection-recon.md — NEW; 336 LOC; pre-plan forensic mapping for G2.1 + G2.2 (JSX boundaries lines 1710-1873, state surface, PaymentJS init useEffect details, Bankart return separation, submit tokenize path, module-top constants, validation surface, test gap L7, props inventories — G2.1: 7 props, G2.2: ~20 props, risk register, next-session flow). Mirrors cartdrawer-extraction-audit.md pattern.
+**Verify:**
+  build:     PASS(machine) — exit 0, 6.93s
+  typecheck: PASS(machine) — exit 0
+  test:      NIJE POKRENUTO — LEAN tier, doc-only no behavior change
+  manual:    NIJE POKRENUTO — doc-only
+**SCOPE_DRIFT:** none (1 file = exact EXPECTED-FILES)
+**LESSONS:** unchanged (7/7 cap)
+**Notes:** Audit-doc batch following decisions locked 2026-05-20:
+  - G2 split into G2.1 (BillingFields, ~38 LOC) + G2.2 (CardFields, ~120 LOC)
+  - DOM IDs/CSS: props passing (constants stay in CartDrawer)
+  - G1 merged to main first (SHA e258fc3) for clean G2 baseline
+  Direct commit on main (LEAN convention; no per-batch branch).
+  Doc persists G2 recon across session boundary — next session /plan G2.1 reads from here.
+
+---
+
 ## G1 — 2026-05-20 — Extract CheckoutForm (name/phone/address inputs) — DONE
 
 **Tier:** STRICT
