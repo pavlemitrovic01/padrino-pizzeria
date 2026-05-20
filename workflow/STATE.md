@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G4.4 — Extract useBankartPaymentJs hook (2026-05-21, STRICT)
-**Sledeći:** G4.5 — Extract useSuccessState hook (STRICT, NAJOPASNIJA — Bankart return + status polling)
+**Poslednji završen:** G4.5 — Extract useSuccessState hook (2026-05-21, STRICT)
+**Sledeći:** G4.6 — Extract useCatalogData + CheckoutView (STRICT, FINAL G4 batch)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -200,6 +200,14 @@
   CartDrawerSuccessView.tsx LOCK BankartOrderPaymentStatus dedup (F4.2 pattern);
   byte-identical relocation, no behavior change; Vercel Build Logs clean + smoke PASS;
   per-batch branch batch/g4.1-bankart-return-storage)
+- G4.5 (Extract useSuccessState hook → src/hooks/cart/) — DONE 2026-05-21
+  (STRICT; NAJOPASNIJI G4 batch; 2 fajla, +356/-276 LOC; SHA b7d989d;
+  useSuccessState.ts NEW 334 LOC (16 returns: 9 state + 3 setters + 4 actions);
+  CartDrawer.tsx LOCK 1310→1056 (net −254, recon target ~−255 hit on the nose);
+  applySuccessUiState 62 LOC + Bankart return useEffect 109 LOC byte-identical relocation;
+  closeBankartReturnFlow encapsulates timer+storage+url ops; Pavle smoke Scenario A
+  (card_redirect → return → paid) PASS — drawer auto-open, polling visible, status transition,
+  URL/storage cleared)
 - G4.4 (Extract useBankartPaymentJs hook → src/hooks/cart/) — DONE 2026-05-21
   (STRICT; 2 fajla, +222/-167 LOC; SHA 20a05f0;
   useBankartPaymentJs.ts NEW 204 LOC (7 returns + 3 constants exports);
