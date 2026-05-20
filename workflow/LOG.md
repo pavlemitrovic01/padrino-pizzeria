@@ -5,6 +5,27 @@
 
 ---
 
+## G4.1 — 2026-05-20 — Extract bankartReturnStorage helpers → src/lib/ — DONE
+
+**Tier:** STRICT
+**SHA:** f5cd267 (batch) / 666fe4b (merge → main)
+**Branch:** batch/g4.1-bankart-return-storage
+**Files (3):**
+  - src/lib/bankartReturnStorage.ts — NEW; 133 LOC; 11 exports (3 types BankartOrderPaymentStatus/BankartOrderStatusResponse/BankartReturnStorage + 1 const BANKART_RETURN_STORAGE_KEY + 7 functions isPaymentStatusValue/isFinalPaymentStatusValue/getBankartReturnParams/readBankartReturnStorage/writeBankartReturnStorage/clearBankartReturnStorage/cleanBankartReturnUrl); byte-identical relocation from CartDrawer.tsx; imports type PaymentMethod from "../context/CartContext" + toSafeInt from "./money" (no circular deps)
+  - src/components/CartDrawer.tsx — LOCK; 1848 → 1730 LOC (net −118; recon predicted −95, actual variance favorable); deleted: 3 type defs (BankartOrderPaymentStatus/Response/Storage), BANKART_RETURN_STORAGE_KEY const, 7 functions (isPaymentStatusValue..cleanBankartReturnUrl); added: 10-line import block; BANKART_PAYMENTJS_* constants RETAINED (G4.4), MenuItemData/DrawerView/PizzaVariantsMap types RETAINED; BankartReturnStorage type dropped from import block (only used inside extracted functions — TS6133 fix)
+  - src/components/CartDrawerSuccessView.tsx — LOCK; ±1 LOC (1 line inline type → 1 import); F4.2 pattern dedup: BankartOrderPaymentStatus now imported from lib instead of local inline duplicate
+**Verify:**
+  build:     PASS(machine) — local exit 0, 7.36s; Vercel preview 24s, 2193 modules transformed
+  typecheck: PASS(machine) — exit 0 (re-verified at /close)
+  test:      PASS(machine) — 184/184, 16 files (re-verified at /close)
+  manual:    PASS(human) — Pavle "Smoke prosao" post-Vercel-deploy
+  vercel:    PASS(human) — Build Logs clean, 2193 modules, 24s build
+**SCOPE_DRIFT:** NONE — exact 3-file match EXPECTED-FILES
+**LESSONS:** unchanged (7/7 cap; byte-identical relocation = no new learning)
+**Notes:** Per-batch branch batch/g4.1-bankart-return-storage merged main SHA 666fe4b. First G4.x execution batch (G4.0 was recon). LOC variance: recon predicted Δ−95, actual Δ−118 (favorable direction — recon was conservative about blank-line counting between extracted functions; no behavioral signal). G4.5 (useSuccessState) will re-import these lib types/functions; G4.4 (useBankartPaymentJs) keeps separate BANKART_PAYMENTJS_* const block.
+
+---
+
 ## G4.0 — 2026-05-20 — CartDrawer structural recon — DONE
 
 **Tier:** STRICT (recon-only, doc change)

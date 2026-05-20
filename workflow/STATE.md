@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G4.0 — CartDrawer structural recon (2026-05-20, STRICT)
-**Sledeći:** G4.1 — Extract bankartReturnStorage helpers (STRICT)
+**Poslednji završen:** G4.1 — Extract bankartReturnStorage helpers (2026-05-20, STRICT)
+**Sledeći:** G4.2 — Extract useCheckoutForm hook (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -193,6 +193,13 @@
   (STRICT recon; 2 fajla, +134/-3 LOC; SHA 7c42e40; DECISIONS.md full inventar
   1848 LOC CartDrawer.tsx; G4.1..G4.6 split predlog sa risks; ROADMAP drift fix
   "1898→1612" → "net −319, 1848"; realistic final LOC ~550-650 after G4.1-G4.6)
+- G4.1 (Extract bankartReturnStorage helpers → src/lib/) — DONE 2026-05-20
+  (STRICT; 3 fajla, +145/-132 LOC; SHA f5cd267 / merge 666fe4b;
+  src/lib/bankartReturnStorage.ts NEW 133 LOC (11 exports: 3 types + 1 const + 7 functions);
+  CartDrawer.tsx LOCK 1848→1730 (net −118, recon predicted −95 — favorable variance);
+  CartDrawerSuccessView.tsx LOCK BankartOrderPaymentStatus dedup (F4.2 pattern);
+  byte-identical relocation, no behavior change; Vercel Build Logs clean + smoke PASS;
+  per-batch branch batch/g4.1-bankart-return-storage)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
@@ -226,7 +233,8 @@ G2.0 G2 PaymentSection forensic recon (doc-only),
 G2.1 Extract BillingFields BillingFields.tsx,
 G2.2 Extract CardFields CardFields.tsx,
 G3 Extract CartView item list qty controls addons sauces drinks,
-G4.0 CartDrawer structural recon doc-only).
+G4.0 CartDrawer structural recon doc-only,
+G4.1 Extract bankartReturnStorage helpers src lib).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
