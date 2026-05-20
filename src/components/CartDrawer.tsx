@@ -45,6 +45,7 @@ import {
   cleanBankartReturnUrl,
 } from "../lib/bankartReturnStorage";
 import { useCheckoutForm } from "../hooks/cart/useCheckoutForm";
+import { useDeliveryZone } from "../hooks/cart/useDeliveryZone";
 
 declare global {
   interface ImportMetaEnv {
@@ -150,12 +151,23 @@ export default function CartDrawer() {
 
   // (Blokirajući useEffect uklonjen)
 
-  const [deliveryZoneKey, setDeliveryZoneKey] = useState<DeliveryZoneKey | "">("");
-  const [deliveryFeeOverride, setDeliveryFeeOverride] = useState(false);
-
-  const [isZoneOpen, setIsZoneOpen] = useState(false);
-  const zoneBtnRef = useRef<HTMLButtonElement | null>(null);
-  const zonePanelRef = useRef<HTMLDivElement | null>(null);
+  const {
+    deliveryZoneKey,
+    isZoneOpen,
+    setIsZoneOpen,
+    deliveryFeeOverride,
+    setDeliveryFeeOverride,
+    selectZone,
+    zoneBtnRef,
+    zonePanelRef,
+    totalItems,
+    subtotalCents,
+    selectedDeliveryZone,
+    qualifiesForFreeDelivery,
+    missingToFreeDeliveryCents,
+    deliveryFeeCents,
+    effectiveTotalCents,
+  } = useDeliveryZone(items);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -447,62 +459,7 @@ export default function CartDrawer() {
     changeSize(itemId, nextSize, next);
   };
 
-  const totalItems = useMemo(() => {
-    return items.reduce((sum, it) => sum + (it.quantity ?? 0), 0);
-  }, [items]);
-
-  const subtotalCents = useMemo(() => {
-    let total = 0;
-
-    for (const it of items) {
-      const qty = it.quantity ?? 0;
-      if (qty <= 0) continue;
-
-      const drink = isDrinkCategory(it.category ?? "");
-      const addons = drink ? [] : (it.addons ?? []);
-      const addonsTotalCents = addons.reduce(
-        (s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1),
-        0
-      );
-
-      const baseCents = toSafeInt(it.basePrice, toSafeInt(it.price, 0));
-      const perItemCents = baseCents + addonsTotalCents;
-
-      total += perItemCents * qty;
-    }
-
-    return total;
-  }, [items]);
-
   const canSubmit = items.length > 0 && subtotalCents > 0;
-
-  const selectedDeliveryZone = useMemo(() => {
-    if (!deliveryZoneKey) return null;
-    return DELIVERY_ZONES.find((z) => z.key === deliveryZoneKey) ?? null;
-  }, [deliveryZoneKey]);
-
-  const qualifiesForFreeDelivery = useMemo(() => {
-    if (!selectedDeliveryZone) return false;
-    if (selectedDeliveryZone.feeCents <= 0) return true;
-    if (selectedDeliveryZone.minCents <= 0) return true;
-    return subtotalCents >= selectedDeliveryZone.minCents;
-  }, [selectedDeliveryZone, subtotalCents]);
-
-  const missingToFreeDeliveryCents = useMemo(() => {
-    if (!selectedDeliveryZone) return 0;
-    if (selectedDeliveryZone.feeCents <= 0) return 0;
-    if (selectedDeliveryZone.minCents <= 0) return 0;
-    return Math.max(selectedDeliveryZone.minCents - subtotalCents, 0);
-  }, [selectedDeliveryZone, subtotalCents]);
-
-  const deliveryFeeCents = useMemo(() => {
-    if (!selectedDeliveryZone) return 0;
-    if (selectedDeliveryZone.feeCents <= 0) return 0;
-    if (qualifiesForFreeDelivery) return 0;
-    return deliveryFeeOverride ? selectedDeliveryZone.feeCents : 0;
-  }, [selectedDeliveryZone, qualifiesForFreeDelivery, deliveryFeeOverride]);
-
-  const effectiveTotalCents = subtotalCents + deliveryFeeCents;
 
   const {
     name,
@@ -641,10 +598,8 @@ export default function CartDrawer() {
   };
 
   const handleSelectZone = (key: DeliveryZoneKey) => {
-    setDeliveryZoneKey(key);
-    setIsZoneOpen(false);
+    selectZone(key);
     setSubmitError(null);
-    zoneBtnRef.current?.focus();
   };
 
   const addDrinkToCart = (d: { id: string; name: string; price: number; imageKey: string; category: string }) => {
@@ -792,45 +747,6 @@ export default function CartDrawer() {
     };
   }, [openCart]);
 
-  useEffect(() => {
-    setDeliveryFeeOverride(false);
-  }, [deliveryZoneKey]);
-
-  useEffect(() => {
-    if (qualifiesForFreeDelivery) setDeliveryFeeOverride(false);
-  }, [qualifiesForFreeDelivery]);
-
-  useEffect(() => {
-    if (!isZoneOpen) return;
-
-    const onPointerDown = (ev: MouseEvent) => {
-      const t = ev.target as Node | null;
-      if (!t) return;
-
-      const btn = zoneBtnRef.current;
-      const panel = zonePanelRef.current;
-
-      if (btn && btn.contains(t)) return;
-      if (panel && panel.contains(t)) return;
-
-      setIsZoneOpen(false);
-    };
-
-    const onKeyDown = (ev: KeyboardEvent) => {
-      if (ev.key !== "Escape") return;
-      ev.preventDefault();
-      setIsZoneOpen(false);
-      zoneBtnRef.current?.focus();
-    };
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [isZoneOpen]);
 
   useEffect(() => {
     let mounted = true;
