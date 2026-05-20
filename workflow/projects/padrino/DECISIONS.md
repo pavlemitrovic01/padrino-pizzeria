@@ -437,3 +437,126 @@ Ne oslanjati se na fallback argument safeNumber za env-var-derived stringove.
 **STATUS pri deprekaciji:** ACTIVE — B4.1 DONE (2026-05-12). Code fix deployed.
 Vercel env vars BANKART_CALLBACK_MAX_SKEW_SECONDS=300 i
 BANKART_STATUS_MIN_INTERVAL_SECONDS=15 ostavljeni kao belt-and-suspenders.
+
+---
+
+## 2026-05-20 — G4 split recon (G4.0)
+
+**CILJ RECON-A:** CartDrawer.tsx je 1848 LOC (ne 1612 kako je ROADMAP tvrdio —
+G3 net delta bio je -319, pre-G3 stanje ~2167, post-G3 = 1848). Target "thin
+orchestrator ~300 LOC" zahteva ~1550 LOC ekstrakcije. Recon mapira sve sekcije
+i predlaže split u G4.1..G4.6 STRICT pod-batcheve.
+
+### Inventar sekcija
+
+**Module-level (linije 1–211, ukupno ~211 LOC)**
+
+| Linijski opseg | Sadržaj | Predlog ekstrakcije |
+|----------------|---------|---------------------|
+| 1–37 | imports | ostaje (CartDrawer imports) |
+| 39–45 | declare global ImportMetaEnv | ostaje |
+| 47–84 | types: MenuItemData, DrawerView, BankartOrderPaymentStatus, BankartOrderStatusResponse, BankartReturnStorage | → bankartReturnStorage.ts |
+| 86–107 | constants: BANKART_RETURN_STORAGE_KEY, BANKART_PAYMENTJS_NUMBER_DIV_ID, BANKART_PAYMENTJS_CVV_DIV_ID, BANKART_PAYMENTJS_POLISH_CSS | returnStorage const → bankartReturnStorage.ts; paymentJS consts → useBankartPaymentJs.ts |
+| 109–122 | fn isPaymentStatusValue, fn isFinalPaymentStatusValue | → bankartReturnStorage.ts |
+| 124–208 | fn getBankartReturnParams, readBankartReturnStorage, writeBankartReturnStorage, clearBankartReturnStorage, cleanBankartReturnUrl | → bankartReturnStorage.ts |
+| 210 | type PizzaVariantsMap | → useCatalogData.ts |
+
+**Komponenta body (linije 212–1402, ~1191 LOC)**
+
+| Linijski opseg | LOC | Sadržaj | Predlog ekstrakcije |
+|----------------|-----|---------|---------------------|
+| 213–234 | 22 | useCart() destructure (20 cart context values) | ostaje u CartDrawer |
+| 236–251 | 16 | BTN_*/CARD/ROW/PHONE_* string constants | ostaje (inline style tokens, low priority) |
+| 253–274 | 22 | 10 field useState + 10 trim derivatives | → useCheckoutForm |
+| 276–312 | 37 | 7 useMemo validations (isNameValid .. isExpYearValid) | → useCheckoutForm |
+| 314–327 | 14 | PaymentJS state: env flags, refs, ready/loading/error | → useBankartPaymentJs |
+| 329–341 | 13 | handleSetPaymentMethod, handleBillingCityChange, handleBillingPostcodeChange, touched refs | → useBankartPaymentJs (handlers) + useCheckoutForm (touched refs) |
+| 345–372 | 28 | zone state + submit state + ALL success* states + successCopied | → useDeliveryZone (zone) + useSuccessState (success*) + useOrderSubmission (submit*) |
+| 374–376 | 3 | useEffect: successCopied reset on orderId change | → useSuccessState |
+| 378–385 | 8 | useEffect: unmount cleanup (timers + paymentJs.dispose) | → useSuccessState |
+| 387–415 | 29 | useEffect: checkout defaults loader (supabase site_settings) | → useCheckoutForm |
+| 417–534 | 118 | useEffect: Bankart PaymentJS init (NAGY — style injection, focus handlers, active flag) | → useBankartPaymentJs **[LOCK]** |
+| 536–560 | 25 | fn copySuccessOrderId (clipboard + fallback) | → useSuccessState |
+| 562–623 | 62 | fn applySuccessUiState (payment status → UI strings mapping) | → useSuccessState (exposed for submitOrder) **[LOCK]** |
+| 625–638 | 14 | fn fetchBankartOrderStatus (fetch /api/bankart-order-status) | → useSuccessState |
+| 640–658 | 19 | catalog state + bankartHandledRef + bankartStatusTimerRef | → useCatalogData (catalog) + useSuccessState (bankartRefs) |
+| 660–698 | 39 | sauceIdSet, setPizzaSizeSafe, totalItems, subtotalCents useMemos | → useCatalogData (sauceIdSet/setPizzaSizeSafe) + useDeliveryZone (totalItems/subtotalCents) |
+| 699–727 | 29 | canSubmit, selectedDeliveryZone, qualifiesForFreeDelivery, missingToFreeDelivery, deliveryFeeCents, effectiveTotalCents | → useDeliveryZone |
+| 729–745 | 17 | canConfirmOrder (complex cross-domain boolean) | ostaje ili → useOrderSubmission |
+| 747–892 | 146 | shouldValidate flags (11) + error strings (12) + invalidFieldLabels + validationHint | → useCheckoutForm |
+| 894–910 | 17 | backToCart, resetSuccessState | backToCart ostaje; resetSuccessState → useSuccessState |
+| 912–968 | 57 | handleCloseDrawer, handleGoToMenu, handleSelectZone, addDrinkToCart | closeDrawer/GoToMenu ostaje; handleSelectZone → useDeliveryZone; addDrinkToCart → useCatalogData |
+| 970–988 | 19 | useEffect: isOpen → reset all state | ostaje ili refaktoriše uz hook.reset() calls |
+| 990–1098 | 109 | useEffect: Bankart return URL + status polling loop **[NAJOPASNIJA SEKCIJA]** | → useSuccessState **[LOCK, FULL BANKART SMOKE REQUIRED]** |
+| 1100–1138 | 39 | useEffect: deliveryFeeOverride reset (x2) + zone click-outside | → useDeliveryZone |
+| 1140–1213 | 74 | useEffect: catalog loader (supabase menu_items, pizza variants, drinks) | → useCatalogData |
+| 1215–1402 | 188 | proceedToCheckout, submitOrder (176 LOC), onSubmitOrder | proceedToCheckout ostaje; submitOrder → useOrderSubmission (ili ostaje) **[LOCK]** |
+
+**JSX render (linije 1404–1848, ~445 LOC)**
+
+| Linijski opseg | LOC | Sadržaj | Predlog ekstrakcije |
+|----------------|-----|---------|---------------------|
+| 1404–1408 | 5 | isOpen early return + derived labels | ostaje |
+| 1409–1463 | 55 | drawer chrome + header (KORPA/Plaćanje/Porudžbina + close/back buttons) | ostaje u CartDrawer |
+| 1464–1480 | 17 | view="success" → `<CartDrawerSuccessView>` (ALREADY EXTRACTED) | ostaje |
+| 1482–1779 | 298 | view="checkout" inline JSX (zone picker, payment method toggle, BillingFields, CardFields, napomena, submit button) | → `<CheckoutView>` NEW component **[LOCK]** |
+| 1782–1811 | 30 | view="cart" → `<CartView>` (ALREADY EXTRACTED) | ostaje |
+| 1814–1843 | 30 | cart footer (Ukupno + Poruči + Nazad na meni) | ostaje |
+| 1844–1848 | 5 | closing tags | ostaje |
+
+### Split predlog
+
+Redosled: od najmanjeg rizika ka najvećem (nezavisni moduli → stateful hooks → Bankart-touching hooks).
+
+| Batch | Naslov | Novi fajlovi | Delta LOC (CartDrawer) | Bankart dodir | Smoke scope |
+|-------|--------|-------------|------------------------|---------------|-------------|
+| G4.1 | Bankart helpers → `src/lib/` | `src/lib/bankartReturnStorage.ts` | ~−95 | TypeRef only (no behavior) | typecheck + build |
+| G4.2 | `useCheckoutForm` | `src/hooks/cart/useCheckoutForm.ts` | ~−240 | NE | checkout form display + validation UX |
+| G4.3 | `useDeliveryZone` | `src/hooks/cart/useDeliveryZone.ts` | ~−110 | NE (delivery fee, ne payment) | zone picker UI + delivery rules |
+| G4.4 | `useBankartPaymentJs` | `src/hooks/cart/useBankartPaymentJs.ts` | ~−150 | DA (PaymentJS init + controller ref) | card checkout → Bankart test-mode checkout |
+| G4.5 | `useSuccessState` + Bankart return | `src/hooks/cart/useSuccessState.ts` | ~−255 | DA — NAJOPASNIJA SEKCIJA | Bankart test-mode card redirect → return URL → status polling |
+| G4.6 | `useCatalogData` + `CheckoutView` | `src/hooks/cart/useCatalogData.ts`, `src/components/cart/CheckoutView.tsx` | ~−370 | DA (checkout contains payment fields) | full golden-path + both payment methods |
+
+**Predviđeni LOC nakon svakog batch-a:**
+G4.0 → 1848 | G4.1 → ~1753 | G4.2 → ~1513 | G4.3 → ~1403 | G4.4 → ~1253 | G4.5 → ~998 | G4.6 → ~628
+
+**NAPOMENA — LOC target realism:** ROADMAP-ov "~300 LOC" je dostižan SAMO ako se i `submitOrder` (176 LOC) ekstrahuje i/ili BTN_*/CARD/ROW konstante premeste. Nakon G4.1–G4.6, realan minimum je **~550–650 LOC**. Thin orchestrator sa ~300 LOC zahteva dodatan G4.7 (useOrderSubmission ekstrakcija + konstante). Pavle odlučuje nakon G4.6 rezultata.
+
+### Rizici po batchu
+
+**G4.1 (bankartReturnStorage.ts)** — nizak rizik.
+- `readBankartReturnStorage` poziva `toSafeInt` iz `src/lib/money.ts`. Import chain: bankartReturnStorage → money.ts. Proveriti da nema circular dep (money.ts ne importuje CartDrawer).
+- `BankartOrderStatusResponse` type se koristi i u useSuccessState (G4.5) — mora biti re-exportovan.
+
+**G4.2 (useCheckoutForm)** — srednji rizik.
+- Hook vraća ~30 vrednosti (10 field settera + 10 trims + 7 validity flags + 12 errors + 11 shouldValidate flags + validation hint). Proporcionalan interfejs — čitljiv ali glomazan.
+- `submitOrder` (G4.6 ili ostaje) referentira 17+ vrednosti iz ovog hooka. API hook-a mora ostati stabilan između G4.2 i G4.6.
+- `billingCityTouchedRef` i `billingPostcodeTouchedRef` su `useRef` — moraju biti unutar hooka, ne u CartDrawer.
+
+**G4.3 (useDeliveryZone)** — srednji rizik.
+- `deliveryFeeCents` i `effectiveTotalCents` ulaze u submit payload. Ako hook promeni logiku, submit greši.
+- `zoneBtnRef` i `zonePanelRef` su DOM refs koji se koriste u JSX. Hook ih mora vraćati kao mutable refs.
+- click-outside useEffect za zone dropdown: event listeneri na `document` — mora imati cleanup i ne sme interferirati sa drugim event listenerima.
+
+**G4.4 (useBankartPaymentJs)** — VISOK rizik.
+- `paymentJsControllerRef` se koristi u `submitOrder` (tokenize) + `handleCloseDrawer` (dispose) + `isOpen` reset effect. Mora biti eksponovan iz hooka kao `ref` objekat (ne vrednost) da bi CartDrawer i submitOrder mogli direktno pristupiti kontroleru bez re-renderinga.
+- Init useEffect (118 LOC): deps su `[isOpen, view, paymentMethod, paymentJsFeatureEnabled, paymentJsPublicKey]`. `isOpen` i `view` dolaze iz CartDrawer — hook ih prima kao props/params. Promeniti dep listu na prethodni zahteva eksplicitne parametre hooka.
+- BANKART_PAYMENTJS_POLISH_CSS inline u useEffect (22 linije CSS-a): ove linije se ubacuju u `<style>` tag. Moraju ostati uz init effect.
+- Smoke: puna Bankart test-mode kartica checkout je OBAVEZNA za G4.4 close.
+
+**G4.5 (useSuccessState)** — VISOK rizik — NAJOPASNIJA EKSTRAKCIJA.
+- `applySuccessUiState` se poziva iz DVA mesta: unutar Bankart return useEffect (useSuccessState scope) I iz `submitOrder` (CartDrawer scope). Mora biti eksponovan iz hooka, a submitOrder mora je pozvati. Coupling je intentionalan — treba paźiti da ne dođe do stale closure.
+- Bankart return useEffect (109 LOC): poziva `openCart` (iz useCart) i `applySuccessUiState` i `clearBankartReturnStorage` (iz G4.1 lib). Hook prima `openCart` kao param. Dep lista `[openCart]` mora ostati stabilna.
+- Status polling timer (`bankartStatusTimerRef`): shared između return effect i unmount cleanup. Mora ostati unutar hooka scope-a.
+- `bankartReturnHandledRef`: mora biti `useRef(false)` unutar hooka da ostane stabilan između renderinga.
+- Smoke: OBAVEZNA puna Bankart test-mode checkout sa card redirect → return na /checkout/success URL → otvorena korpa sa status polling.
+
+**G4.6 (useCatalogData + CheckoutView)** — VISOK rizik.
+- `CheckoutView` prima ~25 props (sve checkout state vrednosti). Tačan prop interfejs mora biti određen iz finalnog stanja CartDrawer.tsx posle G4.1–G4.5.
+- `submitOrder` ako ostaje u CartDrawer: i dalje referentira ~20+ vrednosti iz različitih hookova. Mora biti definisat unutar komponente da bi closure bio svež pri svakom render-u.
+- `useCatalogData` loader koristi supabase direktno — ima isti `active` flag pattern kao checkout defaults loader. Mora imati cleanup.
+- Smoke: full golden-path E2E (cart → checkout → submit) + oba payment methoda.
+
+### Tracking napomena
+
+G4.5 je najopasniji batch — jedini koji direktno dotiče Bankart return URL handling i status polling (real-money post-payment flow). Svaki G4.x batch koji ima "DA" Bankart dodir zahteva Pavle-ov ručni Bankart test-mode checkout pre /close-a. Ne preskakati smoke ni kada agentic build zelenuje.

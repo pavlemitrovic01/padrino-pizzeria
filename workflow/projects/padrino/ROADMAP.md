@@ -5,7 +5,9 @@
 **Refactor-to-9 program — Faza G (CartDrawer rebuild) IN PROGRESS.** Faze
 A–F DONE; G1 DONE 2026-05-20; G2 DONE 2026-05-20; G3 DONE 2026-05-20
 (CartView SHA d2ae678 — item list / qty / addons / sauces / drinks extracted;
-CartDrawer 1898→1612 LOC). Next: G4 CartDrawer → thin orchestrator (~300 LOC).
+CartDrawer net −319 LOC, post-G3 = 1848 LOC [ROADMAP stale note "1898→1612" korigovana G4.0]).
+G4.0 DONE 2026-05-20 (recon — G4.1..G4.6 split drafted in DECISIONS).
+Next: G4.1 — Extract bankartReturnStorage helpers.
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -126,8 +128,14 @@ self-score = **8.5** even with 1–8 all met.
 |----|--------|------|----------|-------|
 | G1 | Extract `CheckoutForm` (customer fields + validation) | STRICT | 2-3h | **DONE 2026-05-20 (SHA 12574ce).** Lock zone. Browser smoke live checkout each step. |
 | G2 | Extract `PaymentSection` (Bankart PaymentJS lifecycle) | STRICT | 3-4h | **DONE 2026-05-20.** G2.1 BillingFields (SHA 453c9a7, 7 props) + G2.2 CardFields (SHA 8ecd75d, 20 props). PaymentSection fully extracted. Init useEffect + tokenize stay in CartDrawer (deferred per recon §4). |
-| G3 | Extract `CartView` (item list / qty) | STRICT | 2h | **DONE 2026-05-20 (SHA d2ae678).** Lock zone. CartView.tsx NEW 362 LOC, 26 props; CartDrawer 1898→1612 LOC. drinksScrollRef moved to CartView-internal (react-hooks/refs v7.0.1). |
-| G4 | CartDrawer → thin orchestrator (~300 LOC) | STRICT | 2h | Final assembly; full checkout smoke. |
+| G3 | Extract `CartView` (item list / qty) | STRICT | 2h | **DONE 2026-05-20 (SHA d2ae678).** Lock zone. CartView.tsx NEW 362 LOC, 26 props; CartDrawer net −319 LOC → 1848 LOC (ROADMAP stale "1612" korigovana G4.0). |
+| G4.0 | CartDrawer structural recon | STRICT | — | **DONE 2026-05-20.** No code change. Inventoried 1848 LOC, proposed G4.1..G4.6 split. Drift fix (stale LOC note). Full split + risks in DECISIONS 2026-05-20. |
+| G4.1 | Extract `src/lib/bankartReturnStorage.ts` (helpers, types) | STRICT | 30min | Planned. Module-level pure fns + types → lib. No component state change. Delta ~−95 LOC. Smoke: typecheck + build only. |
+| G4.2 | Extract `useCheckoutForm` | STRICT | 1h | Planned. 10 fields + trims + 7 validations + errors + shouldValidate + validation hint + checkout defaults loader. Delta ~−240 LOC. |
+| G4.3 | Extract `useDeliveryZone` | STRICT | 1h | Planned. Zone state + computed (totalItems/subtotalCents/deliveryFee) + click-outside + reset effects. Delta ~−110 LOC. |
+| G4.4 | Extract `useBankartPaymentJs` | STRICT | 1-2h | Planned. PaymentJS init lifecycle (118 LOC effect) + state + controller ref. Delta ~−150 LOC. Smoke: full Bankart test-mode checkout. |
+| G4.5 | Extract `useSuccessState` (Bankart return) | STRICT | 1-2h | Planned. Success display state + applySuccessUiState + Bankart return URL + status polling (NAJOPASNIJA). Delta ~−255 LOC. Smoke: Bankart redirect → return URL → polling. |
+| G4.6 | Extract `useCatalogData` + `CheckoutView` | STRICT | 2-3h | Planned. Catalog loader + pizza variants + drinks. CheckoutView component (298 LOC checkout JSX). Delta ~−370 LOC. Final CartDrawer ~550-650 LOC (not 300 — see DECISIONS 2026-05-20 note). |
 
 ## Upcoming — Faza H (Admin monoliths)
 
