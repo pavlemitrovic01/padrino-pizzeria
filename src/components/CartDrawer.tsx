@@ -31,6 +31,7 @@ import { SmartCartImage, SmartMiniAddonImage } from "./CartDrawerImage";
 import { CartDrawerSuccessView } from "./CartDrawerSuccessView";
 import CheckoutForm from "./CheckoutForm";
 import BillingFields from "./BillingFields";
+import CardFields from "./CardFields";
 import {
   DELIVERY_ZONES,
   DEFAULT_BILLING_CITY,
@@ -1720,127 +1721,28 @@ export default function CartDrawer() {
                               billingPostcodeError={billingPostcodeError}
                             />
 
-                            <div className="mt-4 space-y-4 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.02)_100%)] p-4 shadow-[0_24px_56px_rgba(0,0,0,0.22)] backdrop-blur-xl">
-                              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-extrabold text-white/90">Sigurna Bankart polja</div>
-                                    <div className="mt-1 text-xs leading-relaxed text-white/60">
-                                      {paymentJsRequested
-                                        ? "Kupac ostaje na sajtu, a broj kartice i CVV se unose kroz zaštićena Bankart polja."
-                                        : paymentJsMissingKey
-                                          ? "Payment.js je uključen, ali nedostaje public integration key — koristiće se fallback redirect tek kada key bude dodat."
-                                          : "Trenutno je aktivan fallback redirect flow. Payment.js će se koristiti kada bude uključen u env-u."}
-                                    </div>
-                                  </div>
-
-                                  <div className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-200">
-                                    Bankart
-                                  </div>
-                                </div>
-                              </div>
-
-                              {paymentJsRequested ? (
-                                <>
-                                  <style>{BANKART_PAYMENTJS_POLISH_CSS}</style>
-
-                                  <div className="grid gap-3 sm:grid-cols-2">
-                                    <div>
-                                      <label className="mb-2 block text-sm font-semibold text-white/80">Email</label>
-                                      <input
-                                        value={customerEmail}
-                                        onChange={(e) => setCustomerEmail(e.target.value)}
-                                        type="email"
-                                        autoComplete="email"
-                                        className={[
-                                          "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                          customerEmailError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                        ].join(" ")}
-                                        placeholder="npr. ime@domen.com"
-                                      />
-                                      {customerEmailError ? <div className="mt-1 text-xs font-medium text-red-300">{customerEmailError}</div> : null}
-                                    </div>
-
-                                    <div>
-                                      <label className="mb-2 block text-sm font-semibold text-white/80">Vlasnik kartice</label>
-                                      <input
-                                        value={cardholder}
-                                        onChange={(e) => setCardholder(e.target.value)}
-                                        autoComplete="cc-name"
-                                        className={[
-                                          "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                          cardholderError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                        ].join(" ")}
-                                        placeholder="Ime i prezime sa kartice"
-                                      />
-                                      {cardholderError ? <div className="mt-1 text-xs font-medium text-red-300">{cardholderError}</div> : null}
-                                    </div>
-                                  </div>
-
-                                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                                    <div className="mb-3 flex items-center justify-between gap-3">
-                                      <div className="text-sm font-extrabold text-white/90">Detalji kartice</div>
-                                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Secure entry</div>
-                                    </div>
-
-                                    <div>
-                                      <label className="mb-2 block text-sm font-semibold text-white/80">Broj kartice</label>
-                                      <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
-                                        <div id={BANKART_PAYMENTJS_NUMBER_DIV_ID} className="w-full" />
-                                      </div>
-                                    </div>
-
-                                    <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_140px]">
-                                      <div>
-                                        <label className="mb-2 block text-sm font-semibold text-white/80">Mesec</label>
-                                        <input
-                                          value={expMonth}
-                                          onChange={(e) => setExpMonth(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-                                          inputMode="numeric"
-                                          autoComplete="cc-exp-month"
-                                          className={[
-                                            "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                            expMonthError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                          ].join(" ")}
-                                          placeholder="MM"
-                                        />
-                                        {expMonthError ? <div className="mt-1 text-xs font-medium text-red-300">{expMonthError}</div> : null}
-                                      </div>
-                                      <div>
-                                        <label className="mb-2 block text-sm font-semibold text-white/80">Godina</label>
-                                        <input
-                                          value={expYear}
-                                          onChange={(e) => setExpYear(e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
-                                          inputMode="numeric"
-                                          autoComplete="cc-exp-year"
-                                          className={[
-                                            "p-input border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                            expYearError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                          ].join(" ")}
-                                          placeholder="YY ili YYYY"
-                                        />
-                                        {expYearError ? <div className="mt-1 text-xs font-medium text-red-300">{expYearError}</div> : null}
-                                      </div>
-                                      <div>
-                                        <label className="mb-2 block text-sm font-semibold text-white/80">CVV</label>
-                                        <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-within:border-[#f2b400]/40 focus-within:ring-2 focus-within:ring-[#f2b400]/20">
-                                          <div id={BANKART_PAYMENTJS_CVV_DIV_ID} className="w-full" />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-white/55">
-                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Bankart iframe polja</span>
-                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Broj kartice i CVV se ne čuvaju u našem frontend-u</span>
-                                  </div>
-
-                                  {paymentJsLoading ? <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/60">Učitavam sigurna Bankart polja…</div> : null}
-                                  {paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsInitError}</div> : null}
-                                  {paymentJsStateError && !paymentJsInitError ? <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{paymentJsStateError}</div> : null}
-                                </>
-                              ) : null}
-                            </div>
+                            <CardFields
+                              paymentJsRequested={paymentJsRequested}
+                              paymentJsMissingKey={paymentJsMissingKey}
+                              paymentJsLoading={paymentJsLoading}
+                              paymentJsInitError={paymentJsInitError}
+                              paymentJsStateError={paymentJsStateError}
+                              customerEmail={customerEmail}
+                              cardholder={cardholder}
+                              expMonth={expMonth}
+                              expYear={expYear}
+                              onCustomerEmailChange={(v) => setCustomerEmail(v)}
+                              onCardholderChange={(v) => setCardholder(v)}
+                              onExpMonthChange={(v) => setExpMonth(v)}
+                              onExpYearChange={(v) => setExpYear(v)}
+                              customerEmailError={customerEmailError}
+                              cardholderError={cardholderError}
+                              expMonthError={expMonthError}
+                              expYearError={expYearError}
+                              numberDivId={BANKART_PAYMENTJS_NUMBER_DIV_ID}
+                              cvvDivId={BANKART_PAYMENTJS_CVV_DIV_ID}
+                              polishCss={BANKART_PAYMENTJS_POLISH_CSS}
+                            />
                           </>
                         ) : null}
                       </div>
