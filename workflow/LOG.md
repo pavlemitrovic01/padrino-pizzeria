@@ -5,6 +5,26 @@
 
 ---
 
+## G4.4 — 2026-05-21 — Extract useBankartPaymentJs hook → src/hooks/cart/ — DONE
+
+**Tier:** STRICT
+**SHA:** 20a05f0 (batch) / [merge SHA]
+**Branch:** batch/g4.4-use-bankart-payment-js
+**Files (2):**
+  - src/hooks/cart/useBankartPaymentJs.ts — NEW; 204 LOC; custom React hook; 3 named exports (BANKART_PAYMENTJS_NUMBER_DIV_ID, BANKART_PAYMENTJS_CVV_DIV_ID, BANKART_PAYMENTJS_POLISH_CSS) + useBankartPaymentJs hook; takes {isOpen, view, paymentMethod}; returns 7 values: paymentJsRequested/MissingKey/Ready/Loading/InitError/ControllerRef/resetPaymentJs; owns: 3 useState + 1 useRef + 1 useEffect (117 LOC init effect with createBankartPaymentJs async chain, style objects, focus/blur listeners, cleanup); inline `import.meta.env as {...}` cast for VITE_BANKART_PAYMENTJS_PUBLIC_KEY/ENABLED (no ambient declare needed)
+  - src/components/CartDrawer.tsx — LOCK; 1459 → 1310 LOC (net −149, recon predicted ~−150 — favorable variance); deleted: 3 module-level constants (CSS template 22 LOC + 2 ID consts) + 8 lines state/flags block (paymentJsPublicKey/FeatureEnabled/Requested/MissingKey/ControllerRef/Ready/Loading/InitError) + 2 lines paymentJs dispose from unmount cleanup + 117 LOC init useEffect + 5 lines handleCloseDrawer reset block + 5 lines isOpen reset block; added: useBankartPaymentJs + 3 constants imports + 9-LOC hook destructure + 2× resetPaymentJs() calls; removed unused imports: createBankartPaymentJs, BankartPaymentJsController (was used only for inferred local var tip), envFlagEnabled (was only for paymentJsFeatureEnabled which moved to hook)
+**Verify:**
+  build:     PASS(machine) — exit 0, 6.89s, 2195 modules
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 184/184, 16 files
+  vercel:    PASS(human) — Bankart test-mode transaction completed successfully on preview deploy
+  manual:    PASS(human) — Pavle confirmed: "sve pass, nigde nema error, transakcija prosla" (full Bankart card flow via admin-priced 0.10 EUR test item)
+**SCOPE_DRIFT:** NONE — exact 2-file match EXPECTED-FILES
+**LESSONS:** unchanged (7/7 cap; observation: react-hooks/set-state-in-effect rule fires only on FIRST setState in branch within complex effects — 1 disable-next-line needed vs 6 originally added, 5 removed; not promoted to lesson — tooling quirk, documented inline)
+**Notes:** Largest single hook extraction so far (init effect 117 LOC byte-identical relocation incl. style objects + focus/blur listeners + Promise chain). LOC delta hits recon target on the nose (−149 vs predicted −150). Pre-execution Opus audit caught 3 plan corrections: (1) hook return reduced from 9 to 7 values — paymentJsPublicKey/FeatureEnabled unused outside hook init; (2) hook call lokacija on line ~139 (replace state block) not ~507 (before useCheckoutForm); (3) BankartPaymentJsController + envFlagEnabled would be unused in CartDrawer post-extraction → preemptively removed. Cost-saving smoke: production admin /admin/menu cena na 0.10 EUR → preview-mode test card transaction → vraćena cena. Real Bankart payment.js flow verifikovan (number+CVV iframes render + tokenize + redirect/success). Hook input semantics byte-identical (5 deps array preserved: isOpen/view/paymentMethod/paymentJsFeatureEnabled/paymentJsPublicKey).
+
+---
+
 ## G4.3 — 2026-05-21 — Extract useDeliveryZone hook → src/hooks/cart/ — DONE
 
 **Tier:** STRICT
