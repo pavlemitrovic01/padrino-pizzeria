@@ -8,7 +8,7 @@
 ## G4.4 — 2026-05-21 — Extract useBankartPaymentJs hook → src/hooks/cart/ — DONE
 
 **Tier:** STRICT
-**SHA:** 20a05f0 (batch) / [merge SHA]
+**SHA:** 20a05f0 (batch) / 56c7a8c (merge → main)
 **Branch:** batch/g4.4-use-bankart-payment-js
 **Files (2):**
   - src/hooks/cart/useBankartPaymentJs.ts — NEW; 204 LOC; custom React hook; 3 named exports (BANKART_PAYMENTJS_NUMBER_DIV_ID, BANKART_PAYMENTJS_CVV_DIV_ID, BANKART_PAYMENTJS_POLISH_CSS) + useBankartPaymentJs hook; takes {isOpen, view, paymentMethod}; returns 7 values: paymentJsRequested/MissingKey/Ready/Loading/InitError/ControllerRef/resetPaymentJs; owns: 3 useState + 1 useRef + 1 useEffect (117 LOC init effect with createBankartPaymentJs async chain, style objects, focus/blur listeners, cleanup); inline `import.meta.env as {...}` cast for VITE_BANKART_PAYMENTJS_PUBLIC_KEY/ENABLED (no ambient declare needed)
