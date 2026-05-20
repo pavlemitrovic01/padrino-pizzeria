@@ -30,6 +30,7 @@ import {
 import { SmartCartImage, SmartMiniAddonImage } from "./CartDrawerImage";
 import { CartDrawerSuccessView } from "./CartDrawerSuccessView";
 import CheckoutForm from "./CheckoutForm";
+import BillingFields from "./BillingFields";
 import {
   DELIVERY_ZONES,
   DEFAULT_BILLING_CITY,
@@ -1709,44 +1710,15 @@ export default function CartDrawer() {
 
                         {paymentMethod === "card" ? (
                           <>
-                            {paymentJsRequested ? (
-                              <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm">
-                                <div className="mb-3 flex items-center justify-between gap-3">
-                                  <div className="text-sm font-extrabold text-white/90">Podaci za naplatu</div>
-                                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">Billing</div>
-                                </div>
-
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">Grad</label>
-                                    <input
-                                      value={billingCity}
-                                      onChange={(e) => handleBillingCityChange(e.target.value)}
-                                      className={[
-                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                        billingCityError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                      ].join(" ")}
-                                      placeholder="Budva"
-                                    />
-                                    {billingCityError ? <div className="mt-1 text-xs font-medium text-red-300">{billingCityError}</div> : null}
-                                  </div>
-                                  <div>
-                                    <label className="mb-2 block text-sm font-semibold text-white/80">Poštanski broj</label>
-                                    <input
-                                      value={billingPostcode}
-                                      onChange={(e) => handleBillingPostcodeChange(e.target.value)}
-                                      inputMode="numeric"
-                                      className={[
-                                        "p-input border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-[#f2b400]/40 focus:ring-2 focus:ring-[#f2b400]/20 transition",
-                                        billingPostcodeError ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : "",
-                                      ].join(" ")}
-                                      placeholder="85310"
-                                    />
-                                    {billingPostcodeError ? <div className="mt-1 text-xs font-medium text-red-300">{billingPostcodeError}</div> : null}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : null}
+                            <BillingFields
+                              paymentJsRequested={paymentJsRequested}
+                              billingCity={billingCity}
+                              billingPostcode={billingPostcode}
+                              onBillingCityChange={handleBillingCityChange}
+                              onBillingPostcodeChange={handleBillingPostcodeChange}
+                              billingCityError={billingCityError}
+                              billingPostcodeError={billingPostcodeError}
+                            />
 
                             <div className="mt-4 space-y-4 rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.02)_100%)] p-4 shadow-[0_24px_56px_rgba(0,0,0,0.22)] backdrop-blur-xl">
                               <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
