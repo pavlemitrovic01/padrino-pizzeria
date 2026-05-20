@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G4.1 — Extract bankartReturnStorage helpers (2026-05-20, STRICT)
-**Sledeći:** G4.2 — Extract useCheckoutForm hook (STRICT)
+**Poslednji završen:** G4.2 — Extract useCheckoutForm hook (2026-05-20, STRICT)
+**Sledeći:** G4.3 — Extract useDeliveryZone hook (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -200,6 +200,16 @@
   CartDrawerSuccessView.tsx LOCK BankartOrderPaymentStatus dedup (F4.2 pattern);
   byte-identical relocation, no behavior change; Vercel Build Logs clean + smoke PASS;
   per-batch branch batch/g4.1-bankart-return-storage)
+- G4.2 (Extract useCheckoutForm hook → src/hooks/cart/) — DONE 2026-05-20
+  (STRICT; 2 fajla, +417/-251 LOC; SHA 98bb4ab / merge 49a533b;
+  src/hooks/cart/useCheckoutForm.ts NEW 352 LOC (11 input params → 30 returns:
+  10 fields/setters/trims + 7 useMemo validations + 12 errors + 11 shouldValidate
+  flags + 2 billing handlers + validation hint + supabase defaults loader effect);
+  CartDrawer.tsx LOCK 1729→1543 (net −186, predicted 1480-1530 — 13 LOC above ceiling
+  due to verbose destructure block 65 LOC vs estimate 33, cosmetic);
+  pre-flight false-start: /close invoked before execution, agent REFUSED + executed
+  correctly after re-confirmation; first src/hooks/cart/ module — directory established;
+  Vercel Build Logs clean + smoke PASS; per-batch branch batch/g4.2-use-checkout-form)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
@@ -234,7 +244,8 @@ G2.1 Extract BillingFields BillingFields.tsx,
 G2.2 Extract CardFields CardFields.tsx,
 G3 Extract CartView item list qty controls addons sauces drinks,
 G4.0 CartDrawer structural recon doc-only,
-G4.1 Extract bankartReturnStorage helpers src lib).
+G4.1 Extract bankartReturnStorage helpers src lib,
+G4.2 Extract useCheckoutForm hook src hooks cart).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

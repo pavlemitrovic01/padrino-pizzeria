@@ -5,6 +5,26 @@
 
 ---
 
+## G4.2 — 2026-05-20 — Extract useCheckoutForm hook → src/hooks/cart/ — DONE
+
+**Tier:** STRICT
+**SHA:** 98bb4ab (batch) / 49a533b (merge → main)
+**Branch:** batch/g4.2-use-checkout-form
+**Files (2):**
+  - src/hooks/cart/useCheckoutForm.ts — NEW; 352 LOC; custom React hook; 11 input params (submitAttempted, paymentMethod, paymentJsRequested/MissingKey/Loading/InitError/Ready, deliveryZoneKey, selectedDeliveryZone, qualifiesForFreeDelivery, deliveryFeeOverride); returns ~30 values (10 fields + 10 trims + 7 validities + 12 errors + 11 shouldValidate flags + 2 billing handlers + validation hint + invalidFieldLabels); owns: 10 useState (name/phone/address/orderNote/customerEmail/billingCity/billingPostcode/cardholder/expMonth/expYear), 7 useMemo validations, billingCity/PostcodeTouchedRef useRefs, checkout defaults supabase loader useEffect; imports supabase + toSiteSettingsCheckoutDefaults + formatFeeEurShort + DEFAULT_BILLING_CITY/POSTCODE + DeliveryZone/Key types
+  - src/components/CartDrawer.tsx — LOCK; 1729 → 1543 LOC (net −186); deleted: 10 fields + trims + 7 validations + 2 touched refs + 2 billing handlers + checkout defaults useEffect + 11 shouldValidate flags + 12 errors + invalidFieldLabels + shouldShowValidationHint + checkoutValidationHint; added: useCheckoutForm import + 65-LOC hook destructure block (one key per line for readability); removed unused imports: toSiteSettingsCheckoutDefaults, DEFAULT_BILLING_CITY, DEFAULT_BILLING_POSTCODE; invalidFieldLabels dropped from destructure (TS6133 — unused in CartDrawer, still computed internally for checkoutValidationHint)
+**Verify:**
+  build:     PASS(machine) — local exit 0, 7.59s; Vercel preview 23s, 2194 modules transformed
+  typecheck: PASS(machine) — exit 0 (re-verified at /close)
+  test:      PASS(machine) — 184/184, 16 files (re-verified at /close)
+  manual:    PASS(human) — Pavle "Mislim da treba close" post-Vercel-deploy
+  vercel:    PASS(human) — Build Logs clean, 2194 modules, 23s build
+**SCOPE_DRIFT:** NONE — exact 2-file match EXPECTED-FILES
+**LESSONS:** unchanged (7/7 cap; pure logic relocation = no new learning)
+**Notes:** Per-batch branch batch/g4.2-use-checkout-form merged main SHA 49a533b. First module in src/hooks/cart/ — directory established for G4.3 (useDeliveryZone) + G4.4 (useBankartPaymentJs) + G4.5 (useSuccessState). LOC variance: predicted target 1480-1530, actual 1543 (13 LOC above ceiling) — cause was destructure block 65 LOC (one key per line) vs recon estimate ~33 LOC; cosmetic, not behavioral; recon was conservative about destructure formatting. Pre-flight false-start: /close G4.2 invoked before G4.2 was executed; agent caught and REFUSED, then executed implementation correctly after Pavle confirmation. Hook takes 11 cross-cutting input params from CartDrawer state (paymentJS + delivery zone + submitAttempted) — coupling intentional, narrows after G4.3+G4.4 own their state.
+
+---
+
 ## G4.1 — 2026-05-20 — Extract bankartReturnStorage helpers → src/lib/ — DONE
 
 **Tier:** STRICT
