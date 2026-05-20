@@ -1,8 +1,7 @@
 import type { PaymentMethod } from "../context/CartContext";
 import { formatEUR } from "../lib/money";
 import { formatFeeEurShort } from "../lib/cartDrawerHelpers";
-
-type BankartOrderPaymentStatus = "pending" | "paid" | "failed" | "cancelled" | "refunded" | null;
+import type { BankartOrderPaymentStatus } from "../lib/bankartReturnStorage";
 
 type SuccessSummary = {
   totalCents: number;
