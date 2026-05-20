@@ -8,7 +8,7 @@
 ## G4.3 — 2026-05-21 — Extract useDeliveryZone hook → src/hooks/cart/ — DONE
 
 **Tier:** STRICT
-**SHA:** 8e35c58 (batch) / [merge SHA]
+**SHA:** 8e35c58 (batch) / 4265e11 (merge → main)
 **Branch:** batch/g4.3-use-delivery-zone
 **Files (2):**
   - src/hooks/cart/useDeliveryZone.ts — NEW; 158 LOC; custom React hook; takes items: CartItem[]; returns 16 values: deliveryZoneKey/isZoneOpen/setIsZoneOpen/deliveryFeeOverride/setDeliveryFeeOverride/selectZone/zoneBtnRef/zonePanelRef/totalItems/subtotalCents/selectedDeliveryZone/qualifiesForFreeDelivery/missingToFreeDeliveryCents/deliveryFeeCents/effectiveTotalCents; owns: 3 useState, 2 useRef, 6 useMemo, 3 useEffect (reset on zone change + reset when qualifies for free + click-outside/Escape panel)
