@@ -5,6 +5,26 @@
 
 ---
 
+## G4.5 — 2026-05-21 — Extract useSuccessState hook → src/hooks/cart/ — DONE
+
+**Tier:** STRICT (NAJOPASNIJI G4 batch — Bankart return URL + status polling)
+**SHA:** b7d989d (batch) / [merge SHA]
+**Branch:** batch/g4.5-use-success-state
+**Files (2):**
+  - src/hooks/cart/useSuccessState.ts — NEW; 334 LOC; custom React hook; takes {openCart, setView, setSubmitError} 3 callbacks; returns 16 values: 9 display state (successPaymentMethod/OrderId/PaymentStatus/Title/Subtitle/StatusNote/CheckingPayment/Copied/Summary) + 3 setters (PaymentMethod/Summary/CheckingPayment) + 4 actions (applySuccessUiState/resetSuccessState/copySuccessOrderId/closeBankartReturnFlow); owns: 9 useState + 3 useRef + 3 useEffect (successCopied reset on orderId change, unmount timer cleanup, Bankart return URL + polling loop 109 LOC with attempt cap + retry-after); module-level fetchBankartOrderStatus async fn (14 LOC); imports 6 from bankartReturnStorage (4 fns + 2 types + 2 storage helpers)
+  - src/components/CartDrawer.tsx — LOCK; 1310 → 1056 LOC (net −254, recon predicted ~−255 — TAČNO NA METU); deleted: successPaymentMethod state (line 109) + 8 success-* useState + successCopiedTimerRef + 2 useEffects (successCopied reset + unmount cleanup) + copySuccessOrderId fn (25 LOC) + applySuccessUiState fn (62 LOC) + fetchBankartOrderStatus fn (14 LOC) + 2 useRef (bankartReturnHandledRef + bankartStatusTimerRef) + resetSuccessState fn (9 LOC) + handleCloseDrawer 6 cleanup lines + Bankart return useEffect (109 LOC); added: useSuccessState import + 18-LOC hook destructure + closeBankartReturnFlow() call in handleCloseDrawer; removed unused imports: useRef, BankartOrderPaymentStatus type, plus 5 bankartReturnStorage symbols (clearBankartReturnStorage/cleanBankartReturnUrl/getBankartReturnParams/readBankartReturnStorage/isPaymentStatusValue/isFinalPaymentStatusValue/BankartOrderStatusResponse) — CartDrawer keeps writeBankartReturnStorage only
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.39s, 2197 modules
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 184/184, 16 files
+  vercel:    PASS(human) — Vercel preview build clean (23s, 2197 modules)
+  manual:    PASS(human) — Pavle confirmed Scenario A (card_redirect → return → paid): drawer auto-open, polling visible in Network, status transition "Provjeravamo uplatu" → "Uplata je uspješna", URL cleared, sessionStorage cleared
+**SCOPE_DRIFT:** NONE — exact 2-file match EXPECTED-FILES
+**LESSONS:** unchanged (7/7 cap; observation: react-hooks/set-state-in-effect rule does NOT fire in this hook's effects despite same patterns — inconsistent with G4.3 useDeliveryZone where same pattern fired; tooling quirk noted, not promoted)
+**Notes:** NAJOPASNIJI G4 batch — kompletan post-payment flow (Bankart hosted page → return URL → status polling loop sa retry-after sekunde i attempt cap 6+2 error). LOC delta target hit on the nose (−254 vs predicted −255). Pre-execution Opus audit + AskUserQuestion za hook scope (bankartReturn ops centralizacija). Hook input 3 callbacks (openCart/setView/setSubmitError) — sve stable refs (useState setters + memoized context fn). closeBankartReturnFlow encapsulates 3 ops (timer-clear + storage-clear + url-clean) replacing 6 lines in handleCloseDrawer. Bankart return useEffect deps `[openCart]` preserved (bankartReturnHandledRef guard prevents duplicate runs). applySuccessUiState 62 LOC byte-identical relocation (7 paymentStatus branchova). fetchBankartOrderStatus moved to module-level inside hook file (no React state needed). Post-G4.5 CartDrawer is 1056 LOC — last remaining G batch is G4.6 (useCatalogData + CheckoutView ~−370 LOC predicted) → final target ~550-650 LOC orchestrator. Pavle cost-saving smoke: admin /admin/menu cena na 0.10 EUR test item.
+
+---
+
 ## G4.4 — 2026-05-21 — Extract useBankartPaymentJs hook → src/hooks/cart/ — DONE
 
 **Tier:** STRICT
