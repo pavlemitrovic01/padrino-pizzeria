@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G3 — Extract CartView (2026-05-20, STRICT)
-**Sledeći:** G4 — CartDrawer → thin orchestrator (~300 LOC)
+**Poslednji završen:** G4.0 — CartDrawer structural recon (2026-05-20, STRICT)
+**Sledeći:** G4.1 — Extract bankartReturnStorage helpers (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -185,10 +185,14 @@
   per-batch branch batch/g2.2-card-fields)
 - G3 (Extract CartView — item list / qty / addons / sauces / drinks) — DONE 2026-05-20
   (STRICT; 2 fajla, +362/-286 LOC net; SHA d2ae678; CartView.tsx NEW (362 LOC);
-  CartDrawer.tsx LOCK 1898→1612 LOC; 26 props; gate at call site (view==="cart");
+  CartDrawer.tsx LOCK net −319 → 1848 LOC; 26 props; gate at call site (view==="cart");
   drinksScrollRef moved to CartView-internal useRef (react-hooks/refs v7.0.1 constraint);
   scroll restoration migrated to CartView click handlers; restoreDrinksScroll removed;
   Vercel Build Logs clean + smoke PASS; per-batch branch batch/g3-cart-view)
+- G4.0 (CartDrawer structural recon — doc-only) — DONE 2026-05-20
+  (STRICT recon; 2 fajla, +134/-3 LOC; SHA 7c42e40; DECISIONS.md full inventar
+  1848 LOC CartDrawer.tsx; G4.1..G4.6 split predlog sa risks; ROADMAP drift fix
+  "1898→1612" → "net −319, 1848"; realistic final LOC ~550-650 after G4.1-G4.6)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
@@ -221,7 +225,8 @@ G1 Extract CheckoutForm name/phone/address inputs,
 G2.0 G2 PaymentSection forensic recon (doc-only),
 G2.1 Extract BillingFields BillingFields.tsx,
 G2.2 Extract CardFields CardFields.tsx,
-G3 Extract CartView item list qty controls addons sauces drinks).
+G3 Extract CartView item list qty controls addons sauces drinks,
+G4.0 CartDrawer structural recon doc-only).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

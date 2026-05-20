@@ -5,6 +5,24 @@
 
 ---
 
+## G4.0 — 2026-05-20 — CartDrawer structural recon — DONE
+
+**Tier:** STRICT (recon-only, doc change)
+**SHA:** 7c42e40
+**Files (2):**
+  - workflow/projects/padrino/DECISIONS.md — +123 LOC; new section "2026-05-20 — G4 split recon (G4.0)"; full inventar 1848 LOC CartDrawer.tsx (7 module-level + 43 component-body sekcije); split predlog G4.1..G4.6 sa EXPECTED-FILES, LOC delta, Bankart smoke scope per batch; 3 high-risk coupling points dokumentovana (paymentJsControllerRef×4 sites, applySuccessUiState×2 callers, bankartStatusTimerRef shared)
+  - workflow/projects/padrino/ROADMAP.md — G4 single row razbit u G4.0 (DONE) + G4.1..G4.6 (Planned); Current Phase stale "1898→1612" korigovano u "net −319, post-G3 = 1848"; G4.6 LOC target realism noted (~550–650, not 300)
+**Verify:**
+  build:     PASS(machine) — exit 0, 11.33s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 16 files, 184 tests, exit 0
+  manual:    N/A (no code change; doc review confirmed by /close invocation)
+**SCOPE_DRIFT:** NONE — 2 fajla, exact match EXPECTED-FILES
+**LESSONS:** unchanged (7/7 cap)
+**Notes:** Pre-plan forensic recon (analogous to G2.0). Drift fix: G3 LOG recorded CartDrawer 1898→1612, ali wc -l shows 1848 post-G3 (G3 net delta −319 iz d2ae678 commit stat). "1898→1612" bio stale number u ROADMAP; korigovano. Realistic thin-orchestrator LOC after G4.1–G4.6 ≈ 550–650; optional G4.7 (useOrderSubmission) needed for true ~300 — Pavle decides after G4.6.
+
+---
+
 ## G3 — 2026-05-20 — Extract CartView (item list / qty controls / addons / sauces / drinks) — DONE
 
 **Tier:** STRICT

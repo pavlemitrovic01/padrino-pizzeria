@@ -129,7 +129,7 @@ self-score = **8.5** even with 1–8 all met.
 | G1 | Extract `CheckoutForm` (customer fields + validation) | STRICT | 2-3h | **DONE 2026-05-20 (SHA 12574ce).** Lock zone. Browser smoke live checkout each step. |
 | G2 | Extract `PaymentSection` (Bankart PaymentJS lifecycle) | STRICT | 3-4h | **DONE 2026-05-20.** G2.1 BillingFields (SHA 453c9a7, 7 props) + G2.2 CardFields (SHA 8ecd75d, 20 props). PaymentSection fully extracted. Init useEffect + tokenize stay in CartDrawer (deferred per recon §4). |
 | G3 | Extract `CartView` (item list / qty) | STRICT | 2h | **DONE 2026-05-20 (SHA d2ae678).** Lock zone. CartView.tsx NEW 362 LOC, 26 props; CartDrawer net −319 LOC → 1848 LOC (ROADMAP stale "1612" korigovana G4.0). |
-| G4.0 | CartDrawer structural recon | STRICT | — | **DONE 2026-05-20.** No code change. Inventoried 1848 LOC, proposed G4.1..G4.6 split. Drift fix (stale LOC note). Full split + risks in DECISIONS 2026-05-20. |
+| G4.0 | CartDrawer structural recon | STRICT | — | **DONE 2026-05-20 (SHA 7c42e40).** No code change. Inventoried 1848 LOC, proposed G4.1..G4.6 split. Drift fix (stale LOC note). Full split + risks in DECISIONS 2026-05-20. |
 | G4.1 | Extract `src/lib/bankartReturnStorage.ts` (helpers, types) | STRICT | 30min | Planned. Module-level pure fns + types → lib. No component state change. Delta ~−95 LOC. Smoke: typecheck + build only. |
 | G4.2 | Extract `useCheckoutForm` | STRICT | 1h | Planned. 10 fields + trims + 7 validations + errors + shouldValidate + validation hint + checkout defaults loader. Delta ~−240 LOC. |
 | G4.3 | Extract `useDeliveryZone` | STRICT | 1h | Planned. Zone state + computed (totalItems/subtotalCents/deliveryFee) + click-outside + reset effects. Delta ~−110 LOC. |
