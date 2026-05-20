@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G2.0 — G2 PaymentSection forensic recon (2026-05-20, LEAN)
-**Sledeći:** G2.1 — Extract BillingFields (STRICT) — see docs/g2-paymentsection-recon.md
+**Poslednji završen:** G2.1 — Extract BillingFields (2026-05-20, STRICT)
+**Sledeći:** G2.2 — Extract CardFields (STRICT) — see docs/g2-paymentsection-recon.md
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -171,12 +171,18 @@
   + G2.2 CardFields ~120 LOC; DOM IDs/CSS via props passing (constants stay in CartDrawer);
   L7 false-green risk documented — zero direct test coverage for PaymentSection JSX,
   smoke is only gate; persists G2 recon across session boundary)
+- G2.1 (Extract BillingFields — BillingFields.tsx) — DONE 2026-05-20
+  (STRICT; 2 fajla, +52/-38 LOC; SHA 453c9a7; BillingFields.tsx NEW (52 LOC);
+  CartDrawer.tsx LOCK (-38 LOC inline → <BillingFields /> call site); 7 props;
+  internal paymentJsRequested null-gate; byte-identical JSX from CartDrawer 1712-1749;
+  lock zone NETAKNUT (submit/tokenize/init useEffect/Bankart return); Vercel Build Logs
+  clean + smoke PASS; per-batch branch batch/g2.1-billing-fields)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-37 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+40 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -198,7 +204,10 @@ W7 F2 won't-execute reconciliation,
 F3 api/_shared/parsing.ts formalization,
 F4 Config seam module,
 F4.1 src/ Config seam mirror,
-F4.2 cartDrawerHelpers + publicBusinessSettings config dedup).
+F4.2 cartDrawerHelpers + publicBusinessSettings config dedup,
+G1 Extract CheckoutForm name/phone/address inputs,
+G2.0 G2 PaymentSection forensic recon (doc-only),
+G2.1 Extract BillingFields BillingFields.tsx).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

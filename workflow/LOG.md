@@ -5,6 +5,29 @@
 
 ---
 
+## G2.1 — 2026-05-20 — Extract BillingFields (Podaci za naplatu panel) — DONE
+
+**Tier:** STRICT
+**SHA:** 453c9a7
+**Files (2):**
+  - src/components/BillingFields.tsx — NEW; 52 LOC; 7-prop interface (paymentJsRequested/billingCity/billingPostcode/onBillingCityChange/onBillingPostcodeChange/billingCityError/billingPostcodeError); internal null-gate returns null when !paymentJsRequested; byte-identical JSX from CartDrawer 1712-1749
+  - src/components/CartDrawer.tsx — LOCK; -38 LOC inline replaced with `<BillingFields />` call site; import added line 33
+**Verify:**
+  build:     PASS(machine) — exit 0, 9.10s (local) + 7.81s (Vercel preview)
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 16 files, 184 tests, exit 0
+  manual:    PASS(human) — Pavle smoke: Vercel preview card mode → billing panel renders identically; empty billing → error display; valid billing → CardFields inline (G2.2 still inline)
+  vercel:    PASS(human) — Build Logs clean (tsc-b + vite build ✓ 7.81s, nema TS grešaka)
+**SCOPE_DRIFT:** none (2 fajla = exact EXPECTED-FILES)
+**LESSONS:** unchanged (7/7 cap; no new lesson — first-try, no surprises)
+**Notes:** Per-batch branch batch/g2.1-billing-fields → merged to main post-/close.
+  Lock zone CartDrawer.tsx NETAKNUT (submit/tokenize/paymentJS init useEffect/Bankart return stays).
+  Touched refs (billingCityTouchedRef/billingPostcodeTouchedRef) stay in CartDrawer via
+  wrapper handlers handleBillingCityChange/handleBillingPostcodeChange.
+  L7 false-green risk acknowledged — PaymentSection JSX zero test coverage; smoke is gate.
+
+---
+
 ## G2.0 — 2026-05-20 — G2 PaymentSection forensic recon — DONE
 
 **Tier:** LEAN
