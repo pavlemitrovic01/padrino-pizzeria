@@ -5,6 +5,34 @@
 
 ---
 
+## G3 — 2026-05-20 — Extract CartView (item list / qty controls / addons / sauces / drinks) — DONE
+
+**Tier:** STRICT
+**SHA:** d2ae678
+**Files (2):**
+  - src/components/CartView.tsx — NEW; 362 LOC; 26-prop interface (4 state + 12 handlers + 4 catalogs/sets + 5 CSS class constants); no top-level null-gate (gate at call site: view === "cart"); JSX body = CartDrawer lines 1805-2129 extracted; handles: empty state, items.map (item card + qty panel + addons + sauces + per-item drinks + note), multi-item drinks catalog; drinksScrollRef owned internally (useRef — see SCOPE_DRIFT notes)
+  - src/components/CartDrawer.tsx — LOCK; 1898 → 1612 LOC (−286); import CartView added; lines 1804-2130 replaced with <CartView /> call site (~30 lines); orphan imports removed (isStuffedCrustAddonName, stuffedCrustPriceForSize, SmartCartImage, SmartMiniAddonImage); restoreDrinksScroll removed; addDrinkToCart simplified (scroll logic moved to CartView); drinksScrollRef definition removed
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.55s, 2192 modules (local) + Vercel preview clean
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 16 files, 184 tests, exit 0
+  manual:    PASS(human) — Pavle smoke: cart UI fully functional on preview URL
+  vercel:    PASS(human) — Build Logs clean (2192 modules, nema TS grešaka)
+**SCOPE_DRIFT:** acknowledged (within 2-file boundary — no extra files; semantic drift in CartDrawer):
+  react-hooks/refs v7.0.1 (eslint-plugin-react-hooks) flags ref={props.someRef} pattern in
+  child components — "Cannot access refs during render." Fix: moved drinksScrollRef ownership
+  to CartView (useRef internal). Scroll restoration (restoreDrinksScroll double-RAF) migrated
+  into CartView Dodaj-drink click handlers. addDrinkToCart in CartDrawer simplified to pure
+  addToCart call. User-observable behavior identical (same double-RAF scroll preservation).
+  L8 candidate: not added — LESSONS at 7/7 cap, existing entries more broadly applicable.
+**LESSONS:** unchanged (7/7 cap)
+**Notes:** Per-batch branch batch/g3-cart-view; Vercel preview auto-deployed.
+  CartDrawer LOC progression: ~2293 (pre-G1) → ~2090 (post-G2) → 1612 (post-G3).
+  Lock zone CartDrawer.tsx: submit/tokenize/PaymentJS init useEffect/Bankart return NETAKNUTI.
+  G3 closes the cart-view pillar. Only G4 (CartDrawer → thin orchestrator ~300 LOC) remains in Faza G.
+
+---
+
 ## G2.2 — 2026-05-20 — Extract CardFields (Sigurna Bankart polja + PaymentJS UI) — DONE
 
 **Tier:** STRICT

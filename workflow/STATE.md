@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G2.2 — Extract CardFields (2026-05-20, STRICT)
-**Sledeći:** G3 — Extract CartView (STRICT)
+**Poslednji završen:** G3 — Extract CartView (2026-05-20, STRICT)
+**Sledeći:** G4 — CartDrawer → thin orchestrator (~300 LOC)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -183,12 +183,18 @@
   inline transforms preserved (R8); DOM IDs/CSS via props (R3/R4);
   G2 fully done (PaymentSection extracted); Vercel Build Logs clean + smoke PASS;
   per-batch branch batch/g2.2-card-fields)
+- G3 (Extract CartView — item list / qty / addons / sauces / drinks) — DONE 2026-05-20
+  (STRICT; 2 fajla, +362/-286 LOC net; SHA d2ae678; CartView.tsx NEW (362 LOC);
+  CartDrawer.tsx LOCK 1898→1612 LOC; 26 props; gate at call site (view==="cart");
+  drinksScrollRef moved to CartView-internal useRef (react-hooks/refs v7.0.1 constraint);
+  scroll restoration migrated to CartView click handlers; restoreDrinksScroll removed;
+  Vercel Build Logs clean + smoke PASS; per-batch branch batch/g3-cart-view)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-41 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+42 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -214,7 +220,8 @@ F4.2 cartDrawerHelpers + publicBusinessSettings config dedup,
 G1 Extract CheckoutForm name/phone/address inputs,
 G2.0 G2 PaymentSection forensic recon (doc-only),
 G2.1 Extract BillingFields BillingFields.tsx,
-G2.2 Extract CardFields CardFields.tsx).
+G2.2 Extract CardFields CardFields.tsx,
+G3 Extract CartView item list qty controls addons sauces drinks).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

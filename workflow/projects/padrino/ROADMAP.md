@@ -3,9 +3,10 @@
 ## Current Phase
 
 **Refactor-to-9 program — Faza G (CartDrawer rebuild) IN PROGRESS.** Faze
-A–F DONE; G1 DONE 2026-05-20; G2 DONE 2026-05-20 (G2.1 BillingFields SHA
-453c9a7 + G2.2 CardFields SHA 8ecd75d — PaymentSection fully extracted).
-Next: G3 Extract CartView (STRICT). Authoritative batch count + status: STATE.md.
+A–F DONE; G1 DONE 2026-05-20; G2 DONE 2026-05-20; G3 DONE 2026-05-20
+(CartView SHA d2ae678 — item list / qty / addons / sauces / drinks extracted;
+CartDrawer 1898→1612 LOC). Next: G4 CartDrawer → thin orchestrator (~300 LOC).
+Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
 decisions, Safety net — see STATE.md / LOG.md for the authoritative
@@ -125,7 +126,7 @@ self-score = **8.5** even with 1–8 all met.
 |----|--------|------|----------|-------|
 | G1 | Extract `CheckoutForm` (customer fields + validation) | STRICT | 2-3h | **DONE 2026-05-20 (SHA 12574ce).** Lock zone. Browser smoke live checkout each step. |
 | G2 | Extract `PaymentSection` (Bankart PaymentJS lifecycle) | STRICT | 3-4h | **DONE 2026-05-20.** G2.1 BillingFields (SHA 453c9a7, 7 props) + G2.2 CardFields (SHA 8ecd75d, 20 props). PaymentSection fully extracted. Init useEffect + tokenize stay in CartDrawer (deferred per recon §4). |
-| G3 | Extract `CartView` (item list / qty) | STRICT | 2h | Lock zone. |
+| G3 | Extract `CartView` (item list / qty) | STRICT | 2h | **DONE 2026-05-20 (SHA d2ae678).** Lock zone. CartView.tsx NEW 362 LOC, 26 props; CartDrawer 1898→1612 LOC. drinksScrollRef moved to CartView-internal (react-hooks/refs v7.0.1). |
 | G4 | CartDrawer → thin orchestrator (~300 LOC) | STRICT | 2h | Final assembly; full checkout smoke. |
 
 ## Upcoming — Faza H (Admin monoliths)
