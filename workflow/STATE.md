@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G2.1 — Extract BillingFields (2026-05-20, STRICT)
-**Sledeći:** G2.2 — Extract CardFields (STRICT) — see docs/g2-paymentsection-recon.md
+**Poslednji završen:** G2.2 — Extract CardFields (2026-05-20, STRICT)
+**Sledeći:** G3 — Extract CartView (STRICT)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -177,12 +177,18 @@
   internal paymentJsRequested null-gate; byte-identical JSX from CartDrawer 1712-1749;
   lock zone NETAKNUT (submit/tokenize/init useEffect/Bankart return); Vercel Build Logs
   clean + smoke PASS; per-batch branch batch/g2.1-billing-fields)
+- G2.2 (Extract CardFields — CardFields.tsx) — DONE 2026-05-20
+  (STRICT; 2 fajla, +176/-121 LOC; SHA 8ecd75d; CardFields.tsx NEW (153 LOC);
+  CartDrawer.tsx LOCK (-121 LOC inline); 20 props; no top-level null-gate;
+  inline transforms preserved (R8); DOM IDs/CSS via props (R3/R4);
+  G2 fully done (PaymentSection extracted); Vercel Build Logs clean + smoke PASS;
+  per-batch branch batch/g2.2-card-fields)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-40 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+41 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -207,7 +213,8 @@ F4.1 src/ Config seam mirror,
 F4.2 cartDrawerHelpers + publicBusinessSettings config dedup,
 G1 Extract CheckoutForm name/phone/address inputs,
 G2.0 G2 PaymentSection forensic recon (doc-only),
-G2.1 Extract BillingFields BillingFields.tsx).
+G2.1 Extract BillingFields BillingFields.tsx,
+G2.2 Extract CardFields CardFields.tsx).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

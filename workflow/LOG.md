@@ -5,6 +5,29 @@
 
 ---
 
+## G2.2 — 2026-05-20 — Extract CardFields (Sigurna Bankart polja + PaymentJS UI) — DONE
+
+**Tier:** STRICT
+**SHA:** 8ecd75d
+**Files (2):**
+  - src/components/CardFields.tsx — NEW; 153 LOC; 20-prop interface (5 PaymentJS flags + 4 form values + 4 setters + 4 errors + 3 DOM IDs/CSS); no top-level null-gate (status panel always renders); inline expMonth/expYear transforms preserved in JSX (R8); byte-identical from CartDrawer 1723-1843
+  - src/components/CartDrawer.tsx — LOCK; -121 LOC inline replaced with `<CardFields />` call site (22 lines); import added; DOM IDs/CSS passed as props (CartDrawer = source-of-truth)
+**Verify:**
+  build:     PASS(machine) — exit 0, 8.63s (local) + 5.74s (Vercel preview)
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 16 files, 184 tests, exit 0
+  manual:    PASS(human) — Pavle smoke: status panel always visible, PaymentJS UI gated by paymentJsRequested, email/cardholder/expFields work, iframe divs present, CSS injection
+  vercel:    PASS(human) — Build Logs clean (tsc-b + vite build ✓ 5.74s, nema TS grešaka)
+**SCOPE_DRIFT:** none (2 fajla = exact EXPECTED-FILES; git diff --name-only HEAD~1..HEAD)
+**LESSONS:** unchanged (7/7 cap; no new lesson — first-try, no surprises)
+**Notes:** Per-batch branch batch/g2.2-card-fields → merged to main post-/close.
+  G2 fully extracted: G2.1 BillingFields + G2.2 CardFields DONE.
+  PaymentJS init useEffect + tokenize stay in CartDrawer (correct — per G2.0 recon §4 deferred).
+  Lock zone CartDrawer.tsx NETAKNUT (submit/tokenize/init useEffect/Bankart return).
+  CartDrawer LOC: ~2293 (pre-G1) → ~2090 net (G1 -44, G2.1 -38, G2.2 -121 = -203 LOC).
+
+---
+
 ## G2.1 — 2026-05-20 — Extract BillingFields (Podaci za naplatu panel) — DONE
 
 **Tier:** STRICT
