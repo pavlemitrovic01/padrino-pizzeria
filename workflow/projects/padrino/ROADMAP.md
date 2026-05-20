@@ -8,8 +8,9 @@ A–F DONE; G1 DONE 2026-05-20; G2 DONE 2026-05-20; G3 DONE 2026-05-20
 CartDrawer net −319 LOC, post-G3 = 1848 LOC [ROADMAP stale note "1898→1612" korigovana G4.0]).
 G4.0 DONE 2026-05-20 (recon — G4.1..G4.6 split drafted in DECISIONS).
 G4.1 DONE 2026-05-20 (SHA f5cd267). G4.2 DONE 2026-05-20 (SHA 98bb4ab).
-G4.3 DONE 2026-05-21 (SHA 8e35c58). CartDrawer now 1459 LOC.
-Next: G4.4 — Extract useBankartPaymentJs (HIGH RISK — Bankart test-mode smoke REQUIRED).
+G4.3 DONE 2026-05-21 (SHA 8e35c58). G4.4 DONE 2026-05-21 (SHA 20a05f0,
+Bankart test-mode card transaction PASS). CartDrawer now 1310 LOC.
+Next: G4.5 — Extract useSuccessState (NAJOPASNIJA — Bankart return URL + status polling).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -135,7 +136,7 @@ self-score = **8.5** even with 1–8 all met.
 | G4.1 | Extract `src/lib/bankartReturnStorage.ts` (helpers, types) | STRICT | 30min | **DONE 2026-05-20 (SHA f5cd267, merge 666fe4b).** 3 fajla, +145/−132 LOC; bankartReturnStorage.ts NEW 133 LOC (11 exports); CartDrawer.tsx LOCK 1848→1730 (net −118, favorable variance); CartDrawerSuccessView.tsx dedup BankartOrderPaymentStatus (F4.2 pattern); byte-identical relocation; Vercel Build Logs clean + smoke PASS. |
 | G4.2 | Extract `useCheckoutForm` | STRICT | 1h | **DONE 2026-05-20 (SHA 98bb4ab, merge 49a533b).** 2 fajla, +417/−251 LOC; useCheckoutForm.ts NEW 352 LOC (11 input params → 30 returns); CartDrawer.tsx LOCK 1729→1543 (net −186, 13 LOC above predicted ceiling — verbose destructure block, cosmetic); supabase defaults loader effect + 12 errors + 11 shouldValidate flags all moved; first src/hooks/cart/ module; Vercel Build Logs clean + smoke PASS. |
 | G4.3 | Extract `useDeliveryZone` | STRICT | 1h | **DONE 2026-05-21 (SHA 8e35c58).** 2 fajla, +177/−103 LOC; useDeliveryZone.ts NEW 158 LOC (16 returns: zone state + 6 useMemos + click-outside + reset effects); CartDrawer.tsx LOCK 1543→1459 (net −84); Vercel Build Logs clean + smoke PASS. |
-| G4.4 | Extract `useBankartPaymentJs` | STRICT | 1-2h | Planned. PaymentJS init lifecycle (118 LOC effect) + state + controller ref. Delta ~−150 LOC. Smoke: full Bankart test-mode checkout. |
+| G4.4 | Extract `useBankartPaymentJs` | STRICT | 1-2h | **DONE 2026-05-21 (SHA 20a05f0).** 2 fajla, +222/−167 LOC; useBankartPaymentJs.ts NEW 204 LOC (7 returns + 3 constants exports); CartDrawer.tsx LOCK 1459→1310 (net −149, recon predicted ~−150); init useEffect 117 LOC byte-identical relocation; Bankart test-mode card transaction PASS; Opus pre-execution audit corrected 3 plan points. |
 | G4.5 | Extract `useSuccessState` (Bankart return) | STRICT | 1-2h | Planned. Success display state + applySuccessUiState + Bankart return URL + status polling (NAJOPASNIJA). Delta ~−255 LOC. Smoke: Bankart redirect → return URL → polling. |
 | G4.6 | Extract `useCatalogData` + `CheckoutView` | STRICT | 2-3h | Planned. Catalog loader + pizza variants + drinks. CheckoutView component (298 LOC checkout JSX). Delta ~−370 LOC. Final CartDrawer ~550-650 LOC (not 300 — see DECISIONS 2026-05-20 note). |
 
