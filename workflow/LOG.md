@@ -8,7 +8,7 @@
 ## G4.5 — 2026-05-21 — Extract useSuccessState hook → src/hooks/cart/ — DONE
 
 **Tier:** STRICT (NAJOPASNIJI G4 batch — Bankart return URL + status polling)
-**SHA:** b7d989d (batch) / [merge SHA]
+**SHA:** b7d989d (batch) / 1a69111 (merge → main)
 **Branch:** batch/g4.5-use-success-state
 **Files (2):**
   - src/hooks/cart/useSuccessState.ts — NEW; 334 LOC; custom React hook; takes {openCart, setView, setSubmitError} 3 callbacks; returns 16 values: 9 display state (successPaymentMethod/OrderId/PaymentStatus/Title/Subtitle/StatusNote/CheckingPayment/Copied/Summary) + 3 setters (PaymentMethod/Summary/CheckingPayment) + 4 actions (applySuccessUiState/resetSuccessState/copySuccessOrderId/closeBankartReturnFlow); owns: 9 useState + 3 useRef + 3 useEffect (successCopied reset on orderId change, unmount timer cleanup, Bankart return URL + polling loop 109 LOC with attempt cap + retry-after); module-level fetchBankartOrderStatus async fn (14 LOC); imports 6 from bankartReturnStorage (4 fns + 2 types + 2 storage helpers)
