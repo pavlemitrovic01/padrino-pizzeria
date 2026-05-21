@@ -5,6 +5,31 @@
 
 ---
 
+## I2.1 — 2026-05-21 — CORS env-driven allowlist — admin handlers — DONE
+
+**Tier:** STANDARD
+**SHA:** 3979261
+**Branch:** batch/i2.1-cors-admin-handlers
+**Files (8):**
+  - api/admin-me.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"GET",allowHeaders:"content-type, x-requested-with, authorization"})
+  - api/admin-orders.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"GET",allowHeaders:"content-type, x-requested-with, authorization"})
+  - api/admin-settings.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"GET, POST",allowHeaders:"content-type, x-requested-with, authorization"})
+  - api/admin-users.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"GET, POST",allowHeaders:"content-type, x-requested-with, authorization"})
+  - api/admin-menu.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"GET, POST",allowHeaders:"content-type, x-requested-with, authorization"})
+  - api/admin-menu-image.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"POST",allowHeaders:"content-type, x-requested-with, authorization"})
+  - api/admin-update-order-status.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"POST",allowHeaders:"content-type, x-requested-with, authorization"})
+  - api/admin-resend-telegram.ts — DELETE local setCors (8 LOC); +import applyCors; applyCors(req,res,{methods:"POST",allowHeaders:"content-type, x-requested-with, authorization"})
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.11s (local) + Vercel Build Logs PASS (iad1)
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files
+  manual:    PASS(human) — Vercel Build Logs clean; Pavle: "pass"
+**SCOPE_DRIFT:** none — exact 8 EXPECTED-FILES
+**LESSONS:** unchanged
+**Notes:** All 8 admin handlers now use env-driven CORS allowlist via api/_shared/cors.ts. allowHeaders extended to include `authorization` (Bearer token auth required on all admin routes). headerString preserved in all files (still used by getBearerToken). admin-me setCors had different header order ("authorization, content-type") — normalized to standard form. CORS allowlist coverage complete: all 11 handlers (3 from I2 + 8 from I2.1) now use applyCors().
+
+---
+
 ## I2 — 2026-05-21 — CORS env-driven allowlist — LOCK handlers — DONE
 
 **Tier:** STRICT

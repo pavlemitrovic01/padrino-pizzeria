@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** I2 — CORS allowlist LOCK handlers (2026-05-21, STRICT)
-**Sledeći:** I2.1 — CORS allowlist admin handlers migration
+**Poslednji završen:** I2.1 — CORS allowlist admin handlers (2026-05-21, STANDARD)
+**Sledeći:** I3 — Logger server sink
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -254,13 +254,17 @@
   reflect-any-origin closed u create-order/bankart-order-status/telegram-new-order;
   ALLOWED_ORIGINS=https://padrinobudva.com set u Vercel All Environments;
   scope corrected pre-plan: 11 handlera, split I2+I2.1; 22 new test cases, 206 total)
-- **Faza I — IN PROGRESS** (I2.1 sledeći)
+- I2.1 (CORS allowlist — admin handlers) — DONE 2026-05-21
+  (STANDARD; 8 fajlova, +16/-80; SHA 3979261;
+  reflect-any-origin closed u svih 8 admin handlera; allowHeaders includes authorization;
+  CORS coverage complete: svih 11 handlera sada koriste applyCors())
+- **Faza I — IN PROGRESS** (I3 sledeći)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-47 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+48 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -296,7 +300,8 @@ G4.4 Extract useBankartPaymentJs hook src hooks cart,
 G4.5 Extract useSuccessState hook src hooks cart,
 G4.6 Extract useCatalogData hook + CheckoutView component,
 I1 RLS admin_users membership policy,
-I2 CORS allowlist LOCK handlers).
+I2 CORS allowlist LOCK handlers,
+I2.1 CORS allowlist admin handlers).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
