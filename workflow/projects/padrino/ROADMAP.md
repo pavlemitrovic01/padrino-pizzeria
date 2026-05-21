@@ -5,7 +5,9 @@
 **Refactor-to-9 program — Faze A–G DONE ✓. Faza I (Security + observability) IN PROGRESS.**
 I1 DONE 2026-05-21 (SHA 88c3967): hardkodovani email uklonjen iz orders RLS,
 membership-based admin_users policy applied to production — F2 iz B14 audita CLOSED.
-Next: I2 — CORS allowlist (env-driven origins, STANDARD, ~1h).
+I2 DONE 2026-05-21 (SHA 5b0ff6c): reflect-any-origin closed u 3 LOCK handlers via
+api/_shared/cors.ts; ALLOWED_ORIGINS env var set u Vercel.
+Next: I2.1 — CORS allowlist admin handlers migration (STANDARD, ~1h).
 Faza H (Admin monoliths: H1 AdminOrders 1193 LOC, H2 AdminMenu 1368 LOC) upcoming —
 will follow Faza I or interleave per Pavle's decision.
 Authoritative batch count + status: STATE.md.
@@ -149,7 +151,7 @@ self-score = **8.5** even with 1–8 all met.
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
 | I1 | F2 RLS — admin_users membership policy | STRICT | 1-2h | **DONE 2026-05-21 (SHA 88c3967).** DROP 3 allow_admin_*_by_email policies + CREATE allow_self_read on admin_users + CREATE 3 EXISTS-based membership policies on orders. Live verification PASS + admin smoke PASS. pavlemitrovic01@gmail.com out of DB. |
-| I2 | CORS allowlist — LOCK handlers (env-driven origins) | STRICT | 1.5h | **IN PROGRESS.** Scope corrected 2026-05-21 /plan: same antipattern in 11 handlers, split into I2 (LOCK 3) + I2.1 (admin 8). NEW api/_shared/cors.ts + cors.test.ts. Migrated create-order.ts, bankart-order-status.ts, telegram-new-order.ts. |
+| I2 | CORS allowlist — LOCK handlers (env-driven origins) | STRICT | 1.5h | **DONE 2026-05-21 (SHA 5b0ff6c).** Scope corrected 2026-05-21 /plan: same antipattern in 11 handlers, split into I2 (LOCK 3) + I2.1 (admin 8). NEW api/_shared/cors.ts + cors.test.ts. Migrated create-order.ts, bankart-order-status.ts, telegram-new-order.ts. |
 | I2.1 | CORS allowlist — admin handlers migration | STANDARD | 1h | Reuse api/_shared/cors.ts (from I2). Migrate 8 admin handlers (admin-orders, admin-menu, admin-menu-image, admin-me, admin-settings, admin-resend-telegram, admin-update-order-status, admin-users). |
 | I3 | Logger server sink (`api/log`) | STANDARD | 2h | Flush error-level ring buffer to server. Supersedes long-term "Logger server endpoint". |
 | I4 | Build SHA in monitoring init | LEAN | 30min | git SHA for prod debug. Supersedes long-term "Build version SHA". |

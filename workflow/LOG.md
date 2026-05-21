@@ -5,6 +5,29 @@
 
 ---
 
+## I2 — 2026-05-21 — CORS env-driven allowlist — LOCK handlers — DONE
+
+**Tier:** STRICT
+**SHA:** 5b0ff6c
+**Branch:** batch/i2-cors-allowlist
+**Files (6):**
+  - api/_shared/cors.ts — NEW; 84 LOC; applyCors(req, res, opts) reads ALLOWED_ORIGINS env (CSV) + VERCEL_URL preview auto-injection; parseAllowedOrigins() exported; ApplyCorsOpts: {methods, allowHeaders?}; headerValue private case-insensitive helper
+  - api/_shared/cors.test.ts — NEW; 22 cases; parseAllowedOrigins (8: undefined/empty/single/multi/whitespace/dedupe/trailing-slash/double-comma) + applyCors (11: match/disallow/no-origin/empty-env/Vary/methods/headers/custom-headers/max-age/CI-key) + preview (3: VERCEL_URL allowed/non-preview-blocked/no-VERCEL_URL)
+  - api/create-order.ts — LOCK; DELETE local setCors (8 LOC); +import applyCors; setCors→applyCors(req,res,{methods:"POST"})
+  - api/bankart-order-status.ts — LOCK; DELETE local setCors (8 LOC) + headerString/headerStringCI (14 LOC, dead after setCors removal); +import applyCors; setCors→applyCors(req,res,{methods:"GET"})
+  - api/telegram-new-order.ts — LOCK; DELETE local setCors (12 LOC); +import applyCors; setCors→applyCors(req,res,{methods:"POST",allowHeaders:"content-type,x-requested-with,x-telegram-secret"})
+  - workflow/projects/padrino/ROADMAP.md — I2 scope corrected (STANDARD→STRICT, 1h→1.5h) + I2.1 row added
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.83s (local) + Vercel Build Logs PASS (iad1, 15:04:08)
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files (+22 new cors.test.ts cases)
+  manual:    PASS(human) — Vercel Build Logs clean; Pavle: "Sve ide normalno, pass"
+**SCOPE_DRIFT:** none — exact 6 EXPECTED-FILES
+**LESSONS:** unchanged
+**Notes:** Scope corrected pre-plan (grep revealed reflect-any-origin in 11 handlers, ROADMAP said 1). Split C: I2 (LOCK 3, STRICT) + I2.1 (admin 8, STANDARD). Vercel env ALLOWED_ORIGINS=https://padrinobudva.com set (All Environments). bankart-order-status headerString/headerStringCI removed as dead code (setCors was sole caller). telegram headerStringCI preserved (x-telegram-secret runtime check). ALLOWED_ORIGINS pre-existed only in supabase Deno edge function (out of scope).
+
+---
+
 ## I1 — 2026-05-21 — RLS admin_users membership policy — DONE
 
 **Tier:** STRICT (live production schema migration)
