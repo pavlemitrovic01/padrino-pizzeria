@@ -5,6 +5,25 @@
 
 ---
 
+## I3 — 2026-05-21 — Logger server sink — DONE
+
+**Tier:** STANDARD
+**SHA:** 8f9a0a8
+**Branch:** batch/i3-logger-server-sink
+**Files (2):**
+  - api/log.ts — NEW; POST-only serverless; applyCors default; accepts ClientLogEvent[] (max 20); emits via console.error/console.warn → Vercel Runtime Logs; no auth, no DB write; normalizeEvent validates ts/level/message shape; returns {ok:true, received:N}
+  - src/lib/logger.ts — MODIFIED; +import getApiBase from ./apiBase; +flushToServer(evt) fire-and-forget (void fetch().catch()); log() calls flushToServer(evt) for error-level only after localStorage pushEvent
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.24s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files
+  manual:    NIJE POKRENUTO — STANDARD tier (Vercel smoke not required; Vercel Build Logs awaited)
+**SCOPE_DRIFT:** none — exact 2 EXPECTED-FILES
+**LESSONS:** unchanged
+**Notes:** Error-level client events now reach Vercel Runtime Logs automatically (fire-and-forget POST to /api/log). localStorage ring buffer unchanged — both channels active. api/log.ts follows same handler pattern as other api/ files (applyCors, isPlainObject from _shared/parsing.js, json helper). flushToServer uses void fetch().catch() to prevent unhandled rejection. version:"unknown" in initClientMonitoring stays — I4 will inject git SHA there.
+
+---
+
 ## I2.2 — 2026-05-21 — Hobby plan slot reclaim — DONE
 
 **Tier:** STRICT
