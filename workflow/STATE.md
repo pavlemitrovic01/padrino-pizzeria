@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** I3 — Logger server sink (2026-05-21, STANDARD)
-**Sledeći:** I4 — Build SHA in monitoring init
+**Poslednji završen:** I4 — Build SHA in monitoring init (2026-05-21, LEAN)
+**Sledeći:** H1 — AdminOrders split (Faza H)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -258,17 +258,25 @@
   (STANDARD; 8 fajlova, +16/-80; SHA 3979261;
   reflect-any-origin closed u svih 8 admin handlera; allowHeaders includes authorization;
   CORS coverage complete: svih 11 handlera sada koriste applyCors())
+- I2.2 (Hobby plan slot reclaim) — DONE 2026-05-21
+  (STRICT; 6 fajlova, +0/-0 net (2 delete + 2 modify + 2 client update); SHA 5b9d716;
+  admin-menu-image→admin-menu (?op=image) + admin-resend-telegram→admin-orders (?op=resend-telegram);
+  count: 13→10; L8 added)
 - I3 (Logger server sink) — DONE 2026-05-21
   (STANDARD; 2 fajla, +161/-2; SHA 8f9a0a8;
   NEW api/log.ts; error-level events fire-and-forget → Vercel Runtime Logs;
-  localStorage ring buffer nepromijenjen; I4 sledeći — build SHA u monitoring)
-- **Faza I — IN PROGRESS** (I4 sledeći)
+  localStorage ring buffer nepromijenjen)
+- I4 (Build SHA in monitoring init) — DONE 2026-05-21
+  (LEAN; 3 fajla; SHA da8145b;
+  VERCEL_GIT_COMMIT_SHA → VITE_BUILD_SHA → initClientMonitoring version;
+  exit criteria #5 closed; Faza I DONE ✓)
+- **Faza I — DONE** ✓
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-49 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+51 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -306,7 +314,9 @@ G4.6 Extract useCatalogData hook + CheckoutView component,
 I1 RLS admin_users membership policy,
 I2 CORS allowlist LOCK handlers,
 I2.1 CORS allowlist admin handlers,
-I3 Logger server sink).
+I2.2 Hobby plan slot reclaim,
+I3 Logger server sink,
+I4 Build SHA in monitoring init).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

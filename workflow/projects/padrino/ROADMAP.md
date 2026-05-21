@@ -13,9 +13,9 @@ I2.2 DONE 2026-05-21 (SHA 5b9d716): Vercel Hobby 12-function limit hit (I3 dodao
 funkciju); konsolidacija admin-menu-image→admin-menu (?op=image) +
 admin-resend-telegram→admin-orders (?op=resend-telegram); count: 13→10 (post-I3/I4 merge biće 11).
 I3 DONE 2026-05-21 (SHA 8f9a0a8): error-level client events now flush to Vercel Runtime Logs via api/log.ts (fire-and-forget).
-Next: I4 — Build SHA in monitoring init (LEAN, ~30min).
-Faza H (Admin monoliths: H1 AdminOrders 1193 LOC, H2 AdminMenu 1368 LOC) upcoming —
-will follow Faza I or interleave per Pavle's decision.
+I4 DONE 2026-05-21 (SHA da8145b): VERCEL_GIT_COMMIT_SHA → VITE_BUILD_SHA → initClientMonitoring version field. Exit criteria #5 closed. Faza I DONE ✓.
+Next: H1 — AdminOrders split (Faza H).
+Faza H (Admin monoliths: H1 AdminOrders 1193 LOC, H2 AdminMenu 1368 LOC) — IN PROGRESS.
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -145,14 +145,14 @@ self-score = **8.5** even with 1–8 all met.
 | G4.5 | Extract `useSuccessState` (Bankart return) | STRICT | 1-2h | **DONE 2026-05-21 (SHA b7d989d).** 2 fajla, +356/−276 LOC; useSuccessState.ts NEW 334 LOC (16 returns: 9 state + 3 setters + 4 actions); CartDrawer.tsx LOCK 1310→1056 (net −254, recon target ~−255 hit on the nose); applySuccessUiState 62 LOC + Bankart return useEffect 109 LOC byte-identical relocation; Bankart card_redirect → return → paid polling smoke PASS. |
 | G4.6 | Extract `useCatalogData` + `CheckoutView` | STRICT | 2-3h | **DONE 2026-05-21 (SHA 17025f4).** 3 fajla, +700/−448; useCatalogData.ts NEW 136 LOC (4 catalog state slots + sauceIdSet/setPizzaSizeSafe/addDrinkToCart, exports PizzaVariantsMap, useCart() interno, onErrorRef pattern); CheckoutView.tsx NEW 429 LOC (~40 props, flat per konvencija, deliveryZoneKey: DeliveryZoneKey|""); CartDrawer.tsx LOCK 946→688 (net −258); Vercel Build Logs clean + full golden-path smoke PASS. |
 
-## Upcoming — Faza H (Admin monoliths)
+## Faza H — IN PROGRESS (Admin monoliths)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
 | H1 | AdminOrders split (table/detail/export/grouping → lib) | STANDARD | 2-3h | 1193 LOC; reuses F1 parsing lib. |
 | H2 | AdminMenu split (editor/image-upload/list) | STANDARD | 2-3h | 1368 LOC. |
 
-## Faza I — IN PROGRESS (Security + observability → 9)
+## Faza I — DONE ✓ (Security + observability → 9)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
@@ -161,7 +161,7 @@ self-score = **8.5** even with 1–8 all met.
 | I2.1 | CORS allowlist — admin handlers migration | STANDARD | 1h | **DONE 2026-05-21 (SHA 3979261).** Reuse api/_shared/cors.ts (from I2). Migrated 8 admin handlers; allowHeaders includes authorization (Bearer token). CORS allowlist coverage complete: all 11 handlers. |
 | I2.2 | Hobby plan slot reclaim — consolidate admin handlers | STRICT | 1h | **DONE 2026-05-21 (SHA 5b9d716).** Vercel Hobby limit 12 functions hit (I3 pushed to 13). admin-menu-image→admin-menu (?op=image) + admin-resend-telegram→admin-orders (?op=resend-telegram). Count: 13→10. L8 added. |
 | I3 | Logger server sink (`api/log`) | STANDARD | 2h | **DONE 2026-05-21 (SHA 8f9a0a8).** NEW api/log.ts; error-level events fire-and-forget to Vercel Runtime Logs via console.error; no DB, no auth; localStorage ring buffer unchanged. |
-| I4 | Build SHA in monitoring init | LEAN | 30min | git SHA for prod debug. Supersedes long-term "Build version SHA". |
+| I4 | Build SHA in monitoring init | LEAN | 30min | **DONE 2026-05-21 (SHA da8145b).** VERCEL_GIT_COMMIT_SHA → Vite define → VITE_BUILD_SHA → initClientMonitoring version. Exit criteria #5 closed. |
 
 ## Upcoming — Faza J (Template crystallization)
 
