@@ -24,7 +24,7 @@
 
 **Poslednji završen:** G4.6 — Extract useCatalogData + CheckoutView (2026-05-21, STRICT)
 **Sledeći:** G4.7 ili H1 — Pavle odlučuje
-**Aktivan batch:** NONE
+**Aktivan batch:** I1 — RLS admin_users membership policy (STRICT)
 **Blocker:** NONE
 
 **Faza progres:**

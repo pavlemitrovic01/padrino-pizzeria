@@ -2,8 +2,12 @@
 
 **Batch:** B14 | **Tier:** STRICT | **Date:** 2026-05-16
 **Source:** B3 schema baseline `supabase/migrations/20260510230628_remote_schema.sql`
-**Status:** AUDIT-ONLY. Remediation SQL is proposed below — NOT applied.
-Remediation requires a separate STRICT execution batch with live DB verification first.
+**Status:** F1 RESOLVED (B14.1, 2026-05-17) — F2 RESOLVED (I1, 2026-05-21)
+
+| Finding | Resolution | Migration | Date |
+|---------|-----------|-----------|------|
+| F1 CRITICAL — admin_users no RLS + GRANT ALL anon | APPLIED: RLS enabled + anon/authenticated grants revoked | `20260517000000_enable_rls_admin_users.sql` | 2026-05-17 |
+| F2 MEDIUM — orders policies hardcode personal email | APPLIED: Option A — membership-based EXISTS check via admin_users | `20260521120000_orders_rls_admin_membership.sql` | 2026-05-21 |
 
 ---
 
