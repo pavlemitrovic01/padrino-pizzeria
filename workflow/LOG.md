@@ -5,6 +5,25 @@
 
 ---
 
+## H1 — 2026-05-21 — AdminOrders lib extraction — DONE
+
+**Tier:** STANDARD
+**SHA:** 916e017
+**Branch:** batch/h1-admin-orders-lib
+**Files (2):**
+  - src/lib/adminOrdersLib.ts — NEW 565 LOC; exports: OrderStatus/OrderRow/ParsedItem/MetaItem + 3 response types; ADMIN_API_BASE/PAYMENT_STATUS_MAP/STATUS_LABEL/BUSINESS_TIMEZONE consts; 28 pure helper fns (safeInt/safeDateTime/isEurOrder/parseOrderItems/pillClass/paymentPill/groupOrdersByBusinessDay/generateCsvExport/buildOrderSummary etc.) + 3 API call fns (adminFetchOrders/adminUpdateOrderStatus/adminResendTelegram)
+  - src/components/AdminOrders.tsx — MODIFIED 1165→637 LOC (net −528); imports from adminOrdersLib; React hooks/state/JSX unchanged byte-for-byte; copyOrder ostaje u komponenti (setToastById dep)
+**Verify:**
+  build:     PASS(machine) — exit 0, 9.09s (local) + Vercel READY (iad1, 11 funkcija)
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files
+  manual:    NIJE POKRENUTO — STANDARD tier
+**SCOPE_DRIFT:** none — exact 2 EXPECTED-FILES
+**LESSONS:** unchanged
+**Notes:** Pure extraction — nulta promena ponašanja. AdminOrders.tsx 1165→637 LOC. adminOrdersLib.ts je template seam za buduće ordering/admin apps (zajedno sa api/_shared/, src/lib/parsing.ts, src/lib/config.ts). H2 AdminMenu sledeći.
+
+---
+
 ## I4 — 2026-05-21 — Build SHA in monitoring init — DONE
 
 **Tier:** LEAN
