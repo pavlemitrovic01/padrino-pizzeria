@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** I2.1 — CORS allowlist admin handlers (2026-05-21, STANDARD)
-**Sledeći:** I3 — Logger server sink
+**Poslednji završen:** I2.2 — Hobby plan slot reclaim (2026-05-21, STRICT)
+**Sledeći:** merge I2.2→main, rebase+merge I3, rebase+close+merge I4; tada Faza I DONE
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
