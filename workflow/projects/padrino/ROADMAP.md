@@ -9,7 +9,10 @@ I2 DONE 2026-05-21 (SHA 5b0ff6c): reflect-any-origin closed u 3 LOCK handlers vi
 api/_shared/cors.ts; ALLOWED_ORIGINS env var set u Vercel.
 I2.1 DONE 2026-05-21 (SHA 3979261): reflect-any-origin closed u svih 8 admin handlera —
 CORS allowlist coverage complete (svih 11 handlera koriste applyCors()).
-Next: I3 — Logger server sink (STANDARD, ~2h).
+I2.2 DONE 2026-05-21 (SHA 5b9d716): Vercel Hobby 12-function limit hit (I3 dodao 13.
+funkciju); konsolidacija admin-menu-image→admin-menu (?op=image) +
+admin-resend-telegram→admin-orders (?op=resend-telegram); count: 13→10 (post-I3/I4 merge biće 11).
+Next: merge I2.2→main, rebase+merge I3, rebase+close+merge I4 → Faza I DONE ✓.
 Faza H (Admin monoliths: H1 AdminOrders 1193 LOC, H2 AdminMenu 1368 LOC) upcoming —
 will follow Faza I or interleave per Pavle's decision.
 Authoritative batch count + status: STATE.md.
@@ -155,6 +158,7 @@ self-score = **8.5** even with 1–8 all met.
 | I1 | F2 RLS — admin_users membership policy | STRICT | 1-2h | **DONE 2026-05-21 (SHA 88c3967).** DROP 3 allow_admin_*_by_email policies + CREATE allow_self_read on admin_users + CREATE 3 EXISTS-based membership policies on orders. Live verification PASS + admin smoke PASS. pavlemitrovic01@gmail.com out of DB. |
 | I2 | CORS allowlist — LOCK handlers (env-driven origins) | STRICT | 1.5h | **DONE 2026-05-21 (SHA 5b0ff6c).** Scope corrected 2026-05-21 /plan: same antipattern in 11 handlers, split into I2 (LOCK 3) + I2.1 (admin 8). NEW api/_shared/cors.ts + cors.test.ts. Migrated create-order.ts, bankart-order-status.ts, telegram-new-order.ts. |
 | I2.1 | CORS allowlist — admin handlers migration | STANDARD | 1h | **DONE 2026-05-21 (SHA 3979261).** Reuse api/_shared/cors.ts (from I2). Migrated 8 admin handlers; allowHeaders includes authorization (Bearer token). CORS allowlist coverage complete: all 11 handlers. |
+| I2.2 | Hobby plan slot reclaim — consolidate admin handlers | STRICT | 1h | **DONE 2026-05-21 (SHA 5b9d716).** Vercel Hobby limit 12 functions hit (I3 pushed to 13). admin-menu-image→admin-menu (?op=image) + admin-resend-telegram→admin-orders (?op=resend-telegram). Count: 13→10. L8 added. |
 | I3 | Logger server sink (`api/log`) | STANDARD | 2h | Flush error-level ring buffer to server. Supersedes long-term "Logger server endpoint". |
 | I4 | Build SHA in monitoring init | LEAN | 30min | git SHA for prod debug. Supersedes long-term "Build version SHA". |
 

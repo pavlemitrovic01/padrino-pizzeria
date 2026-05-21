@@ -560,3 +560,14 @@ G4.0 → 1848 | G4.1 → ~1753 | G4.2 → ~1513 | G4.3 → ~1403 | G4.4 → ~125
 ### Tracking napomena
 
 G4.5 je najopasniji batch — jedini koji direktno dotiče Bankart return URL handling i status polling (real-money post-payment flow). Svaki G4.x batch koji ima "DA" Bankart dodir zahteva Pavle-ov ručni Bankart test-mode checkout pre /close-a. Ne preskakati smoke ni kada agentic build zelenuje.
+
+---
+
+## Deprecated Lessons
+
+### L0 — OneDrive is not for code repos (deprecated 2026-05-21)
+
+**Razlog deprecacije:** Problem je trajno rešen — repo je stabilan na `C:\dev\padrino`, GitHub je source of truth, workflow v3 je uspostavljen. Lekcija je opšta životna lekcija, ne Padrino-specifična. Rotirana da napravi mesto za operativno aktivnu L8 (Vercel function count).
+
+**Originalni sadržaj:**
+Source code stored in OneDrive sync folder caused multiple failures: file lock conflicts during git operations, online-only placeholder files, mass deletion cascades. Real incident: web deletion caused panic (recovered from GitHub + Recycle Bin, no work lost). Lekcija: source-of-truth for code is GitHub. Local working copy goes in `C:\dev\<projekat>`, never in OneDrive folders. OneDrive is for photos, documents, tax files — not for code.

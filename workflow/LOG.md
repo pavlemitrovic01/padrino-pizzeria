@@ -5,6 +5,29 @@
 
 ---
 
+## I2.2 — 2026-05-21 — Hobby plan slot reclaim — DONE
+
+**Tier:** STRICT
+**SHA:** 5b9d716
+**Branch:** batch/i2.2-hobby-slot-reclaim
+**Files (6):**
+  - api/admin-menu.ts — MODIFY; absorbed image upload/delete from admin-menu-image.ts; +queryString helper +image helpers (decodeBase64Payload, detectExtension, sanitizeBaseName, extractStoragePath, isValidAdminPath) +handleImageUpload +handleImageDelete; op=image branch after owner check + parseJsonBody
+  - api/admin-orders.ts — MODIFY; absorbed telegram resend from admin-resend-telegram.ts; +isPlainObject/normalizeText/safeInt import; +Telegram types + all helpers (formatOrderForTelegram etc.); +handleResendTelegram; CORS GET→GET,POST; op=resend-telegram branch; existing GET list logic netaknuta
+  - api/admin-menu-image.ts — DELETE (324 LOC absorbed into admin-menu.ts)
+  - api/admin-resend-telegram.ts — DELETE (426 LOC absorbed into admin-orders.ts)
+  - src/pages/admin/AdminMenu.tsx — /api/admin-menu-image → /api/admin-menu?op=image (2 call sites: upload + delete)
+  - src/components/AdminOrders.tsx — /api/admin-resend-telegram → /api/admin-orders?op=resend-telegram
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.33s (local) + Vercel "Deployment completed" (iad1, 10 funkcija)
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files
+  manual:    PASS(human) — Pavle: "prošlo" (preview URL; admin menu image upload/delete + telegram resend + orders list + menu list/save sve PASS)
+**SCOPE_DRIFT:** none — exact 6 EXPECTED-FILES (4 modify + 2 delete)
+**LESSONS:** rotated L0 (OneDrive) → DECISIONS.md deprecated; added L8 (Vercel Hobby 12-function limit + ?op= consolidation pattern)
+**Notes:** Trigger: I3 dodao api/log.ts kao 13. serverless funkciju, Vercel Hobby plan limit je 12. Rešenje bez Pro plana: konsolidacija 2 mala admin handlera u roditelje via ?op= query routing. Broj funkcija: 13 → 10 (I3 i I4 još nisu merge-ovani; kada se merge-uju biće 11). Production ostao netaknut (na I2.1 stanju) tokom celog batch-a.
+
+---
+
 ## I2.1 — 2026-05-21 — CORS env-driven allowlist — admin handlers — DONE
 
 **Tier:** STANDARD

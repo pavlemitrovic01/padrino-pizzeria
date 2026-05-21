@@ -7,19 +7,6 @@ Deprecated entries → `DECISIONS.md` "Deprecated Lessons" section.
 
 ---
 
-## 2026-05-10 — OneDrive is not for code repos (L0)
-
-**PROBLEM:** Source code stored in OneDrive sync folder caused multiple failures: file lock conflicts during git operations, online-only placeholder files appearing as deleted when offline, mass deletion when web-deleting cascades to all synced devices, node_modules folder trying to sync 10000+ files. Real incident: web deletion of OneDrive files caused panic about losing entire portfolio (recovered from GitHub + Recycle Bin, but no work was actually lost).
-
-**LEKCIJA:** Source-of-truth for code is GitHub. Local working copy goes in `C:\dev\<projekat>`, never in `OneDrive\Desktop\*` or `OneDrive\Documents\*`. OneDrive is for photos, documents, tax files — not for code.
-
-**PRIMENA:** Pre svake nove sesije rada na bilo kom projektu: clone fresh from GitHub to `C:\dev\<projekat>`, work there, push regularly. Even if local copy gets lost/corrupted, GitHub has truth.
-
-**STATUS:** ACTIVE
-**NEXT REVIEW:** —
-
----
-
 ## 2026-03-22 — VITE_ADMIN_API_BASE pitfall (L1)
 
 **PROBLEM:** `.env.example` is documentation only — Vite does NOT load it for `import.meta.env`. Admin login failed in local dev because `VITE_ADMIN_API_BASE` was only in `.env.example`, not in actual Vite-loaded env file.
@@ -162,3 +149,20 @@ verifikuj broj izvršenih testova, ne samo exit 0.
 
 **STATUS:** ACTIVE — E5 dopuna 2026-05-18 (window.location.assign pattern).
 **NEXT REVIEW:** posle sledećeg DOM test batch-a (Faza G).
+
+---
+
+## 2026-05-21 — Vercel Hobby plan: svaki `api/*.ts` = 1 funkcija (max 12) (L8)
+
+**PROBLEM:** I3 dodao `api/log.ts` bez praćenja ukupnog broja serverless funkcija. Sa 12 postojećih + 1 nova = 13, Vercel Hobby plan odbio deploy za sve buduće branch-eve: "No more than 12 Serverless Functions can be added to a Deployment on the Hobby plan." Blokirani I3 i I4 preview deploy-i; production nije pogođen (main ostao na I2.1).
+
+**LEKCIJA:** Na Vercel Hobby planu max 12 serverless funkcija po deploy-u. Svaki `.ts` fajl u `api/` root-u postaje zasebna funkcija — test fajlovi (`*.test.ts`) se ne računaju. Pratiti count pre dodavanja novog handlera. Konsolidacija via `?op=` query routing je besplatno rešenje: dva logički srodna handlera → jedan fajl sa internim grananjem. Ne zahteva Pro plan, ne gubi funkcionalnost.
+
+**PRIMENA:**
+- Pre dodavanja novog `api/*.ts` handlera: `ls api/*.ts | grep -v test | wc -l` → mora biti ≤11 da ima mesta.
+- Konsolidacija pattern: `?op=resend-telegram` u admin-orders, `?op=image` u admin-menu. Svaki op-handler je interna funkcija, auth prolazi pre grananja.
+- Ako count pređe 10: razmatrati konsolidaciju proaktivno pre nego što hit limit blokira deploy.
+- Pro plan rešava limit (unlimited functions) ali nije potreban dok ima slobodnih slotova.
+
+**STATUS:** ACTIVE
+**NEXT REVIEW:** kada count dostigne 10 funkcija.
