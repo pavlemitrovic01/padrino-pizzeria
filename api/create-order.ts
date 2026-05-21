@@ -4,6 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
+import { applyCors } from "./_shared/cors.js";
 import {
   BANKART_FALLBACK_EMAIL,
   BANKART_FALLBACK_CITY,
@@ -97,15 +98,6 @@ function headerStringCI(req: ReqLike, key: string): string {
     headerString(req, key.toLowerCase()) ||
     headerString(req, key.toUpperCase())
   );
-}
-
-function setCors(req: ReqLike, res: ResLike) {
-  const origin = headerStringCI(req, "origin");
-  res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "content-type, x-requested-with");
-  res.setHeader("Access-Control-Max-Age", "86400");
 }
 
 function json(res: ResLike, status: number, body: Json) {
@@ -915,7 +907,7 @@ async function startBankartDebit(req: ReqLike, orderId: string, requestBody: Ban
 }
 
 export default async function handler(req: ReqLike, res: ResLike) {
-  setCors(req, res);
+  applyCors(req, res, { methods: "POST" });
 
   if (req.method === "OPTIONS") {
     res.status(204).send("");

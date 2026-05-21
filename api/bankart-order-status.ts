@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, safeNumber } from "./_shared/parsing.js";
+import { applyCors } from "./_shared/cors.js";
 
 type Json = Record<string, unknown>;
 type HeaderValue = string | string[] | undefined;
@@ -59,30 +60,6 @@ type BankartConfig = {
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
-}
-
-function headerString(req: ReqLike, key: string): string {
-  const raw = req.headers?.[key];
-  if (typeof raw === "string") return raw.trim();
-  if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
-  return "";
-}
-
-function headerStringCI(req: ReqLike, key: string): string {
-  return (
-    headerString(req, key) ||
-    headerString(req, key.toLowerCase()) ||
-    headerString(req, key.toUpperCase())
-  );
-}
-
-function setCors(req: ReqLike, res: ResLike) {
-  const origin = headerStringCI(req, "origin");
-  res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "content-type, x-requested-with");
-  res.setHeader("Access-Control-Max-Age", "86400");
 }
 
 function json(res: ResLike, status: number, body: Json) {
@@ -433,7 +410,7 @@ function buildResponseBody(
 }
 
 export default async function handler(req: ReqLike, res: ResLike) {
-  setCors(req, res);
+  applyCors(req, res, { methods: "GET" });
 
   if (req.method === "OPTIONS") {
     res.status(204).send("");
