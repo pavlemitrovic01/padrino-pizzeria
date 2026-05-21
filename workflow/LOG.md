@@ -5,6 +5,26 @@
 
 ---
 
+## I4 — 2026-05-21 — Build SHA in monitoring init — DONE
+
+**Tier:** LEAN
+**SHA:** da8145b
+**Branch:** batch/i4-build-sha-monitoring
+**Files (3):**
+  - vite.config.ts — MODIFIED; +define block: `import.meta.env.VITE_BUILD_SHA` = `process.env.VERCEL_GIT_COMMIT_SHA ?? "unknown"`
+  - src/vite-env.d.ts — MODIFIED; +`readonly VITE_BUILD_SHA?: string` to ImportMetaEnv
+  - src/main.tsx — MODIFIED; version: `"unknown"` → `import.meta.env.VITE_BUILD_SHA ?? "unknown"` in initClientMonitoring call
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.41s
+  typecheck: PASS(machine) — exit 0
+  test:      NIJE POKRENUTO — LEAN tier
+  manual:    NIJE POKRENUTO — LEAN tier
+**SCOPE_DRIFT:** none — exact 3 EXPECTED-FILES
+**LESSONS:** unchanged
+**Notes:** Git commit SHA injected at build time via Vite define block. On Vercel, `VERCEL_GIT_COMMIT_SHA` auto-set. Local dev: `VITE_BUILD_SHA` = `"unknown"` (acceptable). Exit criteria #5 closed. Faza I DONE ✓ — all 6 batches (I1/I2/I2.1/I2.2/I3/I4) closed.
+
+---
+
 ## I3 — 2026-05-21 — Logger server sink — DONE
 
 **Tier:** STANDARD

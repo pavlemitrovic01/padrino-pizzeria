@@ -119,7 +119,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 // Ovo je pozvano ovde pre svih komponente/providere da se ne bi duplirao u StrictMode re-renderima.
 initClientMonitoring({
   appTag: "padrino-web",
-  version: "unknown",
+  version: import.meta.env.VITE_BUILD_SHA ?? "unknown",
 });
 
 initAnalytics();
