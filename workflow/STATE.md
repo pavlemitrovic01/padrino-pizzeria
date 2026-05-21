@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** I1 — RLS admin_users membership policy (2026-05-21, STRICT)
-**Sledeći:** I2 — CORS allowlist
+**Poslednji završen:** I2 — CORS allowlist LOCK handlers (2026-05-21, STRICT)
+**Sledeći:** I2.1 — CORS allowlist admin handlers migration
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -248,7 +248,13 @@
   (STRICT; 2 fajla +1 drift; SHA 88c3967;
   orders RLS: 3 _by_email policies → 3 membership-based + allow_self_read na admin_users;
   F2 iz B14 audita CLOSED; hardkodovani email uklonjen iz DB)
-- **Faza I — IN PROGRESS** (I2 sledeći)
+- I2 (CORS allowlist — LOCK handlers) — DONE 2026-05-21
+  (STRICT; 6 fajlova, +305/-49; SHA 5b0ff6c;
+  NEW api/_shared/cors.ts + cors.test.ts; applyCors() env-driven, VERCEL_URL preview;
+  reflect-any-origin closed u create-order/bankart-order-status/telegram-new-order;
+  ALLOWED_ORIGINS=https://padrinobudva.com set u Vercel All Environments;
+  scope corrected pre-plan: 11 handlera, split I2+I2.1; 22 new test cases, 206 total)
+- **Faza I — IN PROGRESS** (I2.1 sledeći)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
@@ -289,7 +295,8 @@ G4.3 Extract useDeliveryZone hook src hooks cart,
 G4.4 Extract useBankartPaymentJs hook src hooks cart,
 G4.5 Extract useSuccessState hook src hooks cart,
 G4.6 Extract useCatalogData hook + CheckoutView component,
-I1 RLS admin_users membership policy).
+I1 RLS admin_users membership policy,
+I2 CORS allowlist LOCK handlers).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
