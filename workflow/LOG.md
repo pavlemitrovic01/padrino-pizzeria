@@ -5,6 +5,27 @@
 
 ---
 
+## G4.6 — 2026-05-21 — Extract useCatalogData hook + CheckoutView component — DONE
+
+**Tier:** STRICT (lock zone CartDrawer.tsx, final G4 batch)
+**SHA:** 17025f4 (batch) / b5ec256 (merge → main)
+**Branch:** batch/g4.6-catalog-and-checkout-view
+**Files (3):**
+  - src/hooks/cart/useCatalogData.ts — NEW; 136 LOC; exports PizzaVariantsMap type; calls useCart() internally (addToCart + changeSize); 4 catalog useState slots (addonsCatalog/saucesCatalog/drinksCatalog/pizzaVariantsByBaseKey) + sauceIdSet useMemo; returns 7 values: pizzaVariantsByBaseKey/drinksCatalog/saucesCatalog/addonsCatalog/sauceIdSet/setPizzaSizeSafe/addDrinkToCart; onErrorRef = useRef(opts?.onError) stable-callback pattern (avoids exhaustive-deps); one-shot supabase catalog loader (menu_items is_active=true, order name asc) with mounted flag cleanup
+  - src/components/CheckoutView.tsx — NEW; 429 LOC; flat component (not /cart/ subdir per convention); ~40 explicit props; deliveryZoneKey: DeliveryZoneKey | "" (matches useDeliveryZone actual useState initial — not null); direct imports: formatFeeEurShort from cartDrawerHelpers, BANKART_PAYMENTJS_*_DIV_ID/POLISH_CSS from useBankartPaymentJs, DELIVERY_ZONES/DeliveryZone from config; BTN_GOLD_ACTIVE/BTN_NEUTRAL/BTN_SUCCESS + PHONE_E164/PHONE_DISPLAY passed as props; byte-identical view="checkout" JSX relocation
+  - src/components/CartDrawer.tsx — LOCK; 946 → 688 LOC (net −258); removed: 4 catalog useState + sauceIdSet useMemo + setPizzaSizeSafe fn + addDrinkToCart fn + loadCatalogs useEffect + changeSize/addToCart from useCart destructure + 13 stale imports (useMemo/supabase/PizzaSize/PizzaVariant/hasEurPrice/isPizzaRow/etc); added: useCatalogData import + 6-value hook destructure; view="checkout" JSX block replaced with <CheckoutView … /> call site (~60 props); submitOrder 176 LOC STAYS in CartDrawer
+**Verify:**
+  build:     PASS(machine) — exit 0
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 184/184, 16 files
+  vercel:    PASS(human) — Vercel Build Logs clean (L6 gate clean, no TS2835)
+  manual:    PASS(human) — Pavle: "Svi testovi pass" (golden-path smoke)
+**SCOPE_DRIFT:** NONE — exact 3-file match EXPECTED-FILES
+**LESSONS:** unchanged (7/7 cap)
+**Notes:** Final G4 batch. Faza G DONE ✓. CartDrawer 688 LOC (target ~550-650 — achieved). Two type fixes during execution: (1) deliveryZoneKey prop type DeliveryZoneKey|null → DeliveryZoneKey|"" (actual useDeliveryZone useState initial ""); (2) formatFeeEurShort import corrected money.ts → cartDrawerHelpers. Stale ~17kb JSX block after initial Edit attempt required Node.js scripting. Advisory: pre-G4.6 CartDrawer was 946 LOC not 1056 as STATE/ROADMAP suggested (G4.2 verbose-destructure gap accumulated across G4.3-G4.5 closes without LOC recheck); W reconciliation will normalize.
+
+---
+
 ## G4.5 — 2026-05-21 — Extract useSuccessState hook → src/hooks/cart/ — DONE
 
 **Tier:** STRICT (NAJOPASNIJI G4 batch — Bankart return URL + status polling)

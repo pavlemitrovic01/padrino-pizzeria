@@ -2,16 +2,13 @@
 
 ## Current Phase
 
-**Refactor-to-9 program — Faza G (CartDrawer rebuild) IN PROGRESS.** Faze
-A–F DONE; G1 DONE 2026-05-20; G2 DONE 2026-05-20; G3 DONE 2026-05-20
-(CartView SHA d2ae678 — item list / qty / addons / sauces / drinks extracted;
-CartDrawer net −319 LOC, post-G3 = 1848 LOC [ROADMAP stale note "1898→1612" korigovana G4.0]).
-G4.0 DONE 2026-05-20 (recon — G4.1..G4.6 split drafted in DECISIONS).
-G4.1 DONE 2026-05-20 (SHA f5cd267). G4.2 DONE 2026-05-20 (SHA 98bb4ab).
-G4.3 DONE 2026-05-21 (SHA 8e35c58). G4.4 DONE 2026-05-21 (SHA 20a05f0,
-Bankart test-mode card transaction PASS). G4.5 DONE 2026-05-21 (SHA b7d989d,
-Bankart card_redirect → return → paid polling PASS). CartDrawer now 1056 LOC.
-Next: G4.6 — Extract useCatalogData + CheckoutView (final G4 batch).
+**Refactor-to-9 program — Faza G (CartDrawer rebuild) DONE ✓.** Faze
+A–G DONE. G4.6 DONE 2026-05-21 (SHA 17025f4, merge b5ec256): useCatalogData.ts
+NEW 136 LOC + CheckoutView.tsx NEW 429 LOC + CartDrawer.tsx LOCK 946→688 (net −258).
+CartDrawer final: 688 LOC (target ~550-650 — achieved). Full Faza G delta: 1848 → 688
+(−1160 LOC across G1/G2/G3/G4.1-G4.6, submitOrder 176 LOC stays as orchestrator).
+Next: Faza H — Admin monoliths (H1 AdminOrders split, H2 AdminMenu split) OR Faza I
+(Security+observability) — Pavle decides.
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -126,7 +123,7 @@ self-score = **8.5** even with 1–8 all met.
 | F4 | Config seam module | STANDARD | 1-2h | **DONE 2026-05-19 (SHA 2fdff83).** Padrino-specifics (fallback email/city/postcode, domain, Telegram) → one config module = explicit template swap point. api/ side complete; F4.1 (STRICT) covers src/ side mirror (DELIVERY_ZONES, SEO URLs). |
 | F4.1 | `src/` Config seam mirror | STRICT | 1-2h | **DONE 2026-05-19 (SHA efa313e).** Src/ side of F4. DELIVERY_ZONES const (CartDrawer.tsx LOCK) + SEO URL literals (App.tsx LOCK, adminApiBase.ts, PizzaBudvaPage.tsx) → src/lib/config.ts. DELIVERY_ZONES byte-identical 8/8. Both template-swap points (api/ + src/) now complete. |
 
-## Faza G — IN PROGRESS (CartDrawer rebuild — STRICT, behind E4 net)
+## Faza G — DONE ✓ (CartDrawer rebuild — STRICT, behind E4 net)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
@@ -139,7 +136,7 @@ self-score = **8.5** even with 1–8 all met.
 | G4.3 | Extract `useDeliveryZone` | STRICT | 1h | **DONE 2026-05-21 (SHA 8e35c58).** 2 fajla, +177/−103 LOC; useDeliveryZone.ts NEW 158 LOC (16 returns: zone state + 6 useMemos + click-outside + reset effects); CartDrawer.tsx LOCK 1543→1459 (net −84); Vercel Build Logs clean + smoke PASS. |
 | G4.4 | Extract `useBankartPaymentJs` | STRICT | 1-2h | **DONE 2026-05-21 (SHA 20a05f0).** 2 fajla, +222/−167 LOC; useBankartPaymentJs.ts NEW 204 LOC (7 returns + 3 constants exports); CartDrawer.tsx LOCK 1459→1310 (net −149, recon predicted ~−150); init useEffect 117 LOC byte-identical relocation; Bankart test-mode card transaction PASS; Opus pre-execution audit corrected 3 plan points. |
 | G4.5 | Extract `useSuccessState` (Bankart return) | STRICT | 1-2h | **DONE 2026-05-21 (SHA b7d989d).** 2 fajla, +356/−276 LOC; useSuccessState.ts NEW 334 LOC (16 returns: 9 state + 3 setters + 4 actions); CartDrawer.tsx LOCK 1310→1056 (net −254, recon target ~−255 hit on the nose); applySuccessUiState 62 LOC + Bankart return useEffect 109 LOC byte-identical relocation; Bankart card_redirect → return → paid polling smoke PASS. |
-| G4.6 | Extract `useCatalogData` + `CheckoutView` | STRICT | 2-3h | Planned. Catalog loader + pizza variants + drinks. CheckoutView component (298 LOC checkout JSX). Delta ~−370 LOC. Final CartDrawer ~550-650 LOC (not 300 — see DECISIONS 2026-05-20 note). |
+| G4.6 | Extract `useCatalogData` + `CheckoutView` | STRICT | 2-3h | **DONE 2026-05-21 (SHA 17025f4).** 3 fajla, +700/−448; useCatalogData.ts NEW 136 LOC (4 catalog state slots + sauceIdSet/setPizzaSizeSafe/addDrinkToCart, exports PizzaVariantsMap, useCart() interno, onErrorRef pattern); CheckoutView.tsx NEW 429 LOC (~40 props, flat per konvencija, deliveryZoneKey: DeliveryZoneKey|""); CartDrawer.tsx LOCK 946→688 (net −258); Vercel Build Logs clean + full golden-path smoke PASS. |
 
 ## Upcoming — Faza H (Admin monoliths)
 

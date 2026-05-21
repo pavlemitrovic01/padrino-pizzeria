@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G4.5 — Extract useSuccessState hook (2026-05-21, STRICT)
-**Sledeći:** G4.6 — Extract useCatalogData + CheckoutView (STRICT, FINAL G4 batch)
+**Poslednji završen:** G4.6 — Extract useCatalogData + CheckoutView (2026-05-21, STRICT)
+**Sledeći:** G4.7 ili H1 — Pavle odlučuje
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -228,12 +228,28 @@
   pre-flight false-start: /close invoked before execution, agent REFUSED + executed
   correctly after re-confirmation; first src/hooks/cart/ module — directory established;
   Vercel Build Logs clean + smoke PASS; per-batch branch batch/g4.2-use-checkout-form)
+- G4.3 (Extract useDeliveryZone hook → src/hooks/cart/) — DONE 2026-05-21
+  (STRICT; 2 fajla, +177/−103 LOC; SHA 8e35c58;
+  useDeliveryZone.ts NEW 158 LOC; CartDrawer.tsx LOCK 1543→1459 (net −84))
+- G4.4 (Extract useBankartPaymentJs hook → src/hooks/cart/) — DONE 2026-05-21
+  (STRICT; 2 fajla, +222/−167 LOC; SHA 20a05f0;
+  useBankartPaymentJs.ts NEW 204 LOC; CartDrawer.tsx LOCK 1459→1310 (net −149);
+  Bankart test-mode card transaction PASS)
+- G4.5 (Extract useSuccessState hook → src/hooks/cart/) — DONE 2026-05-21
+  (STRICT; NAJOPASNIJI G4 batch; 2 fajla, +356/−276 LOC; SHA b7d989d;
+  useSuccessState.ts NEW 334 LOC; CartDrawer.tsx LOCK 1310→946 post-extract;
+  Bankart card_redirect → return → paid polling PASS)
+- G4.6 (Extract useCatalogData hook + CheckoutView) — DONE 2026-05-21
+  (STRICT; 3 fajla, +700/−448 LOC; SHA 17025f4 / merge b5ec256;
+  useCatalogData.ts NEW 136 LOC; CheckoutView.tsx NEW 429 LOC;
+  CartDrawer.tsx LOCK 946→688 (net −258); Faza G DONE ✓)
+- **Faza G — DONE** ✓ (CartDrawer 688 LOC — target ~550-650 achieved)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-42 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+46 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -263,7 +279,11 @@ G2.2 Extract CardFields CardFields.tsx,
 G3 Extract CartView item list qty controls addons sauces drinks,
 G4.0 CartDrawer structural recon doc-only,
 G4.1 Extract bankartReturnStorage helpers src lib,
-G4.2 Extract useCheckoutForm hook src hooks cart).
+G4.2 Extract useCheckoutForm hook src hooks cart,
+G4.3 Extract useDeliveryZone hook src hooks cart,
+G4.4 Extract useBankartPaymentJs hook src hooks cart,
+G4.5 Extract useSuccessState hook src hooks cart,
+G4.6 Extract useCatalogData hook + CheckoutView component).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
