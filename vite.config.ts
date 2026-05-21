@@ -4,6 +4,14 @@ import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Inject Vercel's git commit SHA at build time so it appears in monitoring logs.
+    // Locally (no VERCEL_GIT_COMMIT_SHA): resolves to "unknown".
+    // On Vercel: resolves to the actual deploy SHA (system env var, automatic).
+    "import.meta.env.VITE_BUILD_SHA": JSON.stringify(
+      process.env.VERCEL_GIT_COMMIT_SHA ?? "unknown",
+    ),
+  },
   build: {
     rollupOptions: {
       // ✅ Multi-page entry (pravi HTML za SEO landing)
