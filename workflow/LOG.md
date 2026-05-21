@@ -5,6 +5,28 @@
 
 ---
 
+## I1 — 2026-05-21 — RLS admin_users membership policy — DONE
+
+**Tier:** STRICT (live production schema migration)
+**SHA:** 88c3967
+**Branch:** none (schema migration, no src/api changes)
+**Files (3):**
+  - supabase/migrations/20260521120000_orders_rls_admin_membership.sql — NEW; DROP 3 allow_admin_*_by_email policies on orders + CREATE allow_self_read on admin_users + CREATE 3 membership-based allow_admin_select/update/delete on orders using EXISTS(SELECT 1 FROM admin_users WHERE email=jwt.email AND enabled=true); rollback SQL included as comment block
+  - docs/rls-security-audit.md — MODIFIED; status updated from AUDIT-ONLY to "F1 RESOLVED (B14.1) F2 RESOLVED (I1)"; resolution table added
+  - workflow/STATE.md — MODIFIED (active batch tracking, pre-execution bookkeeping)
+**Verify:**
+  build:      PASS(machine) — exit 0, 3.54s
+  typecheck:  PASS(machine) — exit 0
+  test:       PASS(machine) — 184/184, 16 files
+  live-pre:   PASS(human) — Pavle potvrdio 3 _by_email policy-ja postoje u pg_policies
+  live-post:  PASS(human) — allow_self_read na admin_users + allow_admin_select/update/delete na orders; stari _by_email policy-ji UKLONJENA
+  manual:     PASS(human) — "admin radi" (/admin login + orders list)
+**SCOPE_DRIFT:** acknowledged — workflow/STATE.md (workflow bookkeeping, active-batch tracking — nije code scope)
+**LESSONS:** unchanged (7/7 cap)
+**Notes:** F2 iz B14 audita (2026-05-16) CLOSED. pavlemitrovic01@gmail.com više nije hardkodovan u production DB-u. allow_self_read prerequisit omogućava EXISTS subquery u orders policy-jima da se razrješi. Sve admin API rute koriste service_role → bypass RLS → neafektovane. Direktni PostgREST pozivi sa authenticated JWT-om sada koriste membership check umjesto hardkodovanog emaila.
+
+---
+
 ## G4.6 — 2026-05-21 — Extract useCatalogData hook + CheckoutView component — DONE
 
 **Tier:** STRICT (lock zone CartDrawer.tsx, final G4 batch)

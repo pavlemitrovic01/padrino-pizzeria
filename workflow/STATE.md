@@ -22,9 +22,9 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** G4.6 — Extract useCatalogData + CheckoutView (2026-05-21, STRICT)
-**Sledeći:** G4.7 ili H1 — Pavle odlučuje
-**Aktivan batch:** I1 — RLS admin_users membership policy (STRICT)
+**Poslednji završen:** I1 — RLS admin_users membership policy (2026-05-21, STRICT)
+**Sledeći:** I2 — CORS allowlist
+**Aktivan batch:** NONE
 **Blocker:** NONE
 
 **Faza progres:**
@@ -244,12 +244,17 @@
   useCatalogData.ts NEW 136 LOC; CheckoutView.tsx NEW 429 LOC;
   CartDrawer.tsx LOCK 946→688 (net −258); Faza G DONE ✓)
 - **Faza G — DONE** ✓ (CartDrawer 688 LOC — target ~550-650 achieved)
+- I1 (RLS admin_users membership policy) — DONE 2026-05-21
+  (STRICT; 2 fajla +1 drift; SHA 88c3967;
+  orders RLS: 3 _by_email policies → 3 membership-based + allow_self_read na admin_users;
+  F2 iz B14 audita CLOSED; hardkodovani email uklonjen iz DB)
+- **Faza I — IN PROGRESS** (I2 sledeći)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-46 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+47 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -283,7 +288,8 @@ G4.2 Extract useCheckoutForm hook src hooks cart,
 G4.3 Extract useDeliveryZone hook src hooks cart,
 G4.4 Extract useBankartPaymentJs hook src hooks cart,
 G4.5 Extract useSuccessState hook src hooks cart,
-G4.6 Extract useCatalogData hook + CheckoutView component).
+G4.6 Extract useCatalogData hook + CheckoutView component,
+I1 RLS admin_users membership policy).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
