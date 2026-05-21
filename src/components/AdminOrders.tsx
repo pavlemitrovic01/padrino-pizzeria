@@ -337,7 +337,7 @@ async function adminResendTelegram(orderId: string): Promise<AdminResendTelegram
 
   if (!token) return { ok: false, error: "Missing admin session token" };
 
-  const url = `${ADMIN_API_BASE}/api/admin-resend-telegram`;
+  const url = `${ADMIN_API_BASE}/api/admin-orders?op=resend-telegram`;
 
   const res = await fetch(url, {
     method: "POST",
@@ -362,7 +362,7 @@ async function adminResendTelegram(orderId: string): Promise<AdminResendTelegram
     return { ok: true, telegram: "sent" };
   }
 
-  return { ok: false, error: "Unexpected response from admin-resend-telegram" };
+  return { ok: false, error: "Unexpected response from admin-orders resend-telegram" };
 }
 
 function formatTimeOnly(ts: number): string {

@@ -333,7 +333,7 @@ async function apiUploadMenuImage(
   },
 ): Promise<AdminMenuUploadResponse> {
   try {
-    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-image`, {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu?op=image`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -379,7 +379,7 @@ async function apiDeleteMenuImage(
   payload: { image: string },
 ): Promise<AdminMenuImageDeleteResponse> {
   try {
-    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu-image`, {
+    const res = await fetch(`${ADMIN_API_BASE}/api/admin-menu?op=image`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
