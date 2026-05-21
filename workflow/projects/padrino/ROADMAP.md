@@ -14,8 +14,9 @@ funkciju); konsolidacija admin-menu-image→admin-menu (?op=image) +
 admin-resend-telegram→admin-orders (?op=resend-telegram); count: 13→10 (post-I3/I4 merge biće 11).
 I3 DONE 2026-05-21 (SHA 8f9a0a8): error-level client events now flush to Vercel Runtime Logs via api/log.ts (fire-and-forget).
 I4 DONE 2026-05-21 (SHA da8145b): VERCEL_GIT_COMMIT_SHA → VITE_BUILD_SHA → initClientMonitoring version field. Exit criteria #5 closed. Faza I DONE ✓.
-Next: H1 — AdminOrders split (Faza H).
-Faza H (Admin monoliths: H1 AdminOrders 1193 LOC, H2 AdminMenu 1368 LOC) — IN PROGRESS.
+H1 DONE 2026-05-21 (SHA 916e017): AdminOrders lib extraction — types/helpers/API fns → src/lib/adminOrdersLib.ts; AdminOrders.tsx 1165→637 LOC.
+Next: H2 — AdminMenu split (Faza H).
+Faza H (Admin monoliths: H2 AdminMenu 1368 LOC) — IN PROGRESS.
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -149,7 +150,7 @@ self-score = **8.5** even with 1–8 all met.
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
-| H1 | AdminOrders split (table/detail/export/grouping → lib) | STANDARD | 2-3h | 1193 LOC; reuses F1 parsing lib. |
+| H1 | AdminOrders split (table/detail/export/grouping → lib) | STANDARD | 2-3h | **DONE 2026-05-21 (SHA 916e017).** NEW src/lib/adminOrdersLib.ts 565 LOC (28 helpers + 3 API fns + 7 types); AdminOrders.tsx 1165→637 LOC. |
 | H2 | AdminMenu split (editor/image-upload/list) | STANDARD | 2-3h | 1368 LOC. |
 
 ## Faza I — DONE ✓ (Security + observability → 9)

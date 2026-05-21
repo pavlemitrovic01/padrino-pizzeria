@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** I4 — Build SHA in monitoring init (2026-05-21, LEAN)
-**Sledeći:** H1 — AdminOrders split (Faza H)
+**Poslednji završen:** H1 — AdminOrders lib extraction (2026-05-21, STANDARD)
+**Sledeći:** H2 — AdminMenu split (Faza H)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -271,12 +271,16 @@
   VERCEL_GIT_COMMIT_SHA → VITE_BUILD_SHA → initClientMonitoring version;
   exit criteria #5 closed; Faza I DONE ✓)
 - **Faza I — DONE** ✓
+- H1 (AdminOrders lib extraction) — DONE 2026-05-21
+  (STANDARD; 2 fajla, +565/-528 LOC net; SHA 916e017;
+  NEW src/lib/adminOrdersLib.ts 565 LOC; AdminOrders.tsx 1165→637;
+  28 helper fns + 3 API fns + 7 types/consts; Vercel Build Logs clean)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-51 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+52 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -316,7 +320,8 @@ I2 CORS allowlist LOCK handlers,
 I2.1 CORS allowlist admin handlers,
 I2.2 Hobby plan slot reclaim,
 I3 Logger server sink,
-I4 Build SHA in monitoring init).
+I4 Build SHA in monitoring init,
+H1 AdminOrders lib extraction).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
