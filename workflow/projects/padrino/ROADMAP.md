@@ -12,7 +12,8 @@ CORS allowlist coverage complete (svih 11 handlera koriste applyCors()).
 I2.2 DONE 2026-05-21 (SHA 5b9d716): Vercel Hobby 12-function limit hit (I3 dodao 13.
 funkciju); konsolidacija admin-menu-image→admin-menu (?op=image) +
 admin-resend-telegram→admin-orders (?op=resend-telegram); count: 13→10 (post-I3/I4 merge biće 11).
-Next: merge I2.2→main, rebase+merge I3, rebase+close+merge I4 → Faza I DONE ✓.
+I3 DONE 2026-05-21 (SHA 8f9a0a8): error-level client events now flush to Vercel Runtime Logs via api/log.ts (fire-and-forget).
+Next: I4 — Build SHA in monitoring init (LEAN, ~30min).
 Faza H (Admin monoliths: H1 AdminOrders 1193 LOC, H2 AdminMenu 1368 LOC) upcoming —
 will follow Faza I or interleave per Pavle's decision.
 Authoritative batch count + status: STATE.md.
@@ -159,7 +160,7 @@ self-score = **8.5** even with 1–8 all met.
 | I2 | CORS allowlist — LOCK handlers (env-driven origins) | STRICT | 1.5h | **DONE 2026-05-21 (SHA 5b0ff6c).** Scope corrected 2026-05-21 /plan: same antipattern in 11 handlers, split into I2 (LOCK 3) + I2.1 (admin 8). NEW api/_shared/cors.ts + cors.test.ts. Migrated create-order.ts, bankart-order-status.ts, telegram-new-order.ts. |
 | I2.1 | CORS allowlist — admin handlers migration | STANDARD | 1h | **DONE 2026-05-21 (SHA 3979261).** Reuse api/_shared/cors.ts (from I2). Migrated 8 admin handlers; allowHeaders includes authorization (Bearer token). CORS allowlist coverage complete: all 11 handlers. |
 | I2.2 | Hobby plan slot reclaim — consolidate admin handlers | STRICT | 1h | **DONE 2026-05-21 (SHA 5b9d716).** Vercel Hobby limit 12 functions hit (I3 pushed to 13). admin-menu-image→admin-menu (?op=image) + admin-resend-telegram→admin-orders (?op=resend-telegram). Count: 13→10. L8 added. |
-| I3 | Logger server sink (`api/log`) | STANDARD | 2h | Flush error-level ring buffer to server. Supersedes long-term "Logger server endpoint". |
+| I3 | Logger server sink (`api/log`) | STANDARD | 2h | **DONE 2026-05-21 (SHA 8f9a0a8).** NEW api/log.ts; error-level events fire-and-forget to Vercel Runtime Logs via console.error; no DB, no auth; localStorage ring buffer unchanged. |
 | I4 | Build SHA in monitoring init | LEAN | 30min | git SHA for prod debug. Supersedes long-term "Build version SHA". |
 
 ## Upcoming — Faza J (Template crystallization)

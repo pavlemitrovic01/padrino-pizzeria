@@ -6,7 +6,10 @@
 // - Normalizuje error objekte
 // - Loguje u console (dev/prod)
 // - Čuva poslednjih N logova u localStorage (ring buffer) za debug na produkciji
+// - Šalje error-level evente na server (fire-and-forget) → Vercel Runtime Logs
 // - Omogućava init global handlera (window.onerror + unhandledrejection)
+
+import { getApiBase } from "./apiBase";
 
 export type LogLevel = "info" | "warn" | "error";
 
@@ -101,6 +104,23 @@ function normalizeError(err: unknown): { message: string; stack?: string; name?:
   }
 }
 
+function flushToServer(evt: ClientLogEvent): void {
+  // Fire-and-forget: never throws, never blocks the call stack.
+  // Best-effort only — silently ignored if the server is unreachable.
+  try {
+    const url = `${getApiBase()}/log`;
+    void fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ events: [evt] }),
+    }).catch(() => {
+      /* best effort — ignore network errors */
+    });
+  } catch {
+    /* ignore — never block the caller */
+  }
+}
+
 export function log(level: LogLevel, message: string, context?: Record<string, unknown>) {
   const evt: ClientLogEvent = {
     ts: Date.now(),
@@ -109,13 +129,18 @@ export function log(level: LogLevel, message: string, context?: Record<string, u
     context,
   };
 
-  // 1) console (svjesno, bez eksternog servisa)
+  // 1) console
   if (level === "error") console.error(message, context);
   else if (level === "warn") console.warn(message, context);
   else console.log(message, context);
 
-  // 2) localStorage buffer
+  // 2) localStorage ring buffer
   pushEvent(evt);
+
+  // 3) server sink (error-level only, fire-and-forget → Vercel Runtime Logs)
+  if (level === "error") {
+    flushToServer(evt);
+  }
 }
 
 export function logError(message: string, err: unknown, context?: Record<string, unknown>) {

@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** I2.2 — Hobby plan slot reclaim (2026-05-21, STRICT)
-**Sledeći:** merge I2.2→main, rebase+merge I3, rebase+close+merge I4; tada Faza I DONE
+**Poslednji završen:** I3 — Logger server sink (2026-05-21, STANDARD)
+**Sledeći:** I4 — Build SHA in monitoring init
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -258,13 +258,17 @@
   (STANDARD; 8 fajlova, +16/-80; SHA 3979261;
   reflect-any-origin closed u svih 8 admin handlera; allowHeaders includes authorization;
   CORS coverage complete: svih 11 handlera sada koriste applyCors())
-- **Faza I — IN PROGRESS** (I3 sledeći)
+- I3 (Logger server sink) — DONE 2026-05-21
+  (STANDARD; 2 fajla, +161/-2; SHA 8f9a0a8;
+  NEW api/log.ts; error-level events fire-and-forget → Vercel Runtime Logs;
+  localStorage ring buffer nepromijenjen; I4 sledeći — build SHA u monitoring)
+- **Faza I — IN PROGRESS** (I4 sledeći)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-48 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+49 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -301,7 +305,8 @@ G4.5 Extract useSuccessState hook src hooks cart,
 G4.6 Extract useCatalogData hook + CheckoutView component,
 I1 RLS admin_users membership policy,
 I2 CORS allowlist LOCK handlers,
-I2.1 CORS allowlist admin handlers).
+I2.1 CORS allowlist admin handlers,
+I3 Logger server sink).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
