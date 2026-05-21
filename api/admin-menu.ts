@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAdminFromDb } from "./_shared/admin-auth.js";
 import { isPlainObject } from "./_shared/parsing.js";
+import { applyCors } from "./_shared/cors.js";
 
 type Json = Record<string, unknown>;
 
@@ -43,15 +44,6 @@ function headerString(req: ReqLike, key: string): string {
   if (typeof raw === "string") return raw.trim();
   if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
   return "";
-}
-
-function setCors(req: ReqLike, res: ResLike) {
-  const origin = headerString(req, "origin");
-  res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  res.setHeader("Vary", "Origin");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "content-type, x-requested-with, authorization");
-  res.setHeader("Access-Control-Max-Age", "86400");
 }
 
 function json(res: ResLike, status: number, body: Json) {
@@ -203,7 +195,7 @@ function normalizeMenuRow(raw: unknown): AdminMenuRow | null {
 }
 
 export default async function handler(req: ReqLike, res: ResLike) {
-  setCors(req, res);
+  applyCors(req, res, { methods: "GET, POST", allowHeaders: "content-type, x-requested-with, authorization" });
 
   if (req.method === "OPTIONS") {
     res.status(204).send("");
