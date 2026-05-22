@@ -8,7 +8,7 @@
 ## W9 — 2026-05-23 — Workflow housekeeping post K–O ROADMAP — DONE
 
 **Tier:** LEAN
-**SHA:** [TBD — set after commit]
+**SHA:** be3ff60
 **Branch:** main (doc/tooling-only, direct commit per v3 default)
 **Files (5):**
   - .claude/skills/plan/SKILL.md — UPDATE +1; `model: opus` frontmatter field added (skill-level model override; eliminira manual /model switch posle /plan)
