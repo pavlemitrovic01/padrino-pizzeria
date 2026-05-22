@@ -5,6 +5,25 @@
 
 ---
 
+## J1 — 2026-05-22 — TEMPLATE.md + canonical env manifest — DONE
+
+**Tier:** STANDARD
+**SHA:** [post-commit]
+**Branch:** main (doc-only, direct commit per v3 default)
+**Files (2):**
+  - TEMPLATE.md — NEW 246 LOC; clone-and-adapt vodič; stack snapshot, reusable vs project-specific map, canonical env manifest (26 vars, grep-verified), clone steps, known limitations, references
+  - .env.example — UPDATE +5 LOC; ALLOWED_ORIGINS dodat (I2 drift od 2026-05-21)
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.82s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files
+  manual:    NIJE POKRENUTO — doc-only batch, no code touched
+**SCOPE_DRIFT:** none — exact 2 EXPECTED-FILES
+**LESSONS:** unchanged (7/7 active) — no new technical risk pattern; .env.example drift (ALLOWED_ORIGINS missing since I2) caught during /plan recon, system working as intended
+**Notes:** Zatvara exit criterion #8 — TEMPLATE.md postoji sa canonical env manifest-om. Env manifest: 26 vars dokumentovano; svi path-ovi u REUSABLE tabeli grep-verified (17/17). ALLOWED_ORIGINS bio missing iz .env.example od I2 (2026-05-21) — jedini drift nađen. Faza J: J1 DONE, J2 deferred (pending app#2). Self-score: 8.5/10 (9.0 je claim tek kad J2 uspešno klonira app#2).
+
+---
+
 ## H2.1 — 2026-05-22 — AdminMenu component split — DONE
 
 **Tier:** STRICT

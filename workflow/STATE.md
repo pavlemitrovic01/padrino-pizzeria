@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** H2.1 — AdminMenu component split (2026-05-22, STRICT)
-**Sledeći:** J1 — TEMPLATE.md + canonical env manifest (doc-only, STANDARD)
+**Poslednji završen:** J1 — TEMPLATE.md + canonical env manifest (2026-05-22, STANDARD)
+**Sledeći:** J2 — deferred (pending app#2; template = što Padrino + app#2 stvarno dele)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -283,6 +283,10 @@
   (STRICT; 3 fajla; SHA a379a06;
   NEW MenuItemList.tsx 179 LOC + MenuEditorPanel.tsx 372 LOC; AdminMenu.tsx 939→548;
   exit criterion #1 CLOSED for AdminMenu; Faza H DONE ✓)
+- J1 (TEMPLATE.md + canonical env manifest) — DONE 2026-05-22
+  (STANDARD doc-only; 2 fajla; TEMPLATE.md NEW 246 LOC + .env.example +5 LOC;
+  exit criterion #8 CLOSED; 26 env vars grep-verified; ALLOWED_ORIGINS drift fixed;
+  self-score 8.5/10 — J2 deferred pending app#2)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

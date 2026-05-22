@@ -2,11 +2,11 @@
 
 ## Current Phase
 
-**Refactor-to-9 program — Faze A–I DONE ✓, Faza H DONE ✓. Faza J (Template crystallization) — next.**
-H2.1 DONE 2026-05-22 (SHA a379a06, merge 643dea7): AdminMenu component split —
-MenuItemList.tsx 179 LOC + MenuEditorPanel.tsx 372 LOC; AdminMenu.tsx 939→548 LOC.
-Exit criterion #1 CLOSED for AdminMenu. Faza H DONE ✓.
-Next: J1 — TEMPLATE.md + canonical env manifest (doc-only, STANDARD).
+**Refactor-to-9 program — Faze A–I DONE ✓, Faza H DONE ✓, J1 DONE ✓.**
+J1 DONE 2026-05-22 (doc-only): TEMPLATE.md NEW 246 LOC + .env.example ALLOWED_ORIGINS drift fix.
+Exit criterion #8 CLOSED. All 8 exit criteria met. Self-score: **8.5/10**
+(9.0 je claim tek kad J2 uspešno klonira app#2).
+J2 deferred — pending app#2. No next batch planned.
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -159,7 +159,7 @@ self-score = **8.5** even with 1–8 all met.
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
-| J1 | `TEMPLATE.md` + canonical env manifest | STANDARD | 2h | Reusable vs project-specific map; clone-and-adapt guide. Doc-only. |
+| J1 | `TEMPLATE.md` + canonical env manifest | STANDARD | 2h | **DONE 2026-05-22 (doc-only).** TEMPLATE.md NEW 246 LOC; .env.example ALLOWED_ORIGINS added; 26 env vars grep-verified; exit criterion #8 CLOSED. |
 | J2 | Extract true shared template | deferred | — | Only AFTER app#2 exists. Template = what Padrino + app#2 actually share. Do NOT pre-abstract. |
 
 ## Long-term (no estimate)
