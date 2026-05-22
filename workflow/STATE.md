@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** J1 — TEMPLATE.md + canonical env manifest (2026-05-22, STANDARD)
-**Sledeći:** J2 — deferred (pending app#2; template = što Padrino + app#2 stvarno dele)
+**Poslednji završen:** W8 — ROADMAP K–O friction-reduction program definition (2026-05-23, LEAN)
+**Sledeći:** K1 — GA4 enhanced ecommerce events (STANDARD)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -287,6 +287,16 @@
   (STANDARD doc-only; 2 fajla; TEMPLATE.md NEW 246 LOC + .env.example +5 LOC;
   exit criterion #8 CLOSED; 26 env vars grep-verified; ALLOWED_ORIGINS drift fixed;
   self-score 8.5/10 — J2 deferred pending app#2)
+- W8 (ROADMAP K–O friction-reduction program definition) — DONE 2026-05-23
+  (LEAN doc-only; 1 fajl ROADMAP.md +103/-3 LOC; reframed Current Phase
+  Refactor-to-9 A–J "COMPLETED"; NEW K–O sekcija — audit findings, strategic
+  LOCK "friction reduction NOT redesign", 9 hard + 3 soft exit criteria,
+  Faza K [K1 GA4 instrumentation], Faza L [L1-L6 mobile friction critical],
+  Faza M [M1 hero copy locked Pavle 2026-05-23 "PIZZA · BUDVA · DOSTAVA"
+  + M2 menu drawer], Faza N [N1-N3 conversion engine conditional], Faza O
+  [data-triggered, pre-empty]; CardFields.tsx + CartView.tsx promovisani
+  u lock zone za K–O period; ROADMAP 190→290 lines / cap 600; self-score
+  target 8.0/10 UX; K1 next)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

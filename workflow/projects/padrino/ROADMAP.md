@@ -2,11 +2,16 @@
 
 ## Current Phase
 
-**Refactor-to-9 program — Faze A–I DONE ✓, Faza H DONE ✓, J1 DONE ✓.**
+**Refactor-to-9 program — Faze A–J COMPLETED ✓ (J1 done; J2 deferred per strategy).**
 J1 DONE 2026-05-22 (doc-only): TEMPLATE.md NEW 246 LOC + .env.example ALLOWED_ORIGINS drift fix.
-Exit criterion #8 CLOSED. All 8 exit criteria met. Self-score: **8.5/10**
+Exit criterion #8 CLOSED. Self-score for Refactor-to-9: **8.5/10**
 (9.0 je claim tek kad J2 uspešno klonira app#2).
-J2 deferred — pending app#2. No next batch planned.
+
+**Sledeći program: Friction-reduction (Faze K–O)** — vidi sekciju ispod.
+UX audit 2026-05-22 (mobile screenshots + analytics 28-day pull) →
+mobile-first conversion friction reduction, NOT redesign.
+**K1 (GA4 instrumentation) je sledeći batch.**
+
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -161,6 +166,101 @@ self-score = **8.5** even with 1–8 all met.
 |----|--------|------|----------|-------|
 | J1 | `TEMPLATE.md` + canonical env manifest | STANDARD | 2h | **DONE 2026-05-22 (doc-only).** TEMPLATE.md NEW 246 LOC; .env.example ALLOWED_ORIGINS added; 26 env vars grep-verified; exit criterion #8 CLOSED. |
 | J2 | Extract true shared template | deferred | — | Only AFTER app#2 exists. Template = what Padrino + app#2 actually share. Do NOT pre-abstract. |
+
+---
+
+# Friction-reduction program (Faze K–O) — UX/conversion
+
+UX audit 2026-05-22 (mobile screenshots + analytics 28-day pull) findings:
+- 379 active users / 28 dana, 1m03s avg engagement (zdrav baseline)
+- 11 `gateway.bankart.si` return sessions (payment se koristi, conversion postoji)
+- `add_to_cart` GA4 event = 0 → tracking broken
+- Multi-lang traffic (EN/DE/NL/FR/TR) — turisti dominantno; chatgpt.com referral 12 (LLM-driven discovery)
+- Mobile UX prioritetno (~80% pizzeria traffic procena)
+- Bankart iframe-i = crne kutije bez vidljivih border-a/placeholder-a (#1 conversion friction)
+
+**Strategic decision (2026-05-23): friction reduction, NOT redesign.**
+Sajt na kraju K–O izgleda 80% isto (chef hat logo, dark+yellow paleta,
+postojeće pizza fotke, about story sa Godfather posterom u lokalu,
+kontakt struktura). Promene su targeted UX friction tačke + brand-coherent
+copy + instrumentation. **NE pravimo:** novi design system, nove fotosesije
+kao K obavezu, novu paletu, dvojezičnost (postoji već kroz multi-lang SEO).
+Lock zone (CartDrawer, CardFields, CartView, CartProvider, App.tsx, api/*)
+tretira se istom STRICT disciplinom kao u Refactor-to-9. CardFields.tsx
+i CartView.tsx promovisani u lock zone za K–O period (real money path UI).
+
+## Exit criteria for "K–O done" (falsifiable)
+
+Hard (mehanički proverljivo):
+1. GA4 `add_to_cart` event > 0 u 7-dnevnom prozoru posle K1 deploy.
+2. Bankart iframe polja imaju vidljiv border + placeholder text (DOM-inspectable).
+3. Mobile cart editor — sticky bottom ne preklapa addons (visual proof).
+4. Hero/landing copy NE sadrži reč "Premium"/"premium" (grep clean).
+5. Zona dostave UI = chip selection, NE `<select>` element (DOM).
+6. Checkout header se menja po step-u (3 različita string-a, ne fiksno "Plaćanje").
+7. Bankart sekcija sadrži ≤ 1 trust messaging block (grep).
+8. Hamburger menu overlay covers logo at higher z-index (no provirivanje).
+9. Lock zone integrity preserved (CartDrawer/CardFields/CartView/CartProvider/App.tsx/api/*).
+
+Soft (post-deploy, 14-day window):
+- Add-to-cart rate > 0 (baseline je sad 0 zbog GA4 bug-a; treba bilo koji broj > 0 da potvrdi tracking radi)
+- Avg engagement ≥ 1m03s (no regression)
+- gateway.bankart.si return ≥ trenutnih 11/28dan (no payment regression)
+
+Self-score target: **8.0/10 UX** (mobile-focus). 9.0 NIJE meta — to bi
+tražilo nove fotke + brand identity work koji ovaj program eksplicitno
+isključuje.
+
+## Faza K — Instrumentation prerequisite
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| K1 | GA4 enhanced ecommerce events (`add_to_cart`, `begin_checkout`, `add_payment_info`, `purchase`) | STANDARD | 2-3h | Ne blocker za L/M paralelno, ali baseline za 14-day window measurement. `dataLayer.push` u CartProvider transitions (add/remove item) + checkout step transitions (CheckoutView). Validacija: GA4 DebugView preview. Doc-only kao backup ako Pavle ne traži strict baseline. |
+
+## Faza L — Mobile friction critical (lock-zone heavy)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| L1 | Hamburger menu z-index fix (logo provirivanje) | LEAN | 30min | Sitan CSS fix; Navbar.tsx ili relevantna MobileMenu komponenta. |
+| L2 | Bankart iframe styling (light bg, jasne border, focus state, font-size 16px iOS no-zoom) | STRICT | 3-4h | Lock zone: CardFields.tsx, CartDrawer.tsx. Bankart Payment.js `style` config override. Full test-mode card transaction smoke required. **#1 conversion priority.** |
+| L3 | Trust messaging reduction (3→1 blocks) | LEAN | 1h | Lock zone: CardFields.tsx. Zadrži jedan "🔒 Plaćanje kroz Bankart — sigurno i šifrovano" + reuse Visa/MC logoi iz footera. |
+| L4 | Cart item editor mobile compact | STRICT | 4-6h | Lock zone: CartView.tsx, CartDrawer.tsx. Briši duplicate "Ukupno: X €" pill, "Nazad na meni" button, smanji header height, X color sivo umesto crveno. Target: sticky bottom ne preklapa addons. |
+| L5 | Checkout step indicator + header renaming (1. Korpa → 2. Dostava → 3. Plaćanje) | STRICT | 4-6h | Lock zone: CheckoutView.tsx, CartDrawer.tsx. Header dinamičan po step state-u; breadcrumb na vrhu. |
+| L6 | Zona dostave chips + "Pozovi +382" demote | STANDARD | 2-3h | CheckoutView.tsx. `<select>` → chip array koristeci DELIVERY_ZONES iz src/lib/config. "Pozovi" sa žute CTA → tekstualni link "Nemaš zonu? Pozovi nas →". |
+
+## Faza M — Brand & copy alignment
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| M1 | Hero/SEO copy rewrite — "Premium" out, "PIZZA · BUDVA · DOSTAVA" hero, porodična brand pull | STRICT | 2-3h | App.tsx LOCK + index.html meta + OG tags. **Locked copy (Pavle 2026-05-23):** Pill = "PIZZA · BUDVA · DOSTAVA"; H1 = "PADRINO PIZZERIA" (netaknut); Sub = "Sveže pečena pizza, brza dostava u Budvi i okolini. Porodični recepti od 2021, ljubav na svaki zalogaj." SEO targets: `pizza budva` + `dostava` + `pizzeria budva` + tourist EN intent retained via meta description. Pre-execution grep: ukloniti SVE "premium"/"Premium" pojave iz src/ + index.html + meta tags. DECISIONS entry sa rationale ulazi u M1 /plan. |
+| M2 | "Vidi sliku" touch behavior + menu drawer header compact | STANDARD | 2-3h | Menu.tsx / sections/Menu.tsx: hover-only overlay na touch device → tap-to-zoom ili stalno vidljivo bez "Vidi sliku" texta. Menu drawer: smaller pill+header, "Idi na korpu" CTA u sticky bottom umesto centriranog. |
+
+## Faza N — Conversion engine (data-informed, post-L+M baseline)
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| N1 | Filter chips za menu (vegetarijanske / picante / calzone / svi) | STANDARD | 3-4h | Menu.tsx + sections/Menu.tsx. Static taxonomy iz config; postoji li `category` field u menu_items DB schemi? Verovatno ne — treba B-side mapping iz adminMenuLib ili cartDrawerHelpers. Provjeri pre /plan. |
+| N2 | Signature pizza highlight (Margherita "Klasik" + Padrino brand pizza) | STANDARD | 2-3h | Visual badge na 2 kartice; "Najprodavanije" / "Naš signature". Statički markup u Menu.tsx, ne admin-driven (zasad). |
+| N3 | Krofne/Piće kao "Možda još i ovo?" upsell sekcija | STANDARD | 3-4h | CartView.tsx: razdvoj impulse hooks od pizza addons; separate "🎯 Možda još i ovo?" sekcija ispod glavnih addons. Preserve postojeću marketing strategiju (intentional Pavle decision), samo vizuelno jasnije. |
+
+## Faza O — Optional, data-triggered
+
+Pre-empty intentionally. Triggered by N-end measurement reading 14 dana
+posle N3 deploy. Mogući kandidati: search za menu, OG image audit,
+bundle audit (lazy-load Supabase za public landing), secret rotation
+kadenc u RUNBOOK, mobile retention probe. Cap: 3 batch-a max.
+
+## K–O strategic notes
+
+- **Mobile-first**: ~80% pizzeria traffic procena. Svaki L batch koji menja layout mora prvo verifikovati mobile (Pavlov telefon), pa desktop.
+- **Bankart smoke je gate za L2**: bez real test-mode card transaction (Pavle) ne mergujemo L2 u main.
+- **L paralelizacija**: L1 + L3 mogu paralelno (LEAN, ne dotiču isti fajl). L2/L4/L5 sekvencijalno (svi dotiču CartDrawer lock zone, jedan po jedan).
+- **K1 paralelno sa L mogućno**: GA4 changes u CartProvider/main su tracking-only, ne blokiraju UI work. Ali poželjno da K1 stoji bar 3-4 dana pre nego što L promene UI (želimo bar parcijalni baseline).
+- **M1 = Pavle copy approval already locked** (2026-05-23): kombinacija je u M1 row notes; DECISIONS entry sa rationale ulazi u M1 /plan.
+- **N je conditional**: ne planirati N batch-eve pre L+M close-a. N pretpostavlja baseline iz K1 → ako add-to-cart rate ne uplift posle L+M deploy-a, prvo `/audit` zašto, ne preskočiti N.
+- **"premium" grep mandatory pre M1 close**: src/, index.html, meta tags, OG tags, vercel.json — sve mora biti clean.
+
+---
 
 ## Long-term (no estimate)
 
