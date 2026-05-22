@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** H2 — AdminMenu lib extraction (2026-05-22, STANDARD)
-**Sledeći:** H2.1 — AdminMenu component splitting (ispod 800 LOC) ili sledeći po dogovoru
+**Poslednji završen:** H2.1 — AdminMenu component split (2026-05-22, STRICT)
+**Sledeći:** J1 — TEMPLATE.md + canonical env manifest (doc-only, STANDARD)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -279,12 +279,16 @@
   (STANDARD; 2 fajla, +449/-414 LOC net; SHA 0c96ced;
   NEW src/lib/adminMenuLib.ts 449 LOC; AdminMenu.tsx 1353→939;
   types/helpers/API fns/editor helpers extracted; 939 LOC iznad 800 — H2.1 needed)
+- H2.1 (AdminMenu component split) — DONE 2026-05-22
+  (STRICT; 3 fajla; SHA a379a06;
+  NEW MenuItemList.tsx 179 LOC + MenuEditorPanel.tsx 372 LOC; AdminMenu.tsx 939→548;
+  exit criterion #1 CLOSED for AdminMenu; Faza H DONE ✓)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-52 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+54 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -325,7 +329,9 @@ I2.1 CORS allowlist admin handlers,
 I2.2 Hobby plan slot reclaim,
 I3 Logger server sink,
 I4 Build SHA in monitoring init,
-H1 AdminOrders lib extraction).
+H1 AdminOrders lib extraction,
+H2 AdminMenu lib extraction,
+H2.1 AdminMenu component split).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

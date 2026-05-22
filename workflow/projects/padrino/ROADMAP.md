@@ -2,21 +2,11 @@
 
 ## Current Phase
 
-**Refactor-to-9 program — Faze A–G DONE ✓. Faza I (Security + observability) IN PROGRESS.**
-I1 DONE 2026-05-21 (SHA 88c3967): hardkodovani email uklonjen iz orders RLS,
-membership-based admin_users policy applied to production — F2 iz B14 audita CLOSED.
-I2 DONE 2026-05-21 (SHA 5b0ff6c): reflect-any-origin closed u 3 LOCK handlers via
-api/_shared/cors.ts; ALLOWED_ORIGINS env var set u Vercel.
-I2.1 DONE 2026-05-21 (SHA 3979261): reflect-any-origin closed u svih 8 admin handlera —
-CORS allowlist coverage complete (svih 11 handlera koriste applyCors()).
-I2.2 DONE 2026-05-21 (SHA 5b9d716): Vercel Hobby 12-function limit hit (I3 dodao 13.
-funkciju); konsolidacija admin-menu-image→admin-menu (?op=image) +
-admin-resend-telegram→admin-orders (?op=resend-telegram); count: 13→10 (post-I3/I4 merge biće 11).
-I3 DONE 2026-05-21 (SHA 8f9a0a8): error-level client events now flush to Vercel Runtime Logs via api/log.ts (fire-and-forget).
-I4 DONE 2026-05-21 (SHA da8145b): VERCEL_GIT_COMMIT_SHA → VITE_BUILD_SHA → initClientMonitoring version field. Exit criteria #5 closed. Faza I DONE ✓.
-H1 DONE 2026-05-21 (SHA 916e017): AdminOrders lib extraction — types/helpers/API fns → src/lib/adminOrdersLib.ts; AdminOrders.tsx 1165→637 LOC.
-Next: H2 — AdminMenu split (Faza H).
-Faza H (Admin monoliths: H2 AdminMenu 1368 LOC) — IN PROGRESS.
+**Refactor-to-9 program — Faze A–I DONE ✓, Faza H DONE ✓. Faza J (Template crystallization) — next.**
+H2.1 DONE 2026-05-22 (SHA a379a06, merge 643dea7): AdminMenu component split —
+MenuItemList.tsx 179 LOC + MenuEditorPanel.tsx 372 LOC; AdminMenu.tsx 939→548 LOC.
+Exit criterion #1 CLOSED for AdminMenu. Faza H DONE ✓.
+Next: J1 — TEMPLATE.md + canonical env manifest (doc-only, STANDARD).
 Authoritative batch count + status: STATE.md.
 
 Faze A–E DONE (Stabilization, Critical fixes, Cleanup, Architectural
@@ -146,12 +136,13 @@ self-score = **8.5** even with 1–8 all met.
 | G4.5 | Extract `useSuccessState` (Bankart return) | STRICT | 1-2h | **DONE 2026-05-21 (SHA b7d989d).** 2 fajla, +356/−276 LOC; useSuccessState.ts NEW 334 LOC (16 returns: 9 state + 3 setters + 4 actions); CartDrawer.tsx LOCK 1310→1056 (net −254, recon target ~−255 hit on the nose); applySuccessUiState 62 LOC + Bankart return useEffect 109 LOC byte-identical relocation; Bankart card_redirect → return → paid polling smoke PASS. |
 | G4.6 | Extract `useCatalogData` + `CheckoutView` | STRICT | 2-3h | **DONE 2026-05-21 (SHA 17025f4).** 3 fajla, +700/−448; useCatalogData.ts NEW 136 LOC (4 catalog state slots + sauceIdSet/setPizzaSizeSafe/addDrinkToCart, exports PizzaVariantsMap, useCart() interno, onErrorRef pattern); CheckoutView.tsx NEW 429 LOC (~40 props, flat per konvencija, deliveryZoneKey: DeliveryZoneKey|""); CartDrawer.tsx LOCK 946→688 (net −258); Vercel Build Logs clean + full golden-path smoke PASS. |
 
-## Faza H — IN PROGRESS (Admin monoliths)
+## Faza H — DONE ✓ (Admin monoliths)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
 | H1 | AdminOrders split (table/detail/export/grouping → lib) | STANDARD | 2-3h | **DONE 2026-05-21 (SHA 916e017).** NEW src/lib/adminOrdersLib.ts 565 LOC (28 helpers + 3 API fns + 7 types); AdminOrders.tsx 1165→637 LOC. |
 | H2 | AdminMenu split (editor/image-upload/list) | STANDARD | 2-3h | **DONE 2026-05-22 (SHA 0c96ced).** NEW src/lib/adminMenuLib.ts 449 LOC (types/helpers/API fns); AdminMenu.tsx 1353→939 LOC. Note: 939 LOC iznad exit-kriterijuma #1 (800); H2.1 komponentno splitting needed. |
+| H2.1 | AdminMenu component split (MenuItemList + MenuEditorPanel) | STRICT | 1h | **DONE 2026-05-22 (SHA a379a06, merge 643dea7).** NEW MenuItemList.tsx 179 LOC + MenuEditorPanel.tsx 372 LOC; AdminMenu.tsx 939→548 LOC. Exit criterion #1 CLOSED for AdminMenu. |
 
 ## Faza I — DONE ✓ (Security + observability → 9)
 

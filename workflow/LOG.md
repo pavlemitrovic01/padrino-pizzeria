@@ -5,6 +5,26 @@
 
 ---
 
+## H2.1 — 2026-05-22 — AdminMenu component split — DONE
+
+**Tier:** STRICT
+**SHA:** a379a06 (batch) / 643dea7 (merge)
+**Branch:** batch/h2.1-admin-menu-component-split
+**Files (3):**
+  - src/pages/admin/MenuItemList.tsx — NEW 179 LOC; left-column list panel; 14 props; local StatusBadge; imports from adminMenuLib + money
+  - src/pages/admin/MenuEditorPanel.tsx — NEW 372 LOC; right-column editor panel; 25 props; local fieldClassName/PreviewImage/StatusBadge; imports from adminMenuLib
+  - src/pages/admin/AdminMenu.tsx — MODIFIED 939→548 LOC (net −391); imports MenuItemList + MenuEditorPanel; keeps fileToDataUrl + all state/hooks/handlers; left/right JSX replaced with component call sites
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.33s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files
+  manual:    PASS(human) — Pavle smoke confirmed
+**SCOPE_DRIFT:** none — exact 3 EXPECTED-FILES
+**LESSONS:** unchanged (7/7 active)
+**Notes:** AdminMenu.tsx 939→548 LOC — exit criterion #1 CLOSED for AdminMenu. Faza H DONE ✓. StatusBadge duplicated in both subcomponents (14 LOC each) — clean separation preferred over shared import at this scale.
+
+---
+
 ## H2 — 2026-05-22 — AdminMenu lib extraction — DONE
 
 **Tier:** STANDARD
