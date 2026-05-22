@@ -8,7 +8,7 @@
 ## J1 — 2026-05-22 — TEMPLATE.md + canonical env manifest — DONE
 
 **Tier:** STANDARD
-**SHA:** [post-commit]
+**SHA:** 43e7dd7
 **Branch:** main (doc-only, direct commit per v3 default)
 **Files (2):**
   - TEMPLATE.md — NEW 246 LOC; clone-and-adapt vodič; stack snapshot, reusable vs project-specific map, canonical env manifest (26 vars, grep-verified), clone steps, known limitations, references
