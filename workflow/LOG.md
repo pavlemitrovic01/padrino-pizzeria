@@ -8,7 +8,7 @@
 ## W8 — 2026-05-23 — ROADMAP K–O friction-reduction program definition — DONE
 
 **Tier:** LEAN
-**SHA:** [TBD — set after commit]
+**SHA:** da0dcd7
 **Branch:** main (doc-only, direct commit per v3 default)
 **Files (3):**
   - workflow/projects/padrino/ROADMAP.md — UPDATE +103/-3 LOC; Current Phase reframed (Refactor-to-9 "Faze A–J COMPLETED" — replaces "All 8 exit criteria met" claim); NEW "Friction-reduction program (Faze K–O)" sekcija: UX audit findings (analytics 28-day pull + mobile screenshots 2026-05-22), strategic LOCK "friction reduction, NOT redesign" + šta NE pravimo (design system, fotosesije, paleta, dvojezičnost), CardFields.tsx + CartView.tsx promovisani u lock zone za K–O period, 9 hard + 3 soft exit criteria (falsifiable), Faza K (K1 GA4 instrumentation STANDARD), Faza L (L1 hamburger LEAN, L2 Bankart iframe STRICT #1 priority, L3 trust msg LEAN, L4 cart compact STRICT, L5 checkout step STRICT, L6 zone chips STANDARD), Faza M (M1 hero copy STRICT — Pavle locked 2026-05-23, M2 menu drawer STANDARD), Faza N (N1-N3 conversion engine, conditional na L+M baseline), Faza O (data-triggered, pre-empty, cap 3 batch-a), K–O strategic notes (mobile-first, Bankart smoke gate, parallelization rules); self-score target 8.0/10 UX
