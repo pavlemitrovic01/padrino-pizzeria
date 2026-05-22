@@ -47,6 +47,23 @@ npm run typecheck
 
 This is fast (~2s). Catches "yesterday I left something broken".
 
+### Step 3.5 — Lock zone recent touches
+
+Read lock zone list from `workflow/projects/[active-project]/CONTEXT.md`
+("Lock zone" tabela).
+
+For each lock zone file, run:
+```bash
+git log --oneline -5 -- <path>
+```
+
+Output if any lock-zone file was touched in the last 5 commits:
+"Lock zone activity (last 5 commits): N file(s) touched — list".
+
+Razlog: ako se ulaziš u plan koji bi dotakao lock zone, treba odmah
+da znaš da je neko (možda ti od juče) već radio na tom fajlu. STRICT
+batch-evi na lock zone su seriously sequential — preklapanje = drift.
+
 ### Step 4 — Consolidated status report
 
 Output format:
@@ -70,6 +87,9 @@ Worktrees: [count, usually just main]
 
 Quick health
 typecheck: [PASS | FAIL — first error]
+
+Lock zone activity (last 5 commits)
+[N files touched — list, or "none"]
 
 Active LESSONS (top 7)
 [bulleted list]

@@ -5,6 +5,38 @@
 
 ---
 
+## W9 — 2026-05-23 — Workflow housekeeping post K–O ROADMAP — DONE
+
+**Tier:** LEAN
+**SHA:** [TBD — set after commit]
+**Branch:** main (doc/tooling-only, direct commit per v3 default)
+**Files (5):**
+  - .claude/skills/plan/SKILL.md — UPDATE +1; `model: opus` frontmatter field added (skill-level model override; eliminira manual /model switch posle /plan)
+  - .claude/skills/audit/SKILL.md — UPDATE +1; `model: opus` frontmatter field added (audit reasoning quality justifies Opus)
+  - .claude/skills/kickoff/SKILL.md — UPDATE +18/-1; new Step 3.5 "Lock zone recent touches" + Quick health output red dodat; razlog = ako se ulaziš u plan koji bi dotakao lock zone, treba odmah da znaš da li je neko (možda ti od juče) već radio tamo
+  - workflow/projects/padrino/CONTEXT.md — UPDATE +4/-1; (a) "Testing: Vitest (3 test files)" → "(17 test files, 206 tests — covers money path + API _shared + DOM characterization + golden path E2E)" stale doc drift fix; (b) Lock zone tabela: CartView.tsx + CardFields.tsx dodati sa K–O conditional note (W8 promotion materijalizovan u CONTEXT)
+  - workflow/STATE.md — UPDATE; Poslednji završen W9, Sledeći K1; W9 row dodat u Faza progres
+  - workflow/LOG.md — UPDATE; ovaj entry
+**Verify:**
+  build:     PASS(machine) — N/A (doc/skill-only)
+  typecheck: PASS(machine) — N/A
+  test:      PASS(machine) — N/A
+  manual:    NIJE POKRENUTO — LEAN tier
+**Git housekeeping (out-of-files):**
+  - 10 local merged batch/* branches obrisane:
+    g4.1-bankart-return-storage, g4.2-use-checkout-form, g4.6-catalog-and-checkout-view,
+    h1-admin-orders-lib, h2.1-admin-menu-component-split, i2-cors-allowlist,
+    i2.1-cors-admin-handlers, i2.2-hobby-slot-reclaim, i3-logger-server-sink,
+    i4-build-sha-monitoring
+  - 9 remote merged batch/* branches obrisane (h2.1 had no remote)
+  - 3 lokalne (i2/i2.1/i2.2) bile advanced od remote-a (squash merge razlika) — force delete (-D) bezbedan jer merged u main verifikovano
+  - Post-cleanup: zero batch/* local, zero batch/* remote
+**SCOPE_DRIFT:** none — tema = "workflow housekeeping post K–O ROADMAP"; 4 zero-risk sub-items legitimno fit pod tom temom (analog W2/W3 reconciliation pattern)
+**LESSONS:** unchanged (7/7 active)
+**Notes:** Trigger = Pavle question 2026-05-23 "ima li lakši način" za Opus→Sonnet model handoff. Verified preko claude-code-guide subagent-a: skill `model:` frontmatter je jedina realna opcija (slash commands, hooks, settings.json per-feature — sve mitovi). Plus exploited momentum za 3 dodatna housekeeping items koji bi inače decay-ovali kao background drift. K1 starta posle ovog batch-a sa čistim baseline-om: zero stale branches, accurate CONTEXT.md, /kickoff sa lock zone visibility, /plan + /audit ne traže manual /model.
+
+---
+
 ## W8 — 2026-05-23 — ROADMAP K–O friction-reduction program definition — DONE
 
 **Tier:** LEAN

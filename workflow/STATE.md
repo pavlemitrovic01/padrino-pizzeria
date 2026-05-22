@@ -22,7 +22,7 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W8 — ROADMAP K–O friction-reduction program definition (2026-05-23, LEAN)
+**Poslednji završen:** W9 — Workflow housekeeping post K–O ROADMAP (2026-05-23, LEAN)
 **Sledeći:** K1 — GA4 enhanced ecommerce events (STANDARD)
 **Aktivan batch:** NONE
 **Blocker:** NONE
@@ -297,6 +297,15 @@
   [data-triggered, pre-empty]; CardFields.tsx + CartView.tsx promovisani
   u lock zone za K–O period; ROADMAP 190→290 lines / cap 600; self-score
   target 8.0/10 UX; K1 next)
+- W9 (Workflow housekeeping post K–O ROADMAP) — DONE 2026-05-23
+  (LEAN; 4 sub-items zero-risk; (1) /plan + /audit skills `model: opus`
+  frontmatter override — eliminira manual /model switch; (2) CONTEXT.md
+  doc drift fix — "3 test files" → 17 tests + 206 testova + CardFields/CartView
+  dodati u Lock zone tabelu sa K–O conditional note; (3) /kickoff Step 3.5
+  "lock zone recent touches" enhancement + output Quick health red dodat;
+  (4) 10 lokalnih + 9 remote merged batch/* granica obrisane (sve verifikovano
+  merged u main; i2/i2.1/i2.2 lokalno advanced od remote zbog squash merge — force
+  delete safe); K1 next)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

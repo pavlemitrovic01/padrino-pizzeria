@@ -1,6 +1,7 @@
 ---
 name: plan
 description: Generates LEAN/STANDARD/STRICT batch plan with structured header for Claude Code handoff. Enforces clean working tree, doc cap, and one-active-batch invariants before planning. Refuses to plan if any guard fails.
+model: opus
 ---
 
 # /plan — Batch Plan Generator (workflow v3)

@@ -17,7 +17,7 @@
 - Payment: Bankart Payment.js + redirect fallback (HMAC-signed callbacks)
 - Notifications: Telegram bot (best-effort, never blocks transaction)
 - Rate limiting: Upstash Redis with in-memory fallback
-- Testing: Vitest (3 test files in `src/lib/`)
+- Testing: Vitest (17 test files, 206 tests — covers money path + API _shared + DOM characterization + golden path E2E)
 - Deploy: Vercel (production: padrinobudva.com)
 - Security headers: vercel.json (HSTS, X-Content-Type-Options, Permissions-Policy)
 
@@ -41,6 +41,8 @@
 | Fajl | Razlog |
 |------|--------|
 | `src/components/CartDrawer.tsx` | Payment flow, real money transactions |
+| `src/components/CartView.tsx` | Cart UI extracted from CartDrawer (G3); promovisan za K–O period (W8 2026-05-23) |
+| `src/components/CardFields.tsx` | Bankart card input UI extracted from CartDrawer (G2.2); promovisan za K–O period (W8 2026-05-23) |
 | `src/context/CartProvider.tsx` | Cart state machine, regression risk |
 | `src/App.tsx` | Router orchestration, hash scroll, admin shell |
 | `api/create-order.ts` | Server-side pricing validation (anti-tampering) |
@@ -49,6 +51,7 @@
 | `api/telegram-new-order.ts` | Telegram notification flow |
 
 LOCK = planski rad, STANDARD ili STRICT tier, jači verify, bez usputnih promena.
+CartView/CardFields lock je conditional na K–O period; po default-u će se vratiti u regular status posle N3 close.
 
 ## Project documentation
 

@@ -1,6 +1,7 @@
 ---
 name: audit
 description: On-demand cross-check between git state, STATE.md, LOG.md, and ROADMAP.md. Detects drift between sources of truth. Runs full verification (build, typecheck, test). Emits structured drift report. No fixes — only detection.
+model: opus
 ---
 
 # /audit — Cross-Source Drift Detector (workflow v3)
