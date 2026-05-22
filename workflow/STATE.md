@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** H1 — AdminOrders lib extraction (2026-05-21, STANDARD)
-**Sledeći:** H2 — AdminMenu split (Faza H)
+**Poslednji završen:** H2 — AdminMenu lib extraction (2026-05-22, STANDARD)
+**Sledeći:** H2.1 — AdminMenu component splitting (ispod 800 LOC) ili sledeći po dogovoru
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -275,6 +275,10 @@
   (STANDARD; 2 fajla, +565/-528 LOC net; SHA 916e017;
   NEW src/lib/adminOrdersLib.ts 565 LOC; AdminOrders.tsx 1165→637;
   28 helper fns + 3 API fns + 7 types/consts; Vercel Build Logs clean)
+- H2 (AdminMenu lib extraction) — DONE 2026-05-22
+  (STANDARD; 2 fajla, +449/-414 LOC net; SHA 0c96ced;
+  NEW src/lib/adminMenuLib.ts 449 LOC; AdminMenu.tsx 1353→939;
+  types/helpers/API fns/editor helpers extracted; 939 LOC iznad 800 — H2.1 needed)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main

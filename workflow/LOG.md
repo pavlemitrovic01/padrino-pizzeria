@@ -5,6 +5,25 @@
 
 ---
 
+## H2 — 2026-05-22 — AdminMenu lib extraction — DONE
+
+**Tier:** STANDARD
+**SHA:** 0c96ced
+**Branch:** main (direct commit)
+**Files (2):**
+  - src/lib/adminMenuLib.ts — NEW 449 LOC; exports: MenuCategory/VisibilityFilter/AdminMenuRow/EditorState + 4 response types + consts (MAX_IMAGE_SIZE_BYTES/CATEGORY_OPTIONS/VISIBILITY_OPTIONS/EMPTY_EDITOR/ADMIN_API_BASE); 12 pure helpers (toStr/toNullableStr/toBool/toNonNegativeInt/normalizeCategory/safeDateTime/centsToInput/parseEuroInputToCents/normalizeImageInput/buildPreviewCandidates/isAdminStorageUrl/normalizeMenuRow); 4 API fns (getSessionToken/apiGetMenuItems/apiUpsertMenuItem/apiUploadMenuImage/apiDeleteMenuImage); 3 editor helpers (editorFromRow/sortMenuItems/getNextSortOrder)
+  - src/pages/admin/AdminMenu.tsx — MODIFIED 1353→939 LOC (net −414); imports from adminMenuLib; keeps fileToDataUrl/fieldClassName/PreviewImage/StatusBadge/AdminMenu component; React hooks/JSX/handlers unchanged
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.06s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 206/206, 17 files
+  manual:    PASS(human) — Pavle smoke confirmed (list/edit/toggle)
+**SCOPE_DRIFT:** none — exact 2 EXPECTED-FILES
+**LESSONS:** unchanged (7/7 active)
+**Notes:** Pure extraction — nulta promena ponašanja. AdminMenu.tsx 1353→939 LOC. Note: 939 LOC iznad exit-kriterijuma #1 (800 LOC) — komponentno splitting (editor forma / lista / action toolbar) biće H2.1.
+
+---
+
 ## H1 — 2026-05-21 — AdminOrders lib extraction — DONE
 
 **Tier:** STANDARD

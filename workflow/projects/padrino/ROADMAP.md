@@ -151,7 +151,7 @@ self-score = **8.5** even with 1–8 all met.
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
 | H1 | AdminOrders split (table/detail/export/grouping → lib) | STANDARD | 2-3h | **DONE 2026-05-21 (SHA 916e017).** NEW src/lib/adminOrdersLib.ts 565 LOC (28 helpers + 3 API fns + 7 types); AdminOrders.tsx 1165→637 LOC. |
-| H2 | AdminMenu split (editor/image-upload/list) | STANDARD | 2-3h | 1368 LOC. |
+| H2 | AdminMenu split (editor/image-upload/list) | STANDARD | 2-3h | **DONE 2026-05-22 (SHA 0c96ced).** NEW src/lib/adminMenuLib.ts 449 LOC (types/helpers/API fns); AdminMenu.tsx 1353→939 LOC. Note: 939 LOC iznad exit-kriterijuma #1 (800); H2.1 komponentno splitting needed. |
 
 ## Faza I — DONE ✓ (Security + observability → 9)
 
