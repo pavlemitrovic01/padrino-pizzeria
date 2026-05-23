@@ -71,8 +71,6 @@ export default function CartView(props: CartViewProps) {
             const addonsTotalCents = addons.reduce((s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1), 0);
             const baseCents = toSafeInt(it.basePrice, toSafeInt(it.price, 0));
             const perItemCents = baseCents + addonsTotalCents;
-            const lineTotalCents = perItemCents * (it.quantity ?? 1);
-
             const isPizza = normalizeCategory(it.category ?? "").includes("pizza");
             const sauceAddons = (addons ?? []).filter((a) => props.sauceIdSet.has(a.id));
             const regularAddons = (addons ?? []).filter((a) => !props.sauceIdSet.has(a.id));
@@ -95,9 +93,6 @@ export default function CartView(props: CartViewProps) {
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-white/80">
                           {formatEUR(perItemCents)} / kom
-                        </div>
-                        <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-white/80">
-                          Ukupno: {formatEUR(lineTotalCents)}
                         </div>
                       </div>
 
@@ -388,7 +383,7 @@ export default function CartView(props: CartViewProps) {
         </div>
       ) : null}
 
-      <div className="h-3" />
+      {props.canSubmit ? <div className="h-32" /> : null}
     </div>
   );
 }

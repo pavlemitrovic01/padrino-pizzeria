@@ -507,7 +507,7 @@ export default function CartDrawer() {
 
           <div className="relative z-10 flex h-full flex-col">
             <div className="border-b border-white/10 bg-black/25 px-4 sm:px-5 backdrop-blur-xl">
-              <div className="flex items-center justify-between py-4 sm:py-5">
+              <div className="flex items-center justify-between py-2.5 sm:py-3">
                 <div className="min-w-0">
                   <div className="p-eyebrow">KORPA</div>
                   <div className="mt-1 text-[1.05rem] font-black tracking-[-0.02em] text-white/95 sm:text-[1.12rem]">
@@ -533,7 +533,7 @@ export default function CartDrawer() {
                     type="button"
                     onClick={handleCloseDrawer}
                     aria-label="Zatvori korpu"
-                    className="h-11 w-11 rounded-full border border-red-500/40 text-red-400 bg-black/40 hover:bg-red-500/15 hover:border-red-400 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center"
+                    className="h-11 w-11 rounded-full border border-white/15 text-white/60 bg-black/40 hover:bg-white/10 hover:border-white/30 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center"
                   >
                     <span className="text-[20px] leading-none">×</span>
                   </button>
@@ -681,11 +681,6 @@ export default function CartDrawer() {
                       </button>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-1 gap-2">
-                      <button type="button" onClick={handleGoToMenu} className={[BTN_NEUTRAL, "h-11 w-full text-sm font-extrabold"].join(" ")}>
-                        Nazad na meni
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>

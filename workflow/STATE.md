@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L3 — Trust messaging reduction 3→1 blocks in CardFields (2026-05-23, LEAN)
-**Sledeći:** L4 — Cart item editor mobile compact (STRICT, CartView lock zone). L2 deferred dok se Payment.js env ne uključi (prereq op).
+**Poslednji završen:** L4 — Cart item editor mobile compact in CartView/CartDrawer/CheckoutView (2026-05-23, STRICT)
+**Sledeći:** L5 — Checkout step indicator + header renaming (STRICT, CheckoutView/CartDrawer lock zone) ili L6 — Zona dostave chips (STANDARD, CheckoutView). L2 deferred dok se Payment.js env ne uključi (prereq op).
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -339,6 +339,19 @@
   pills uklonjeni; payment logic LOCKED; DevTools mobile view smoke PASS; bonus
   observation: paymentJsRequested=false lokalno [env not set] → L2 prereq ops step
   required pre iframe styling)
+- L4 (Cart item editor mobile compact) — DONE 2026-05-23
+  (STRICT; 3 fajla, +3/-28 net -25 LOC; SHA e4def5b;
+  CartView.tsx -5 LOC [lineTotalCents + "Ukupno: X €" item pill removed;
+  trailing h-3→h-32 wrapped u canSubmit ternary post code-review CONFIRMED fix];
+  CartDrawer.tsx -5 LOC [header py-4 sm:py-5 → py-2.5 sm:py-3; X button red→white/15
+  + white/60 neutral; "Nazad na meni" button + wrapper div removed, handleGoToMenu
+  RETAINED za success-view + empty-cart paths]; CheckoutView.tsx -15 LOC [drugi
+  SUBTOTAL/DOSTAVA/UKUPNO 3-pill summary inside selectedDeliveryZone conditional
+  removed, top "PREGLED" 3-pill ostaje single source]; per-batch branch
+  batch/l4-cart-mobile-compact; code-review 1 CONFIRMED+fixed + 2 PLAUSIBLE
+  deferred [qty>1 per-line subtotal product decision; X contrast WCAG borderline
+  aria-label retained]; Pavle screenshot pre-execute proširio scope sa 2→3 fajla
+  otkrivši CheckoutView drugi 3-pill duplikat — recon-depth tema već u W4/W5 noti)
   (LEAN; 5 sub-items koherentni pod temom "workflow tooling completeness":
   (1) NEW .claude/skills/execute/SKILL.md (model: sonnet) — Opcija B (real value):
       pre-flight gates [no plan / dirty tree / active batch], STRICT auto-branch,

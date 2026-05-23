@@ -5,6 +5,83 @@
 
 ---
 
+## L4 — 2026-05-23 — Cart item editor mobile compact — DONE
+
+**Tier:** STRICT
+**SHA:** e4def5b
+**Branch:** batch/l4-cart-mobile-compact
+**Files (3):**
+  - src/components/CartView.tsx — UPDATE +1/-6 net −5 LOC; (a) `lineTotalCents`
+    const + item-card "Ukupno: {formatEUR(lineTotalCents)}" pill uklonjeni
+    (samo "X € / kom" pill ostaje uz qty stepper); (b) trailing spacer h-3 → h-32
+    wrapped u `props.canSubmit` ternary — code-review CONFIRMED fix da empty
+    cart state ne renderuje 128px dead space ispod "Korpa je prazna" placeholdera.
+  - src/components/CartDrawer.tsx — UPDATE +2/-7 net −5 LOC; (a) header
+    `py-4 sm:py-5` → `py-2.5 sm:py-3` (kompaktniji mobile header);
+    (b) X close button `border-red-500/40 text-red-400 hover:bg-red-500/15
+    hover:border-red-400` → `border-white/15 text-white/60 hover:bg-white/10
+    hover:border-white/30` (neutralni dismiss affordance, aria-label retained);
+    (c) "Nazad na meni" button + `<div className="mt-3 grid grid-cols-1 gap-2">`
+    wrapper obrisani iz sticky footer-a; handleGoToMenu handler RETAINED jer
+    je referenced u CartDrawer:557 (CartDrawerSuccessView onGoToMenu) +
+    :637 (CartView onGoToMenu — empty cart "Idi na meni" CTA).
+  - src/components/CheckoutView.tsx — UPDATE 0/-15 net −15 LOC; drugi
+    SUBTOTAL/DOSTAVA/UKUPNO 3-pill summary blok unutar `selectedDeliveryZone`
+    conditional obrisan (bio strukturni duplikat top "PREGLED" 3-pill kartice
+    linije 170-182, koja ostaje kao single source — `subtotalLabel`,
+    `formatFeeEurShort(deliveryFeeCents)`, `effectiveTotalLabel` updates
+    reactively via useDeliveryZone hook).
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.24s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 18 files, 211 tests (CartDrawer.contract +
+             CartDrawer.e2e najrelevantniji — no assertion regression)
+  manual:    PASS(human) — Pavle screenshots:
+             (cart view) kompaktan header, sivi X, samo "10,50 € / kom" pill u
+             Diavolo item kartici (no duplicate "Ukupno"), Sosevi+Napomena+addons
+             ne preklapaju sticky "UKUPNO 20,00 € + Poruči" footer;
+             (checkout view) "PREGLED — Spremno za potvrdu" kartica sa jednim
+             SUBTOTAL/DOSTAVA/UKUPNO 3-pill summary, form polja ispod bez
+             dupliranog summary bloka. Plus Bankart test-mode card transaction
+             full golden path PASS (payment-flow ne regressira).
+**SCOPE_DRIFT:** none — EXPECTED-FILES = [CartDrawer.tsx, CartView.tsx,
+  CheckoutView.tsx], actual diff = same. Initial plan imao 2 fajla (CartView +
+  CartDrawer) per ROADMAP description; CheckoutView dodato pre /execute kad je
+  Pavle screenshot intervenisao otkrivši drugi 3-pill duplikat (scope expansion
+  approved u istoj plan iteraciji, ne SCOPE_DRIFT po close definiciji).
+**Code-review (Opus, 3 angles × verify):** 1 CONFIRMED + 2 PLAUSIBLE.
+  CONFIRMED: h-32 spacer renderovan unconditionally → 128px dead space u empty
+  cart state. Fix primenjen u istoj sesiji (canSubmit ternary, +1 LOC).
+  PLAUSIBLE deferred: (a) qty>1 per-line subtotal više nije vidljiv (sticky
+  footer pokriva grand total) — Pavle product decision retained; (b) X button
+  contrast text-white/60 nad composite bg-black/40 + bg-black/25 + gradient
+  backdrop borderline za WCAG 4.5:1 — aria-label="Zatvori korpu" retained,
+  consider bump na text-white/80 ako buduce accessibility audit flag-uje.
+**LESSONS:** unchanged (7/7 active L1/L2/L3/L5/L6/L7/L8) — recon-depth tema
+  (Haiku scout promašio cart-item-card duplikat) već pokrivena W4/W5
+  reconciliation notes; h-32 empty-state bug je standardni React conditional
+  render pattern, ne project-specific learning vredan L9 rotacije.
+**Notes:** Drugi STRICT batch u Fazi L (posle L1 LEAN + L3 LEAN). Lock zone
+  touch — CartView/CardFields W8 promocija za K–O period honored, plus
+  CheckoutView dodato u scope mid-plan posle Pavle screenshot intervencije.
+  Pattern observation: kad ROADMAP opis ima "duplicate X" claim, recon mora
+  pokriti SVA mesta gde se taj string pojavljuje, ne samo header — Haiku scout
+  prvi prolaz tražio "Ukupno" u headeru CartView-a/CartDrawer-a, što je tehnički
+  netačno mesto. Pavle screenshot direktno upro u item-card "Ukupno: 10,50 €"
+  pill + CheckoutView drugi 3-pill — recon je morao da grep-uje "Ukupno|UKUPNO|
+  SUBTOTAL|DOSTAVA" cross-file pre nego što plan kreće. To je bilo zatvoreno
+  inline drugim grep prolazom; nije nova lesson jer je već u W4/W5 noti
+  ("recon depth — pre-plan grep mora pokriti src/lib/, ne samo src/components/").
+  Branch batch/l4-cart-mobile-compact će biti merged + obrisan post-PR.
+
+Sledeći u Faza L: L5 (Checkout step indicator + header renaming, STRICT,
+  CheckoutView + CartDrawer lock zone) ili L6 (Zona dostave chips + Pozovi
+  demote, STANDARD, CheckoutView only). L2 (Bankart iframe styling, STRICT)
+  blocked dok Pavle ne potvrdi VITE_BANKART_PAYMENTJS_ENABLED + PUBLIC_KEY u
+  Vercel + lokalni dev env (per L3 close note).
+
+---
+
 ## L3 — 2026-05-23 — Trust messaging reduction 3→1 in CardFields — DONE
 
 **Tier:** LEAN
