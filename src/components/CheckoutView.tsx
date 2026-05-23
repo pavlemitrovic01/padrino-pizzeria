@@ -312,21 +312,6 @@ export default function CheckoutView({
                     <div className="mt-2 text-xs text-white/60">Ili dodaj još u korpu da bi dostava postala besplatna.</div>
                   </div>
                 ) : null}
-
-                <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                    <div className="text-[11px] font-semibold text-white/60">SUBTOTAL</div>
-                    <div className="mt-0.5 font-extrabold text-white/90">{subtotalLabel}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                    <div className="text-[11px] font-semibold text-white/60">DOSTAVA</div>
-                    <div className="mt-0.5 font-extrabold text-white/90">{formatFeeEurShort(deliveryFeeCents)}</div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                    <div className="text-[11px] font-semibold text-white/60">UKUPNO</div>
-                    <div className="mt-0.5 font-extrabold text-white/90">{effectiveTotalLabel}</div>
-                  </div>
-                </div>
               </div>
             ) : null}
 
