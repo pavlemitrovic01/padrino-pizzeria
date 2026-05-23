@@ -8,7 +8,7 @@
 ## W11 — 2026-05-23 — Workflow tooling completion — DONE
 
 **Tier:** LEAN
-**SHA:** [TBD — set after commit]
+**SHA:** 90d4c5f
 **Branch:** main (skill+doc-only, direct commit per v3 default)
 **Files (7):**
   - .claude/skills/execute/SKILL.md — NEW; model: sonnet; ~140 LOC; "Opcija B" implementation:
