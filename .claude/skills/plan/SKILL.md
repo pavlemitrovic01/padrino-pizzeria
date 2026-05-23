@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Generates LEAN/STANDARD/STRICT batch plan with structured header for Claude Code handoff. Enforces clean working tree, doc cap, and one-active-batch invariants before planning. Refuses to plan if any guard fails.
+description: Generates LEAN/STANDARD/STRICT batch plan with structured header (BATCH-ID, TIER, EXPECTED-FILES) used later by /close for SCOPE_DRIFT detection. Enforces clean working tree, doc cap, and one-active-batch invariants before planning. Refuses to plan if any guard fails.
 model: opus
 ---
 
@@ -12,6 +12,12 @@ Pretvara opis taska u execution brief sa strukturiranim header-om
 koji /close kasnije mašinski poredi sa stvarnim git diff-om.
 
 Sprečava scope creep PRE nego što kod krene.
+
+**Workflow context:** Sve se izvršava u Claude Code (jedna alatka,
+isti AI). Plan je dokument koji ostaje u chat istoriji — sledeća
+poruka posle approval-a je signal AI-ju da krene sa izvršenjem.
+Ne pravimo "execution prompt" kao odvojen deliverable
+(legacy iz starog ChatGPT→Composer handoff workflow-a — dead pattern).
 
 ## Invocation
 
@@ -88,12 +94,15 @@ Then standard plan body (CILJ, PLAN, RIZIK, VERIFY, ZABRANE).
 
 Show the plan. Wait for Pavle to say one of: "ok", "piši", "važi", "kreni".
 
-DO NOT write the Claude Code prompt until approval.
+DO NOT begin execution until approval.
 
-### Step 5 — On approval, write Claude Code prompt
+### Step 5 — On approval, begin execution in same session
 
-Use the structured header verbatim at the top.
-Include numbered steps, ZABRANE block, output format.
+The plan is already in chat history. Sledeća user poruka posle approval-a
+(npr. "ok kreni") = signal AI-ju da krene sa izvršenjem PLAN bloka direktno.
+
+Header iz Step 3 ostaje kao machine-readable referenca za /close
+SCOPE_DRIFT detection — ne treba ga "pakovati" u execution prompt.
 
 ---
 
@@ -122,6 +131,7 @@ If ROADMAP.md is 642 lines:
 
 - Generate plan without reading STATE.md first
 - Skip pre-flight gates because "this is a small task"
-- Write Claude Code prompt before Pavle approves
+- Begin execution before Pavle approves (Step 4 gate)
+- Generate a separate "execution prompt" deliverable (legacy ChatGPT→Composer pattern — sve se sada radi u istoj Claude Code sesiji, plan dokument je dovoljan)
 - Plan two unrelated topics in one batch (RULES §1: 1 tema = 1 batch)
 - Use approximate file lists in EXPECTED-FILES — must be exact paths

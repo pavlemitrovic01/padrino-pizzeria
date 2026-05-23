@@ -5,6 +5,42 @@
 
 ---
 
+## W10 — 2026-05-23 — /plan SKILL.md simplification (legacy "Claude Code prompt" removed) — DONE
+
+**Tier:** LEAN
+**SHA:** [TBD — set after commit]
+**Branch:** main (skill-config-only, direct commit per v3 default)
+**Files (3):**
+  - .claude/skills/plan/SKILL.md — UPDATE 4 edits, ~12 LOC net delta;
+    (1) description: pojasnjeno "structured header (BATCH-ID, TIER, EXPECTED-FILES)
+        used later by /close for SCOPE_DRIFT detection" (skinuto "for Claude Code handoff");
+    (2) Role: nova "Workflow context" sekcija — plan dokument je deliverable u istoj
+        Claude Code sesiji, ne odvojen execution prompt; legacy ChatGPT→Composer pattern
+        eksplicitno ozvučen kao dead;
+    (3) Step 4: "DO NOT write the Claude Code prompt until approval" → "DO NOT begin
+        execution until approval";
+    (4) Step 5: "On approval, write Claude Code prompt" → "On approval, begin execution
+        in same session"; header iz Step 3 ostaje kao machine-readable referenca za
+        /close, ne treba ga "pakovati" u execution prompt;
+    (5) Anti-patterns: "Write Claude Code prompt before Pavle approves" →
+        "Begin execution before Pavle approves" + dodat eksplicitan anti-pattern
+        "Generate a separate 'execution prompt' deliverable (legacy ChatGPT→Composer
+        pattern — sve se sada radi u istoj Claude Code sesiji, plan dokument je dovoljan)"
+  - workflow/STATE.md — UPDATE; Poslednji završen W10, Sledeći L1; W10 row dodat
+  - workflow/LOG.md — UPDATE; ovaj entry
+**Verify:**
+  build:     PASS(machine) — N/A (skill-config-only)
+  typecheck: PASS(machine) — N/A
+  test:      PASS(machine) — N/A
+  manual:    NIJE POKRENUTO — LEAN tier
+**Pre-edit verification:**
+  - .claude/skills/close/SKILL.md grep "prompt" — zero matches (clean, ne treba edit)
+**SCOPE_DRIFT:** none — tema = "/plan SKILL.md simplification (drop legacy prompt step)"; sve izmene fit pod jedan koherentan refactor
+**LESSONS:** unchanged (7/7 active)
+**Notes:** Trigger = Pavle question 2026-05-23 (pre K1 zatvaranja) "fora je sto smo izbacili iz upotrebe web verziju kao planner itd, sve radim ovde u claude code i meni nije potrebno da se pisu promptovi pre izvrsenja, da li je opusu/sonnetu potrebno?" Analiza potvrdila da Step 5 ("Write Claude Code prompt") je legacy iz pre-W0 ChatGPT→Composer Execute workflow (vidi DECISIONS Phase History). AI koji generiše plan (Opus, via W9 frontmatter override) je u istoj sesiji kao AI koji izvršava — plan dokument već u chat history, nema "handoff" preko alatki. Header (BATCH-ID/TIER/EXPECTED-FILES) zadržan jer /close ga čita za SCOPE_DRIFT — to je machine-readable kontrakt, ne handoff prompt. Pre nego što krene L1, /plan sad daje čistiji output (plan dokument samo, ne plus duplicated execution prompt).
+
+---
+
 ## K1 — 2026-05-23 — GA4 enhanced ecommerce events — DONE
 
 **Tier:** STRICT (upgraded from STANDARD pre-execution — plan analiza otkrila 2 lock-zone fajla)

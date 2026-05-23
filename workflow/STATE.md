@@ -22,7 +22,7 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** K1 — GA4 enhanced ecommerce events (2026-05-23, STRICT)
+**Poslednji završen:** W10 — /plan SKILL.md simplification (legacy "Claude Code prompt" removed) (2026-05-23, LEAN)
 **Sledeći:** L1 — Hamburger menu z-index fix (LEAN)
 **Aktivan batch:** NONE
 **Blocker:** NONE
@@ -313,6 +313,15 @@
   (4) 10 lokalnih + 9 remote merged batch/* granica obrisane (sve verifikovano
   merged u main; i2/i2.1/i2.2 lokalno advanced od remote zbog squash merge — force
   delete safe); K1 next)
+- W10 (/plan SKILL.md simplification — legacy "Claude Code prompt" removed) — DONE 2026-05-23
+  (LEAN; 1 fajl .claude/skills/plan/SKILL.md; description ažurirano (sad eksplicitno
+  pominje BATCH-ID/TIER/EXPECTED-FILES + /close SCOPE_DRIFT use); Role sekcija dobila
+  "Workflow context" pasus koji eksplicitno markira plan dokument kao deliverable
+  (ne odvojen execution prompt); Step 4 "DO NOT write Claude Code prompt" →
+  "DO NOT begin execution"; Step 5 "On approval, write Claude Code prompt" →
+  "On approval, begin execution in same session"; anti-pattern lista ažurirana —
+  legacy ChatGPT→Composer handoff pattern eksplicitno ozvučen kao dead; /close
+  SKILL.md verifikovan clean od "prompt" reference (zero matches); L1 next)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
