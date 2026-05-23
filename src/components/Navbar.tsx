@@ -115,9 +115,14 @@ export default function Navbar() {
         {/* Logo (skroz levo, kao tvoj kvadrat 2) */}
         <a
           href="/#"
-          className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex items-center gap-3 select-none z-[55]"
+          className={[
+            "absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex items-center gap-3 select-none z-[55]",
+            "transition-opacity duration-200",
+            mobileOpen ? "opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto" : "",
+          ].join(" ")}
           onClick={onClickLogo}
           aria-label="Padrino početna"
+          aria-hidden={mobileOpen ? "true" : undefined}
         >
           <ChefHatLogo className="h-9 w-9 translate-y-[2px]" />
           <span className="sr-only">Padrino</span>
@@ -217,7 +222,7 @@ export default function Navbar() {
 
           {/* Mobile dropdown */}
           {mobileOpen ? (
-            <div className="md:hidden pb-4">
+            <div className="md:hidden pb-4 relative z-[60]">
               <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md p-3">
                 <div className="flex flex-col">
                   {links.map((l) => (
