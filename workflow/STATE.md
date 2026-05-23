@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W9 — Workflow housekeeping post K–O ROADMAP (2026-05-23, LEAN)
-**Sledeći:** K1 — GA4 enhanced ecommerce events (STANDARD)
+**Poslednji završen:** K1 — GA4 enhanced ecommerce events (2026-05-23, STRICT)
+**Sledeći:** L1 — Hamburger menu z-index fix (LEAN)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -297,6 +297,13 @@
   [data-triggered, pre-empty]; CardFields.tsx + CartView.tsx promovisani
   u lock zone za K–O period; ROADMAP 190→290 lines / cap 600; self-score
   target 8.0/10 UX; K1 next)
+- K1 (GA4 enhanced ecommerce events) — DONE 2026-05-23
+  (STRICT; 5 fajlova, +161/-1; Ga4CartItem type + AnalyticsEventParams extended;
+  trackAddToCart/remove/beginCheckout/addPaymentInfo/purchase helpers;
+  CartProvider LOCK: add_to_cart+remove_from_cart+add_payment_info call sites;
+  CartDrawer LOCK: begin_checkout u proceedToCheckout, totalCents u cash submit;
+  useSuccessState: hasFiredPurchaseRef dedup, purchase u oba flow-a;
+  5 unit testova + jsdom env; GA4 DebugView smoke PASS; Faza K DONE ✓)
 - W9 (Workflow housekeeping post K–O ROADMAP) — DONE 2026-05-23
   (LEAN; 4 sub-items zero-risk; (1) /plan + /audit skills `model: opus`
   frontmatter override — eliminira manual /model switch; (2) CONTEXT.md
@@ -311,7 +318,7 @@
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-54 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+55 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -354,7 +361,8 @@ I3 Logger server sink,
 I4 Build SHA in monitoring init,
 H1 AdminOrders lib extraction,
 H2 AdminMenu lib extraction,
-H2.1 AdminMenu component split).
+H2.1 AdminMenu component split,
+K1 GA4 enhanced ecommerce events).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

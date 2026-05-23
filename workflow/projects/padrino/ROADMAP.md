@@ -10,7 +10,7 @@ Exit criterion #8 CLOSED. Self-score for Refactor-to-9: **8.5/10**
 **Sledeći program: Friction-reduction (Faze K–O)** — vidi sekciju ispod.
 UX audit 2026-05-22 (mobile screenshots + analytics 28-day pull) →
 mobile-first conversion friction reduction, NOT redesign.
-**K1 (GA4 instrumentation) je sledeći batch.**
+**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1 sledeći.**
 
 Authoritative batch count + status: STATE.md.
 
@@ -211,11 +211,11 @@ Self-score target: **8.0/10 UX** (mobile-focus). 9.0 NIJE meta — to bi
 tražilo nove fotke + brand identity work koji ovaj program eksplicitno
 isključuje.
 
-## Faza K — Instrumentation prerequisite
+## Faza K — DONE ✓ (Instrumentation prerequisite)
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
-| K1 | GA4 enhanced ecommerce events (`add_to_cart`, `begin_checkout`, `add_payment_info`, `purchase`) | STANDARD | 2-3h | Ne blocker za L/M paralelno, ali baseline za 14-day window measurement. `dataLayer.push` u CartProvider transitions (add/remove item) + checkout step transitions (CheckoutView). Validacija: GA4 DebugView preview. Doc-only kao backup ako Pavle ne traži strict baseline. |
+| K1 | GA4 enhanced ecommerce events (`add_to_cart`, `begin_checkout`, `add_payment_info`, `purchase`) | STRICT | 2-3h | **DONE 2026-05-23 (SHA f2047cb).** Tier upgraded STANDARD→STRICT (2 lock-zone fajla). analytics.ts: Ga4CartItem type + 5 ecommerce helpera. CartProvider LOCK: add_to_cart/remove_from_cart/add_payment_info. CartDrawer LOCK: begin_checkout + totalCents pass. useSuccessState: hasFiredPurchaseRef dedup + purchase (cash+card). GA4 DebugView smoke PASS. |
 
 ## Faza L — Mobile friction critical (lock-zone heavy)
 

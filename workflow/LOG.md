@@ -5,6 +5,40 @@
 
 ---
 
+## K1 — 2026-05-23 — GA4 enhanced ecommerce events — DONE
+
+**Tier:** STRICT (upgraded from STANDARD pre-execution — plan analiza otkrila 2 lock-zone fajla)
+**SHA:** f2047cb
+**Branch:** batch/k1-ga4-events
+**Files (5):**
+  - src/lib/analytics.ts — UPDATE +55/-1; Ga4CartItem type, AnalyticsEventParams extended
+    to allow Ga4CartItem[], 5 new ecommerce helpers: trackAddToCart / trackRemoveFromCart /
+    trackBeginCheckout / trackAddPaymentInfo / trackPurchase
+  - src/lib/analytics.test.ts — NEW +64; 5 unit testova, @vitest-environment jsdom,
+    svi PASS; shouldTrackNow() zahteva window (jsdom) da ne vrati false
+  - src/context/CartProvider.tsx — UPDATE +22; trackAddToCart posle addToCart setItems,
+    trackRemoveFromCart pre setItems filter (čita items iz closure), trackAddPaymentInfo
+    posle setPaymentMethod (LOCK — side-effect only, nula logike)
+  - src/components/CartDrawer.tsx — UPDATE +9; trackBeginCheckout u proceedToCheckout
+    (effectiveTotalCents iz useDeliveryZone), totalCents: nextSummary.totalCents dodat
+    u cash applySuccessUiState call (LOCK — side-effect only)
+  - src/hooks/cart/useSuccessState.ts — UPDATE +11; totalCents? u ApplySuccessUiStateInput,
+    hasFiredPurchaseRef dedup guard (keyed na orderId), trackPurchase u cash branch +
+    card "paid" branch (successSummary.totalCents iz stanja, set pre polling-a)
+**Verify:**
+  build:     PASS(machine) — 25 chunks, exit 0
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — 18 test fajlova, 211/211 testova
+  manual:    PASS(human) — Pavle: GA4 DebugView smoke PASS (2026-05-23)
+**SCOPE_DRIFT:** none
+**Notes:**
+  hasFiredPurchaseRef sprečava double-fire na Bankart polling loop. Cash purchase fires
+  u paymentMethod!=="card" branch (totalCents iz input.totalCents); card purchase fires
+  u paymentStatus==="paid" branch (totalCents iz successSummary iz bankartReturnStorage).
+  Faza K DONE (K1 je bio jedini batch).
+
+---
+
 ## W9 — 2026-05-23 — Workflow housekeeping post K–O ROADMAP — DONE
 
 **Tier:** LEAN
