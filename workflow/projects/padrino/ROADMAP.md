@@ -10,7 +10,7 @@ Exit criterion #8 CLOSED. Self-score for Refactor-to-9: **8.5/10**
 **Sledeći program: Friction-reduction (Faze K–O)** — vidi sekciju ispod.
 UX audit 2026-05-22 (mobile screenshots + analytics 28-day pull) →
 mobile-first conversion friction reduction, NOT redesign.
-**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1 sledeći.**
+**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1 DONE 2026-05-23, L3 sledeći (LEAN).**
 
 Authoritative batch count + status: STATE.md.
 
@@ -221,7 +221,7 @@ isključuje.
 
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
-| L1 | Hamburger menu z-index fix (logo provirivanje) | LEAN | 30min | Sitan CSS fix; Navbar.tsx ili relevantna MobileMenu komponenta. |
+| L1 | Hamburger menu z-index fix (logo provirivanje) | LEAN | 30min | **DONE 2026-05-23 (SHA 3a5dfe0).** Navbar.tsx single file; mobile dropdown wrapper `relative z-[60]` iznad logo z-[55] + logo conditional `opacity-0 pointer-events-none` kad mobileOpen=true (md:opacity-100 preserves desktop); transition-opacity 200ms + aria-hidden. DevTools mobile view + real phone smoke PASS. |
 | L2 | Bankart iframe styling (light bg, jasne border, focus state, font-size 16px iOS no-zoom) | STRICT | 3-4h | Lock zone: CardFields.tsx, CartDrawer.tsx. Bankart Payment.js `style` config override. Full test-mode card transaction smoke required. **#1 conversion priority.** |
 | L3 | Trust messaging reduction (3→1 blocks) | LEAN | 1h | Lock zone: CardFields.tsx. Zadrži jedan "🔒 Plaćanje kroz Bankart — sigurno i šifrovano" + reuse Visa/MC logoi iz footera. |
 | L4 | Cart item editor mobile compact | STRICT | 4-6h | Lock zone: CartView.tsx, CartDrawer.tsx. Briši duplicate "Ukupno: X €" pill, "Nazad na meni" button, smanji header height, X color sivo umesto crveno. Target: sticky bottom ne preklapa addons. |

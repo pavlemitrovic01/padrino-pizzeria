@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W11 — Workflow tooling completion (/execute skill + proactive rules + /plan recon + /audit parallel + /close STRICT review) (2026-05-23, LEAN)
-**Sledeći:** L1 — Hamburger menu z-index fix (LEAN)
+**Poslednji završen:** L1 — Hamburger menu z-index fix + logo hide when mobile dropdown open (2026-05-23, LEAN)
+**Sledeći:** L3 — Trust messaging reduction 3→1 blocks (LEAN, CardFields.tsx)
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -323,6 +323,12 @@
   legacy ChatGPT→Composer handoff pattern eksplicitno ozvučen kao dead; /close
   SKILL.md verifikovan clean od "prompt" reference (zero matches); L1 next)
 - W11 (Workflow tooling completion — /execute + proactive rules + recon + parallel + review reco) — DONE 2026-05-23
+- L1 (Hamburger menu z-index fix + logo hide on mobile dropdown open) — DONE 2026-05-23
+  (LEAN; 1 fajl src/components/Navbar.tsx, +7/-2; SHA 3a5dfe0; mobile dropdown wrapper
+  `relative z-[60]` iznad logo z-[55] + logo conditional opacity-0 + pointer-events-none
+  kad mobileOpen=true [md:opacity-100 preserves desktop landscape edge]; transition-opacity
+  200ms + aria-hidden=true; real phone smoke (Huawei hotspot) + DevTools mobile view PASS;
+  prvi Faza L batch — friction reduction program live)
   (LEAN; 5 sub-items koherentni pod temom "workflow tooling completeness":
   (1) NEW .claude/skills/execute/SKILL.md (model: sonnet) — Opcija B (real value):
       pre-flight gates [no plan / dirty tree / active batch], STRICT auto-branch,

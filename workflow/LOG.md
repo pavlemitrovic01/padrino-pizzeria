@@ -5,6 +5,41 @@
 
 ---
 
+## L1 — 2026-05-23 — Hamburger menu z-index fix + logo hide — DONE
+
+**Tier:** LEAN
+**SHA:** 3a5dfe0
+**Branch:** main (LEAN, direct commit per v3 default)
+**Files (1):**
+  - src/components/Navbar.tsx — UPDATE +7/-2; (a) mobile dropdown wrapper (linija 220) dobio
+    `relative z-[60]` → stacking context iznad logo `z-[55]` (defense in depth ako logo
+    opacity bude ikada uklonjeno); (b) logo `<a>` element conditional klase array — kad
+    `mobileOpen=true` dobija `opacity-0 pointer-events-none`, plus `md:opacity-100
+    md:pointer-events-auto` preserves desktop visibility (edge: user otvori mobile menu pa
+    rotira u landscape); `transition-opacity duration-200` smooth fade; `aria-hidden="true"`
+    when hidden (screen reader correctness)
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.02s
+  typecheck: PASS(machine) — exit 0
+  test:      NIJE POKRENUTO — LEAN tier (CSS-only change, nema Navbar test fajla)
+  manual:    PASS(human) — Pavle real phone smoke (Huawei, hotspot Wi-Fi) + DevTools
+             mobile view potvrda; logo nestaje na hamburger open, panel čist bez siluete,
+             logo se vraća na close, navigacija normalna
+**SCOPE_DRIFT:** none — EXPECTED-FILES = [src/components/Navbar.tsx], actual diff = same
+**LESSONS:** unchanged (7/7 active) — poznat Tailwind stacking context + conditional className pattern
+**Notes:** Prvi L (friction reduction) batch posle W8 ROADMAP definition. Pre-plan scout
+(Haiku) recon identifikovao Navbar.tsx + logo z-[55] vs header z-50 stacking konflikt.
+Inicijalni fix (`z-[60]` na dropdown wrapper) tehnički rešio stacking, ali Pavle phone
+smoke pokazao da semi-transparent panel (`bg-black/40 backdrop-blur-md`) propušta
+siluetu logoa kroz; user feedback "nema potrebe da tu stoji logo" → dodato conditional
+opacity-0 + pointer-events-none na logo. Dva commit-a u jedan PR: implementacija
+(3a5dfe0) + workflow close. Dev procedure update: ubuduće Chrome DevTools mobile view
+za CSS/layout iteracije; real device test tek pre/posle push-a (L2 STRICT će zahtevati
+real device per Bankart smoke gate). L3 (trust messaging reduction, LEAN, CardFields.tsx)
+sledeći u istoj sesiji.
+
+---
+
 ## W11 — 2026-05-23 — Workflow tooling completion — DONE
 
 **Tier:** LEAN
