@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { trackPurchase } from "../../lib/analytics";
 import type { PaymentMethod } from "../../context/CartContext";
 import { toSafeInt } from "../../lib/money";
 import {
@@ -27,6 +28,7 @@ type ApplySuccessUiStateInput = {
   checking: boolean;
   bankartHint?: string | null;
   lookupError?: string | null;
+  totalCents?: number;
 };
 
 type UseSuccessStateArgs = {
@@ -89,6 +91,7 @@ export function useSuccessState({
 
   const bankartReturnHandledRef = useRef(false);
   const bankartStatusTimerRef = useRef<number | null>(null);
+  const hasFiredPurchaseRef = useRef<string | null>(null);
 
   useEffect(() => {
     setSuccessCopied(false);
@@ -137,6 +140,10 @@ export function useSuccessState({
     setSuccessCheckingPayment(input.checking);
 
     if (input.paymentMethod !== "card") {
+      if (input.orderId && hasFiredPurchaseRef.current !== input.orderId) {
+        hasFiredPurchaseRef.current = input.orderId;
+        trackPurchase(input.orderId, input.totalCents ?? 0, "cash");
+      }
       setSuccessTitle("Porudžbina je poslata");
       setSuccessSubtitle("Hvala na poverenju <3");
       setSuccessStatusNote(null);
@@ -151,6 +158,10 @@ export function useSuccessState({
     }
 
     if (input.paymentStatus === "paid") {
+      if (input.orderId && hasFiredPurchaseRef.current !== input.orderId) {
+        hasFiredPurchaseRef.current = input.orderId;
+        trackPurchase(input.orderId, successSummary?.totalCents ?? 0, "card");
+      }
       setSuccessTitle("Uplata je uspješna");
       setSuccessSubtitle("Porudžbina je potvrđena i prosleđena kuhinji.");
       setSuccessStatusNote(null);

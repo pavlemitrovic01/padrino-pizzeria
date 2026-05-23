@@ -34,7 +34,14 @@ function safeGtag(...args: unknown[]): void {
   window.dataLayer.push(args);
 }
 
-export type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined>;
+export type Ga4CartItem = {
+  item_id: string;
+  item_name: string;
+  price: number;    // EUR (not cents)
+  quantity: number;
+};
+
+export type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined | Ga4CartItem[]>;
 
 export function trackEvent(eventName: string, params?: AnalyticsEventParams): void {
   if (!shouldTrackNow()) return;
@@ -50,6 +57,53 @@ export function trackPageView(pathname?: string): void {
     page_path,
     page_location: window.location.href,
     page_title: document.title,
+  });
+}
+
+// GA4 Enhanced Ecommerce helpers — K1
+
+export function trackAddToCart(item: Ga4CartItem): void {
+  trackEvent("add_to_cart", {
+    currency: "EUR",
+    value: item.price * item.quantity,
+    items: [item],
+  });
+}
+
+export function trackRemoveFromCart(item: Ga4CartItem): void {
+  trackEvent("remove_from_cart", {
+    currency: "EUR",
+    value: item.price * item.quantity,
+    items: [item],
+  });
+}
+
+export function trackBeginCheckout(items: Ga4CartItem[], valueCents: number): void {
+  trackEvent("begin_checkout", {
+    currency: "EUR",
+    value: valueCents / 100,
+    items,
+  });
+}
+
+export function trackAddPaymentInfo(paymentType: "cash" | "card", valueCents: number): void {
+  trackEvent("add_payment_info", {
+    currency: "EUR",
+    value: valueCents / 100,
+    payment_type: paymentType,
+  });
+}
+
+export function trackPurchase(
+  transactionId: string,
+  valueCents: number,
+  paymentType: "cash" | "card"
+): void {
+  trackEvent("purchase", {
+    transaction_id: transactionId,
+    currency: "EUR",
+    value: valueCents / 100,
+    payment_type: paymentType,
   });
 }
 

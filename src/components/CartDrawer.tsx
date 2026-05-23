@@ -14,6 +14,7 @@ import { CartDrawerSuccessView } from "./CartDrawerSuccessView";
 import CartView from "./CartView";
 import { type DeliveryZoneKey } from "../lib/config";
 import { writeBankartReturnStorage } from "../lib/bankartReturnStorage";
+import { trackBeginCheckout, type Ga4CartItem } from "../lib/analytics";
 import { useCheckoutForm } from "../hooks/cart/useCheckoutForm";
 import { useSuccessState } from "../hooks/cart/useSuccessState";
 import { useDeliveryZone } from "../hooks/cart/useDeliveryZone";
@@ -285,6 +286,13 @@ export default function CartDrawer() {
 
   const proceedToCheckout = () => {
     createOrderSnapshot?.();
+    const checkoutItems: Ga4CartItem[] = items.map((i) => ({
+      item_id: i.id,
+      item_name: i.name,
+      price: i.price / 100,
+      quantity: i.quantity,
+    }));
+    trackBeginCheckout(checkoutItems, effectiveTotalCents);
     setView("checkout");
     setSubmitError(null);
     setSubmitAttempted(false);
@@ -450,6 +458,7 @@ export default function CartDrawer() {
         paymentStatus: paymentMethod === "card" ? res.paymentStatus : null,
         orderId: res.orderId ?? null,
         checking: false,
+        totalCents: nextSummary.totalCents,
       });
 
       clearCart();

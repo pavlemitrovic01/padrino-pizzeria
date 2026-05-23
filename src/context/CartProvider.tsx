@@ -19,6 +19,11 @@ import {
 } from "./CartContext";
 import { toSafeInt } from "../lib/money";
 import {
+  trackAddToCart,
+  trackRemoveFromCart,
+  trackAddPaymentInfo,
+} from "../lib/analytics";
+import {
   isStuffedCrustAddonName,
   stripPizzaSizeFromName,
   stuffedCrustPriceForSize,
@@ -256,6 +261,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (options?.openCart !== false) {
       setIsOpen(true);
     }
+
+    trackAddToCart({
+      item_id: item.id,
+      item_name: item.name,
+      price: item.price / 100,
+      quantity: 1,
+    });
   };
 
   const increase = (id: string) => {
@@ -271,6 +283,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromCart = (id: string) => {
+    const removing = items.find((i) => i.id === id);
+    if (removing) {
+      trackRemoveFromCart({
+        item_id: removing.id,
+        item_name: removing.name,
+        price: removing.price / 100,
+        quantity: removing.quantity,
+      });
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
@@ -424,6 +445,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // kad promeni metod, resetujemo error ali snapshot ostaje dok user eksplicitno ne resetuje
       error: null,
     }));
+    trackAddPaymentInfo(method, totalPrice);
   };
 
   const setCheckoutStatus = (status: OrderStatus) => {
