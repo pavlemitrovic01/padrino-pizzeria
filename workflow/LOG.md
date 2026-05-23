@@ -8,7 +8,7 @@
 ## W10 — 2026-05-23 — /plan SKILL.md simplification (legacy "Claude Code prompt" removed) — DONE
 
 **Tier:** LEAN
-**SHA:** [TBD — set after commit]
+**SHA:** b4a1f3d
 **Branch:** main (skill-config-only, direct commit per v3 default)
 **Files (3):**
   - .claude/skills/plan/SKILL.md — UPDATE 4 edits, ~12 LOC net delta;
