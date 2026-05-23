@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L1 — Hamburger menu z-index fix + logo hide when mobile dropdown open (2026-05-23, LEAN)
-**Sledeći:** L3 — Trust messaging reduction 3→1 blocks (LEAN, CardFields.tsx)
+**Poslednji završen:** L3 — Trust messaging reduction 3→1 blocks in CardFields (2026-05-23, LEAN)
+**Sledeći:** L4 — Cart item editor mobile compact (STRICT, CartView lock zone). L2 deferred dok se Payment.js env ne uključi (prereq op).
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -329,6 +329,16 @@
   kad mobileOpen=true [md:opacity-100 preserves desktop landscape edge]; transition-opacity
   200ms + aria-hidden=true; real phone smoke (Huawei hotspot) + DevTools mobile view PASS;
   prvi Faza L batch — friction reduction program live)
+- L3 (Trust messaging reduction 3→1 blocks in CardFields) — DONE 2026-05-23
+  (LEAN; 1 fajl src/components/CardFields.tsx, +14/-22 net -8 LOC; SHA a2bbfea;
+  3 trust signala konsolidovana u 1 kompaktan red "🔒 Plaćanje kroz Bankart —
+  sigurno i šifrovano" + inline VISA/Mastercard/Maestro mini-pills [style-mirror
+  iz Footer.tsx PAYMENT_BADGES, inline duplicate ne abstrakcija]; dev-internal
+  3-variant dynamic subtitle uklonjen [paymentJsRequested grananje copy nije bio
+  user-actionable]; "Secure entry" label + bottom "Bankart iframe polja"/"CVV se ne čuvaju"
+  pills uklonjeni; payment logic LOCKED; DevTools mobile view smoke PASS; bonus
+  observation: paymentJsRequested=false lokalno [env not set] → L2 prereq ops step
+  required pre iframe styling)
   (LEAN; 5 sub-items koherentni pod temom "workflow tooling completeness":
   (1) NEW .claude/skills/execute/SKILL.md (model: sonnet) — Opcija B (real value):
       pre-flight gates [no plan / dirty tree / active batch], STRICT auto-branch,

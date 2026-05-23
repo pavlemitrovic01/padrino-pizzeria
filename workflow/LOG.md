@@ -5,6 +5,55 @@
 
 ---
 
+## L3 — 2026-05-23 — Trust messaging reduction 3→1 in CardFields — DONE
+
+**Tier:** LEAN
+**SHA:** a2bbfea
+**Branch:** main (LEAN, direct commit per v3 default)
+**Files (1):**
+  - src/components/CardFields.tsx — UPDATE +14/-22 (net -8 LOC); 3 trust signala → 1:
+    (Block 1) "Sigurna Bankart polja" header + dynamic 3-variant subtitle
+    (paymentJsRequested/paymentJsMissingKey branchcontentdriven dev-internal copy) +
+    emerald uppercase "Bankart" badge → single compact row "🔒 Plaćanje kroz Bankart —
+    sigurno i šifrovano" + inline VISA/Mastercard/Maestro mini-pills (style-mirror iz
+    Footer.tsx PAYMENT_BADGES pattern, inline duplicate ne abstrakcija — LEAN scope);
+    (Block 2) "Secure entry" uppercase micro-label uz "Detalji kartice" header
+    + okolni flex wrapper uklonjen, header postaje single child;
+    (Block 3) bottom pill-ovi "Bankart iframe polja" + "Broj kartice i CVV se ne čuvaju
+    u našem frontend-u" → uklonjeni; payment logic ne dirano (paymentJsRequested branch,
+    input handlers, iframe DOM containers numberDivId/cvvDivId, polishCss style injection,
+    loading/error operational messages — sve LOCKED)
+**Verify:**
+  build:     PASS(machine) — exit 0, 7.06s
+  typecheck: PASS(machine) — exit 0
+  test:      NIJE POKRENUTO — LEAN tier (nema CardFields test fajla)
+  manual:    PASS(human) — Pavle DevTools mobile view (Chrome) screenshot potvrdio:
+             gornji trust red sa 🔒 + 3 pill-a vidljiv; "Detalji kartice" header bez
+             "Secure entry"; nema bottom pill-ova; "Kartično plaćanje vodi na sigurnu
+             Bankart stranicu za unos kartice" copy iz CartDrawer ostao (van scope-a)
+**SCOPE_DRIFT:** none — EXPECTED-FILES = [src/components/CardFields.tsx], actual diff = same
+**LESSONS:** unchanged (7/7 active) — copy reduction je rutinski pattern
+**Notes:** Drugi L (friction reduction) batch. Lock zone touch (CardFields.tsx promovisan
+W8 za K-O period), ali LEAN tier honored per ROADMAP eksplicitan label — copy/JSX only,
+zero payment logic change.
+
+**Bonus observation (NOT a new lesson, NOT in scope):** Tokom smoke-a potvrđeno da je
+trenutno paymentJsRequested=false lokalno (.env.local nema VITE_BANKART_PAYMENTJS_ENABLED
+ni VITE_BANKART_PAYMENTJS_PUBLIC_KEY) → redirect-to-Bankart-hosted-page flow aktivan.
+Pavle pitanje "moramo li raditi redirect?" potvrdio da je env-driven feature flag.
+Implikacija za **L2 (Bankart iframe styling, STRICT)**: pre L2 izvršenja treba (a) potvrditi
+production env stanje (VITE_BANKART_PAYMENTJS_ENABLED + KEY u Vercel), (b) lokalno
+postaviti iste env vars za development smoke. Bez tog operativnog koraka L2 ne može da se
+smokra jer iframe ne renderuje. L3 trust copy je honest u oba flow-a — "Plaćanje kroz
+Bankart" tačno za redirect (vodi na Bankart) i za iframe (kroz Bankart polja).
+
+Sledeći u Faza L: L4 (Cart item editor mobile compact, STRICT, CartView.tsx lock zone)
+prefer over L2 jer je L2 ops-blokiran. L4 fokus: ukloni duplicate "Ukupno: X €" pill,
+"Nazad na meni" button, kompaktnije header, X dugme sivo umesto crveno, sticky bottom
+da ne preklapa addons.
+
+---
+
 ## L1 — 2026-05-23 — Hamburger menu z-index fix + logo hide — DONE
 
 **Tier:** LEAN

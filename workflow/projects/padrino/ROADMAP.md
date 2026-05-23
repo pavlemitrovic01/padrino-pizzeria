@@ -10,7 +10,7 @@ Exit criterion #8 CLOSED. Self-score for Refactor-to-9: **8.5/10**
 **Sledeći program: Friction-reduction (Faze K–O)** — vidi sekciju ispod.
 UX audit 2026-05-22 (mobile screenshots + analytics 28-day pull) →
 mobile-first conversion friction reduction, NOT redesign.
-**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1 DONE 2026-05-23, L3 sledeći (LEAN).**
+**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1+L3 DONE 2026-05-23, L4 sledeći (STRICT, CartView lock zone). L2 (STRICT) defer-uje dok se Payment.js env ne uključi (lokalno + prod).**
 
 Authoritative batch count + status: STATE.md.
 
@@ -223,7 +223,7 @@ isključuje.
 |----|--------|------|----------|-------|
 | L1 | Hamburger menu z-index fix (logo provirivanje) | LEAN | 30min | **DONE 2026-05-23 (SHA 3a5dfe0).** Navbar.tsx single file; mobile dropdown wrapper `relative z-[60]` iznad logo z-[55] + logo conditional `opacity-0 pointer-events-none` kad mobileOpen=true (md:opacity-100 preserves desktop); transition-opacity 200ms + aria-hidden. DevTools mobile view + real phone smoke PASS. |
 | L2 | Bankart iframe styling (light bg, jasne border, focus state, font-size 16px iOS no-zoom) | STRICT | 3-4h | Lock zone: CardFields.tsx, CartDrawer.tsx. Bankart Payment.js `style` config override. Full test-mode card transaction smoke required. **#1 conversion priority.** |
-| L3 | Trust messaging reduction (3→1 blocks) | LEAN | 1h | Lock zone: CardFields.tsx. Zadrži jedan "🔒 Plaćanje kroz Bankart — sigurno i šifrovano" + reuse Visa/MC logoi iz footera. |
+| L3 | Trust messaging reduction (3→1 blocks) | LEAN | 1h | **DONE 2026-05-23 (SHA a2bbfea).** CardFields.tsx -8 LOC; Block 1 verbose "Sigurna Bankart polja"+3-variant dynamic subtitle+emerald badge → single row "🔒 Plaćanje kroz Bankart — sigurno i šifrovano" + inline VISA/Mastercard/Maestro pills (style-mirror from Footer PAYMENT_BADGES, NO logo SVGs exist); Block 2 "Secure entry" micro-label removed; Block 3 bottom pills removed; payment logic LOCKED. DevTools mobile view smoke PASS. Note: paymentJsRequested=false lokalno (VITE_BANKART_PAYMENTJS_ENABLED/PUBLIC_KEY not set) → redirect flow; copy honest u oba flow-a. |
 | L4 | Cart item editor mobile compact | STRICT | 4-6h | Lock zone: CartView.tsx, CartDrawer.tsx. Briši duplicate "Ukupno: X €" pill, "Nazad na meni" button, smanji header height, X color sivo umesto crveno. Target: sticky bottom ne preklapa addons. |
 | L5 | Checkout step indicator + header renaming (1. Korpa → 2. Dostava → 3. Plaćanje) | STRICT | 4-6h | Lock zone: CheckoutView.tsx, CartDrawer.tsx. Header dinamičan po step state-u; breadcrumb na vrhu. |
 | L6 | Zona dostave chips + "Pozovi +382" demote | STANDARD | 2-3h | CheckoutView.tsx. `<select>` → chip array koristeci DELIVERY_ZONES iz src/lib/config. "Pozovi" sa žute CTA → tekstualni link "Nemaš zonu? Pozovi nas →". |
