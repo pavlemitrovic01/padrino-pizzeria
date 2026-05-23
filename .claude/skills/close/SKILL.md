@@ -32,6 +32,22 @@ Read STATE.md. Extract:
 If no active batch in STATE.md, REFUSE:
 > No active batch to close. Run /plan first.
 
+### Step 0.5 — Pre-close code review recommendation (STRICT only)
+
+If active batch TIER=STRICT and `/code-review` has NOT been invoked in
+recent chat history for this batch:
+
+> Preporučujem da pokreneš `/code-review` PRE nego što /close commit-uje.
+> Razlog: STRICT batch dotiče lock zone — second pair of eyes na diff
+> hvata bugove koje smoke ne vidi. Pokreni `/code-review`, ja sačekam.
+> Ako findings clean (ili sve fixed), nastavi /close.
+
+Wait for Pavle response: "code-review done" / "skip" / silence (assume
+skip). Don't block — recommendation, ne refuse.
+
+For payment / Bankart / RLS touch (api/bankart-*, api/create-order, RLS
+migracije), additionally suggest `/security-review`.
+
 ### Step 1 — Run verification commands (machine-verified gates)
 
 Execute based on tier:

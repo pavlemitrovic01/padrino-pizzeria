@@ -26,23 +26,42 @@ Final Done Definition against actual code state.
 
 ## Process
 
-### Step 1 — Run all verification
+### Step 1 — Verification + git checks (PARALLEL via subagents)
 
-```bash
-npm run build       # capture moduli, time, exit
-npm run typecheck   # capture exit
-npm run test        # capture file count, test count, exit
+Spawn 2 Explore agents in parallel (single message, two Agent calls):
+
+**Agent A — "build-health":**
+```
+description: 'Audit: build/typecheck/test verification + code metrics'
+prompt: 'Run npm run build, npm run typecheck, npm run test.
+  Report exit codes + key metrics:
+  - Build: modules count, time
+  - Test: files count, tests count
+  - Lock-zone LOC: CartDrawer.tsx, CartProvider.tsx, App.tsx,
+    api/create-order.ts, api/bankart-callback.ts
+  - any/@ts-ignore grep counts in src/ and api/
+  Under 200 words structured output.'
 ```
 
-### Step 2 — Git checks
-
-```bash
-git status --porcelain
-git log --oneline @{u}..
-git log --oneline -1 --pretty=format:"%H %s"  # last commit
-git worktree list
-git branch -a
+**Agent B — "drift-checks":**
 ```
+description: 'Audit: git + STATE/LOG/ROADMAP drift checks'
+prompt: 'Run:
+  - git status --porcelain
+  - git log --oneline @{u}..
+  - git log --oneline -1 --pretty=format:"%H %s"
+  - git worktree list, git branch -a
+  - wc -l on workflow/projects/[project]/ROADMAP.md, LESSONS.md,
+    CONTEXT.md, DECISIONS.md
+  Report: dirty file count, unpushed count, last commit subject,
+  worktree count, branch list, doc cap status.
+  Under 200 words structured output.'
+```
+
+Glavni Opus thread synthesizes both reports for drift analysis.
+
+Razlog: paralelno brže nego sekvencijalno. Holds Opus context lean for
+synthesis, not grep output dump.
 
 ### Step 3 — STATE ↔ LOG cross-check
 

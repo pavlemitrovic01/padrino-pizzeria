@@ -5,6 +5,60 @@
 
 ---
 
+## W11 — 2026-05-23 — Workflow tooling completion — DONE
+
+**Tier:** LEAN
+**SHA:** [TBD — set after commit]
+**Branch:** main (skill+doc-only, direct commit per v3 default)
+**Files (7):**
+  - .claude/skills/execute/SKILL.md — NEW; model: sonnet; ~140 LOC; "Opcija B" implementation:
+    Step 1 locate /plan output (refuse if missing), Step 2 pre-flight gates (clean tree
+    + active batch + STRICT branch check), Step 3 STRICT auto-branch (batch/<id>-<slug>),
+    Step 4 implementation sa SCOPE_DRIFT guard (STOP and report ako edit van EXPECTED-FILES),
+    Step 5 verification (typecheck/test/build per tier), Step 6 hand-off ka /close;
+    refusal examples + anti-patterns + workflow position diagram (Opus plan → Sonnet
+    execute → Sonnet close)
+  - CLAUDE.md — UPDATE Session Hygiene; razdvojeno u 2 sekcije: "Context management" (postojeća
+    pravila zadržana) + NEW "Workflow skill suggestions" sa 7 trigger pravila: post-/plan →
+    /execute, post-/execute STRICT → /code-review, post-payment/Bankart/RLS → /security-review,
+    pre-/plan na dug doc → /doc-lens, post-/close + nepovezan task → /clear, /audit drift
+    findings → fix-first, end-of-session → /usage
+  - .claude/skills/plan/SKILL.md — UPDATE; Step 1.5 NEW "Pre-plan recon (OPTIONAL)" —
+    scout (Haiku) agent invocation pattern za grep-heavy file inspection PRE /plan-a;
+    eksplicitno "Skip when" usloven (self-contained brief, follow-up batch);
+    razlog: ~70% Opus context token savings
+  - .claude/skills/audit/SKILL.md — UPDATE Step 1 paralelizacija; ranija sekvencijalna
+    verification + git checks zamenjena sa 2 paralelna Explore agenta: Agent A "build-health"
+    (npm build/typecheck/test + LOC + any/ts-ignore grep) + Agent B "drift-checks"
+    (git status/log/worktree + doc wc -l caps); Opus thread synthesizes both reports
+    za drift analysis umesto da puni context sa grep output-om
+  - .claude/skills/close/SKILL.md — UPDATE; NEW Step 0.5 "Pre-close code review recommendation
+    (STRICT only)"; STRICT batch sa lock zone touch → suggest /code-review pre commit-a;
+    payment/Bankart/RLS files → dodatno suggest /security-review; recommendation only,
+    ne refuses, ne blokira; sledi anti-pattern "fail-soft" — workflow skill, ne gate
+  - workflow/STATE.md — UPDATE; Poslednji završen W11, Sledeći L1; W11 row dodat u Faza progres
+  - workflow/LOG.md — UPDATE; ovaj entry
+**Verify:**
+  build:     PASS(machine) — N/A (skill+doc-only)
+  typecheck: PASS(machine) — N/A
+  test:      PASS(machine) — N/A
+  manual:    NIJE POKRENUTO — LEAN tier; skill files će biti exercised tokom L1 (prvi
+             stvarni test /execute skill-a)
+**SCOPE_DRIFT:** none — 5 sub-items koherentno fit pod temom "workflow tooling completeness post K-O ROADMAP" (analog W2/W3/W9 pattern)
+**LESSONS:** unchanged (7/7 active)
+**Notes:** Trigger = Pavle diskusija 2026-05-23 (post-W10, pre-L1): (a) subagent integration
+priložnosti, (b) full skills mapping diskusija → finalna tabela 12 skills u svakodnevnom
+workflow-u, (c) /execute skill request da bi Sonnet automatski preuzimao execution posle
+Opus /plan-a, (d) proactive skill suggestions pravila koja ću pratiti.
+Strategija: sve 5 sub-items su LOW-risk, doc/skill-only, tematski koherentni — single
+LEAN batch ne narušava R1 "1 tema = 1 batch" (tema = workflow tooling).
+M1 (sledeći L batch) je prvi test za /execute skill — tier LEAN pa će scope drift guard
++ auto-branch step biti exercised, ali bez lock-zone rizika (Navbar.tsx). L2 (STRICT)
+je prvi pravi test workflow-a sa /code-review recommendation u /close.
+Pavle će raditi /clear posle ovog W11 close pa nova sesija za L1.
+
+---
+
 ## W10 — 2026-05-23 — /plan SKILL.md simplification (legacy "Claude Code prompt" removed) — DONE
 
 **Tier:** LEAN

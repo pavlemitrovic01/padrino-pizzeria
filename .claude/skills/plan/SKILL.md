@@ -65,6 +65,29 @@ Run these checks. If any fails, REFUSE to plan and report which:
 
 If all pass, proceed.
 
+### Step 1.5 — Pre-plan recon (OPTIONAL — when scope unclear)
+
+If task brief references files/symbols you haven't read in current chat,
+spawn `scout` subagent (Haiku) BEFORE generating plan:
+
+```
+Agent({
+  subagent_type: 'scout',
+  description: 'Pre-plan recon: <task>',
+  prompt: 'Find <topic> in codebase. Report:
+    - Relevant file paths
+    - Current symbols/exports
+    - Any patterns that would inform the plan
+  Under 150 words.'
+})
+```
+
+Razlog: keeps Opus context clean for plan reasoning. Delegira grep-heavy
+file inspection na Haiku. ~70% štednja u context tokens.
+
+**Skip when:** brief je fully self-contained (config tweak, documented
+refactor against known files, follow-up to recent batch).
+
 ### Step 2 — Tier determination
 
 Ask Pavle (if not specified):

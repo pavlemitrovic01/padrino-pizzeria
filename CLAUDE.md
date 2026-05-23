@@ -57,13 +57,23 @@ Padrino prošlost (Batches 1-9, ChatGPT Plan + Composer Execute pattern) je u `w
 
 Proactively remind me about these commands during our sessions:
 
+### Context management
 - **Every 20-30 minutes of active work** → suggest `/compact`
 - **When you notice context is getting large** → immediately say "Context is filling up — run `/compact` now"
+- **At ~75% context** → notify Pavle and suggest `/compact`
+- **At ~80%+ context** → `/clear` is mandatory (after dumping progress to a .md file first)
 - **When I finish a task and start a new unrelated one** → suggest `/clear`
 - **Before I use `/clear` on a complex session** → remind me to ask you to dump progress into a `.md` file first
 - **When session has been going long** → suggest `/rename` before closing
 - **If I seem confused or you're giving worse answers than earlier** → flag it and suggest `/compact`
-- **At ~75% context** → notify Pavle and suggest `/compact`
-- **At ~80%+ context** → `/clear` is mandatory (after dumping progress to a .md file first)
+
+### Workflow skill suggestions
+- **After `/plan` approval** → say "Spreman si za `/execute`"
+- **After `/execute` finishes (STRICT tier)** → say "Pre `/close`-a vredi `/code-review` na trenutnom diff-u"
+- **After `/execute` finishes (touched payment/Bankart/RLS files)** → say "Vredi `/security-review` pre `/close`"
+- **Before `/plan` ako brief traži info iz dugog doc-a (ROADMAP > 400 lines, BIBLE, DECISIONS)** → suggest `/doc-lens [doc] '[fokus]'` prvo
+- **After `/close` of STRICT batch + next task is unrelated** → suggest `/clear` + nova sesija za sledeći batch
+- **After `/audit` reports drift** → say "Drift detektovan — fix prvo, /audit ponovo posle"
+- **End of session / end of day** → suggest `/usage` za token billing awareness
 
 Do not wait for me to ask. Mention these proactively, briefly, in Serbian.

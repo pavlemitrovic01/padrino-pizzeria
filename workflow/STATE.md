@@ -22,7 +22,7 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W10 — /plan SKILL.md simplification (legacy "Claude Code prompt" removed) (2026-05-23, LEAN)
+**Poslednji završen:** W11 — Workflow tooling completion (/execute skill + proactive rules + /plan recon + /audit parallel + /close STRICT review) (2026-05-23, LEAN)
 **Sledeći:** L1 — Hamburger menu z-index fix (LEAN)
 **Aktivan batch:** NONE
 **Blocker:** NONE
@@ -322,6 +322,26 @@
   "On approval, begin execution in same session"; anti-pattern lista ažurirana —
   legacy ChatGPT→Composer handoff pattern eksplicitno ozvučen kao dead; /close
   SKILL.md verifikovan clean od "prompt" reference (zero matches); L1 next)
+- W11 (Workflow tooling completion — /execute + proactive rules + recon + parallel + review reco) — DONE 2026-05-23
+  (LEAN; 5 sub-items koherentni pod temom "workflow tooling completeness":
+  (1) NEW .claude/skills/execute/SKILL.md (model: sonnet) — Opcija B (real value):
+      pre-flight gates [no plan / dirty tree / active batch], STRICT auto-branch,
+      scope-aware editing sa SCOPE_DRIFT guard, hand-off poruka ka /close;
+      komplementaran sa /plan (Opus) — sve u istoj sesiji bez manual /model switch;
+  (2) CLAUDE.md Session Hygiene → 8 dodatnih proactive triggers (post-/plan suggest
+      /execute, post-/execute STRICT suggest /code-review, post-payment/Bankart suggest
+      /security-review, pre-/plan na dug doc suggest /doc-lens, post-/close + nepovezan
+      task suggest /clear, /audit drift findings, end-of-session /usage); explicit
+      "Workflow skill suggestions" sekcija dodato;
+  (3) /plan SKILL.md Step 1.5 — optional pre-plan scout (Haiku) recon kad scope nije
+      jasan; ~70% štednja Opus context tokens; eksplicitno "Skip when" usloven;
+  (4) /audit SKILL.md Step 1 paralelizacija — 2 Explore agenta (build-health + drift-checks)
+      paralelno umesto sekvencijalno; Opus thread synthesizes oba reporta umesto grep
+      output dump-a;
+  (5) /close SKILL.md Step 0.5 — pre-close STRICT recommendation za /code-review
+      (+ /security-review za payment/Bankart/RLS touch); ne refuses, ne blokira —
+      recommendation only;
+  Total: 1 NEW skill + 4 skill edits + CLAUDE.md edit; STATE/LOG entry; L1 next)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
