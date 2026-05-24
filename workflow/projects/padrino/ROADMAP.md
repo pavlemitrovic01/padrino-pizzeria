@@ -10,7 +10,7 @@ Exit criterion #8 CLOSED. Self-score for Refactor-to-9: **8.5/10**
 **Sledeći program: Friction-reduction (Faze K–O)** — vidi sekciju ispod.
 UX audit 2026-05-22 (mobile screenshots + analytics 28-day pull) →
 mobile-first conversion friction reduction, NOT redesign.
-**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1+L3+L4 DONE 2026-05-23, L5 ili L6 sledeći. L2 (STRICT) defer-uje dok se Payment.js env ne uključi (lokalno + prod).**
+**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1+L3+L4 DONE 2026-05-23. Preostali audit findings (L2/L5/L6) ne queue-uju se kao standardni batch-evi — vidi sekciju "ROADMAP scope" niže (W12 2026-05-23 reframe).**
 
 Authoritative batch count + status: STATE.md.
 
@@ -219,6 +219,8 @@ isključuje.
 
 ## Faza L — Mobile friction critical (lock-zone heavy)
 
+> **W12 reframe (2026-05-23):** Preostali entries niže (L2/L5/L6) su **audit findings reference**, ne pre-locked solution specs. Screenshot-first razgovor pre /plan-a — Notes kolona opisuje problem space iz 2026-05-22 audita, konkretni dizajn dolazi iz iterativnog razgovora. Isto važi za Faza M (M2) i Faza N (N1-N3). Vidi "ROADMAP scope" sekciju.
+
 | ID | Naslov | Tier | Estimate | Notes |
 |----|--------|------|----------|-------|
 | L1 | Hamburger menu z-index fix (logo provirivanje) | LEAN | 30min | **DONE 2026-05-23 (SHA 3a5dfe0).** Navbar.tsx single file; mobile dropdown wrapper `relative z-[60]` iznad logo z-[55] + logo conditional `opacity-0 pointer-events-none` kad mobileOpen=true (md:opacity-100 preserves desktop); transition-opacity 200ms + aria-hidden. DevTools mobile view + real phone smoke PASS. |
@@ -252,6 +254,7 @@ kadenc u RUNBOOK, mobile retention probe. Cap: 3 batch-a max.
 
 ## K–O strategic notes
 
+- **Workflow (W12 2026-05-23):** L/M/N entries su audit findings reference, ne queue items. Screenshot-first razgovor pre /plan-a — AI ne piše solution-spec pre nego što Pavle pošalje sliku trenutnog stanja i jasno kaže šta mu smeta. ROADMAP entry služi samo da seća koji friction findings su iz 2026-05-22 mobile audita. Vidi "ROADMAP scope" sekciju niže.
 - **Mobile-first**: ~80% pizzeria traffic procena. Svaki L batch koji menja layout mora prvo verifikovati mobile (Pavlov telefon), pa desktop.
 - **Bankart smoke je gate za L2**: bez real test-mode card transaction (Pavle) ne mergujemo L2 u main.
 - **L paralelizacija**: L1 + L3 mogu paralelno (LEAN, ne dotiču isti fajl). L2/L4/L5 sekvencijalno (svi dotiču CartDrawer lock zone, jedan po jedan).
@@ -259,6 +262,21 @@ kadenc u RUNBOOK, mobile retention probe. Cap: 3 batch-a max.
 - **M1 = Pavle copy approval already locked** (2026-05-23): kombinacija je u M1 row notes; DECISIONS entry sa rationale ulazi u M1 /plan.
 - **N je conditional**: ne planirati N batch-eve pre L+M close-a. N pretpostavlja baseline iz K1 → ako add-to-cart rate ne uplift posle L+M deploy-a, prvo `/audit` zašto, ne preskočiti N.
 - **"premium" grep mandatory pre M1 close**: src/, index.html, meta tags, OG tags, vercel.json — sve mora biti clean.
+
+---
+
+## ROADMAP scope (kad ROADMAP da/ne)
+
+ROADMAP postoji za **multi-batch tehničke programe sa stvarnim dependencies** — vidi Faze A–J kao šablon (B14→B14.1 sequencing, F1→F1.1 lock-zone split, G1–G4.6 monolith extraction sa exit criteria). Tu je pre-locked plan nezamenljiv: dependencies, lock-zone scheduling, sequencing matter.
+
+**NIJE alat za:**
+- **UX iteracije** (Faza L/M/N entries) — screenshot-first razgovor pre /plan-a. AI ne piše solution-spec pre nego što Pavle pošalje sliku i kaže šta smeta. ROADMAP entry je problem-space reference iz audita, ne queued spec.
+- **Bug fixes / ops** — ad-hoc kroz /plan, bez ROADMAP entry-a.
+- **Single-file LEAN polishes** — direktno kroz /plan.
+
+**Trenutno stanje (2026-05-23):** posle Faze J završetka, ROADMAP je u **low-utilization periodu** — procena ~10% rada ide kroz ROADMAP (sledeći ROADMAP-tipa program: J2 template extraction kad app#2 stigne, ili novi tehnički refactor ako audit otkrije sistematski debt), ~90% kroz screenshot-first razgovor ili ad-hoc /plan. To je očekivano stanje između tehničkih programa, ne workflow problem.
+
+**Rationale:** W8 (K–O program definition, 2026-05-23) je napisao solution-specs za L1-N3 BEZ Pavle screenshot input-a — samo iz audit dokumenta. To je AI-generated design opinion presented as queued plan, što ne preživljava prvi kontakt sa stvarnim screen-om (L4 je već prošireno scope mid-execute kad Pavle screenshot otkrio drugi 3-pill duplikat). W12 priznaje gap i marker-uje preostale K-O entries kao reference.
 
 ---
 
