@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L8.0 — Mobile menu + add-to-cart flow mapping (recon) (2026-05-25, LEAN)
-**Sledeći:** L8.1 — Mobile menu drawer redesign (STRICT) — per L8-recon.md. Recon done; POPULAR_PIZZAS + HALAL_PIZZAS config seam + mobile layout + "Najčešće" strip + halal badge. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 partially advanced kroz L7 (hero "Premium" pill+paragraf+3-pills uklonjeni iz src/sections/Hero.tsx; preostali "premium" u About.tsx/Menu.tsx/index.html/OG = sledeći M1 batch).
+**Poslednji završen:** L8.1 — Mobile menu redesign (Topseller strip + list rows + halal badge) (2026-05-25, STANDARD)
+**Sledeći:** L8.2 — Mobile detail sheet (STRICT) — card click → slide-up bottom sheet sa addonima (sosovi/piće/krofna), sticky gold CTA. Per L8-recon.md arhitektura. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 partially advanced kroz L7 (hero "Premium" pill+paragraf+3-pills uklonjeni iz src/sections/Hero.tsx; preostali "premium" u About.tsx/Menu.tsx/index.html/OG = sledeći M1 batch).
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -408,7 +408,7 @@
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-56 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+57 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -453,7 +453,8 @@ H1 AdminOrders lib extraction,
 H2 AdminMenu lib extraction,
 H2.1 AdminMenu component split,
 K1 GA4 enhanced ecommerce events,
-L8.0 Mobile menu + add-to-cart flow mapping recon doc-only).
+L8.0 Mobile menu + add-to-cart flow mapping recon doc-only,
+L8.1 Mobile menu redesign Topseller strip + list rows + halal badge).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

@@ -5,6 +5,35 @@
 
 ---
 
+## L8.1 — 2026-05-25 — Mobile menu redesign (Topseller strip + list rows + halal badge) — DONE
+
+**Tier:** STANDARD
+**SHA:** c1792b8
+**Branch:** main (direct commit, STANDARD)
+**Files (2):**
+  - src/lib/config.ts — +30 LOC; POPULAR_PIZZAS readonly string[] (5 entries,
+    lowercase normalized) + HALAL_PIZZAS ReadonlySet<string> (5 entries);
+    matching via normalizeText(name).includes(target)
+  - src/sections/Menu.tsx — +362/-208 net +154 LOC; PreviewImage component
+    removed (dead code — "Vidi sliku" button gone); preview useState removed;
+    TopsellerCard NEW file-local component (horizontal scroll, 120px wide,
+    thumbnail + name + price + halal badge); MobileListRow NEW file-local
+    component (full-width row, thumbnail right 80×80, text left, halal badge);
+    mobile layout: sm:hidden div with Topseller strip + "Pizza" labeled list;
+    desktop layout: hidden sm:grid sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7
+    (existing card behavior preserved + halal badge bottom-right on thumbnail);
+    isHalalPizza() helper + topsellerPizzas useMemo added
+**Verify:**
+  build:     PASS(machine) — 25 modula, 7.38s
+  typecheck: PASS(machine)
+  test:      PASS(machine) — 18 fajlova, 211 testova
+  manual:    PASS(human) — Pavle localhost:5173 + real phone smoke PASS
+**SCOPE_DRIFT:** none
+**Notes:** Open question (search bar repositioning) — search ne postoji u
+  Menu.tsx, uklonjeno iz scope-a; "Topseller" sekcija ime per Pavle explicit.
+
+---
+
 ## L8.0 — 2026-05-25 — Mobile menu + add-to-cart flow mapping (recon) — DONE
 
 **Tier:** LEAN
