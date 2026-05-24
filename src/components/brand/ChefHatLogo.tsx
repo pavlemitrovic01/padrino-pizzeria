@@ -29,10 +29,9 @@ export default function ChefHatLogo({ className, alt = "Padrino" }: ChefHatLogoP
   return (
     <div
       className={[
-        // ✅ logo "slot" u navbaru
-        "h-16 w-[210px] sm:w-[240px]",
-        // ✅ crop ali poravnaj ULEVO (ne centar)
-        "overflow-hidden",
+        // Sizing dolazi isključivo iz className override-a (npr. Navbar
+        // pass-uje h-16 sm:h-20 w-auto). Bez baseline-a → nema Tailwind
+        // class conflict-a.
         "flex items-center justify-start",
         "leading-none",
         className ?? "",
@@ -53,15 +52,7 @@ export default function ChefHatLogo({ className, alt = "Padrino" }: ChefHatLogoP
           // 2) Ako i png fail-uje → tekst fallback
           setImgOk(false);
         }}
-        className={[
-          // ✅ manje uvećanje da stane ceo znak
-          "h-[170px] w-auto object-contain",
-          // ✅ pomeri malko nadole da lepo sedne u navbar
-          "translate-y-[8px]",
-          // ✅ povuci još ulevo da vizuelno “upadne” u levu zonu
-          "-translate-x-[14px]",
-          "block select-none",
-        ].join(" ")}
+        className="h-full w-auto object-contain block select-none"
       />
     </div>
   );

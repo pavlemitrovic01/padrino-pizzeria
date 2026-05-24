@@ -58,13 +58,9 @@ export default function Hero() {
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto flex min-h-[calc(100svh-7rem)] max-w-4xl -translate-y-8 flex-col items-center justify-center pb-8 text-center sm:min-h-[calc(100svh-8rem)] sm:-translate-y-10 sm:pb-10 md:-translate-y-16 md:pb-12 lg:-translate-y-20">
-          <div className="p-kicker shadow-[0_16px_34px_-24px_rgba(242,180,0,0.6)]">
-            Premium pizza u Budvi
-          </div>
-
           <h1
             className={[
-              "mt-6 font-serif uppercase text-yellow-50/95",
+              "mt-6 font-serif uppercase",
               "tracking-[0.16em] sm:tracking-[0.18em] md:tracking-[0.2em]",
               "text-[34px] leading-[1.02] sm:text-[46px] md:text-[62px] lg:text-[76px]",
               "drop-shadow-[0_8px_28px_rgba(0,0,0,0.9)]",
@@ -74,12 +70,13 @@ export default function Hero() {
                 "0 4px 22px rgba(0,0,0,0.82), 0 0 26px rgba(242,180,0,0.08)",
             }}
           >
-            Padrino Pizzeria
+            <span className="text-yellow-50/95">Padrino</span>
+            {" "}
+            <span className="text-[#f2b400]">Pizzeria</span>
           </h1>
 
-          <p className="mt-6 max-w-2xl text-[15px] leading-7 text-white/78 sm:text-[17px] sm:leading-8 md:text-[19px]">
-            Premium picerija u Budvi sa brzom dostavom, pažljivo biranim sastojcima
-            i pizzom koja stiže svježa, topla i spremna za uživanje.
+          <p className="mt-5 text-[11px] sm:text-[12px] font-semibold tracking-[0.35em] uppercase text-white/60">
+            pizza · delivery · budva
           </p>
 
           <div className="mt-9 flex w-full justify-center">
@@ -99,17 +96,6 @@ export default function Hero() {
             </button>
           </div>
 
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
-            <div className="p-glass p-glass-hover px-4 py-2.5 text-sm font-semibold text-white/82">
-              Brza dostava
-            </div>
-            <div className="p-glass p-glass-hover px-4 py-2.5 text-sm font-semibold text-white/82">
-              Svježe pripremljeno
-            </div>
-            <div className="p-glass p-glass-hover px-4 py-2.5 text-sm font-semibold text-white/82">
-              Online poručivanje
-            </div>
-          </div>
         </div>
       </div>
     </section>

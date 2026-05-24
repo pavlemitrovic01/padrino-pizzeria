@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useMemo, useState, type MouseEvent } from "react";
 import { useCart } from "../context/useCart";
 import ChefHatLogo from "./brand/ChefHatLogo";
 
@@ -28,7 +28,6 @@ export default function Navbar() {
   // ✅ CartContextType: totalItems + openCart
   const { totalItems, openCart } = useCart();
 
-  const [isSticky, setIsSticky] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const path = normalizePath();
@@ -49,15 +48,6 @@ export default function Navbar() {
     ],
     []
   );
-
-  useEffect(() => {
-    function onScroll() {
-      setIsSticky(window.scrollY > 20);
-    }
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   function onClickCart(e: MouseEvent) {
     e.preventDefault();
@@ -106,8 +96,7 @@ export default function Navbar() {
     <header
       className={[
         "fixed top-0 left-0 right-0 z-50",
-        "transition-all duration-300",
-        isSticky ? "backdrop-blur-md bg-black/50 border-b border-white/10" : "bg-transparent",
+        "backdrop-blur-md bg-black/70 border-b border-white/10",
       ].join(" ")}
     >
       {/* FULL-WIDTH wrapper da možemo logo da “zalepimo” levo */}
@@ -116,21 +105,21 @@ export default function Navbar() {
         <a
           href="/#"
           className={[
-            "absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex items-center gap-3 select-none z-[55]",
+            "absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex items-center gap-2 sm:gap-3 select-none z-[55]",
             "transition-opacity duration-200",
             mobileOpen ? "opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto" : "",
           ].join(" ")}
           onClick={onClickLogo}
-          aria-label="Padrino početna"
+          aria-label="Padrino Pizzeria početna"
           aria-hidden={mobileOpen ? "true" : undefined}
         >
-          <ChefHatLogo className="h-9 w-9 translate-y-[2px]" />
-          <span className="sr-only">Padrino</span>
+          <ChefHatLogo className="h-16 sm:h-20 w-auto" />
+          <span className="sr-only">Padrino Pizzeria</span>
         </a>
 
         {/* Centralni sadržaj (max width ostaje isti) */}
         <div className="mx-auto max-w-7xl px-6">
-          <div className="flex h-20 items-center justify-between">
+          <div className="flex h-24 items-center justify-between">
             {/* Spacer (da justify-between radi normalno dok je logo absolute) */}
             <div className="w-10" aria-hidden="true" />
 
