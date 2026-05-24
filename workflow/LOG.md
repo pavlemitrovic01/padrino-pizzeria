@@ -5,6 +5,95 @@
 
 ---
 
+## L7 — 2026-05-24 — Hero + Navbar redesign (logo lockup + solid backdrop + hero copy swap) — DONE
+
+**Tier:** STANDARD
+**SHA:** cc96bd0
+**Branch:** main (direct commit per STANDARD)
+**Files (5):**
+  - src/components/Navbar.tsx — UPDATE +6/-17 net −11 LOC; (a) `isSticky`
+    useState + scroll `useEffect` uklonjeni — header sad uvek
+    `backdrop-blur-md bg-black/70 border-b border-white/10`, bez
+    transparent-to-solid flash na scroll; (b) navbar inner `h-20` → `h-24`
+    (prima veći logo); (c) ChefHatLogo prop className `h-9 w-9 translate-y-[2px]`
+    (forsirana tiny veličina) → `h-16 sm:h-20 w-auto` (responsive,
+    aspect-driven); (d) `aria-label` "Padrino početna" → "Padrino
+    Pizzeria početna", `sr-only` span "Padrino" → "Padrino Pizzeria".
+  - src/sections/Hero.tsx — UPDATE +5/-21 net −16 LOC; (a) p-kicker pill
+    "Premium pizza u Budvi" uklonjen — exit criterion #4 grep za "Premium"
+    sad clean u Hero.tsx (ostali "premium" u About/Menu/index.html/OG =
+    sledeći M1 batch); (b) H1 split color: bela "Padrino" +
+    gold #f2b400 "Pizzeria" (i dalje `uppercase` pa renderuje
+    "PADRINO PIZZERIA"); (c) subcopy paragraf "Premium picerija u Budvi..."
+    → "pizza · delivery · budva" letterspaced uppercase tracking-[0.35em]
+    (zameni W8 locked M1 copy odluku — Pavle 2026-05-24 nova odluka);
+    (d) 3 trust pills div uklonjen (Brza dostava / Svježe / Online);
+    CTA "Poruči odmah" + background image stack NETAKNUTI.
+  - src/components/brand/ChefHatLogo.tsx — UPDATE +3/-12 net −9 LOC
+    (ACK SCOPE_DRIFT, mid-execute expansion per Pavle approval); (a)
+    image className `h-[170px] w-auto object-contain translate-y-[8px]
+    -translate-x-[14px]` (magic numbers + forced height bigger than container
+    + clipping hacks) → `h-full w-auto object-contain block select-none`
+    (natural scaling, čuva aspect); (b) container default sizing
+    `h-16 w-[210px] sm:w-[240px]` uklonjen — Tailwind class conflict cleanup
+    (sizing isključivo iz Navbar className override); (c) `overflow-hidden`
+    uklonjen. Used only by Navbar (grep confirmed); no ripple risk.
+  - public/logo/chef-hat-stroke.png — REPLACE bin 2001116 → 24140 bytes
+    (ACK SCOPE_DRIFT, Pavle manual asset operation); 1024x1536 sa whitespace
+    padding-om → 463x346 tight crop. 83× file size reduction. Natural
+    consequence of "trim transparent" preporuke.
+  - public/logo/chef-hat-stroke.webp — REPLACE bin 336898 → 34908 bytes
+    (ACK SCOPE_DRIFT, Pavle manual asset operation); 1024x1536 → 463x346
+    tight crop. WebP > PNG ovde (stroke graphics + alpha). 10× reduction.
+    Drži se kao primary asset (ChefHatLogo WEBP_SRC konstanta).
+**Verify:**
+  build:     PASS(machine) — exit 0, 3.73s
+  typecheck: PASS(machine) — exit 0
+  test:      PASS(machine) — exit 0, 18 files / 211 tests
+  manual:    PASS(human) — Pavle smoke localhost:5173 PASS za logo proporcije
+    i hero copy/layout na mobile + desktop
+**SCOPE_DRIFT:** acknowledged — 5 fajlova vs 2 planned. ChefHatLogo dodato
+  mid-execute kao logical extension natural-scaling fix-a (Pavle eksplicitno
+  odobrio). PNG+WebP asset replacement je natural consequence "trim
+  transparent padding" preporuke Pavle-u — manuelno izvršeno van koda.
+  Sve drift items iste teme (logo render kompletan fix), ne stvarna scope
+  eksplozija.
+**LESSONS:** unchanged (7/7 cap retained). Kandidat lekcije iz batch-a
+  (image-asset rendering hygiene + transparent padding pitfall) su one-off
+  design observations, ne recurring tehnička greška — preskočena rotacija.
+**ROADMAP-row update:** N/A — L7 je screenshot-first batch bez ROADMAP row-a
+  (per W12 reframe). M1 row je delimično advanced (hero side completed) ali
+  /close Step 6 b2 guard ZABRANJUJE SCOPE edit kroz /close — sledeći M1
+  batch (SEO meta + OG + index.html + "premium" grep clean u About/Menu)
+  će close-ovati M1 row.
+**Notes:**
+  - Pre-plan flow: screenshot-first razgovor (5 screenshot iteracija) pre
+    /plan-a — Pavle pitao "Šta predlažeš?" → predloženo 3 smera → izabrao
+    "minimalna intervencija + logo lockup" → 4 odluka pitanja (Korpa, nav
+    items, ornaments, trust pills) → /plan generated L7 STANDARD 2 fajla.
+  - Execute path: 2 planned fajla edit-ovani → Pavle prvi screenshot "još
+    nije dobro" → 2 iteracije logo lockup-a (pizzeria tagline added then
+    removed) → Pavle "obriši Pizzeria" → Pavle "image natural scale" →
+    scope expansion ChefHatLogo → "logo se ne vidi" (container width
+    200/240 sa vertikalnom 2:3 slikom = tiny logo lost u praznini) →
+    recommendation "trim transparent padding" → Pavle ručno cropped
+    1024x1536 → 463x346, 24KB PNG → drop-in replace → potvrda "savršeno".
+  - WebP delete drift caught mid-/close: Pavle prvo obrisao WebP,
+    ChefHatLogo bi pravio 404 (WEBP_SRC primary). Flagged. Pavle dodao
+    WebP nazad — "samo sam dodao webp i tjt".
+  - M1 copy decision evolved: W8 2026-05-23 lock "Pill = PIZZA · BUDVA ·
+    DOSTAVA, H1 netaknut PADRINO PIZZERIA, Sub = porodični recepti od 2021"
+    → L7 2026-05-24 supersedes: pill OUT, H1 split-color PADRINO PIZZERIA,
+    Sub = "pizza · delivery · budva". Sledeći M1 batch će formalno
+    reconcile M1 row sa novom odlukom.
+  - /code-review skipped per Pavle direct /close — STANDARD tier dotiče UI
+    strukturu ali ne lock zone, payment, ili api. Smoke = primary gate.
+  - Logo asset weight još uvek može optimizovati: PNG 24KB → ~15KB sa
+    TinyPNG; WebP 35KB → ~10KB lossy (trenutno lossless). Ne blokira,
+    deferred opcioni nice-to-have.
+
+---
+
 ## W12 — 2026-05-23 — ROADMAP K-O reframe (audit findings reference, ne queue) — DONE
 
 **Tier:** LEAN (doc-only)

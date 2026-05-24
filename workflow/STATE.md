@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** W12 — ROADMAP K-O reframe (audit findings reference, ne queue) (2026-05-23, LEAN)
-**Sledeći:** UX rad (Faza L/M/N) — screenshot-first razgovor pre /plan-a, ne queue-uje se iz ROADMAP-a (per W12 reframe). Tehnički batch-evi (J2 template extraction, novi refactor ako audit otkrije) — kroz /plan kao i pre. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** L7 — Hero + Navbar redesign (logo lockup + solid backdrop + hero copy swap) (2026-05-24, STANDARD)
+**Sledeći:** UX rad (Faza L/M/N) — screenshot-first razgovor pre /plan-a, ne queue-uje se iz ROADMAP-a (per W12 reframe). Tehnički batch-evi (J2 template extraction, novi refactor ako audit otkrije) — kroz /plan kao i pre. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 partially advanced kroz L7 (hero "Premium" pill+paragraf+3-pills uklonjeni iz src/sections/Hero.tsx; preostali "premium" u About.tsx/Menu.tsx/index.html/OG = sledeći M1 batch).
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -341,6 +341,28 @@
   required pre iframe styling)
 - L4 (Cart item editor mobile compact) — DONE 2026-05-23
 - W12 (ROADMAP K-O reframe — audit findings reference, ne queue) — DONE 2026-05-23
+- L7 (Hero + Navbar redesign — logo lockup + solid backdrop + hero copy swap) — DONE 2026-05-24
+  (STANDARD; 5 fajlova, +17/-51 net -34 LOC; SHA cc96bd0;
+  Navbar: isSticky+scroll useEffect removed → solid bg-black/70 backdrop-blur-md uvek;
+  logo prop h-9 w-9 → h-16 sm:h-20 w-auto (responsive aspect-driven); navbar h-20→h-24;
+  aria-label "Padrino" → "Padrino Pizzeria početna";
+  Hero: "Premium pizza u Budvi" p-kicker pill + "Premium picerija..." paragraf
+  + 3 trust pills (Brza dostava/Svježe/Online) sve uklonjeni; H1 split color
+  bela "Padrino" + gold #f2b400 "Pizzeria"; novi subcopy "pizza · delivery · budva"
+  letterspaced uppercase;
+  ChefHatLogo (mid-execute scope expansion per Pavle approval): h-[170px] +
+  translate-y[8px] + -translate-x[14px] magic numbers removed →
+  h-full w-auto object-contain natural scaling; default container sizing
+  h-16 w-[210px] sm:w-[240px] removed (Tailwind class conflict cleanup);
+  overflow-hidden removed (image fituje, ne overflow-uje);
+  public/logo/chef-hat-stroke.{png,webp} (Pavle manual asset replacement):
+  PNG 1024x1536 2MB → 463x346 24KB tight crop; WebP 337KB → 35KB;
+  logo sad fituje navbar bez praznine;
+  SCOPE_DRIFT acknowledged 5 vs 2 planned — ChefHatLogo + 2 asset files;
+  M1 partially advanced — Hero.tsx "premium" grep clean, ostali "premium"
+  pojave u About/Menu/index.html ostaju za sledeći M1 batch;
+  /code-review skip per Pavle direct /close; Pavle smoke localhost:5173 PASS
+  za logo proporcije i hero copy na mobile + desktop)
   (LEAN doc-only; 1 fajl workflow/projects/padrino/ROADMAP.md +19/-1; SHA 05d8134;
   Current Phase queue framing removed, Faza L heading W12 reframe note,
   K-O strategic notes prvi bullet "screenshot-first workflow", NEW
