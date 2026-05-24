@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L4 — Cart item editor mobile compact in CartView/CartDrawer/CheckoutView (2026-05-23, STRICT)
-**Sledeći:** L5 — Checkout step indicator + header renaming (STRICT, CheckoutView/CartDrawer lock zone) ili L6 — Zona dostave chips (STANDARD, CheckoutView). L2 deferred dok se Payment.js env ne uključi (prereq op).
+**Poslednji završen:** W12 — ROADMAP K-O reframe (audit findings reference, ne queue) (2026-05-23, LEAN)
+**Sledeći:** UX rad (Faza L/M/N) — screenshot-first razgovor pre /plan-a, ne queue-uje se iz ROADMAP-a (per W12 reframe). Tehnički batch-evi (J2 template extraction, novi refactor ako audit otkrije) — kroz /plan kao i pre. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -340,6 +340,16 @@
   observation: paymentJsRequested=false lokalno [env not set] → L2 prereq ops step
   required pre iframe styling)
 - L4 (Cart item editor mobile compact) — DONE 2026-05-23
+- W12 (ROADMAP K-O reframe — audit findings reference, ne queue) — DONE 2026-05-23
+  (LEAN doc-only; 1 fajl workflow/projects/padrino/ROADMAP.md +19/-1; SHA 05d8134;
+  Current Phase queue framing removed, Faza L heading W12 reframe note,
+  K-O strategic notes prvi bullet "screenshot-first workflow", NEW
+  "ROADMAP scope" sekcija sa rationale; UX iteracije ne idu kroz ROADMAP
+  kao queue — screenshot-first razgovor pre /plan-a; ROADMAP ostaje za
+  multi-batch tehničke programe sa dependencies (Faze A-J šablon);
+  trigger: Pavle pitao "da li nam ovaj mini redesign otezava roadmap" —
+  W8 napravio L5/L6/M2/N1-N3 solution-specs bez screenshot input-a;
+  cap 290→308/600 OK; ROADMAP-row update N/A — W batch nema sopstveni red)
   (STRICT; 3 fajla, +3/-28 net -25 LOC; SHA e4def5b;
   CartView.tsx -5 LOC [lineTotalCents + "Ukupno: X €" item pill removed;
   trailing h-3→h-32 wrapped u canSubmit ternary post code-review CONFIRMED fix];

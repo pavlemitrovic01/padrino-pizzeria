@@ -5,6 +5,50 @@
 
 ---
 
+## W12 — 2026-05-23 — ROADMAP K-O reframe (audit findings reference, ne queue) — DONE
+
+**Tier:** LEAN (doc-only)
+**SHA:** 05d8134
+**Branch:** main (direct commit per W-batch pattern)
+**Files (1):**
+  - workflow/projects/padrino/ROADMAP.md — UPDATE +19/-1; (a) Current
+    Phase line 13 — "L5 ili L6 sledeci" → "Preostali audit findings
+    (L2/L5/L6) ne queue-uju se" sa pointerom na ROADMAP scope sekciju;
+    (b) Faza L heading — dodato quote-note block "W12 reframe — audit
+    findings reference, ne pre-locked specs" (eksplicitno važi i za
+    M2/N1-N3); (c) K-O strategic notes — dodat prvi bullet "Workflow
+    (W12) — screenshot-first razgovor pre /plan-a" pre Mobile-first
+    bullet-a; (d) NEW "ROADMAP scope" sekcija (~25 LOC) pre Long-term —
+    eksplicitno "kad da / kad ne" + rationale (W8 napravio solution-specs
+    bez Pavle screenshot input-a, L4 već prošireno mid-execute kad
+    Pavle screenshot otkrio 3-pill duplikat).
+**Verify:**
+  build:     PASS(machine) — exit 0, 4.00s
+  typecheck: PASS(machine) — exit 0
+  test:      NIJE POKRENUTO — LEAN doc-only tier ne zahteva
+  manual:    NIJE POKRENUTO — doc-only, nema UI/runtime promene
+**SCOPE_DRIFT:** none — EXPECTED-FILES = [ROADMAP.md], actual diff = same.
+**Cap:** 290 → 308 lines (cap 600 OK).
+**LESSONS:** unchanged (no new lesson — proces shift, ne tehnička greška).
+**ROADMAP-row update:** N/A — W12 je workflow batch, nema sopstveni ROADMAP
+  row (per /close Step 6 b2 guard "W/workflow batches → skip silently").
+**Notes:**
+  - Razlog: Pavle pitao "da li nam ovaj mini redesign otezava roadmap" —
+    realan odgovor: za UX iteracije (Faza L-N) pre-locked solution specs
+    prerano sazri jer dolaze iz audit dokumenta a ne iz screenshot razgovora.
+    Workflow disciplina je projektovana za risk management (lock zone,
+    payment, RLS, refactor sa dependencies — Faze A-J šablon) — tamo
+    ostaje. Za pure-UX iteracije pristup je screenshot-first.
+  - ROADMAP nije "dead", samo trenutno u low-utilization periodu (~10%
+    rada ide kroz ROADMAP, ~90% screenshot-first ili ad-hoc /plan).
+    Sledeći ROADMAP-tipa program: J2 (template extraction kad app#2
+    stigne) ili novi tehnički refactor ako audit otkrije sistematski debt.
+  - Pre W12 commit-a — push L1+L3+L4+W12-prep commits (7 commits) na
+    origin/main (af40248..8414d13). Sve mergovano.
+  - Sledeći task: kad bude UX rad, screenshot-first razgovor pa /plan.
+
+---
+
 ## L4 — 2026-05-23 — Cart item editor mobile compact — DONE
 
 **Tier:** STRICT
