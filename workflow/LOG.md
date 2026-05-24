@@ -5,6 +5,29 @@
 
 ---
 
+## L8.0 — 2026-05-25 — Mobile menu + add-to-cart flow mapping (recon) — DONE
+
+**Tier:** LEAN
+**SHA:** 10c66a6
+**Branch:** main (direct commit, LEAN doc-only)
+**Files (1):**
+  - workflow/projects/padrino/L8-recon.md — NEW +108 LOC; architecture map for
+    L8.1–L8.3; Menu.tsx (575 LOC drawer/modal, Supabase data, direct add-to-cart);
+    CartProvider addon system already built (addons?: CartAddon[], CRUD methods);
+    useCatalogData provides drinksCatalog/saucesCatalog/addonsCatalog; config.ts
+    seam for POPULAR_PIZZAS + HALAL_PIZZAS; L8.1/L8.2/L8.3 batch scope maps;
+    addon integration strategy (pass addons[] in initial addToCart call)
+**Verify:**
+  build:     PASS(machine) — 25 modula, 7.14s
+  typecheck: PASS(machine)
+  test:      NIJE POKRENUTO (LEAN tier)
+  manual:    N/A (doc-only, no UI change)
+**SCOPE_DRIFT:** none
+**Notes:** Recon done during /plan Step 1.5 (3 parallel scouts). Execution =
+  write file. Precedes L8.1 (STRICT) mobile menu drawer redesign.
+
+---
+
 ## L7 — 2026-05-24 — Hero + Navbar redesign (logo lockup + solid backdrop + hero copy swap) — DONE
 
 **Tier:** STANDARD
