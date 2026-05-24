@@ -55,3 +55,31 @@ export const DELIVERY_ZONES: DeliveryZone[] = [
   { key: "jaz", label: "Jaz", minCents: 2500, feeCents: 500 },
   { key: "lastva", label: "Lastva", minCents: 3000, feeCents: 500 },
 ];
+
+// ─── Menu display constants ───────────────────────────────────────────────────
+
+/**
+ * Topseller strip — 5 pizza koja se prikazuju u horizontal scroll sekciji.
+ * Redosled je bitan (prikazuje se ovim redom).
+ * Matching: normalizeText(supabaseName).includes(item) — case-insensitive safe.
+ */
+export const POPULAR_PIZZAS: readonly string[] = [
+  "capricciosa",
+  "pesto",
+  "margherita",
+  "vegetariana",
+  "diavolo",
+];
+
+/**
+ * Halal pizze — zeleni bedž se prikazuje top-right na thumbnail-u.
+ * "quattro formaggi" potvrđen iz cartDrawerHelpers.ts:152 (normalizovano ime).
+ * Matching: normalizeText(supabaseName).includes(item) — case-insensitive safe.
+ */
+export const HALAL_PIZZAS: ReadonlySet<string> = new Set([
+  "margherita",
+  "tuna",
+  "vegetariana",
+  "quattro formaggi",
+  "chicken",
+]);

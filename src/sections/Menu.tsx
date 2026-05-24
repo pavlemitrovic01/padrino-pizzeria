@@ -5,6 +5,7 @@ import type { CartItem } from "../context/CartContext";
 import { formatEUR } from "../lib/money";
 import { buildImageCandidates } from "../lib/cartDrawerHelpers";
 import { normalizeText } from "../lib/parsing";
+import { POPULAR_PIZZAS, HALAL_PIZZAS } from "../lib/config";
 
 type DbMenuItem = {
   id: string;
@@ -53,9 +54,24 @@ function getSafeCents(row: DbMenuItem): number {
       : 0;
 }
 
+function isHalalPizza(name: string): boolean {
+  const n = normalizeText(name);
+  for (const halal of HALAL_PIZZAS) {
+    if (n.includes(halal)) return true;
+  }
+  return false;
+}
+
 type ToastState = { visible: boolean; title: string; subtitle?: string };
 
-function SmartMenuImage(props: { image: string | null; name: string; alt: string; className: string }) {
+// ─── Shared image component ──────────────────────────────────────────────────
+
+function SmartMenuImage(props: {
+  image: string | null;
+  name: string;
+  alt: string;
+  className: string;
+}) {
   const { image, name, alt, className } = props;
 
   const candidates = useMemo(() => buildImageCandidates(image, name), [image, name]);
@@ -84,33 +100,141 @@ function SmartMenuImage(props: { image: string | null; name: string; alt: string
   );
 }
 
-function PreviewImage(props: { candidates: string[]; alt: string; className?: string }) {
-  const { candidates, alt, className } = props;
+// ─── Mobile: horizontal Topseller card ───────────────────────────────────────
 
-  const key = useMemo(() => candidates.join("|"), [candidates]);
-
-  const [state, setState] = useState<{ key: string; idx: number }>({ key, idx: 0 });
-  const idx = state.key === key ? state.idx : 0;
-
-  const src = candidates[idx] ?? null;
-  if (!src) return <div className={["bg-white/5 rounded-2xl", className ?? ""].join(" ")} aria-hidden="true" />;
+function TopsellerCard(props: {
+  row: DbMenuItem;
+  onAdd: (row: DbMenuItem) => void;
+  isAdded: boolean;
+  isHalal: boolean;
+}) {
+  const { row, onAdd, isAdded, isHalal } = props;
+  const price = getSafeCents(row);
+  const displayName = stripSize(row.name);
 
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={className}
-      draggable={false}
-      decoding="async"
-      onError={() =>
-        setState((s) => {
-          const current = s.key === key ? s : { key, idx: 0 };
-          return { key, idx: current.idx < candidates.length - 1 ? current.idx + 1 : current.idx };
-        })
-      }
-    />
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onAdd(row)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onAdd(row);
+        }
+      }}
+      className={[
+        "flex-shrink-0 w-[120px] flex flex-col overflow-hidden rounded-[20px]",
+        "p-glass p-glass-hover shadow-[0_12px_40px_rgba(0,0,0,0.45)]",
+        "transition-all duration-200 cursor-pointer",
+        "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
+        isAdded ? "ring-2 ring-[#f2b400] shadow-[0_0_0_4px_rgba(242,180,0,0.14)]" : "",
+      ].join(" ")}
+      aria-label={`Dodaj ${displayName} u korpu`}
+    >
+      <div className="relative h-[100px] shrink-0 overflow-hidden">
+        <SmartMenuImage
+          image={row.image}
+          name={row.name}
+          alt={displayName}
+          className="h-full w-full object-cover transition duration-300"
+        />
+        {isHalal && !isAdded && (
+          <img
+            src="/halal.webp"
+            alt="Halal"
+            className="absolute right-1.5 top-1.5 h-6 w-6 rounded-full shadow-sm"
+          />
+        )}
+        {isAdded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 font-black text-black text-sm shadow-lg">
+              ✓
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col p-2.5">
+        <div className="line-clamp-2 text-[12px] font-extrabold leading-tight text-white/92">
+          {displayName}
+        </div>
+        <div className="mt-1.5 text-[13px] font-black text-[#f2b400]">{formatEUR(price)}</div>
+      </div>
+    </div>
   );
 }
+
+// ─── Mobile: full-width list row ─────────────────────────────────────────────
+
+function MobileListRow(props: {
+  row: DbMenuItem;
+  onAdd: (row: DbMenuItem) => void;
+  isAdded: boolean;
+  isHalal: boolean;
+}) {
+  const { row, onAdd, isAdded, isHalal } = props;
+  const price = getSafeCents(row);
+  const displayName = stripSize(row.name);
+  const desc = row.description ? clampText(row.description, 60) : "";
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onAdd(row)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onAdd(row);
+        }
+      }}
+      className={[
+        "flex items-center gap-3 rounded-2xl p-glass p-glass-hover px-3 py-3",
+        "cursor-pointer transition-all duration-200",
+        "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
+        isAdded ? "ring-2 ring-[#f2b400]" : "",
+      ].join(" ")}
+      aria-label={`Dodaj ${displayName} u korpu`}
+    >
+      {/* Text — left */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="truncate text-[15px] font-extrabold leading-tight text-white/94">
+          {displayName}
+        </div>
+        {desc ? (
+          <div className="mt-1 line-clamp-2 text-[12px] leading-4 text-white/60">{desc}</div>
+        ) : null}
+        <div className="mt-2 text-[15px] font-black text-[#f2b400]">{formatEUR(price)}</div>
+      </div>
+
+      {/* Thumbnail — right */}
+      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl">
+        <SmartMenuImage
+          image={row.image}
+          name={row.name}
+          alt={displayName}
+          className="h-full w-full object-cover"
+        />
+        {isHalal && !isAdded && (
+          <img
+            src="/halal.webp"
+            alt="Halal"
+            className="absolute right-1 top-1 h-6 w-6 rounded-full shadow-sm"
+          />
+        )}
+        {isAdded && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/55">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 font-black text-black text-xs shadow-md">
+              ✓
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function Menu() {
   const { addToCart, openCart } = useCart();
@@ -124,12 +248,6 @@ export default function Menu() {
 
   const [toast, setToast] = useState<ToastState>({ visible: false, title: "", subtitle: "" });
   const toastTimerRef = useRef<number | null>(null);
-
-  const [preview, setPreview] = useState<{ open: boolean; name: string; candidates: string[] }>({
-    open: false,
-    name: "",
-    candidates: [],
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -176,12 +294,6 @@ export default function Menu() {
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-
-      if (preview.open) {
-        setPreview({ open: false, name: "", candidates: [] });
-        return;
-      }
-
       setFlowOpen(false);
       setAddedId(null);
       setToast((t) => ({ ...t, visible: false }));
@@ -189,7 +301,7 @@ export default function Menu() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [flowOpen, preview.open]);
+  }, [flowOpen]);
 
   useEffect(() => {
     return () => {
@@ -224,10 +336,26 @@ export default function Menu() {
     return [...map.values()];
   }, [items]);
 
+  const topsellerPizzas = useMemo(() => {
+    const lookup = new Map<string, DbMenuItem>();
+    for (const p of pizzasOrdered) {
+      lookup.set(normalizeText(stripSize(p.name)), p);
+    }
+    return POPULAR_PIZZAS.map((target) => {
+      for (const [k, v] of lookup.entries()) {
+        if (k.includes(target)) return v;
+      }
+      return undefined;
+    }).filter((x): x is DbMenuItem => x !== undefined);
+  }, [pizzasOrdered]);
+
   function showToast(next: ToastState) {
     setToast({ ...next, visible: true });
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => setToast((t) => ({ ...t, visible: false })), 1800);
+    toastTimerRef.current = window.setTimeout(
+      () => setToast((t) => ({ ...t, visible: false })),
+      1800,
+    );
   }
 
   function markAdded(id: string) {
@@ -258,7 +386,6 @@ export default function Menu() {
 
   function closeAll() {
     setFlowOpen(false);
-    setPreview({ open: false, name: "", candidates: [] });
     setAddedId(null);
     setToast((t) => ({ ...t, visible: false }));
   }
@@ -287,6 +414,7 @@ export default function Menu() {
 
       <div className="fixed inset-0 z-50 flex items-stretch justify-center px-3 pb-10 pt-10 sm:px-4 sm:pb-12 sm:pt-14 md:px-6 md:pb-14 md:pt-20">
         <div className="relative flex h-full max-h-full w-full max-w-[1160px] flex-col overflow-hidden rounded-[32px] border border-white/10 bg-black/22 shadow-[0_40px_120px_rgba(0,0,0,0.72)] backdrop-blur-none sm:backdrop-blur-md">
+          {/* Background layers */}
           <div className="absolute inset-0">
             <img
               src="/sections/menu.webp"
@@ -305,6 +433,7 @@ export default function Menu() {
           <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-white/6 blur-3xl" />
           <div className="pointer-events-none absolute inset-0 rounded-[32px] ring-1 ring-inset ring-white/8" />
 
+          {/* Close button */}
           <button
             type="button"
             onClick={closeAll}
@@ -314,6 +443,7 @@ export default function Menu() {
             ×
           </button>
 
+          {/* Header */}
           <div className="relative flex flex-col gap-5 px-5 py-6 sm:px-7 sm:py-7 lg:flex-row lg:items-end lg:justify-between lg:gap-8 lg:px-8">
             <div className="min-w-0 max-w-2xl">
               <div className="p-kicker">Meni</div>
@@ -326,7 +456,7 @@ export default function Menu() {
                 Odaberi svoju pizzu, pogledaj detalje i dodaj u korpu jednim klikom.
               </p>
 
-              <div className="mt-4 mx-auto h-px w-44 bg-gradient-to-r from-[#f2b400]/45 via-[#f2b400]/18 to-transparent sm:mx-0" />
+              <div className="mx-auto mt-4 h-px w-44 bg-gradient-to-r from-[#f2b400]/45 via-[#f2b400]/18 to-transparent sm:mx-0" />
             </div>
 
             <div className="flex w-full items-center justify-center lg:w-auto lg:justify-end">
@@ -340,149 +470,186 @@ export default function Menu() {
             </div>
           </div>
 
+          {/* Content area */}
           <div className="relative min-h-0 flex-1 px-5 pb-6 sm:px-7 sm:pb-7 lg:px-8">
             <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-black/8" />
 
             <div className="relative h-full overflow-y-auto overscroll-contain pb-24 pr-1 [-webkit-overflow-scrolling:touch] sm:pb-4 sm:pr-2">
-              <div className="grid grid-cols-2 gap-4 pb-3 sm:gap-5 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-7">
-                {loading && items.length === 0
-                  ? Array.from({ length: 8 }).map((_, i) => (
-                      <div
-                        key={`skeleton-${i}`}
-                        className="flex flex-col overflow-hidden rounded-[28px] p-glass animate-pulse"
-                        aria-hidden="true"
-                      >
-                        <div className="h-[118px] w-full bg-white/10 sm:h-[132px]" />
-                        <div className="flex flex-1 flex-col p-4 sm:p-[18px]">
-                          <div className="h-4 w-3/4 rounded bg-white/15" />
-                          <div className="mt-2 h-3 w-full rounded bg-white/10" />
-                          <div className="mt-1 h-3 w-5/6 rounded bg-white/10" />
-                          <div className="mt-4 h-5 w-16 rounded bg-white/15" />
-                        </div>
-                      </div>
-                    ))
-                  : null}
-                {!loading || items.length > 0
-                  ? pizzasOrdered.map((row, idx) => {
-                  const price = getSafeCents(row);
-                  const desc = row.description ? clampText(row.description, 78) : "";
-                  const isAdded = addedId === row.id;
 
-                  const imageCandidates = buildImageCandidates(row.image, row.name);
-                  const hasPreview = imageCandidates.length > 0;
-
-                  const sizeLabel = detectSizeLabel(row.name);
-                  const displayName = stripSize(row.name);
-
-                  const onCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onAdd(row);
-                    }
-                  };
-
-                  const card = (
+              {/* Loading skeletons */}
+              {loading && items.length === 0 ? (
+                <div className="grid grid-cols-2 gap-4 pb-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-5 xl:grid-cols-7">
+                  {Array.from({ length: 8 }).map((_, i) => (
                     <div
-                      key={row.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onAdd(row)}
-                      onKeyDown={onCardKeyDown}
-                      className={[
-                        "group relative flex flex-col overflow-hidden rounded-[28px] text-left",
-                        "p-glass p-glass-hover",
-                        "shadow-[0_22px_65px_rgba(0,0,0,0.55)]",
-                        "transition-all duration-300 hover:-translate-y-1.5",
-                        "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
-                        isAdded ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]" : "",
-                      ].join(" ")}
-                      aria-label={`Dodaj ${displayName} u korpu`}
+                      key={`skeleton-${i}`}
+                      className="flex flex-col overflow-hidden rounded-[28px] p-glass animate-pulse"
+                      aria-hidden="true"
                     >
-                      <div
-                        className={[
-                          "absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full",
-                          "bg-emerald-500 font-black text-black shadow-[0_10px_30px_rgba(0,0,0,0.55)]",
-                          "transition-all duration-200",
-                          isAdded ? "scale-100 opacity-100" : "scale-90 opacity-0",
-                        ].join(" ")}
-                        aria-hidden="true"
-                      >
-                        ✓
-                      </div>
-
-                      {sizeLabel ? (
-                        <div className="absolute left-3 top-3 z-20 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#f2b400] backdrop-blur-sm">
-                          {sizeLabel}
-                        </div>
-                      ) : null}
-
-                      <div className="relative shrink-0">
-                        <SmartMenuImage
-                          image={row.image}
-                          name={row.name}
-                          alt={displayName}
-                          className="h-[118px] w-full object-cover transition duration-300 group-hover:scale-[1.03] sm:h-[132px]"
-                        />
-                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/50" />
-
-                        {hasPreview ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setPreview({ open: true, name: displayName, candidates: imageCandidates });
-                            }}
-                            className={[
-                              "absolute bottom-3 left-3 z-10 h-8 rounded-full px-3",
-                              "border border-white/10 bg-black/38 text-xs font-extrabold tracking-wide text-white/88",
-                              "transition hover:bg-black/48 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100",
-                            ].join(" ")}
-                            aria-label={`Vidi sliku: ${displayName}`}
-                          >
-                            Vidi sliku
-                          </button>
-                        ) : null}
-                      </div>
-
+                      <div className="h-[118px] w-full bg-white/10 sm:h-[132px]" />
                       <div className="flex flex-1 flex-col p-4 sm:p-[18px]">
-                        <div className="text-[15px] font-extrabold leading-tight text-white/94 sm:text-[16px]">
-                          {displayName}
-                        </div>
-
-                        {desc ? (
-                          <div className="mt-1.5 min-h-[38px] text-[13px] leading-5 text-white/62 sm:text-[13.5px]">
-                            {desc}
-                          </div>
-                        ) : (
-                          <div className="mt-1.5 min-h-[38px] text-[13px] text-white/30"> </div>
-                        )}
-
-                        <div className="mt-auto pt-4">
-                          <div className="whitespace-nowrap text-[16px] font-black tracking-[0.01em] text-[#f2b400]">
-                            {formatEUR(price)}
-                          </div>
-                        </div>
+                        <div className="h-4 w-3/4 rounded bg-white/15" />
+                        <div className="mt-2 h-3 w-full rounded bg-white/10" />
+                        <div className="mt-1 h-3 w-5/6 rounded bg-white/10" />
+                        <div className="mt-4 h-5 w-16 rounded bg-white/15" />
                       </div>
                     </div>
-                  );
+                  ))}
+                </div>
+              ) : null}
 
-                  if (idx === 6) {
-                    return (
-                      <React.Fragment key={`wrap-${row.id}`}>
-                        {card}
-                        <div className="col-span-full my-2 hidden h-px bg-gradient-to-r from-transparent via-white/10 to-transparent xl:block" />
-                      </React.Fragment>
-                    );
-                  }
+              {items.length > 0 ? (
+                <>
+                  {/* ── MOBILE LIST VIEW (hidden at sm+) ─────────────────── */}
+                  <div className="sm:hidden">
+                    {topsellerPizzas.length > 0 && (
+                      <div className="mb-5">
+                        <div className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+                          Topseller
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto pb-2">
+                          {topsellerPizzas.map((row) => (
+                            <TopsellerCard
+                              key={row.id}
+                              row={row}
+                              onAdd={onAdd}
+                              isAdded={addedId === row.id}
+                              isHalal={isHalalPizza(row.name)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
-                  return card;
-                })
-                  : null}
-              </div>
+                    <div className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+                      Pizza
+                    </div>
+                    <div className="flex flex-col gap-2 pb-3">
+                      {pizzasOrdered.map((row) => (
+                        <MobileListRow
+                          key={row.id}
+                          row={row}
+                          onAdd={onAdd}
+                          isAdded={addedId === row.id}
+                          isHalal={isHalalPizza(row.name)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── DESKTOP / TABLET GRID (visible at sm+) ───────────── */}
+                  <div className="hidden sm:grid sm:grid-cols-3 sm:gap-5 lg:grid-cols-5 xl:grid-cols-7 pb-3">
+                    {pizzasOrdered.map((row, idx) => {
+                      const price = getSafeCents(row);
+                      const desc = row.description ? clampText(row.description, 78) : "";
+                      const isAdded = addedId === row.id;
+                      const sizeLabel = detectSizeLabel(row.name);
+                      const displayName = stripSize(row.name);
+                      const halal = isHalalPizza(row.name);
+
+                      const onCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onAdd(row);
+                        }
+                      };
+
+                      const card = (
+                        <div
+                          key={row.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => onAdd(row)}
+                          onKeyDown={onCardKeyDown}
+                          className={[
+                            "group relative flex flex-col overflow-hidden rounded-[28px] text-left",
+                            "p-glass p-glass-hover",
+                            "shadow-[0_22px_65px_rgba(0,0,0,0.55)]",
+                            "transition-all duration-300 hover:-translate-y-1.5",
+                            "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
+                            isAdded
+                              ? "ring-2 ring-[#f2b400] shadow-[0_0_0_6px_rgba(242,180,0,0.14)]"
+                              : "",
+                          ].join(" ")}
+                          aria-label={`Dodaj ${displayName} u korpu`}
+                        >
+                          {/* Added checkmark */}
+                          <div
+                            className={[
+                              "absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full",
+                              "bg-emerald-500 font-black text-black shadow-[0_10px_30px_rgba(0,0,0,0.55)]",
+                              "transition-all duration-200",
+                              isAdded ? "scale-100 opacity-100" : "scale-90 opacity-0",
+                            ].join(" ")}
+                            aria-hidden="true"
+                          >
+                            ✓
+                          </div>
+
+                          {sizeLabel ? (
+                            <div className="absolute left-3 top-3 z-20 rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[#f2b400] backdrop-blur-sm">
+                              {sizeLabel}
+                            </div>
+                          ) : null}
+
+                          <div className="relative shrink-0">
+                            <SmartMenuImage
+                              image={row.image}
+                              name={row.name}
+                              alt={displayName}
+                              className="h-[118px] w-full object-cover transition duration-300 group-hover:scale-[1.03] sm:h-[132px]"
+                            />
+                            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/50" />
+                            {halal && !isAdded && (
+                              <img
+                                src="/halal.webp"
+                                alt="Halal"
+                                className="absolute bottom-2 right-2 z-10 h-8 w-8 rounded-full shadow-md"
+                              />
+                            )}
+                          </div>
+
+                          <div className="flex flex-1 flex-col p-4 sm:p-[18px]">
+                            <div className="text-[15px] font-extrabold leading-tight text-white/94 sm:text-[16px]">
+                              {displayName}
+                            </div>
+
+                            {desc ? (
+                              <div className="mt-1.5 min-h-[38px] text-[13px] leading-5 text-white/62 sm:text-[13.5px]">
+                                {desc}
+                              </div>
+                            ) : (
+                              <div className="mt-1.5 min-h-[38px] text-[13px] text-white/30">
+                                {" "}
+                              </div>
+                            )}
+
+                            <div className="mt-auto pt-4">
+                              <div className="whitespace-nowrap text-[16px] font-black tracking-[0.01em] text-[#f2b400]">
+                                {formatEUR(price)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+
+                      if (idx === 6) {
+                        return (
+                          <React.Fragment key={`wrap-${row.id}`}>
+                            {card}
+                            <div className="col-span-full my-2 hidden h-px bg-gradient-to-r from-transparent via-white/10 to-transparent xl:block" />
+                          </React.Fragment>
+                        );
+                      }
+
+                      return card;
+                    })}
+                  </div>
+                </>
+              ) : null}
             </div>
           </div>
 
+          {/* Toast notification */}
           <div
             className={[
               "pointer-events-none absolute bottom-0 left-0 right-0 z-20 px-4 pb-[max(16px,env(safe-area-inset-bottom))]",
@@ -500,9 +667,13 @@ export default function Menu() {
                 ].join(" ")}
               >
                 <div className="min-w-0">
-                  <div className="text-sm font-extrabold text-white/92 sm:text-[15px]">{toast.title}</div>
+                  <div className="text-sm font-extrabold text-white/92 sm:text-[15px]">
+                    {toast.title}
+                  </div>
                   {toast.subtitle ? (
-                    <div className="mt-1 truncate text-xs text-white/60 sm:text-sm">{toast.subtitle}</div>
+                    <div className="mt-1 truncate text-xs text-white/60 sm:text-sm">
+                      {toast.subtitle}
+                    </div>
                   ) : null}
                 </div>
 
@@ -523,51 +694,6 @@ export default function Menu() {
               </div>
             </div>
           </div>
-
-          {preview.open ? (
-            <div className="absolute inset-0 z-30">
-              <button
-                type="button"
-                className="absolute inset-0 bg-black/82 backdrop-blur-none sm:backdrop-blur-sm"
-                aria-label="Zatvori pregled slike"
-                onClick={() => setPreview({ open: false, name: "", candidates: [] })}
-              />
-              <div className="absolute inset-0 flex items-center justify-center px-4 py-8">
-                <div className="relative w-full max-w-[860px] overflow-hidden rounded-[28px] border border-white/10 bg-black/55 shadow-[0_40px_140px_rgba(0,0,0,0.85)]">
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/35" />
-                  <div className="relative flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-extrabold text-white/92">{preview.name}</div>
-                      <div className="mt-0.5 text-xs text-white/55">Pregled slike</div>
-                    </div>
-                    <button
-                      type="button"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white/85 transition hover:bg-white/15"
-                      aria-label="Zatvori"
-                      onClick={() => setPreview({ open: false, name: "", candidates: [] })}
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  <div className="relative p-4 sm:p-5">
-                    <div className="relative overflow-hidden rounded-2xl bg-white/5">
-                      <PreviewImage
-                        candidates={preview.candidates}
-                        alt={preview.name}
-                        className="max-h-[70vh] w-full object-contain"
-                      />
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between text-xs text-white/55">
-                      <span>ESC za zatvaranje</span>
-                      <span className="text-[#f2b400]/90">Padrino • premium</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </div>
       </div>
     </section>
