@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L8.2 — Mobile detail sheet (slide-up bottom sheet sa addonima + CartProvider re-add merge fix) (2026-05-25, STRICT)
-**Sledeći:** Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. L8.3 (Cart polish — thumbnail rows + halal badge u cart items) kandidat ako Pavle želi nastaviti L8 sub-program. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) još otvoren. Screenshot-first razgovor pre /plan-a per W12.
+**Poslednji završen:** L8.3 — Mobile menu drawer full-page (remove floating overlay + transparency, back arrow) (2026-05-25, STANDARD)
+**Sledeći:** L8.4 (Cart addon grouping fix — addons/piće/sosevi inline u svakoj pizza kartici, ne global sekcije na dnu CartView-a kad 2+ pizze; CartView.tsx LOCK ZONE, STRICT tier) per Pavle screenshot 2026-05-25. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) još otvoren. Screenshot-first razgovor pre /plan-a per W12.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -403,6 +403,14 @@
       (+ /security-review za payment/Bankart/RLS touch); ne refuses, ne blokira —
       recommendation only;
   Total: 1 NEW skill + 4 skill edits + CLAUDE.md edit; STATE/LOG entry; L1 next)
+- L8.3 (Mobile menu drawer full-page — remove floating overlay + transparency, back arrow) — DONE 2026-05-25
+  (STANDARD; 1 fajl src/sections/Menu.tsx, +8/-8; SHA e70fdbb;
+  outer container px/pb/pt removed → edge-to-edge mobile; inner drawer mobile-default
+  rounded-none/border-0/bg-[#0a0a0a]/shadow-none + sm: prefixes restore glass modal;
+  menu.webp opacity-30 mobile / sm:opacity-[0.82]; close button left-3 top-3 +
+  chevron-left SVG "Nazad" / sm:right-4 sm:top-4; header pt-16 mobile clearance;
+  L8.2 sheet integration NETAKNUT; pre-flight gotcha L8.2 nije bio merged →
+  stash+ff-merge+pop recovery zero-conflict; no SCOPE_DRIFT)
 - L8.2 (Mobile detail sheet — slide-up bottom sheet sa addonima + CartProvider re-add merge fix) — DONE 2026-05-25
   (STRICT; 3 fajla; SHA 0b46ba8; per-batch branch batch/l8.2-mobile-detail-sheet;
   src/components/MenuItemDetailSheet.tsx NEW 442 LOC — AnimatePresence wrapper + SheetView
@@ -429,7 +437,7 @@
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-57 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+58 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -476,7 +484,8 @@ H2.1 AdminMenu component split,
 K1 GA4 enhanced ecommerce events,
 L8.0 Mobile menu + add-to-cart flow mapping recon doc-only,
 L8.1 Mobile menu redesign Topseller strip + list rows + halal badge,
-L8.2 Mobile detail sheet slide-up bottom sheet sa addonima + CartProvider re-add merge fix).
+L8.2 Mobile detail sheet slide-up bottom sheet sa addonima + CartProvider re-add merge fix,
+L8.3 Mobile menu drawer full-page remove floating overlay + transparency back arrow).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

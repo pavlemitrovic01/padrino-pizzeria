@@ -5,6 +5,52 @@
 
 ---
 
+## L8.3 — 2026-05-25 — Mobile menu drawer full-page (remove floating overlay + transparency, back arrow) — DONE
+
+**Tier:** STANDARD
+**SHA:** e70fdbb
+**Branch:** main (direct commit, STANDARD)
+**Files (1):**
+  - src/sections/Menu.tsx — +8/-8 net 0 LOC; mobile drawer CSS overrides:
+    outer container removed `px-3 pb-10 pt-10` (edge-to-edge);
+    inner drawer mobile-default rounded-none + border-0 + bg-[#0a0a0a] solid
+    + shadow-none + no max-width, sm: prefixes restore desktop glass modal
+    (rounded-[32px] + border-white/10 + bg-black/22 + shadow + max-w-[1160px]
+    + backdrop-blur-md); menu.webp opacity-30 mobile → sm:opacity-[0.82]
+    desktop (sub diluted on solid bg); ring overlay rounded-[32px] gated
+    sm: only; close button left-3 top-3 + chevron-left SVG ("Nazad" aria)
+    mobile → sm:left-auto sm:right-4 sm:top-4 desktop; header py-6 → pb-6
+    pt-16 mobile (clearance ispod back button-a 56px + 8px gap), sm:py-7
+    restored desktop. Behavioral logic intact (Escape/closeAll/L8.2 sheet
+    integration NETAKNUT).
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 2203 modules, 3.09s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 3.68s
+  manual:    PASS(human) — Pavle smoke 2026-05-25 (mobile full-page bez
+             transparentnosti + back arrow + desktop centered modal sa X
+             gore-desno NETAKNUT)
+**SCOPE_DRIFT:** none — EXPECTED-FILES=src/sections/Menu.tsx, diff exact
+match (1 file, 16 line changes, all drawer CSS).
+**Notes:**
+- Pre-flight gotcha: /execute pokrenut na main koji JOŠ NIJE imao L8.2
+  merged (L8.2 commit `0b46ba8` ostao na `batch/l8.2-mobile-detail-sheet`
+  čekajući Vercel preview smoke). Recovery: stash L8.3 → ff-merge L8.2 →
+  pop stash → auto-merge bez konflikta (L8.2 menja onClick/state, L8.3
+  menja CSS — različite linije Menu.tsx-a). Workflow lesson kandidat za
+  budući L: STANDARD pre-flight treba da proveri da li su predhodni batch
+  branchevi koji touch-uju iste fajlove već merged u main pre `git
+  checkout main` (LESSONS skip ovog batch-a; pattern može da se ponovi).
+- L8.2 fast-forward doneo L8.2 close commit-ove (`81883af` workflow
+  backfill SHA) u main istovremeno — main sad 4 commita ahead origin/main
+  (L8.2 code + L8.2 backfill + L8.3 code + L8.3 close).
+- Header pt-16 (64px) je direktna posledica button repositioning na
+  mobile (button at top-3 + h-11 = 56px from top, +8px gap). Plan nije
+  eksplicitno pominjao header padding ali je u istom fajlu / istom
+  visual change-u — no scope drift per file-level comparison.
+
+---
+
 ## L8.2 — 2026-05-25 — Mobile detail sheet (slide-up bottom sheet sa addonima) — DONE
 
 **Tier:** STRICT
