@@ -403,14 +403,14 @@ export default function Menu() {
         onClick={closeAll}
       />
 
-      <div className="fixed inset-0 z-50 flex items-stretch justify-center px-3 pb-10 pt-10 sm:px-4 sm:pb-12 sm:pt-14 md:px-6 md:pb-14 md:pt-20">
-        <div className="relative flex h-full max-h-full w-full max-w-[1160px] flex-col overflow-hidden rounded-[32px] border border-white/10 bg-black/22 shadow-[0_40px_120px_rgba(0,0,0,0.72)] backdrop-blur-none sm:backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-stretch justify-center sm:px-4 sm:pb-12 sm:pt-14 md:px-6 md:pb-14 md:pt-20">
+        <div className="relative flex h-full max-h-full w-full flex-col overflow-hidden rounded-none border-0 bg-[#0a0a0a] shadow-none backdrop-blur-none sm:max-w-[1160px] sm:rounded-[32px] sm:border sm:border-white/10 sm:bg-black/22 sm:shadow-[0_40px_120px_rgba(0,0,0,0.72)] sm:backdrop-blur-md">
           {/* Background layers */}
           <div className="absolute inset-0">
             <img
               src="/sections/menu.webp"
               alt=""
-              className="h-full w-full object-cover opacity-[0.82]"
+              className="h-full w-full object-cover opacity-30 sm:opacity-[0.82]"
               draggable={false}
               loading="eager"
               decoding="async"
@@ -422,20 +422,20 @@ export default function Menu() {
 
           <div className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-[#f2b400]/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-white/6 blur-3xl" />
-          <div className="pointer-events-none absolute inset-0 rounded-[32px] ring-1 ring-inset ring-white/8" />
+          <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/8 sm:rounded-[32px]" />
 
           {/* Close button */}
           <button
             type="button"
             onClick={closeAll}
-            className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/30 text-white/90 transition hover:border-[#f2b400]/18 hover:bg-[#f2b400]/10 hover:text-[#fff0be]"
-            aria-label="Zatvori"
+            className="absolute left-3 top-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/30 text-white/90 transition hover:border-[#f2b400]/18 hover:bg-[#f2b400]/10 hover:text-[#fff0be] sm:left-auto sm:right-4 sm:top-4"
+            aria-label="Nazad"
           >
-            ×
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
 
           {/* Header */}
-          <div className="relative flex flex-col gap-5 px-5 py-6 sm:px-7 sm:py-7 lg:flex-row lg:items-end lg:justify-between lg:gap-8 lg:px-8">
+          <div className="relative flex flex-col gap-5 px-5 pb-6 pt-16 sm:px-7 sm:py-7 lg:flex-row lg:items-end lg:justify-between lg:gap-8 lg:px-8">
             <div className="min-w-0 max-w-2xl">
               <div className="p-kicker">Meni</div>
 
