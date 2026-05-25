@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useCart } from "../context/useCart";
-import type { PaymentMethod } from "../context/CartContext";
+import type { CartItem, PaymentMethod } from "../context/CartContext";
 import { formatEUR, toSafeInt } from "../lib/money";
 import { createOrder, type CreateOrderPayload } from "../lib/createOrder";
 import { formatBankartPaymentJsErrors } from "../lib/bankartPaymentJs";
@@ -12,6 +12,7 @@ import {
 } from "../lib/cartDrawerHelpers";
 import { CartDrawerSuccessView } from "./CartDrawerSuccessView";
 import CartView from "./CartView";
+import MenuItemDetailSheet from "./MenuItemDetailSheet";
 import { type DeliveryZoneKey } from "../lib/config";
 import { writeBankartReturnStorage } from "../lib/bankartReturnStorage";
 import { trackBeginCheckout, type Ga4CartItem } from "../lib/analytics";
@@ -19,7 +20,6 @@ import { useCheckoutForm } from "../hooks/cart/useCheckoutForm";
 import { useSuccessState } from "../hooks/cart/useSuccessState";
 import { useDeliveryZone } from "../hooks/cart/useDeliveryZone";
 import { useBankartPaymentJs } from "../hooks/cart/useBankartPaymentJs";
-import { useCatalogData } from "../hooks/cart/useCatalogData";
 import CheckoutView from "./CheckoutView";
 
 declare global {
@@ -41,12 +41,8 @@ export default function CartDrawer() {
     removeFromCart,
     increase,
     decrease,
-    addAddonToItem,
-    removeAddonFromItem,
-    increaseAddonQuantity,
-    decreaseAddonQuantity,
+    updateItemInCart,
     clearCart,
-    setItemNote,
 
     checkout,
     setPaymentMethod,
@@ -68,8 +64,6 @@ export default function CartDrawer() {
 
   const CARD =
     "relative overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035)_28%,rgba(255,255,255,0.02)_100%)] p-4 sm:p-5 shadow-[0_24px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl ring-1 ring-white/5 transition-all duration-200 hover:border-white/15 hover:ring-white/10 md:hover:-translate-y-[1px] active:translate-y-0";
-  const ROW =
-    "flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-200 hover:bg-white/[0.08] hover:border-white/15 hover:ring-1 hover:ring-white/10";
 
   const [view, setView] = useState<DrawerView>("cart");
 
@@ -132,17 +126,35 @@ export default function CartDrawer() {
     closeBankartReturnFlow,
   } = useSuccessState({ openCart, setView, setSubmitError });
 
-  const [openSaucesForItemId, setOpenSaucesForItemId] = useState<string | null>(null);
-  const [openDrinksForItemId, setOpenDrinksForItemId] = useState<string | null>(null);
+  // Edit-mode state (L8.4): when a cart card is clicked, the user re-opens the
+  // detail sheet pre-filled. CartDrawer renders its own MenuItemDetailSheet
+  // instance for this; Menu.tsx still owns the create-mode sheet.
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
 
-  const {
-    drinksCatalog,
-    saucesCatalog,
-    addonsCatalog,
-    sauceIdSet,
-    setPizzaSizeSafe,
-    addDrinkToCart,
-  } = useCatalogData({ onError: () => setOpenDrinksForItemId(null) });
+  const editingCartItem: CartItem | null = useMemo(() => {
+    if (!editingCartItemId) return null;
+    return items.find((i) => i.id === editingCartItemId) ?? null;
+  }, [editingCartItemId, items]);
+
+  // Build a minimal DbMenuItem-shaped object from the cart item so the sheet
+  // can render image / name / description / base price without any extra DB
+  // round-trip. The sheet itself loads the pizzaVariantsByBaseKey map via
+  // useCatalogData and discovers 33/50 variants on its own.
+  const editingItemAsDbRow = useMemo(() => {
+    if (!editingCartItem) return null;
+    const baseKey = editingCartItem.baseKey ?? editingCartItem.name;
+    return {
+      id: editingCartItem.menuItemId ?? editingCartItem.id,
+      name: baseKey,
+      description: editingCartItem.description ?? null,
+      category: editingCartItem.category ?? "",
+      image: editingCartItem.image,
+      price_eur_cents: editingCartItem.basePrice ?? editingCartItem.price ?? null,
+      price: null,
+      is_active: true,
+      sort_order: null,
+    };
+  }, [editingCartItem]);
 
   const canSubmit = items.length > 0 && subtotalCents > 0;
 
@@ -243,8 +255,7 @@ export default function CartDrawer() {
     setSubmitError(null);
     setSubmitAttempted(false);
     resetSuccessState();
-    setOpenSaucesForItemId(null);
-    setOpenDrinksForItemId(null);
+    setEditingCartItemId(null);
     setIsZoneOpen(false);
     resetPaymentJs();
     closeBankartReturnFlow();
@@ -276,8 +287,7 @@ export default function CartDrawer() {
       setSubmitError(null);
       setSubmitAttempted(false);
       resetSuccessState();
-      setOpenSaucesForItemId(null);
-      setOpenDrinksForItemId(null);
+      setEditingCartItemId(null);
       setIsZoneOpen(false);
       resetPaymentJs();
     }
@@ -486,6 +496,22 @@ export default function CartDrawer() {
   const subtotalLabel = formatEUR(subtotalCents);
   const effectiveTotalLabel = formatEUR(effectiveTotalCents);
 
+  // Edit-mode handler (L8.4): when the detail sheet emits a new snapshot in
+  // edit mode, replace the existing cart item via updateItemInCart and close
+  // the sheet. Drawer stays open.
+  const handleEditConfirm = (newItem: CartItem) => {
+    if (!editingCartItemId) return;
+    updateItemInCart(editingCartItemId, newItem);
+    setEditingCartItemId(null);
+  };
+
+  // Pre-fill values for the edit sheet, derived from the cart item being
+  // edited. The sheet handles initial state hydration via key remount.
+  const editInitialAddons = editingCartItem?.addons ?? [];
+  const editInitialNote = editingCartItem?.note ?? "";
+  const editInitialQty = editingCartItem?.quantity ?? 1;
+  const editInitialSize = editingCartItem?.size ?? null;
+
   return (
     <AnimatePresence>
       <motion.div className="fixed inset-0 z-[80]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -632,27 +658,12 @@ export default function CartDrawer() {
                 <CartView
                   items={items}
                   canSubmit={canSubmit}
-                  openSaucesForItemId={openSaucesForItemId}
-                  openDrinksForItemId={openDrinksForItemId}
                   onGoToMenu={handleGoToMenu}
                   onRemoveFromCart={removeFromCart}
-                  onSetPizzaSize={setPizzaSizeSafe}
                   onDecreaseQty={decrease}
                   onIncreaseQty={increase}
-                  onAddAddonToItem={addAddonToItem}
-                  onRemoveAddonFromItem={removeAddonFromItem}
-                  onIncreaseAddonQuantity={increaseAddonQuantity}
-                  onDecreaseAddonQuantity={decreaseAddonQuantity}
-                  onSetItemNote={setItemNote}
-                  onAddDrinkToCart={addDrinkToCart}
-                  onToggleSauces={(id) => setOpenSaucesForItemId((prev) => (prev === id ? null : id))}
-                  onToggleDrinks={(id) => setOpenDrinksForItemId((prev) => (prev === id ? null : id))}
-                  addonsCatalog={addonsCatalog}
-                  saucesCatalog={saucesCatalog}
-                  drinksCatalog={drinksCatalog}
-                  sauceIdSet={sauceIdSet}
+                  onEditItem={(id) => setEditingCartItemId(id)}
                   cardClass={CARD}
-                  rowClass={ROW}
                   btnNeutralClass={BTN_NEUTRAL}
                   btnDangerClass={BTN_DANGER}
                   btnSuccessClass={BTN_SUCCESS}
@@ -688,6 +699,21 @@ export default function CartDrawer() {
           </div>
         </motion.div>
       </motion.div>
+
+      {/* Edit-mode detail sheet (L8.4) — rendered as a sibling so its
+          z-[90] sits above the cart drawer (z-[80]). The same component is
+          also used by Menu.tsx for create-mode adds. */}
+      <MenuItemDetailSheet
+        item={editingItemAsDbRow}
+        isHalal={false}
+        onClose={() => setEditingCartItemId(null)}
+        onConfirm={handleEditConfirm}
+        editingCartItemId={editingCartItemId ?? undefined}
+        initialSize={editInitialSize}
+        initialQty={editInitialQty}
+        initialAddons={editInitialAddons}
+        initialNote={editInitialNote}
+      />
     </AnimatePresence>
   );
 }

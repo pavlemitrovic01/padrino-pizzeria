@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L8.3 — Mobile menu drawer full-page (remove floating overlay + transparency, back arrow) (2026-05-25, STANDARD)
-**Sledeći:** L8.4 (Cart addon grouping fix — addons/piće/sosevi inline u svakoj pizza kartici, ne global sekcije na dnu CartView-a kad 2+ pizze; CartView.tsx LOCK ZONE, STRICT tier) per Pavle screenshot 2026-05-25. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) još otvoren. Screenshot-first razgovor pre /plan-a per W12.
+**Poslednji završen:** L8.4 — CartView display-only refactor + edit-reopen flow (2026-05-25, STRICT)
+**Sledeći:** Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) još otvoren. Screenshot-first razgovor pre /plan-a per W12.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
