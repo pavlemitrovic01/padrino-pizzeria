@@ -108,6 +108,19 @@ export type CartContextType = {
   closeCart: () => void;
 
   addToCart: (item: CartItem, options?: AddToCartOptions) => void;
+  /**
+   * Replace an existing cart item by id with a fully-formed replacement.
+   *
+   * Pure replacement semantics — does NOT merge quantities or addon unions
+   * the way addToCart does. Used by the edit-reopen flow from CartView where
+   * the user re-opens MenuItemDetailSheet pre-filled and saves a new
+   * snapshot of size/qty/addons/note. No-op + console.warn if id is not in
+   * the cart (defensive — shouldn't happen but avoids silent corruption).
+   *
+   * GA4: edit does NOT fire add_to_cart event (consistent with "edit is not
+   * a new conversion"). Tracked separately if delta semantics ever needed.
+   */
+  updateItemInCart: (id: string, replacement: CartItem) => void;
   increase: (id: string) => void;
   decrease: (id: string) => void;
   removeFromCart: (id: string) => void;

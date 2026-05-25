@@ -303,6 +303,39 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  /**
+   * Pure replacement of an existing cart item by id. Used by the edit-reopen
+   * flow (L8.4) where MenuItemDetailSheet is opened pre-filled from a cart
+   * item and saves a new snapshot of size/qty/addons/note.
+   *
+   * Differs from addToCart: NO merge semantics. The replacement is normalized
+   * (same pipeline as addToCart) then swapped in place at the matching index.
+   *
+   * If id is not found in the cart, the function logs a warning and no-ops —
+   * shouldn't happen in practice (UI only emits this for cart items) but
+   * avoids silent state corruption if a stale id leaks through.
+   *
+   * No GA4 events fire here — edits are not new conversions.
+   */
+  const updateItemInCart = (id: string, replacement: CartItem) => {
+    const normalized = normalizeIncomingItem(replacement);
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.id === id);
+      if (idx < 0) {
+        // eslint-disable-next-line no-console
+        console.warn("updateItemInCart: cart item not found for id", id);
+        return prev;
+      }
+      // Preserve baseKey-keyed identity by carrying normalized.id (which is
+      // baseKey for pizzas, or original id for non-pizzas). If the replacement
+      // re-keys to a different id (size variant change is fine — both 33/50
+      // share baseKey), splice using the OLD index but use new id.
+      const next = [...prev];
+      next[idx] = normalized;
+      return next;
+    });
+  };
+
   const increase = (id: string) => {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, quantity: i.quantity + 1 } : i)));
   };
@@ -542,6 +575,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         openCart,
         closeCart,
         addToCart,
+        updateItemInCart,
         increase,
         decrease,
         removeFromCart,

@@ -5,6 +5,31 @@
 
 ---
 
+## L8.4 — 2026-05-25 — CartView display-only refactor + edit-reopen flow — DONE
+
+**Tier:** STRICT
+**SHA:** TBD
+**Branch:** batch/l8.4-cartview-display-only
+**Files (5):**
+  - src/components/CartView.tsx — complete rewrite to display-only; removed size toggle, inline addon/sauce/drink pickers, note textarea; added clickable card (onEditItem) + read-only addon summary + read-only note display
+  - src/components/CartDrawer.tsx — wired edit-reopen flow (editingCartItemId, editingItemAsDbRow, handleEditConfirm → updateItemInCart); removed useCatalogData, ROW constant, addon/note context actions
+  - src/components/MenuItemDetailSheet.tsx — size picker (33/50 cm via pizzaVariantsByBaseKey); edit-mode props (initialSize/Qty/Addons/Note); key remount; z-[60]→z-[90]; CTA label edit/create; isDrinkCategory guard (drink section hidden when editing drink)
+  - src/context/CartProvider.tsx — updateItemInCart: pure replace semantics, normalizeIncomingItem pipeline, no GA4
+  - src/context/CartContext.tsx — updateItemInCart tip na CartContextType [SCOPE_DRIFT-ACK: implementacioni par]
+**Scope expansion (approved):** size picker dodat u detail sheet (baseKey/variant discovery via useCatalogData)
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 7.68s, CartDrawer 64.04kB
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 4.64s
+  manual:    PASS(human) — Pavle smoke 2026-05-25 (size picker prikazan, cart display clean)
+**SCOPE_DRIFT:** CartContext.tsx — acknowledged: implementation pair za updateItemInCart tip
+**Post-execute fixes (isti batch):**
+  - normalizeText vs stripPizzaSizeFromName baseKey mismatch → size picker se nije prikazivao
+  - isDrinkCategory guard → drink edit sheet ne nudi drink picker (sprečava tiho bacanje)
+**Code-review:** pokrenut u sesiji, 2 nalaza identifikovana i oba popravljena pre /close
+
+---
+
 ## L8.3 — 2026-05-25 — Mobile menu drawer full-page (remove floating overlay + transparency, back arrow) — DONE
 
 **Tier:** STANDARD

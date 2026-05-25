@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, type PanInfo } from "framer-motion";
-import type { CartItem, CartAddon } from "../context/CartContext";
+import type { CartItem, CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
 import { formatEUR } from "../lib/money";
-import { buildImageCandidates } from "../lib/cartDrawerHelpers";
+import { buildImageCandidates, isDrinkCategory, stripPizzaSizeFromName } from "../lib/cartDrawerHelpers";
 import { useCatalogData } from "../hooks/cart/useCatalogData";
 
 // Mirror of DbMenuItem from Menu.tsx — kept local to avoid coupling
@@ -23,6 +23,17 @@ type Props = {
   isHalal: boolean;
   onClose: () => void;
   onConfirm: (cartItem: CartItem) => void;
+  /**
+   * Edit-mode props (L8.4). When `editingCartItemId` is provided, the sheet
+   * pre-fills size/qty/addons/note from the cart item being edited. The
+   * parent component (CartDrawer) decides what to do on confirm — typically
+   * call `updateItemInCart(id, replacement)` instead of `addToCart`.
+   */
+  editingCartItemId?: string;
+  initialSize?: PizzaSize | null;
+  initialQty?: number;
+  initialAddons?: CartAddon[];
+  initialNote?: string;
 };
 
 type CatalogItem = { id: string; name: string; price: number };
@@ -48,16 +59,31 @@ function stripSize(name: string) {
 // ─── Public: parent wrapper ─────────────────────────────────────────────────
 
 export default function MenuItemDetailSheet(props: Props) {
-  const { item, isHalal, onClose, onConfirm } = props;
+  const {
+    item,
+    isHalal,
+    onClose,
+    onConfirm,
+    editingCartItemId,
+    initialSize,
+    initialQty,
+    initialAddons,
+    initialNote,
+  } = props;
 
   // Catalog hook fires once at first mount of the wrapper.
-  const { saucesCatalog, drinksCatalog, addonsCatalog } = useCatalogData();
+  const { saucesCatalog, drinksCatalog, addonsCatalog, pizzaVariantsByBaseKey } = useCatalogData();
+
+  // Remount the inner view whenever the target item or edit-session changes —
+  // this resets the internal state (qty/addons/note/size) cleanly without
+  // ad-hoc reset effects.
+  const remountKey = `${item?.id ?? "none"}::${editingCartItemId ?? "create"}`;
 
   return (
     <AnimatePresence>
       {item && (
         <SheetView
-          key={item.id}
+          key={remountKey}
           item={item}
           isHalal={isHalal}
           onClose={onClose}
@@ -65,6 +91,12 @@ export default function MenuItemDetailSheet(props: Props) {
           saucesCatalog={saucesCatalog}
           drinksCatalog={drinksCatalog}
           addonsCatalog={addonsCatalog}
+          pizzaVariantsByBaseKey={pizzaVariantsByBaseKey}
+          editingCartItemId={editingCartItemId}
+          initialSize={initialSize ?? null}
+          initialQty={initialQty ?? 1}
+          initialAddons={initialAddons ?? []}
+          initialNote={initialNote ?? ""}
         />
       )}
     </AnimatePresence>
@@ -81,12 +113,69 @@ function SheetView(props: {
   saucesCatalog: CatalogItem[];
   drinksCatalog: CatalogItem[];
   addonsCatalog: CatalogItem[];
+  pizzaVariantsByBaseKey: Record<string, Partial<Record<PizzaSize, PizzaVariant>>>;
+  editingCartItemId?: string;
+  initialSize: PizzaSize | null;
+  initialQty: number;
+  initialAddons: CartAddon[];
+  initialNote: string;
 }) {
-  const { item, isHalal, onClose, onConfirm, saucesCatalog, drinksCatalog, addonsCatalog } = props;
+  const {
+    item,
+    isHalal,
+    onClose,
+    onConfirm,
+    saucesCatalog,
+    drinksCatalog,
+    addonsCatalog,
+    pizzaVariantsByBaseKey,
+    editingCartItemId,
+    initialSize,
+    initialQty,
+    initialAddons,
+    initialNote,
+  } = props;
 
-  const [pizzaQty, setPizzaQty] = useState(1);
-  const [selectedAddons, setSelectedAddons] = useState<SelectedAddons>(new Map());
-  const [note, setNote] = useState("");
+  const isEditing = !!editingCartItemId;
+
+  // ─── Size variants discovery (L8.4) ──────────────────────────────────────
+  // For pizzas, look up both 33cm + 50cm variants via the shared catalog map.
+  // Non-pizza items (drinks/sauces/addons) have no variants — the size picker
+  // simply doesn't render.
+  const baseKey = useMemo(() => stripPizzaSizeFromName(item.name), [item.name]);
+  const variants = pizzaVariantsByBaseKey[baseKey] ?? null;
+  const hasVariant33 = !!variants?.["33"];
+  const hasVariant50 = !!variants?.["50"];
+  const hasBothSizes = hasVariant33 && hasVariant50;
+
+  // Default size resolution priority:
+  //   1) Edit mode: explicit initialSize from the cart item being edited
+  //   2) Variants: prefer 33 if available, else 50
+  //   3) No variants: null (non-pizza items)
+  const defaultSize: PizzaSize | null = useMemo(() => {
+    if (initialSize && (initialSize === "33" || initialSize === "50")) {
+      // Honor initial only if variant exists for it; otherwise fall through.
+      if (variants?.[initialSize]) return initialSize;
+    }
+    if (hasVariant33) return "33";
+    if (hasVariant50) return "50";
+    return null;
+  }, [initialSize, variants, hasVariant33, hasVariant50]);
+
+  const [selectedSize, setSelectedSize] = useState<PizzaSize | null>(defaultSize);
+
+  const [pizzaQty, setPizzaQty] = useState(initialQty);
+
+  // Hydrate selectedAddons map from initial CartAddon[] in edit mode.
+  const [selectedAddons, setSelectedAddons] = useState<SelectedAddons>(() => {
+    const m: SelectedAddons = new Map();
+    for (const a of initialAddons) {
+      m.set(a.id, { name: a.name, price: a.price, qty: a.quantity });
+    }
+    return m;
+  });
+
+  const [note, setNote] = useState(initialNote);
 
   // Guard against double-tap on confirm CTA: the sheet stays in the DOM for
   // ~300–400 ms while AnimatePresence runs its exit animation. Without this
@@ -111,7 +200,16 @@ function SheetView(props: {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const basePrice = getSafeCents(item);
+  // Resolved variant (33 or 50) for the currently selected size. May be
+  // null for non-pizza items, in which case we fall back to the menu row's
+  // own price (existing pre-L8.4 behavior).
+  const activeVariant: PizzaVariant | null = selectedSize ? (variants?.[selectedSize] ?? null) : null;
+
+  const basePrice = activeVariant ? activeVariant.price : getSafeCents(item);
+  // When editing a standalone drink item, suppress the "Dodaj piće" picker —
+  // drinks added as addons on a drink CartItem are silently dropped by
+  // CartView and the order serializer (both use addons=[] for drink categories).
+  const isItemDrink = isDrinkCategory(item.category ?? "");
   const displayName = stripSize(item.name);
   const heroImage = buildImageCandidates(item.image, item.name)[0] ?? "/menu/padrino.webp";
 
@@ -159,16 +257,37 @@ function SheetView(props: {
     for (const [id, a] of selectedAddons) {
       addons.push({ id, name: a.name, price: a.price, quantity: a.qty });
     }
+
+    // L8.4: prefer the active variant (33 or 50) for menu-item identity so
+    // CartProvider.normalizeIncomingItem records the right size + variant
+    // bookkeeping. Falls back to the row's own id/category/price if no
+    // variants exist (non-pizza items like drinks).
+    const cartItemId = activeVariant?.menuItemId ?? item.id;
+    const cartCategory = activeVariant?.category ?? item.category ?? "";
+
+    // For pizzas with size variants, use a display name that strips the size
+    // suffix and let CartProvider keep `size` as the explicit field. This
+    // matches the pre-L8.4 baseKey-based storage shape.
+    const cartName = activeVariant ? displayName : item.name;
+    const cartBaseKey = activeVariant ? displayName : (item.name ?? "");
+
     const cartItem: CartItem = {
-      id: item.id,
-      name: item.name,
+      id: cartItemId,
+      name: cartName,
       price: basePrice,
       image: heroImage,
       description: item.description ?? "",
-      category: item.category ?? "",
+      category: cartCategory,
       quantity: pizzaQty,
       addons: addons.length > 0 ? addons : undefined,
       note: note.trim() || undefined,
+      size: selectedSize ?? null,
+      baseKey: cartBaseKey,
+      menuItemId: cartItemId,
+      basePrice,
+      variants: activeVariant && selectedSize
+        ? { [selectedSize]: activeVariant }
+        : undefined,
     };
     onConfirm(cartItem);
   }
@@ -179,7 +298,7 @@ function SheetView(props: {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center"
+      className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -248,6 +367,45 @@ function SheetView(props: {
             <div className="mt-3 text-[20px] font-black text-[#f2b400]">{formatEUR(basePrice)}</div>
           </div>
 
+          {/* Size picker (L8.4) — render only when both 33 + 50 variants exist */}
+          {hasBothSizes && selectedSize ? (
+            <div className="mt-5 px-5">
+              <div className="mb-2.5 text-[13px] font-extrabold uppercase tracking-[0.18em] text-white/55">
+                Veličina
+              </div>
+              <div className="flex gap-2">
+                {(["33", "50"] as const).map((sz) => {
+                  const isActive = selectedSize === sz;
+                  const variantPrice = variants?.[sz]?.price ?? 0;
+                  return (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => setSelectedSize(sz)}
+                      className={[
+                        "flex-1 rounded-2xl border px-4 py-3 transition-all duration-150",
+                        isActive
+                          ? "border-[#f2b400]/55 bg-[#f2b400]/10 text-white"
+                          : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
+                      ].join(" ")}
+                      aria-pressed={isActive}
+                    >
+                      <div className="text-[15px] font-black leading-none">{sz} cm</div>
+                      <div
+                        className={[
+                          "mt-1 text-[12px] font-extrabold",
+                          isActive ? "text-[#f2b400]" : "text-white/55",
+                        ].join(" ")}
+                      >
+                        {formatEUR(variantPrice)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {/* Pizza quantity stepper */}
           <div className="mt-5 flex items-center justify-between px-5">
             <div className="text-[13px] font-extrabold uppercase tracking-[0.18em] text-white/55">
@@ -273,8 +431,9 @@ function SheetView(props: {
             />
           )}
 
-          {/* Drinks */}
-          {drinksCatalog.length > 0 && (
+          {/* Drinks — hidden when editing a standalone drink item to prevent
+              drinks-as-addons that CartView and the order serializer silently drop. */}
+          {drinksCatalog.length > 0 && !isItemDrink && (
             <AddonSection
               title="Dodaj piće"
               items={drinksCatalog}
@@ -331,7 +490,7 @@ function SheetView(props: {
             onClick={handleConfirm}
             className="p-btn-gold min-h-[52px] w-full text-[15px] shadow-[0_20px_50px_-26px_rgba(242,180,0,0.95)]"
           >
-            Dodaj u porudžbinu — {formatEUR(totalCents)}
+            {isEditing ? "Sačuvaj izmene" : "Dodaj u porudžbinu"} — {formatEUR(totalCents)}
           </button>
         </div>
       </motion.div>
