@@ -10,7 +10,7 @@ Exit criterion #8 CLOSED. Self-score for Refactor-to-9: **8.5/10**
 **Sledeći program: Friction-reduction (Faze K–O)** — vidi sekciju ispod.
 UX audit 2026-05-22 (mobile screenshots + analytics 28-day pull) →
 mobile-first conversion friction reduction, NOT redesign.
-**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1+L3+L4 DONE 2026-05-23. Preostali audit findings (L2/L5/L6) ne queue-uju se kao standardni batch-evi — vidi sekciju "ROADMAP scope" niže (W12 2026-05-23 reframe).**
+**Faza K DONE ✓ (K1 GA4 events, 2026-05-23). Faza L IN PROGRESS — L1+L3+L4 DONE 2026-05-23, L7 (Hero+Navbar) DONE 2026-05-24, L8.0/L8.1/L8.2 (mobile menu redesign sub-program: recon + Topseller/list rows/halal badge + detail sheet) DONE 2026-05-25. Preostali audit findings (L2/L5/L6) ne queue-uju se kao standardni batch-evi — vidi sekciju "ROADMAP scope" niže (W12 2026-05-23 reframe). Authoritative batch list: STATE.md.**
 
 Authoritative batch count + status: STATE.md.
 

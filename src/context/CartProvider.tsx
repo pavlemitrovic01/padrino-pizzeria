@@ -208,6 +208,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = prev.find((i) => i.id === item.id);
 
       if (existing) {
+        // Re-add merge semantics:
+        //   - quantity: increment by incoming item.quantity (≥1), NOT hardcoded +1.
+        //     Allows MenuItemDetailSheet to send pizzaQty>1 without silently dropping it.
+        //   - addons: union by id — sum quantities for matching ids, append new ids.
+        //     Allows sheet to add addons to an item that's already in the cart without
+        //     silently discarding the new selection. Cap per-addon qty at 99 (defense).
+        //   - note: prefer incoming if non-empty, otherwise preserve existing.
+        const incomingQty = Math.max(1, toSafeInt(item.quantity ?? 1, 1));
+        const incomingAddons = item.addons ?? [];
+        const incomingNote = (item.note ?? "").trim();
+
         return prev.map((i) => {
           if (i.id !== item.id) return i;
 
@@ -216,8 +227,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
             ...(item.variants ?? {}),
           };
 
-          const rawAddons = i.addons ?? [];
-          const addons = adjustAddonsForSize(i.size ?? null, rawAddons);
+          // Merge addons: existing first, then sum/append incoming
+          const addonMap = new Map<string, CartAddon>();
+          for (const a of i.addons ?? []) {
+            addonMap.set(a.id, { ...a });
+          }
+          for (const a of incomingAddons) {
+            const prevA = addonMap.get(a.id);
+            if (prevA) {
+              const summed = Math.min(
+                99,
+                Math.max(1, toSafeInt(prevA.quantity ?? 1, 1) + Math.max(1, toSafeInt(a.quantity ?? 1, 1))),
+              );
+              addonMap.set(a.id, { ...prevA, quantity: summed });
+            } else {
+              addonMap.set(a.id, {
+                id: a.id,
+                name: a.name,
+                price: toSafeInt(a.price, 0),
+                quantity: Math.max(1, toSafeInt(a.quantity ?? 1, 1)),
+              });
+            }
+          }
+          const mergedAddons = Array.from(addonMap.values());
+          const addons = adjustAddonsForSize(i.size ?? null, mergedAddons);
 
           const candidateSize: PizzaSize | null =
             (isPizzaLike(i.category, i.name) ? (i.size ?? null) : null) ?? null;
@@ -242,7 +275,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
           return {
             ...i,
-            quantity: i.quantity + 1,
+            quantity: i.quantity + incomingQty,
             variants: Object.keys(mergedVariants).length ? mergedVariants : i.variants,
             size: isPizzaLike(i.category, i.name) ? bestSize : null,
             basePrice: nextBasePrice,
@@ -250,7 +283,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             category: nextCategory,
             addons,
             price: finalPrice,
-            note: i.note ?? "",
+            note: incomingNote ? incomingNote : (i.note ?? ""),
           };
         });
       }
@@ -266,7 +299,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       item_id: item.id,
       item_name: item.name,
       price: item.price / 100,
-      quantity: 1,
+      quantity: Math.max(1, toSafeInt(item.quantity ?? 1, 1)),
     });
   };
 

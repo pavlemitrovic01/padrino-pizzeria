@@ -6,6 +6,7 @@ import { formatEUR } from "../lib/money";
 import { buildImageCandidates } from "../lib/cartDrawerHelpers";
 import { normalizeText } from "../lib/parsing";
 import { POPULAR_PIZZAS, HALAL_PIZZAS } from "../lib/config";
+import MenuItemDetailSheet from "../components/MenuItemDetailSheet";
 
 type DbMenuItem = {
   id: string;
@@ -242,6 +243,7 @@ export default function Menu() {
   const [items, setItems] = useState<DbMenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [flowOpen, setFlowOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<DbMenuItem | null>(null);
 
   const [addedId, setAddedId] = useState<string | null>(null);
   const addedTimerRef = useRef<number | null>(null);
@@ -294,6 +296,7 @@ export default function Menu() {
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
+      if (selectedItem) return; // sheet handles its own Escape
       setFlowOpen(false);
       setAddedId(null);
       setToast((t) => ({ ...t, visible: false }));
@@ -301,7 +304,7 @@ export default function Menu() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [flowOpen]);
+  }, [flowOpen, selectedItem]);
 
   useEffect(() => {
     return () => {
@@ -364,24 +367,12 @@ export default function Menu() {
     addedTimerRef.current = window.setTimeout(() => setAddedId(null), 650);
   }
 
-  function onAdd(row: DbMenuItem) {
-    const cents = getSafeCents(row);
-    const candidates = buildImageCandidates(row.image, row.name);
-    const best = candidates[0] ?? "";
-
-    const cartItem: CartItem = {
-      id: row.id,
-      name: row.name,
-      price: cents,
-      image: best,
-      description: row.description ?? "",
-      category: row.category ?? "",
-      quantity: 1,
-    };
-
+  function onConfirmFromSheet(cartItem: CartItem) {
     addToCart(cartItem, { openCart: false });
-    markAdded(row.id);
-    showToast({ visible: true, title: "Uspešno ste dodali ✅", subtitle: row.name });
+    setSelectedItem(null); // close sheet
+    markAdded(cartItem.id);
+    showToast({ visible: true, title: "Dodato u korpu ✅", subtitle: cartItem.name });
+    // menu drawer stays open — user can keep shopping
   }
 
   function closeAll() {
@@ -511,7 +502,7 @@ export default function Menu() {
                             <TopsellerCard
                               key={row.id}
                               row={row}
-                              onAdd={onAdd}
+                              onAdd={setSelectedItem}
                               isAdded={addedId === row.id}
                               isHalal={isHalalPizza(row.name)}
                             />
@@ -528,7 +519,7 @@ export default function Menu() {
                         <MobileListRow
                           key={row.id}
                           row={row}
-                          onAdd={onAdd}
+                          onAdd={setSelectedItem}
                           isAdded={addedId === row.id}
                           isHalal={isHalalPizza(row.name)}
                         />
@@ -549,7 +540,7 @@ export default function Menu() {
                       const onCardKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          onAdd(row);
+                          setSelectedItem(row);
                         }
                       };
 
@@ -558,7 +549,7 @@ export default function Menu() {
                           key={row.id}
                           role="button"
                           tabIndex={0}
-                          onClick={() => onAdd(row)}
+                          onClick={() => setSelectedItem(row)}
                           onKeyDown={onCardKeyDown}
                           className={[
                             "group relative flex flex-col overflow-hidden rounded-[28px] text-left",
@@ -696,6 +687,14 @@ export default function Menu() {
           </div>
         </div>
       </div>
+
+      {/* Detail sheet — slide-up bottom sheet on card click (mobile + desktop) */}
+      <MenuItemDetailSheet
+        item={selectedItem}
+        isHalal={selectedItem ? isHalalPizza(selectedItem.name) : false}
+        onClose={() => setSelectedItem(null)}
+        onConfirm={onConfirmFromSheet}
+      />
     </section>
   );
 }

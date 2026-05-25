@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L8.1 — Mobile menu redesign (Topseller strip + list rows + halal badge) (2026-05-25, STANDARD)
-**Sledeći:** L8.2 — Mobile detail sheet (STRICT) — card click → slide-up bottom sheet sa addonima (sosovi/piće/krofna), sticky gold CTA. Per L8-recon.md arhitektura. Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 partially advanced kroz L7 (hero "Premium" pill+paragraf+3-pills uklonjeni iz src/sections/Hero.tsx; preostali "premium" u About.tsx/Menu.tsx/index.html/OG = sledeći M1 batch).
+**Poslednji završen:** L8.2 — Mobile detail sheet (slide-up bottom sheet sa addonima + CartProvider re-add merge fix) (2026-05-25, STRICT)
+**Sledeći:** Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. L8.3 (Cart polish — thumbnail rows + halal badge u cart items) kandidat ako Pavle želi nastaviti L8 sub-program. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) još otvoren. Screenshot-first razgovor pre /plan-a per W12.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -403,6 +403,27 @@
       (+ /security-review za payment/Bankart/RLS touch); ne refuses, ne blokira —
       recommendation only;
   Total: 1 NEW skill + 4 skill edits + CLAUDE.md edit; STATE/LOG entry; L1 next)
+- L8.2 (Mobile detail sheet — slide-up bottom sheet sa addonima + CartProvider re-add merge fix) — DONE 2026-05-25
+  (STRICT; 3 fajla; SHA _filled-after-commit_; per-batch branch batch/l8.2-mobile-detail-sheet;
+  src/components/MenuItemDetailSheet.tsx NEW 442 LOC — AnimatePresence wrapper + SheetView
+  (drag-y close, body scroll lock, Escape, keyed remount via item.id); QtyStepper +
+  AddonSection sub-components; pizzaQty (1-10) + addons Map + note (200ch); useCatalogData
+  hook za sauces/drinks/addons; confirmedRef double-tap guard tokom ~300-400ms exit animacije;
+  Menu.tsx +43/-44: onAdd dead code REMOVED → onConfirmFromSheet wrapper (addToCart +
+  setSelectedItem(null) + markAdded + toast, drawer stays open); Escape guard u Menu za
+  sheet precedence (if (selectedItem) return); card click handlers setSelectedItem;
+  SCOPE_DRIFT acknowledged: CartProvider.tsx LOCK ZONE (+43/-13) added u fix phase per
+  code-review HIGH findings — addToCart existing-item branch silently discardovao pizzaQty>1
+  i incoming addons (pre-existing dormant bug, postao visible kad sheet aktivirao path);
+  fix: quantity +=incomingQty umesto +1, addons union by id sum qty (Map merge, 99 cap),
+  note prefer incoming non-empty else preserve, trackAddToCart quantity item-driven;
+  code-review (recall-biased) returned 5 verified findings — 2 CONFIRMED HIGH + 1 PLAUSIBLE
+  MED FIXED in-batch, 2 MED deferred (scroll-lock race unreachable; useCatalogData
+  double-fetch perf only); Pavle localhost smoke 3-fix scenarios PASS (qty merge 1→3→5,
+  addon merge, double-tap guard) + base sheet flow PASS; LESSONS cap 7/7 unchanged;
+  pattern note: pre-existing dormant bug becomes visible when new feature activates
+  the dormant code path — code-review during STRICT batches catches these before they
+  ship; smoke alone wouldn't, re-add data loss is silent)
 
 **Workflow v3 status:** live on main branch. workflow-v3-init merged
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
@@ -454,7 +475,8 @@ H2 AdminMenu lib extraction,
 H2.1 AdminMenu component split,
 K1 GA4 enhanced ecommerce events,
 L8.0 Mobile menu + add-to-cart flow mapping recon doc-only,
-L8.1 Mobile menu redesign Topseller strip + list rows + halal badge).
+L8.1 Mobile menu redesign Topseller strip + list rows + halal badge,
+L8.2 Mobile detail sheet slide-up bottom sheet sa addonima + CartProvider re-add merge fix).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---

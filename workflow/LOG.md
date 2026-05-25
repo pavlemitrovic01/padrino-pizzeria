@@ -5,6 +5,64 @@
 
 ---
 
+## L8.2 — 2026-05-25 — Mobile detail sheet (slide-up bottom sheet sa addonima) — DONE
+
+**Tier:** STRICT
+**SHA:** _to be filled after commit_
+**Branch:** batch/l8.2-mobile-detail-sheet (per-batch branch)
+**Files (3):**
+  - src/components/MenuItemDetailSheet.tsx — NEW 442 LOC; AnimatePresence wrapper +
+    SheetView (drag-y close, body scroll lock, Escape handler, keyed remount via
+    item.id); QtyStepper + AddonSection sub-components; pizzaQty (1-10) + addons
+    Map<id, {name,price,qty}> + note (200 char max); useCatalogData hook za
+    sauces/drinks/addons catalog; handleConfirm builds CartItem sa addons[]/note;
+    confirmedRef guard sprečava double-tap tokom exit animacije (~300-400ms)
+  - src/sections/Menu.tsx — +43/-44 net -1 LOC; MenuItemDetailSheet import;
+    selectedItem useState<DbMenuItem | null>; Escape handler guard
+    "if (selectedItem) return" + selectedItem u deps; onAdd function REMOVED
+    (dead code) → onConfirmFromSheet wrapper (addToCart + setSelectedItem(null)
+    + markAdded + toast, menu drawer stays open); card click handlers
+    onAdd={setSelectedItem} (TopsellerCard + MobileListRow); desktop grid
+    onClick + keyboard handler → setSelectedItem; sheet render at bottom
+    sa isHalalPizza() check
+  - src/context/CartProvider.tsx — LOCK ZONE — +43/-13 net +30 LOC;
+    addToCart existing-item branch rewritten: quantity +incomingQty (umesto +1)
+    da sheet pizzaQty>1 ne ide u silent drop; addons union by id sum qty
+    (Map-based merge, 99 cap) da incoming addons ne idu silent discard;
+    note prefer incoming non-empty else preserve existing; trackAddToCart
+    quantity hardcoded 1 → item.quantity za accurate GA4 events
+**Verify:**
+  build:     PASS(machine) — 2.94s
+  typecheck: PASS(machine)
+  test:      PASS(machine) — 18 fajlova, 211 testova
+  manual:    PASS(human) — Pavle localhost:5173 smoke 3-fix scenarios PASS
+             (qty merge 1→3→5, addon merge, double-tap guard) + base sheet
+             flow (mobile topseller/list card tap → sheet slide-up, addons,
+             qty stepper, note, sticky CTA, backdrop/X/Escape close, swipe-down)
+**Code-review:** /code-review pokrenut pre /close, recall-biased recall pass;
+5 verified findings (2 CONFIRMED HIGH + 1 PLAUSIBLE MED + 2 CONFIRMED MED);
+HIGH findings (CartProvider re-add silent qty/addon discard) FIXED in-batch;
+PLAUSIBLE double-tap CTA FIXED via confirmedRef; 2 MED deferred (scroll-lock
+race unreachable in current paths; useCatalogData double-fetch perf only).
+**SCOPE_DRIFT:** acknowledged — CartProvider.tsx (LOCK ZONE) added during
+fix phase per code-review findings. Drift triggered by in-batch quality
+gate (code-review uncovered pre-existing dormant bugs in addToCart existing
+branch — old onAdd always sent qty=1/no-addons, so re-add silent discard
+was invisible; sheet now sends qty>1 + addons, activating the latent path).
+LOCK ZONE precedent: STRICT tier + Pavle approval pre-commit + smoke PASS.
+**Notes:**
+- Pattern: pre-existing dormant bug becomes visible when new feature activates
+  the dormant code path. Code-review during STRICT batches catches these
+  before they ship; smoke alone wouldn't (re-add data loss is silent).
+- AnimatePresence + key={item.id} on SheetView = clean state reset on item
+  switch (no useEffect deps gymnastics).
+- Escape handler conflict resolved via guard in Menu.tsx (selectedItem !== null
+  → return early, sheet handles its own Escape).
+- closeAll() unreachable while sheet open (sheet backdrop z-[60] iznad menu
+  backdrop z-50; user can't trigger closeAll path with sheet up).
+
+---
+
 ## L8.1 — 2026-05-25 — Mobile menu redesign (Topseller strip + list rows + halal badge) — DONE
 
 **Tier:** STANDARD
