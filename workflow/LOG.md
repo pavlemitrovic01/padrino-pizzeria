@@ -5,6 +5,23 @@
 
 ---
 
+## L9 — 2026-05-26 — Delivery sekcija redesign (kompresija + overlay + top fade) — DONE
+
+**Tier:** STANDARD
+**SHA:** 391ad79
+**Branch:** main (direct commit, STANDARD)
+**Files (1):**
+  - src/sections/Delivery.tsx — rewrite 158→111 LOC (−47); 5 overlay slojeva+inset-shadow→2; 2 paragrafa+3 karte→1 rečenica+3 stat-pill-a (8 zona/~30 min/Besplatno); py-24/py-32→py-16/py-24; top h-20 fade-from-black dodat
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 8.63s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 4.62s
+  manual:    PASS(human)   — Pavle: "okej je" + mobile confirmed 2026-05-26
+**SCOPE_DRIFT:** none
+**Notes:** Slika /sections/delivery.webp sačuvana (Pavle potvrdio). Pill sadržaj: "8 zona / Lastva–Sveti Stefan", "~30 min / Do vaših vrata", "Besplatno / Dostava u Budvi". Zona panel: "Budva, Bečići, Sv. Stefan + 5 lokacija duž rivijere". W12 ad-hoc UX batch — bez ROADMAP reda.
+
+---
+
 ## L8.4 — 2026-05-25 — CartView display-only refactor + edit-reopen flow — DONE
 
 **Tier:** STRICT

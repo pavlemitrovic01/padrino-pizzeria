@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L8.4 — CartView display-only refactor + edit-reopen flow (2026-05-25, STRICT)
-**Sledeći:** Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) još otvoren. Screenshot-first razgovor pre /plan-a per W12.
+**Poslednji završen:** L9 — Delivery sekcija redesign (2026-05-26, STANDARD)
+**Sledeći:** Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) otvoren. Screenshot-first razgovor pre /plan-a per W12.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -437,7 +437,7 @@
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-58 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+60 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -485,7 +485,9 @@ K1 GA4 enhanced ecommerce events,
 L8.0 Mobile menu + add-to-cart flow mapping recon doc-only,
 L8.1 Mobile menu redesign Topseller strip + list rows + halal badge,
 L8.2 Mobile detail sheet slide-up bottom sheet sa addonima + CartProvider re-add merge fix,
-L8.3 Mobile menu drawer full-page remove floating overlay + transparency back arrow).
+L8.3 Mobile menu drawer full-page remove floating overlay + transparency back arrow,
+L8.4 CartView display-only refactor + edit-reopen flow — STRICT — 2026-05-25,
+L9 Delivery sekcija redesign kompresija overlay top fade — STANDARD — 2026-05-26).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
