@@ -8,7 +8,7 @@
 ## L8.4 — 2026-05-25 — CartView display-only refactor + edit-reopen flow — DONE
 
 **Tier:** STRICT
-**SHA:** TBD
+**SHA:** 42b6203
 **Branch:** batch/l8.4-cartview-display-only
 **Files (5):**
   - src/components/CartView.tsx — complete rewrite to display-only; removed size toggle, inline addon/sauce/drink pickers, note textarea; added clickable card (onEditItem) + read-only addon summary + read-only note display
