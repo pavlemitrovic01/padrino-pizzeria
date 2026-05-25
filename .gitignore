@@ -46,3 +46,6 @@ supabase/.temp/
 .claude/settings.local.json
 .claude/worktrees
 .claude/workflow-trace.jsonl
+
+# Local screenshot scratch (manual artifact, not committed)
+.tmp-screenshots/
