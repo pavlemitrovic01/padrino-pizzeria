@@ -8,7 +8,7 @@
 ## L8.2 — 2026-05-25 — Mobile detail sheet (slide-up bottom sheet sa addonima) — DONE
 
 **Tier:** STRICT
-**SHA:** _to be filled after commit_
+**SHA:** 0b46ba8
 **Branch:** batch/l8.2-mobile-detail-sheet (per-batch branch)
 **Files (3):**
   - src/components/MenuItemDetailSheet.tsx — NEW 442 LOC; AnimatePresence wrapper +

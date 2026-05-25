@@ -404,7 +404,7 @@
       recommendation only;
   Total: 1 NEW skill + 4 skill edits + CLAUDE.md edit; STATE/LOG entry; L1 next)
 - L8.2 (Mobile detail sheet — slide-up bottom sheet sa addonima + CartProvider re-add merge fix) — DONE 2026-05-25
-  (STRICT; 3 fajla; SHA _filled-after-commit_; per-batch branch batch/l8.2-mobile-detail-sheet;
+  (STRICT; 3 fajla; SHA 0b46ba8; per-batch branch batch/l8.2-mobile-detail-sheet;
   src/components/MenuItemDetailSheet.tsx NEW 442 LOC — AnimatePresence wrapper + SheetView
   (drag-y close, body scroll lock, Escape, keyed remount via item.id); QtyStepper +
   AddonSection sub-components; pizzaQty (1-10) + addons Map + note (200ch); useCatalogData
