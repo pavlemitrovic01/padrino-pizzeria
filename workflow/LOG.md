@@ -8,7 +8,7 @@
 ## L11 — 2026-05-27 — Contact sekcija redesign (Pravac A Hero poziv) — DONE
 
 **Tier:** STANDARD
-**SHA:** [pending commit]
+**SHA:** 98c2396
 **Branch:** main (direct commit, STANDARD)
 **Files (1):**
   - src/sections/Contact.tsx — rewrite 266→175 LOC (−91); teški shadow-[inset_0_0_180px_...] overlay uklonjen — foto diše; hero telefon p-serif zlatni text-5xl/xl:text-7xl sa "Pozovi sada" pill CTA; info strip (Email/Adresa/Radno Vrijme) horizontalno s vertikalnim dividerima na desktop; 4 social pill-a (Instagram/Viber/WhatsApp/Maps) kompaktni red; SocialItem.glowBg field uklonjen (cleanup); yellowBubble class varijabla uklonjena
