@@ -5,6 +5,25 @@
 
 ---
 
+## L10 — 2026-05-27 — About sekcija redesign (cinematic asymmetric layout + Cormorant/Inter tipografija) — DONE
+
+**Tier:** STANDARD
+**SHA:** [post-commit]
+**Branch:** main (direct commit, STANDARD)
+**Files (3):**
+  - src/sections/About.tsx — full rewrite 408→248 LOC (−160); CSS Grid 1.3fr/1fr desktop; slika levo full-bleed object-position 50%/50%; tekst desno Cormorant Garamond serif + Inter body; eyebrow "Naš početak"/"Danas" sa gold gradient divider; closing pull-quote serif italic gold text-[1.375rem]; mobile: stacked (slika 4:3 rounded → teaser → NAŠA PRIČA CTA → tags inline → Reviews na kraju); glass containeri desktop uklonjeni; "premium • porodično • domaće" uklonjeni; useMemo POS magic numbers uklonjeni; AboutStoryModal: gold accent stripe + #111 bg + radial glow; TagStrip + ReviewsCard simplify
+  - src/index.css — +14 LOC: .p-serif (Cormorant Garamond) + .p-section-editorial (Inter) u @layer components
+  - index.html — +1 LOC: Google Fonts link Cormorant Garamond:500;600;700 + Inter:300;400;500 (display=swap; preconnects već postojali)
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 7.70s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 4.79s
+  manual:    PASS(human)   — Pavle odobrio layout + modal redesign + quote size 2026-05-27
+**SCOPE_DRIFT:** none
+**Notes:** W12 ad-hoc UX batch. Mockup fajlovi (about-a/b/c.html) kreirani tokom recon pa obrisani pre /plan-a. Font quote finaliziran na text-[1.375rem] xl:text-[1.6rem] (10% iznad text-xl). ROADMAP row N/A — screenshot-first batch.
+
+---
+
 ## L9 — 2026-05-26 — Delivery sekcija redesign (kompresija + overlay + top fade) — DONE
 
 **Tier:** STANDARD

@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L9 — Delivery sekcija redesign (2026-05-26, STANDARD)
-**Sledeći:** Otvoreni audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec. M1 (hero "Premium" cleanup u About.tsx/Menu.tsx/index.html/OG) otvoren. Screenshot-first razgovor pre /plan-a per W12.
+**Poslednji završen:** L10 — About sekcija redesign (2026-05-27, STANDARD)
+**Sledeći:** Contact sekcija redesign (screenshot-first razgovor pre /plan-a per W12). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -487,7 +487,8 @@ L8.1 Mobile menu redesign Topseller strip + list rows + halal badge,
 L8.2 Mobile detail sheet slide-up bottom sheet sa addonima + CartProvider re-add merge fix,
 L8.3 Mobile menu drawer full-page remove floating overlay + transparency back arrow,
 L8.4 CartView display-only refactor + edit-reopen flow — STRICT — 2026-05-25,
-L9 Delivery sekcija redesign kompresija overlay top fade — STANDARD — 2026-05-26).
+L9 Delivery sekcija redesign kompresija overlay top fade — STANDARD — 2026-05-26,
+L10 About sekcija redesign cinematic asymmetric layout Cormorant/Inter — STANDARD — 2026-05-27).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
