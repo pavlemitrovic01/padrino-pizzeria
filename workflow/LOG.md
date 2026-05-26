@@ -8,7 +8,7 @@
 ## L10 — 2026-05-27 — About sekcija redesign (cinematic asymmetric layout + Cormorant/Inter tipografija) — DONE
 
 **Tier:** STANDARD
-**SHA:** [post-commit]
+**SHA:** 0451a2d86cd8028f734e6d1be65820856409296d
 **Branch:** main (direct commit, STANDARD)
 **Files (3):**
   - src/sections/About.tsx — full rewrite 408→248 LOC (−160); CSS Grid 1.3fr/1fr desktop; slika levo full-bleed object-position 50%/50%; tekst desno Cormorant Garamond serif + Inter body; eyebrow "Naš početak"/"Danas" sa gold gradient divider; closing pull-quote serif italic gold text-[1.375rem]; mobile: stacked (slika 4:3 rounded → teaser → NAŠA PRIČA CTA → tags inline → Reviews na kraju); glass containeri desktop uklonjeni; "premium • porodično • domaće" uklonjeni; useMemo POS magic numbers uklonjeni; AboutStoryModal: gold accent stripe + #111 bg + radial glow; TagStrip + ReviewsCard simplify
