@@ -24,15 +24,7 @@ const COPY = {
     "Ako jednom dođete kao gosti, vjerujemo da ćete se vratiti kao prijatelji.",
 };
 
-function BodyParagraphs({ lines }: { lines: string[] }) {
-  return (
-    <div className="space-y-4 text-sm leading-relaxed text-white/75">
-      {lines.map((t, i) => (
-        <p key={i}>{t}</p>
-      ))}
-    </div>
-  );
-}
+/* ─── Sub-components ──────────────────────────────────────────────────────── */
 
 function AboutStoryModal({
   open,
@@ -65,49 +57,60 @@ function AboutStoryModal({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 18, opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="relative mx-auto w-full rounded-t-[28px] border border-white/10 bg-black/70 shadow-[0_40px_140px_rgba(0,0,0,0.85)] backdrop-blur-xl sm:max-w-2xl sm:rounded-[28px]"
+            className="relative mx-auto w-full overflow-hidden rounded-t-[28px] border border-white/8 bg-[#111111] shadow-[0_40px_140px_rgba(0,0,0,0.95)] sm:max-w-2xl sm:rounded-[28px]"
           >
-            <div className="px-6 pb-4 pt-6 sm:px-8 sm:pt-8">
+            {/* Gold accent stripe */}
+            <div className="h-[3px] bg-gradient-to-r from-[#f2b400]/70 via-[#f2b400]/25 to-transparent" />
+
+            {/* Subtle top glow */}
+            <div className="pointer-events-none absolute top-0 left-0 right-0 h-40 bg-[radial-gradient(ellipse_at_15%_0%,rgba(242,180,0,0.06),transparent_60%)]" />
+
+            {/* Header */}
+            <div className="relative px-6 pb-4 pt-6 sm:px-8 sm:pt-7">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-xs uppercase tracking-[0.22em] text-white/50">
+                  <div className="text-[11px] uppercase tracking-[0.26em] text-[#f2b400]/55">
                     Naša priča
                   </div>
-                  <div className="mt-2 text-xl font-extrabold text-white/92 sm:text-2xl">
+                  <div className="p-serif mt-2 text-xl font-semibold text-white/95 sm:text-2xl">
                     {title}
                   </div>
                 </div>
-
                 <button
                   type="button"
                   onClick={onClose}
-                  className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition hover:bg-white/10"
+                  className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-sm text-white/55 transition hover:bg-white/10 hover:text-white/80"
                   aria-label="Zatvori"
                 >
                   ✕
                 </button>
               </div>
-
-              <div className="mt-5 h-px w-full bg-white/10" />
+              <div className="mt-5 h-px bg-gradient-to-r from-[#f2b400]/20 via-white/8 to-transparent" />
             </div>
 
-            <div className="max-h-[70vh] overflow-auto px-6 pb-8 sm:px-8">
-              <div className="space-y-5 text-sm leading-relaxed text-white/75">
+            {/* Scroll body */}
+            <div className="max-h-[62vh] overflow-auto px-6 pb-6 sm:px-8">
+              <div className="space-y-4 text-[0.875rem] leading-relaxed text-white/68">
                 {COPY.leftBody.map((p, i) => (
                   <p key={`m1-${i}`}>{p}</p>
                 ))}
                 {COPY.rightBody.map((p, i) => (
                   <p key={`m2-${i}`}>{p}</p>
                 ))}
-                <p className="font-semibold text-white/85">{COPY.closing}</p>
               </div>
+              {/* Closing in serif italic */}
+              <p className="p-serif mt-6 text-base font-medium italic text-[#f2b400]/70">
+                "{COPY.closing}"
+              </p>
             </div>
 
-            <div className="px-6 pb-6 sm:px-8">
+            {/* Footer */}
+            <div className="px-6 pb-6 pt-4 sm:px-8">
+              <div className="mb-4 h-px bg-white/6" />
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-full border border-white/10 bg-white/8 px-6 py-3 font-extrabold text-white/80 transition hover:bg-white/10"
+                className="w-full rounded-full bg-white/6 px-6 py-3.5 text-sm font-extrabold text-white/70 ring-1 ring-white/8 transition hover:bg-white/[0.1] hover:text-white/90"
               >
                 Zatvori
               </button>
@@ -119,53 +122,11 @@ function AboutStoryModal({
   );
 }
 
-function StoryCard({
-  eyebrow,
-  title,
-  lines,
-  closing,
-  className,
-}: {
-  eyebrow: string;
-  title: string;
-  lines: string[];
-  closing?: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={[
-        "relative overflow-hidden rounded-[28px] border border-white/10 bg-black/38 p-7 backdrop-blur-md shadow-[0_30px_120px_rgba(0,0,0,0.65)] xl:p-8",
-        className ?? "",
-      ].join(" ")}
-    >
-      <div className="pointer-events-none absolute -top-24 -left-24 h-60 w-60 rounded-full bg-white/5 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-[#f2b400]/6 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/25" />
-
-      <div className="relative">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
-          {eyebrow}
-        </div>
-        <h3 className="mt-3 text-xl font-extrabold text-white/92">{title}</h3>
-        <div className="mt-4">
-          <BodyParagraphs lines={lines} />
-        </div>
-        {closing ? <p className="mt-4 font-semibold text-white/85">{closing}</p> : null}
-      </div>
-    </div>
-  );
-}
-
 function ReviewsCard({ className }: { className?: string }) {
   return (
     <a href={GOOGLE_REVIEWS_URL} target="_blank" rel="noreferrer" className={className}>
-      <div className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 p-5 backdrop-blur-md shadow-[0_30px_120px_rgba(0,0,0,0.65)] transition hover:border-white/15">
-        <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-white/6 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-[#f2b400]/6 blur-3xl" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-black/25" />
-
-        <div className="relative flex items-center justify-between gap-4">
+      <div className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-black/45 p-5 backdrop-blur-md transition hover:border-white/15">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-white/92">
             <Star className="h-4 w-4 text-[#f2b400]" />
             <span className="text-sm font-extrabold tracking-wide">Google Reviews</span>
@@ -173,19 +134,21 @@ function ReviewsCard({ className }: { className?: string }) {
           <ExternalLink className="h-4 w-4 text-white/65" />
         </div>
 
-        <p className="relative mt-2 text-xs leading-relaxed text-white/65">
+        <p className="mt-2 text-xs leading-relaxed text-white/65">
           Pogledaj iskustva gostiju i utiske o Padrinu.
         </p>
 
-        <div className="relative mt-4 flex items-end justify-between gap-4">
+        <div className="mt-3 flex items-end justify-between gap-4">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">Google ocjena</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+              Google ocjena
+            </div>
             <div className="mt-1 flex items-center gap-2">
-              <span className="text-lg font-black text-white/92">★★★★★</span>
-              <span className="text-sm font-semibold text-white/72">klik za recenzije</span>
+              <span className="text-base font-black text-white/92">★★★★★</span>
+              <span className="text-xs font-semibold text-white/70">klik za recenzije</span>
             </div>
           </div>
-          <span className="text-xs font-semibold text-white/55 transition group-hover:text-white/72">
+          <span className="text-xs font-semibold text-white/55 transition group-hover:text-white/70">
             Preporuke →
           </span>
         </div>
@@ -194,6 +157,23 @@ function ReviewsCard({ className }: { className?: string }) {
   );
 }
 
+function TagStrip({ className }: { className?: string }) {
+  return (
+    <div className={["flex flex-wrap gap-2", className].filter(Boolean).join(" ")}>
+      {["Since 2021", "Tijesto sa ljubavlju", "Budva • Jadranska magistrala"].map((tag) => (
+        <span
+          key={tag}
+          className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
+        >
+          {tag}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Main Section ────────────────────────────────────────────────────────── */
+
 export default function About() {
   const [storyOpen, setStoryOpen] = useState(false);
 
@@ -201,201 +181,173 @@ export default function About() {
   const [imgIdx, setImgIdx] = useState(0);
   const bgSrc = candidates[Math.min(imgIdx, candidates.length - 1)];
 
-  const POS = useMemo(() => {
-    return {
-      titleTop: 112,
-      contentTop: 318,
-      cardWidth: 430,
-      sideInset: 48,
-      reviewWidth: 390,
-      reviewLeftInset: 62,
-      reviewTop: 708,
-      pillsBottom: 36,
-    };
-  }, []);
+  const handleImgError = () =>
+    setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i));
 
   return (
-    <section id="o-nama" className="relative overflow-hidden bg-black scroll-mt-20">
-      <div className="absolute inset-0 bg-black">
-        <img
-          src={bgSrc}
-          alt="Padrino lokal"
-          className={[
-            "h-full w-full object-contain sm:object-cover",
-            "brightness-110 sm:brightness-100",
-            "object-[55%_50%]",
-            "sm:object-[52%_50%]",
-            "md:object-[50%_50%]",
-            "lg:object-[50%_50%]",
-          ].join(" ")}
-          draggable={false}
-          onError={() => setImgIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
-        />
+    <section
+      id="o-nama"
+      className="p-section-editorial relative bg-black scroll-mt-20"
+      aria-label="O nama"
+    >
+      {/* ══════════════════════════════════════════════════════════════
+          MOBILE  (< lg) — stacked natural flow
+      ══════════════════════════════════════════════════════════════ */}
+      <div className="lg:hidden">
+        {/* Header */}
+        <div className="px-6 pt-14 pb-8 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="p-kicker">{COPY.kicker}</div>
+          </div>
+          <h2 className="p-serif text-3xl font-semibold leading-tight text-white/95 sm:text-4xl">
+            {COPY.title}
+          </h2>
+          <p className="mx-auto mt-4 max-w-xs text-sm leading-relaxed text-white/60 sm:max-w-sm">
+            {COPY.subtitle}
+          </p>
+        </div>
 
-        <div className="absolute inset-0 bg-black/12 sm:bg-black/26" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-black/45 sm:from-black/60 sm:via-black/18 sm:to-black/60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/42 via-transparent to-black/06 sm:from-black/52 sm:to-black/10" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_28%,rgba(255,255,255,0.08),transparent_55%),radial-gradient(circle_at_78%_20%,rgba(242,180,0,0.12),transparent_50%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_135px_rgba(0,0,0,0.78)]" />
+        {/* Photo preview — image breathes in rounded container */}
+        <div className="px-4">
+          <div className="relative overflow-hidden rounded-2xl" style={{ aspectRatio: "4/3" }}>
+            <img
+              src={bgSrc}
+              alt="Padrino lokal — ulaz u piceriju"
+              className="h-full w-full object-cover object-[50%_50%]"
+              draggable={false}
+              loading="lazy"
+              decoding="async"
+              onError={handleImgError}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          </div>
+        </div>
 
-        <div className="pointer-events-none absolute -top-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_center,rgba(242,180,0,0.11),transparent_60%)] blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 left-0 right-0 h-56 bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.08),transparent_62%)] blur-3xl" />
+        {/* Teaser · CTA · Tags · Reviews */}
+        <div className="space-y-5 px-6 pt-7 pb-12">
+          <p className="text-center text-sm leading-relaxed text-white/70">
+            Padrino je porodična pizzerija koja je počela iz čiste ljubavi prema pizzi —
+            domaćinski, iskreno i bez kompromisa u kvalitetu.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setStoryOpen(true)}
+            className="w-full rounded-full bg-[#f2b400] px-6 py-4 text-sm font-extrabold text-black shadow-[0_22px_70px_rgba(242,180,0,0.22)] transition hover:brightness-105"
+          >
+            NAŠA PRIČA
+          </button>
+
+          <p className="text-center text-xs text-white/50">
+            Klikni da pročitaš kako je sve počelo.
+          </p>
+
+          <TagStrip className="justify-center" />
+
+          {/* Reviews at bottom — social proof after teaser */}
+          <ReviewsCard className="block" />
+        </div>
       </div>
 
-      <div className="relative z-10 min-h-[920px] lg:min-h-[980px] xl:min-h-[1020px]">
-        <div
-          className="absolute left-1/2 hidden w-full -translate-x-1/2 px-4 text-center sm:block"
-          style={{ top: POS.titleTop }}
-        >
-          <div className="p-kicker">{COPY.kicker}</div>
+      {/* ══════════════════════════════════════════════════════════════
+          DESKTOP  (≥ lg) — Cinematic asymmetric grid  1.3fr / 1fr
+      ══════════════════════════════════════════════════════════════ */}
+      <div className="hidden lg:grid lg:grid-cols-[1.3fr_1fr] min-h-[760px] xl:min-h-[820px]">
 
-          <h2 className="p-title mt-4 text-3xl leading-[1.05] text-white/92 md:text-5xl">
-            Porodična pizzerija
-            <br className="hidden sm:block" /> u srcu Budve
+        {/* LEFT — image panel (~57% width) */}
+        <div className="relative overflow-hidden">
+          <img
+            src={bgSrc}
+            alt="Padrino lokal — ulaz u piceriju"
+            className="absolute inset-0 h-full w-full object-cover object-[50%_50%]"
+            draggable={false}
+            loading="lazy"
+            decoding="async"
+            onError={handleImgError}
+          />
+          {/* Subtle base darken */}
+          <div className="absolute inset-0 bg-black/18" />
+          {/* Right-edge fade → smooth seam into text panel */}
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(to right, transparent 45%, black)" }}
+          />
+          {/* Bottom-edge vignette */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+
+          {/* Since 2021 stamp */}
+          <div className="absolute bottom-8 left-8 flex items-center gap-2.5">
+            <span className="h-px w-8 bg-[#f2b400]/50" aria-hidden="true" />
+            <span className="text-[11px] uppercase tracking-[0.24em] text-white/50 drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
+              since 2021
+            </span>
+          </div>
+        </div>
+
+        {/* RIGHT — text column (~43% width) */}
+        <motion.div
+          className="flex flex-col justify-center bg-black py-16 pl-10 pr-12 xl:pl-14 xl:pr-20"
+          initial={{ opacity: 0, x: 14 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.25 }}
+          transition={{ duration: 0.55, ease: "easeOut" }}
+        >
+          {/* Kicker */}
+          <div className="p-kicker mb-5 self-start">{COPY.kicker}</div>
+
+          {/* Title — Cormorant Garamond */}
+          <h2 className="p-serif text-4xl font-semibold leading-tight text-white/95 xl:text-[2.75rem]">
+            {COPY.title}
           </h2>
 
-          <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-white/70 md:text-base">
+          {/* Subtitle — Inter */}
+          <p className="mt-4 text-sm leading-relaxed text-white/60 xl:text-[0.9375rem]">
             {COPY.subtitle}
           </p>
 
-          <div className="mt-8 flex items-center justify-center gap-4">
-            <span className="h-px w-10 bg-gradient-to-r from-transparent to-[#f2b400]/35" />
-            <span className="text-xs uppercase tracking-[0.22em] text-white/45">
-              since 2021
-            </span>
-            <span className="h-px w-10 bg-gradient-to-l from-transparent to-[#f2b400]/35" />
+          {/* ── Naš početak ── */}
+          <div className="mt-8">
+            <div className="mb-3.5 flex items-center gap-3">
+              <span className="p-eyebrow">Naš početak</span>
+              <span
+                className="h-px flex-1 bg-gradient-to-r from-[#f2b400]/45 to-transparent"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="space-y-3 text-sm leading-relaxed text-white/65">
+              {COPY.leftBody.map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="hidden lg:block">
-          <motion.div
-            className="absolute"
-            style={{
-              left: POS.sideInset,
-              top: POS.contentTop,
-              width: POS.cardWidth,
-            }}
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.35 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
-          >
-            <StoryCard
-              eyebrow="Naš početak"
-              title={COPY.leftTitle}
-              lines={COPY.leftBody}
-              className="min-h-[360px]"
-            />
-          </motion.div>
+          {/* ── Danas ── */}
+          <div className="mt-7">
+            <div className="mb-3.5 flex items-center gap-3">
+              <span className="p-eyebrow">Danas</span>
+              <span
+                className="h-px flex-1 bg-gradient-to-r from-[#f2b400]/45 to-transparent"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="space-y-3 text-sm leading-relaxed text-white/65">
+              {COPY.rightBody.map((p, i) => (
+                <p key={i}>{p}</p>
+              ))}
+            </div>
+          </div>
 
-          <motion.div
-            className="absolute"
-            style={{
-              left: POS.reviewLeftInset,
-              top: POS.reviewTop,
-              width: POS.reviewWidth,
-            }}
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.35 }}
-            transition={{ duration: 0.35, ease: "easeOut", delay: 0.05 }}
-          >
+          {/* Closing — serif pull-quote, matches title size */}
+          <p className="p-serif mt-7 text-[1.375rem] font-medium italic leading-snug text-[#f2b400]/80 xl:text-[1.6rem]">
+            "{COPY.closing}"
+          </p>
+
+          {/* Bottom: tags + reviews (no glass containers) */}
+          <div className="mt-8 space-y-4">
+            <TagStrip />
             <ReviewsCard className="block" />
-          </motion.div>
-
-          <motion.div
-            className="absolute"
-            style={{
-              right: POS.sideInset,
-              top: POS.contentTop,
-              width: POS.cardWidth,
-            }}
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.35 }}
-            transition={{ duration: 0.35, ease: "easeOut", delay: 0.08 }}
-          >
-            <StoryCard
-              eyebrow="Danas"
-              title="Od male kuhinje do mjesta kome se vraćaš"
-              lines={COPY.rightBody}
-              closing={COPY.closing}
-              className="min-h-[430px]"
-            />
-          </motion.div>
-
-          <div
-            className="absolute left-1/2 w-full -translate-x-1/2 px-6"
-            style={{ bottom: POS.pillsBottom }}
-          >
-            <div className="mx-auto max-w-6xl">
-              <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/25 px-6 py-4 backdrop-blur-md shadow-[0_30px_120px_rgba(0,0,0,0.55)]">
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-                <div className="relative flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-                    Since 2021
-                  </span>
-                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-                    Tijesto sa ljubavlju
-                  </span>
-                  <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-                    Budva • Jadranska magistrala
-                  </span>
-                  <span className="ml-auto hidden text-xs text-white/55 xl:inline-flex">
-                    premium • porodično • domaće
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
-        </div>
-
-        <div className="relative z-10 flex min-h-[920px] flex-col px-4 pt-6 pb-12 lg:hidden">
-          <div className="mx-auto flex w-full max-w-xl flex-1 flex-col space-y-6">
-            <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/35 p-5 backdrop-blur-md shadow-[0_30px_120px_rgba(0,0,0,0.60)]">
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-extrabold tracking-wide text-white/85">
-                  O nama
-                </span>
-              </div>
-            </div>
-
-            <ReviewsCard className="block" />
-
-            <div className="relative overflow-hidden rounded-[26px] border border-white/10 bg-black/35 p-5 backdrop-blur-md shadow-[0_30px_120px_rgba(0,0,0,0.60)]">
-              <div className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-                  Since 2021
-                </span>
-                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-                  Tijesto sa ljubavlju
-                </span>
-                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80">
-                  Budva • Jadranska magistrala
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-auto pt-6">
-            <p className="mb-3 text-center text-sm font-semibold leading-relaxed text-white/80">
-              Padrino je porodična pizzerija koja je počela iz čiste ljubavi prema pizzi —
-              domaćinski, iskreno i bez kompromisa u kvalitetu.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => setStoryOpen(true)}
-              className="w-full rounded-full bg-[#f2b400] px-6 py-4 text-sm font-extrabold text-black shadow-[0_22px_70px_rgba(242,180,0,0.22)] transition hover:brightness-105"
-            >
-              NAŠA PRIČA
-            </button>
-
-            <p className="mt-3 text-center text-xs text-white/60">
-              Klikni da pročitaš kako je sve počelo.
-            </p>
-          </div>
-        </div>
+        </motion.div>
       </div>
 
       <AboutStoryModal

@@ -99,6 +99,20 @@
     @apply w-full resize-none rounded-2xl bg-black/30 px-4 py-3 text-white outline-none;
     @apply ring-1 ring-white/10 focus:ring-2 focus:ring-[#f2b400]/60;
   }
+
+  /* -------------------------------------------------------
+     About section — typography voices
+     Used exclusively in About.tsx; does not affect global body.
+  ------------------------------------------------------- */
+
+  .p-serif {
+    font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    font-feature-settings: 'liga', 'kern';
+  }
+
+  .p-section-editorial {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
 }
 
 @layer utilities {
