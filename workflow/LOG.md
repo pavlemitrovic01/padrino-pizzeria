@@ -5,6 +5,23 @@
 
 ---
 
+## L11 — 2026-05-27 — Contact sekcija redesign (Pravac A Hero poziv) — DONE
+
+**Tier:** STANDARD
+**SHA:** [pending commit]
+**Branch:** main (direct commit, STANDARD)
+**Files (1):**
+  - src/sections/Contact.tsx — rewrite 266→175 LOC (−91); teški shadow-[inset_0_0_180px_...] overlay uklonjen — foto diše; hero telefon p-serif zlatni text-5xl/xl:text-7xl sa "Pozovi sada" pill CTA; info strip (Email/Adresa/Radno Vrijme) horizontalno s vertikalnim dividerima na desktop; 4 social pill-a (Instagram/Viber/WhatsApp/Maps) kompaktni red; SocialItem.glowBg field uklonjen (cleanup); yellowBubble class varijabla uklonjena
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 8.05s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 5.27s
+  manual:    PASS(human)   — Pavle "ODLICNO" 2026-05-27
+**SCOPE_DRIFT:** none
+**Notes:** W12 ad-hoc UX batch. Pravac A "Hero poziv" odabran od 3 predložene varijante. ROADMAP row N/A — screenshot-first batch.
+
+---
+
 ## L10 — 2026-05-27 — About sekcija redesign (cinematic asymmetric layout + Cormorant/Inter tipografija) — DONE
 
 **Tier:** STANDARD

@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L10 — About sekcija redesign (2026-05-27, STANDARD)
-**Sledeći:** Contact sekcija redesign (screenshot-first razgovor pre /plan-a per W12). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** L11 — Contact sekcija redesign (2026-05-27, STANDARD)
+**Sledeći:** TBD — screenshot-first razgovor per W12. Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -488,7 +488,8 @@ L8.2 Mobile detail sheet slide-up bottom sheet sa addonima + CartProvider re-add
 L8.3 Mobile menu drawer full-page remove floating overlay + transparency back arrow,
 L8.4 CartView display-only refactor + edit-reopen flow — STRICT — 2026-05-25,
 L9 Delivery sekcija redesign kompresija overlay top fade — STANDARD — 2026-05-26,
-L10 About sekcija redesign cinematic asymmetric layout Cormorant/Inter — STANDARD — 2026-05-27).
+L10 About sekcija redesign cinematic asymmetric layout Cormorant/Inter — STANDARD — 2026-05-27,
+L11 Contact sekcija redesign Pravac A Hero poziv — STANDARD — 2026-05-27).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
