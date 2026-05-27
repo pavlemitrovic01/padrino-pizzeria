@@ -187,7 +187,7 @@ export default function CartView(props: CartViewProps) {
                     <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
                       Količina
                     </div>
-                    <div className="mt-0.5 text-sm font-extrabold text-white/85">
+                    <div className="mt-0.5 whitespace-nowrap text-[12.5px] font-extrabold text-white/85">
                       Izmeni broj komada
                     </div>
                   </div>

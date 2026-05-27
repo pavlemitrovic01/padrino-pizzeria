@@ -5,8 +5,9 @@ import type { CartItem } from "../context/CartContext";
 import { formatEUR } from "../lib/money";
 import { buildImageCandidates } from "../lib/cartDrawerHelpers";
 import { normalizeText } from "../lib/parsing";
-import { POPULAR_PIZZAS, HALAL_PIZZAS } from "../lib/config";
+import { HALAL_PIZZAS } from "../lib/config";
 import MenuItemDetailSheet from "../components/MenuItemDetailSheet";
+import ChefHatLogo from "../components/brand/ChefHatLogo";
 
 type DbMenuItem = {
   id: string;
@@ -98,70 +99,6 @@ function SmartMenuImage(props: {
         })
       }
     />
-  );
-}
-
-// ─── Mobile: horizontal Topseller card ───────────────────────────────────────
-
-function TopsellerCard(props: {
-  row: DbMenuItem;
-  onAdd: (row: DbMenuItem) => void;
-  isAdded: boolean;
-  isHalal: boolean;
-}) {
-  const { row, onAdd, isAdded, isHalal } = props;
-  const price = getSafeCents(row);
-  const displayName = stripSize(row.name);
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onAdd(row)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onAdd(row);
-        }
-      }}
-      className={[
-        "flex-shrink-0 w-[120px] flex flex-col overflow-hidden rounded-[20px]",
-        "p-glass p-glass-hover shadow-[0_12px_40px_rgba(0,0,0,0.45)]",
-        "transition-all duration-200 cursor-pointer",
-        "focus:outline-none focus:ring-2 focus:ring-[#f2b400]/35",
-        isAdded ? "ring-2 ring-[#f2b400] shadow-[0_0_0_4px_rgba(242,180,0,0.14)]" : "",
-      ].join(" ")}
-      aria-label={`Dodaj ${displayName} u korpu`}
-    >
-      <div className="relative h-[100px] shrink-0 overflow-hidden">
-        <SmartMenuImage
-          image={row.image}
-          name={row.name}
-          alt={displayName}
-          className="h-full w-full object-cover transition duration-300"
-        />
-        {isHalal && !isAdded && (
-          <img
-            src="/halal.webp"
-            alt="Halal"
-            className="absolute right-1.5 top-1.5 h-6 w-6 rounded-full shadow-sm"
-          />
-        )}
-        {isAdded && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 font-black text-black text-sm shadow-lg">
-              ✓
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="flex flex-col p-2.5">
-        <div className="line-clamp-2 text-[12px] font-extrabold leading-tight text-white/92">
-          {displayName}
-        </div>
-        <div className="mt-1.5 text-[13px] font-black text-[#f2b400]">{formatEUR(price)}</div>
-      </div>
-    </div>
   );
 }
 
@@ -339,19 +276,6 @@ export default function Menu() {
     return [...map.values()];
   }, [items]);
 
-  const topsellerPizzas = useMemo(() => {
-    const lookup = new Map<string, DbMenuItem>();
-    for (const p of pizzasOrdered) {
-      lookup.set(normalizeText(stripSize(p.name)), p);
-    }
-    return POPULAR_PIZZAS.map((target) => {
-      for (const [k, v] of lookup.entries()) {
-        if (k.includes(target)) return v;
-      }
-      return undefined;
-    }).filter((x): x is DbMenuItem => x !== undefined);
-  }, [pizzasOrdered]);
-
   function showToast(next: ToastState) {
     setToast({ ...next, visible: true });
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
@@ -404,7 +328,7 @@ export default function Menu() {
       />
 
       <div className="fixed inset-0 z-50 flex items-stretch justify-center sm:px-4 sm:pb-12 sm:pt-14 md:px-6 md:pb-14 md:pt-20">
-        <div className="relative flex h-full max-h-full w-full flex-col overflow-hidden rounded-none border-0 bg-[#0a0a0a] shadow-none backdrop-blur-none sm:max-w-[1160px] sm:rounded-[32px] sm:border sm:border-white/10 sm:bg-black/22 sm:shadow-[0_40px_120px_rgba(0,0,0,0.72)] sm:backdrop-blur-md">
+        <div className="relative flex h-full max-h-full w-full flex-col overflow-hidden rounded-none border-0 bg-[#0a0a0a] shadow-none backdrop-blur-none sm:max-w-[1400px] sm:rounded-[32px] sm:border sm:border-white/10 sm:bg-black/22 sm:shadow-[0_40px_120px_rgba(0,0,0,0.72)] sm:backdrop-blur-md">
           {/* Background layers */}
           <div className="absolute inset-0">
             <img
@@ -434,16 +358,21 @@ export default function Menu() {
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
 
+          {/* Chef hat logo — mobile only, centered in top empty area */}
+          <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 sm:hidden">
+            <ChefHatLogo className="h-20 w-auto opacity-85" />
+          </div>
+
           {/* Header */}
           <div className="relative flex flex-col gap-5 px-5 pb-6 pt-16 sm:px-7 sm:py-7 lg:flex-row lg:items-end lg:justify-between lg:gap-8 lg:px-8">
-            <div className="min-w-0 max-w-2xl">
+            <div className="min-w-0 max-w-4xl">
               <div className="p-kicker">Meni</div>
 
-              <h2 className="mt-3 text-center text-[28px] font-black leading-[1.08] text-white/95 sm:text-left sm:text-[38px] lg:text-[44px]">
+              <h2 className="mt-3 hidden text-left font-black leading-[1.08] text-white/95 lg:block lg:text-[44px]">
                 Iz naših srca, do vaših osmjeha.
               </h2>
 
-              <p className="mt-3 max-w-xl text-center text-sm leading-6 text-white/68 sm:text-left sm:text-[15px] sm:leading-7">
+              <p className="mt-3 hidden max-w-xl text-left text-[15px] leading-7 text-white/68 sm:block">
                 Odaberi svoju pizzu, pogledaj detalje i dodaj u korpu jednim klikom.
               </p>
 
@@ -465,7 +394,7 @@ export default function Menu() {
           <div className="relative min-h-0 flex-1 px-5 pb-6 sm:px-7 sm:pb-7 lg:px-8">
             <div className="pointer-events-none absolute inset-0 rounded-[28px] bg-black/8" />
 
-            <div className="relative h-full overflow-y-auto overscroll-contain pb-24 pr-1 [-webkit-overflow-scrolling:touch] sm:pb-4 sm:pr-2">
+            <div className="relative h-full overflow-y-auto overscroll-contain pb-24 pr-1 [-webkit-overflow-scrolling:touch] sm:flex sm:flex-col sm:justify-center sm:pb-4 sm:pr-2">
 
               {/* Loading skeletons */}
               {loading && items.length === 0 ? (
@@ -492,28 +421,6 @@ export default function Menu() {
                 <>
                   {/* ── MOBILE LIST VIEW (hidden at sm+) ─────────────────── */}
                   <div className="sm:hidden">
-                    {topsellerPizzas.length > 0 && (
-                      <div className="mb-5">
-                        <div className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
-                          Topseller
-                        </div>
-                        <div className="flex gap-3 overflow-x-auto pb-2">
-                          {topsellerPizzas.map((row) => (
-                            <TopsellerCard
-                              key={row.id}
-                              row={row}
-                              onAdd={setSelectedItem}
-                              isAdded={addedId === row.id}
-                              isHalal={isHalalPizza(row.name)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
-                      Pizza
-                    </div>
                     <div className="flex flex-col gap-2 pb-3">
                       {pizzasOrdered.map((row) => (
                         <MobileListRow
@@ -587,7 +494,7 @@ export default function Menu() {
                               image={row.image}
                               name={row.name}
                               alt={displayName}
-                              className="h-[118px] w-full object-cover transition duration-300 group-hover:scale-[1.03] sm:h-[132px]"
+                              className="h-[130px] w-full object-cover transition duration-300 group-hover:scale-[1.03] sm:h-[180px]"
                             />
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/50" />
                             {halal && !isAdded && (
@@ -599,22 +506,22 @@ export default function Menu() {
                             )}
                           </div>
 
-                          <div className="flex flex-1 flex-col p-4 sm:p-[18px]">
+                          <div className="flex flex-1 flex-col p-3 sm:p-4">
                             <div className="text-[15px] font-extrabold leading-tight text-white/94 sm:text-[16px]">
                               {displayName}
                             </div>
 
                             {desc ? (
-                              <div className="mt-1.5 min-h-[38px] text-[13px] leading-5 text-white/62 sm:text-[13.5px]">
+                              <div className="mt-1.5 min-h-[34px] text-[13px] leading-5 text-white/62 sm:text-[13.5px]">
                                 {desc}
                               </div>
                             ) : (
-                              <div className="mt-1.5 min-h-[38px] text-[13px] text-white/30">
+                              <div className="mt-1.5 min-h-[34px] text-[13px] text-white/30">
                                 {" "}
                               </div>
                             )}
 
-                            <div className="mt-auto pt-4">
+                            <div className="mt-auto pt-3">
                               <div className="whitespace-nowrap text-[16px] font-black tracking-[0.01em] text-[#f2b400]">
                                 {formatEUR(price)}
                               </div>
@@ -627,7 +534,7 @@ export default function Menu() {
                         return (
                           <React.Fragment key={`wrap-${row.id}`}>
                             {card}
-                            <div className="col-span-full my-2 hidden h-px bg-gradient-to-r from-transparent via-white/10 to-transparent xl:block" />
+                            <div className="col-span-full my-1 hidden h-px bg-gradient-to-r from-transparent via-white/10 to-transparent xl:block" />
                           </React.Fragment>
                         );
                       }

@@ -587,10 +587,7 @@ export default function CartDrawer() {
 
               {view === "checkout" ? (
                 <CheckoutView
-                  totalItems={totalItems}
-                  subtotalLabel={subtotalLabel}
                   effectiveTotalLabel={effectiveTotalLabel}
-                  deliveryFeeCents={deliveryFeeCents}
                   onSubmitOrder={onSubmitOrder}
                   submitOrder={submitOrder}
                   submitting={submitting}

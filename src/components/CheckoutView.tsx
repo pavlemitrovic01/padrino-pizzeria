@@ -15,10 +15,7 @@ import CardFields from "./CardFields";
 
 type Props = {
   // totals
-  totalItems: number;
-  subtotalLabel: string;
   effectiveTotalLabel: string;
-  deliveryFeeCents: number;
   // form submit
   onSubmitOrder: (e: FormEvent<HTMLFormElement>) => void;
   submitOrder: () => Promise<void> | void;
@@ -90,10 +87,7 @@ type Props = {
 };
 
 export default function CheckoutView({
-  totalItems,
-  subtotalLabel,
   effectiveTotalLabel,
-  deliveryFeeCents,
   onSubmitOrder,
   submitOrder,
   submitting,
@@ -157,32 +151,6 @@ export default function CheckoutView({
 }: Props) {
   return (
     <div className="mt-3 space-y-4 sm:mt-4">
-      <div className="p-glass p-4 p-glass-hover">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="p-eyebrow">PREGLED</div>
-            <div className="mt-1 text-base font-black tracking-[-0.02em] text-white/95">Spremno za potvrdu porudžbine</div>
-            <div className="mt-1 text-sm text-white/65">Provjeri podatke ispod, izaberi zonu i način plaćanja.</div>
-          </div>
-          <div className="shrink-0 rounded-full border border-[#f2b400]/20 bg-[#f2b400]/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[#f2b400]">{totalItems} stavki</div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-            <div className="text-[11px] font-semibold text-white/55">SUBTOTAL</div>
-            <div className="mt-1 font-extrabold text-white/92">{subtotalLabel}</div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-            <div className="text-[11px] font-semibold text-white/55">DOSTAVA</div>
-            <div className="mt-1 font-extrabold text-white/92">{formatFeeEurShort(deliveryFeeCents)}</div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-3">
-            <div className="text-[11px] font-semibold text-white/55">UKUPNO</div>
-            <div className="mt-1 font-extrabold text-white/92">{effectiveTotalLabel}</div>
-          </div>
-        </div>
-      </div>
-
       <form onSubmit={onSubmitOrder} className="space-y-4">
         <div className="p-glass p-4 p-glass-hover sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
