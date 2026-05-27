@@ -8,8 +8,8 @@
 ## L13 — 2026-05-27 — Addon/sauce/drink slike u pillovima (Sheet + CartView) — DONE
 
 **Tier:** STRICT (CartView u K-O LOCK zoni per CONTEXT.md:44)
-**SHA:** 761d8d7
-**Branch:** batch/l13-addon-images → main (merge TBD)
+**SHA:** 761d8d7 / merge 86126d2
+**Branch:** batch/l13-addon-images → main (--no-ff merge)
 **Files (2):**
   - src/components/MenuItemDetailSheet.tsx — +5/-0 LOC; import SmartMiniAddonImage iz ./CartDrawerImage; AddonSection (linija 542-601) renderuje 44×44px sliku levo od name/price bloka u svakom pillu kroz `<SmartMiniAddonImage name={it.name} className="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-white/10" />`; click delegacija ostaje (slika je pointer-events-none po prirodi <img> unutar clickable diva); QtyStepper/handleConfirm/size picker/note NETAKNUTI
   - src/components/CartView.tsx LOCK — +1/-1 LOC; linija 156 SmartMiniAddonImage className upgrade h-7 w-7 → h-11 w-11 + shrink-0; ostali tokeni (rounded-lg, object-cover, ring-1 ring-white/10) ostaju; lock zone non-regression — qty +/-/trash/edit handleri NETAKNUTI
