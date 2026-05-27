@@ -5,6 +5,28 @@
 
 ---
 
+## L14 — 2026-05-27 — Favicon + Google search icon (gold circle, dark chef hat) — DONE
+
+**Tier:** STANDARD
+**SHA:** b63d0a3
+**Branch:** main (direct commit, STANDARD)
+**Files (6):**
+  - public/favicon.png — NEW, 192×192 PNG; gold #f2b400 circle, dark #0a0a0a chef hat recolored from chef-hat-stroke.webp via sharp blend-in composite; fixes /favicon.png 404 causing generic globe in Google Search
+  - public/apple-touch-icon.png — NEW, 180×180 PNG; ista tema, iOS home screen
+  - index.html — +1 LOC; `<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />` dodan posle favicon linka
+  - package.json — +1 LOC; sharp ^0.34.x devDependency (generate-time only, ne ide u bundle)
+  - package-lock.json — +618 LOC; lockfile update
+  - public/_mockups/favicon-preview.html — DELETED; design decision artifact, bio untracked
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 3.57s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova
+  manual:    PASS(human)   — Pavle smoke localhost:5173 "sviđa mi se može" 2026-05-27
+**SCOPE_DRIFT:** none — 6 fajla = EXPECTED-FILES exact match (untracked DELETE ne broji se u git diff)
+**Notes:** Ad-hoc UX batch per W12. Design V1 (dark rounded rect) odbačen — pre-smoke; V2 (gold circle dark hat) usvojen posle smoke. Sharp pipeline: load webp → resize contain na innerSize (12% padding) → composite gold SVG blend 'in' → composite na SVG circle BG. Schema.org Organization.logo URL (index.html:89) auto-resolves — već referencira /favicon.png. Post-deploy: Pavle treba "Request Indexing" u Google Search Console (re-crawl može trajati dane).
+
+---
+
 ## L13 — 2026-05-27 — Addon/sauce/drink slike u pillovima (Sheet + CartView) — DONE
 
 **Tier:** STRICT (CartView u K-O LOCK zoni per CONTEXT.md:44)

@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L13 — Addon/sauce/drink slike u pillovima (2026-05-27, STRICT)
-**Sledeći:** L14 kandidat — Footer "Powered by cl3menza.com" + logo (popunjavanje praznine sa strana max-w-3xl-a). Screenshot-first razgovor per W12. Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** L14 — Favicon + Google search icon (2026-05-27, STANDARD)
+**Sledeći:** L15 kandidat — Footer "Powered by cl3menza.com" + logo (popunjavanje praznine sa strana max-w-3xl-a). Screenshot-first razgovor per W12. Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -491,7 +491,8 @@ L9 Delivery sekcija redesign kompresija overlay top fade — STANDARD — 2026-0
 L10 About sekcija redesign cinematic asymmetric layout Cormorant/Inter — STANDARD — 2026-05-27,
 L11 Contact sekcija redesign Pravac A Hero poziv — STANDARD — 2026-05-27,
 L12 Footer sekcija redesign Pravac A Editorial Signoff — STANDARD — 2026-05-27,
-L13 Addon sauce drink slike u pillovima Sheet + CartView — STRICT — 2026-05-27).
+L13 Addon sauce drink slike u pillovima Sheet + CartView — STRICT — 2026-05-27,
+L14 Favicon + Google search icon gold circle dark chef hat — STANDARD — 2026-05-27).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
