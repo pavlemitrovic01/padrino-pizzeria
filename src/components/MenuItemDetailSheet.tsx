@@ -4,6 +4,7 @@ import type { CartItem, CartAddon, PizzaSize, PizzaVariant } from "../context/Ca
 import { formatEUR } from "../lib/money";
 import { buildImageCandidates, isDrinkCategory, stripPizzaSizeFromName } from "../lib/cartDrawerHelpers";
 import { useCatalogData } from "../hooks/cart/useCatalogData";
+import { SmartMiniAddonImage } from "./CartDrawerImage";
 
 // Mirror of DbMenuItem from Menu.tsx — kept local to avoid coupling
 type DbMenuItem = {
@@ -576,6 +577,10 @@ function AddonSection(props: {
                 }
               }}
             >
+              <SmartMiniAddonImage
+                name={it.name}
+                className="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+              />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-extrabold text-white/92">{it.name}</div>
                 <div className="mt-0.5 text-[12px] text-[#f2b400]">{formatEUR(it.price)}</div>
