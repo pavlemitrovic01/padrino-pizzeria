@@ -5,6 +5,24 @@
 
 ---
 
+## L13 — 2026-05-27 — Addon/sauce/drink slike u pillovima (Sheet + CartView) — DONE
+
+**Tier:** STRICT (CartView u K-O LOCK zoni per CONTEXT.md:44)
+**SHA:** 761d8d7
+**Branch:** batch/l13-addon-images → main (merge TBD)
+**Files (2):**
+  - src/components/MenuItemDetailSheet.tsx — +5/-0 LOC; import SmartMiniAddonImage iz ./CartDrawerImage; AddonSection (linija 542-601) renderuje 44×44px sliku levo od name/price bloka u svakom pillu kroz `<SmartMiniAddonImage name={it.name} className="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-white/10" />`; click delegacija ostaje (slika je pointer-events-none po prirodi <img> unutar clickable diva); QtyStepper/handleConfirm/size picker/note NETAKNUTI
+  - src/components/CartView.tsx LOCK — +1/-1 LOC; linija 156 SmartMiniAddonImage className upgrade h-7 w-7 → h-11 w-11 + shrink-0; ostali tokeni (rounded-lg, object-cover, ring-1 ring-white/10) ostaju; lock zone non-regression — qty +/-/trash/edit handleri NETAKNUTI
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 3.70s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 3.96s
+  manual:    PASS(human)   — Pavle smoke "savršeno" 2026-05-27 (DODAJ SOSOVE/PIĆE pillovi + CartView addon summary + lock zone non-regression)
+**SCOPE_DRIFT:** none — 2 fajla = EXPECTED-FILES exact match
+**Notes:** W12 ad-hoc UX batch. Wire-up batch — postojeća infrastruktura (SmartMiniAddonImage u CartDrawerImage.tsx + buildImageCandidates u cartDrawerHelpers.ts + public/menu/*.webp assets) već postojala, samo nikad nije bila aktivirana u AddonSection pickerima. Fallback chain završava na /menu/padrino.webp (brand-consistent, no FaUtensils dep odbačen R2). R1 (Coca-Cola Zero NAME_TO_FILE coverage) verifikovan pre execute — linije 174-178 pokrivaju coca cola zero / coca zero / coca-cola zero → coca-zero.webp. R5 (CartView lock zone scope creep) prevented — samo 1 string change u className-u, sve handler/state logic NETAKNUTO. imageKey: r.name polje u useCatalogData ostaje dead (out of scope cleanup za buduću LEAN). Code-review explicit skip per Pavle ("u novoj sesiji"). ROADMAP row N/A — screenshot-first batch.
+
+---
+
 ## L12 — 2026-05-27 — Footer sekcija redesign (Pravac A Editorial Signoff) — DONE
 
 **Tier:** STANDARD
