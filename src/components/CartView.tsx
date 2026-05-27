@@ -153,7 +153,7 @@ export default function CartView(props: CartViewProps) {
                           className="flex items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/3 px-2.5 py-1.5"
                         >
                           <div className="flex min-w-0 items-center gap-2">
-                            <SmartMiniAddonImage name={a.name} className="h-7 w-7 rounded-lg object-cover ring-1 ring-white/10" />
+                            <SmartMiniAddonImage name={a.name} className="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-white/10" />
                             <div className="min-w-0 text-[12.5px] font-semibold text-white/85 truncate">
                               {a.name}
                               {qty > 1 ? <span className="ml-1 text-white/55">× {qty}</span> : null}
