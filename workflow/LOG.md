@@ -5,6 +5,27 @@
 
 ---
 
+## L15 — 2026-05-28 — Menu modal polish + checkout PREGLED removal + mobile chef hat logo — DONE
+
+**Tier:** LEAN planned → STRICT effective (lock zone touch — CartView + CartDrawer per CONTEXT.md:44-45)
+**SHA:** a5d59b3
+**Branch:** main (direct commit; LEAN→STRICT scope drift acknowledged, per-batch branch skipped per ad-hoc UX flow)
+**Files (4):**
+  - src/sections/Menu.tsx — net -110 LOC; modal sm:max-w-[1160px]→[1400px]; image sm:h-[132px]→[180px]; card padding/min-h/pt compaction; sm:flex sm:flex-col sm:justify-center on scroll container for grid vertical centering; h2 "Iz naših srca, do vaših osmjeha" hidden sm:block → hidden lg:block (only ≥1024px desktop); subtitle p hidden sm:block (hidden on mobile); removed TopsellerCard component (62 LOC) + topsellerPizzas useMemo + POPULAR_PIZZAS import + "Pizza" section label + topseller JSX block from mobile sm:hidden branch; added ChefHatLogo absolute left-1/2 top-3 -translate-x-1/2 h-20 sm:hidden (centered mobile-only)
+  - src/components/CheckoutView.tsx — -32 LOC; removed PREGLED p-glass card entirely (lines 160-184: heading + subtitle + 3-pill SUBTOTAL/DOSTAVA/UKUPNO grid); removed unused props from Props type + destructuring (totalItems, subtotalLabel, deliveryFeeCents); effectiveTotalLabel retained (used on submit button line 436)
+  - src/components/CartView.tsx LOCK — ±1 LOC; "Izmeni broj komada" label className text-sm → text-[12.5px] + added whitespace-nowrap (single-line on narrow mobile widths)
+  - src/components/CartDrawer.tsx LOCK — -3 LOC; removed totalItems/subtotalLabel/deliveryFeeCents prop assignments from <CheckoutView> JSX call (cascade from CheckoutView prop cleanup; vars still computed at lines 98/496/103 for other usages: order submission, post-checkout summary, telegram payload)
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 5.47s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 5.82s
+  manual:    PASS(human)   — Pavle smoke (HMR localhost:5173) 2026-05-28
+  security:  PASS — /security-review SAFE TO MERGE (UI-only, no XSS/auth/crypto/injection surface; React JSX auto-escape; lock zone touches are JSX-only prop removal + className change, no payment/HMAC/state-machine logic)
+**SCOPE_DRIFT:** acknowledged 4 vs 1 planned — Menu.tsx (in-scope) + CartView.tsx (font tweak per Pavle ask, lock zone) + CheckoutView.tsx (PREGLED removal per Pavle ask via AskUserQuestion "Ceo blok i totalsi") + CartDrawer.tsx (cascade prop cleanup, lock zone, no logic). Per-batch branch skipped — ad-hoc UX iteration on main per W12 screenshot-first pattern.
+**Notes:** W12 ad-hoc UX batch — screenshot-first iteration. Mid-session direction reversals (h2 desktop-only after initial removal both, chef hat placement corrected after initial wrong placement) documented in chat history. /security-review run pre-close per CLAUDE.md guidance (payment lock zone touched). Pavle frustration mid-session over visual element placement assumptions — for future screenshot-first UX work AskUserQuestion BEFORE placing visual elements rather than after. ROADMAP row N/A — screenshot-first batch.
+
+---
+
 ## L14 — 2026-05-27 — Favicon + Google search icon (gold circle, dark chef hat) — DONE
 
 **Tier:** STANDARD
