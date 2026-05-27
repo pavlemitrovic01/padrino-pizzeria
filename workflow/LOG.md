@@ -5,6 +5,23 @@
 
 ---
 
+## L12 — 2026-05-27 — Footer sekcija redesign (Pravac A Editorial Signoff) — DONE
+
+**Tier:** STANDARD
+**SHA:** 2a0b5eb
+**Branch:** main (direct commit, STANDARD)
+**Files (1):**
+  - src/sections/Footer.tsx — rewrite 148→93 LOC (−55); marketing H3 "Dobra pizza..." + paragraf + dva CTA-a (Česta pitanja + Nazad na vrh) uklonjeni; glass payment card (rounded-[28px] backdrop-blur) uklonjen; dual radial-gradient pozadina uklonjena; PAYMENT_BADGES const + PaymentBadge text-pill komponenta + scrollToTop + onTop useCallback uklonjeni; layout max-w-7xl grid → centered max-w-3xl (matches Contact L11); NEW: p-serif italic tagline "Tijesto sa ljubavlju, od 2021." text-2xl/3xl/4xl; quick-nav 5 linkova (Meni · O nama · Dostava · Kontakt · FAQ) sa middle-dot separatorima; payment row 4 brand logo <img> (visa/mastercard/nlb/bankart h-8 sm:h-9 rounded-md) + GOTOVINA gold pill sa FaMoneyBill1Wave; "Since 2021" desni stub uklonjen iz bottom row; loadSettings Supabase useEffect NETAKNUT
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 7.78s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 fajlova, 211 testova, 4.78s
+  manual:    PASS(human)   — Pavle "odlicno je" 2026-05-27
+**SCOPE_DRIFT:** none
+**Notes:** W12 ad-hoc UX batch. Pravac A "Editorial Signoff" odabran. Payment logo assets pripremljeni u prethodnom housekeeping commit-u 110f946 (public/payments/{visa,mastercard,nlb,bankart}.webp, sve 400px width, total 23KB). CASH logo alternativa razmotrena/odbijena — language consistency (sajt 100% srpski, GOTOVINA pill ostaje). ROADMAP row N/A — screenshot-first batch.
+
+---
+
 ## L11 — 2026-05-27 — Contact sekcija redesign (Pravac A Hero poziv) — DONE
 
 **Tier:** STANDARD
