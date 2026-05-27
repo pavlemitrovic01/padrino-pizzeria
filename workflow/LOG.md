@@ -8,7 +8,7 @@
 ## L12 — 2026-05-27 — Footer sekcija redesign (Pravac A Editorial Signoff) — DONE
 
 **Tier:** STANDARD
-**SHA:** 2a0b5eb
+**SHA:** bf46d67
 **Branch:** main (direct commit, STANDARD)
 **Files (1):**
   - src/sections/Footer.tsx — rewrite 148→93 LOC (−55); marketing H3 "Dobra pizza..." + paragraf + dva CTA-a (Česta pitanja + Nazad na vrh) uklonjeni; glass payment card (rounded-[28px] backdrop-blur) uklonjen; dual radial-gradient pozadina uklonjena; PAYMENT_BADGES const + PaymentBadge text-pill komponenta + scrollToTop + onTop useCallback uklonjeni; layout max-w-7xl grid → centered max-w-3xl (matches Contact L11); NEW: p-serif italic tagline "Tijesto sa ljubavlju, od 2021." text-2xl/3xl/4xl; quick-nav 5 linkova (Meni · O nama · Dostava · Kontakt · FAQ) sa middle-dot separatorima; payment row 4 brand logo <img> (visa/mastercard/nlb/bankart h-8 sm:h-9 rounded-md) + GOTOVINA gold pill sa FaMoneyBill1Wave; "Since 2021" desni stub uklonjen iz bottom row; loadSettings Supabase useEffect NETAKNUT
