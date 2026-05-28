@@ -5,6 +5,23 @@
 
 ---
 
+## L16 — 2026-05-28 — Remove "Po pravilima"/"Besplatna" delivery pill from checkout — DONE
+
+**Tier:** LEAN
+**SHA:** 7d72776
+**Branch:** main (direct commit, LEAN)
+**Files (1):**
+  - src/components/CheckoutView.tsx — -3 LOC; removed shrink-0 rounded-full pill (`qualifiesForFreeDelivery ? "Besplatna" : "Po pravilima"`) from "Pravila dostave" zone card header flex row; qualifiesForFreeDelivery still used in free-delivery progress conditional below — no dead code; flex parent justify-between now left-aligns single remaining child; no breakpoint difference (mobile + desktop identical removal)
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 3.09s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      NIJE POKRENUTO — LEAN tier, UI-only single-element removal, no logic touched
+  manual:    PASS(human)   — Pavle "Pill izmena je okej" 2026-05-28
+**SCOPE_DRIFT:** none — 1 fajl, ad-hoc UX batch (no /plan, W12 screenshot-first)
+**Notes:** W12 ad-hoc UX batch. Both pill states removed (Besplatna + Po pravilima). Free-delivery progress messaging ("Nedostaje još X do besplatne dostave") below pill retained. Billing-section rework (Grad/Poštanski broj input removal + "Podaci za naplatu" heading relocation to CardFields) discussed same session — investigated payment data flow (BANKART_FALLBACK_CITY/POSTCODE/EMAIL fallbacks confirmed, billing fields optional-with-defaults), Pavle decided email keep + city/postcode UI-removal+send-default — but ultimately DECLINED execution ("ostalo necemo dirati"). Not executed; deferred. ROADMAP row N/A — screenshot-first batch.
+
+---
+
 ## L15 — 2026-05-28 — Menu modal polish + checkout PREGLED removal + mobile chef hat logo — DONE
 
 **Tier:** LEAN planned → STRICT effective (lock zone touch — CartView + CartDrawer per CONTEXT.md:44-45)
