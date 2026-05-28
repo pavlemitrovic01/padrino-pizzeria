@@ -254,10 +254,6 @@ export default function CheckoutView({
                       <div className="mt-1 text-xs text-white/70">Besplatna dostava od {formatEUR(selectedDeliveryZone.minCents)}</div>
                     )}
                   </div>
-
-                  <div className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-extrabold text-white/80">
-                    {qualifiesForFreeDelivery ? "Besplatna" : "Po pravilima"}
-                  </div>
                 </div>
 
                 {selectedDeliveryZone.feeCents > 0 && !qualifiesForFreeDelivery ? (
