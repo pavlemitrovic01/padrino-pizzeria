@@ -494,7 +494,7 @@ export default function Menu() {
                               image={row.image}
                               name={row.name}
                               alt={displayName}
-                              className="h-[130px] w-full object-cover transition duration-300 group-hover:scale-[1.03] sm:h-[180px]"
+                              className="h-[130px] w-full object-cover transition duration-300 group-hover:scale-[1.03] sm:h-[clamp(132px,14.5vh,180px)]"
                             />
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-transparent to-black/50" />
                             {halal && !isAdded && (
@@ -512,11 +512,11 @@ export default function Menu() {
                             </div>
 
                             {desc ? (
-                              <div className="mt-1.5 min-h-[34px] text-[13px] leading-5 text-white/62 sm:text-[13.5px]">
+                              <div className="mt-1.5 line-clamp-2 h-[40px] text-[13px] leading-5 text-white/62 sm:text-[13.5px]">
                                 {desc}
                               </div>
                             ) : (
-                              <div className="mt-1.5 min-h-[34px] text-[13px] text-white/30">
+                              <div className="mt-1.5 h-[40px] text-[13px] text-white/30">
                                 {" "}
                               </div>
                             )}
