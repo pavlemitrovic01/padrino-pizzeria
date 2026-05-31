@@ -5,6 +5,23 @@
 
 ---
 
+## L17 — 2026-05-31 — Menu modal: remove desktop scroll + uniform card heights — DONE
+
+**Tier:** LEAN
+**SHA:** aaa8937
+**Branch:** main (direct commit, LEAN)
+**Files (1):**
+  - src/sections/Menu.tsx — 3 LOC changed (no LOC delta). Desktop/tablet grid card image `sm:h-[180px]` → `sm:h-[clamp(132px,14.5vh,180px)]` (viewport-scaled so the two 7-col xl rows fit without a scrollbar; floor 132px, capped 180px on tall screens — no shrink on large monitors). Description block `min-h-[34px]` → `line-clamp-2 h-[40px]` (fixed 2-line height — equalizes card height across short/long descriptions, eliminates bottom-row stretch/cutoff; empty-desc branch given matching `h-[40px]`). `overflow-y-auto` retained as graceful fallback — scrollbar only appears if content still overflows on very short viewports, never clips.
+**Verify:**
+  build:     PASS(machine) — vite 7.3.1, 4.32s
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      NIJE POKRENUTO — LEAN tier, CSS-only (Tailwind className) change, no logic/JSX-structure touched
+  manual:    PASS(human)   — Pavle smoke (HMR localhost:5173) 2026-05-31 ("moze close commit push")
+**SCOPE_DRIFT:** none — 1 fajl, ad-hoc UX batch (no /plan, W12 screenshot-first)
+**Notes:** W12 ad-hoc UX batch — screenshot-first. Trigger: scrollbar on the 7-col (xl ≥1280px) MENI modal grid + bottom row visually cut off (uneven card heights from variable-length descriptions). Fix targets the xl 2-row layout; lg (1024–1280px, 5-col = 3 rows) still scrolls via the retained overflow-y-auto fallback (acceptable — graceful scroll, no clip). ROADMAP row N/A — screenshot-first batch.
+
+---
+
 ## L16 — 2026-05-28 — Remove "Po pravilima"/"Besplatna" delivery pill from checkout — DONE
 
 **Tier:** LEAN

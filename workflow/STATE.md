@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** L16 — Remove "Po pravilima"/"Besplatna" delivery pill from checkout (2026-05-28, LEAN)
-**Sledeći:** TBD — screenshot-first razgovor per W12. Odbačeno ove sesije: billing-section rework (Grad/Poštanski broj UI removal) — Pavle "ostalo necemo dirati". Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** L17 — Menu modal: remove desktop scroll + uniform card heights (2026-05-31, LEAN)
+**Sledeći:** TBD — screenshot-first razgovor per W12. Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -437,7 +437,7 @@
 (fc05439) and removed 2026-05-11. Default model: direct commits on main
 with preview-then-approve flow. Per-batch branches only for STRICT-tier
 code-touching batches (e.g., src/**, api/**); doc/audit batches direct.
-60 batches completed (B1 no-op, B2 audit, B3 schema baseline,
+61 batches completed (B1 no-op, B2 audit, B3 schema baseline,
 W1 housekeeping, B3.5 Telegram doc, W2 reconciliation, B4 tests, B4.1 fix,
 B15 trigger drop, B11 error sanitization, B16 CAS fix, B6 CartProvider dedup,
 B7 Menu.tsx image resolver dedup, B9 AuthProvider removal, B13 Mrtvi fajlovi no-op,
@@ -494,7 +494,8 @@ L12 Footer sekcija redesign Pravac A Editorial Signoff — STANDARD — 2026-05-
 L13 Addon sauce drink slike u pillovima Sheet + CartView — STRICT — 2026-05-27,
 L14 Favicon + Google search icon gold circle dark chef hat — STANDARD — 2026-05-27,
 L15 Menu modal polish + checkout PREGLED removal + mobile chef hat logo — LEAN→STRICT effective — 2026-05-28,
-L16 Remove "Po pravilima"/"Besplatna" delivery pill from checkout — LEAN — 2026-05-28).
+L16 Remove "Po pravilima"/"Besplatna" delivery pill from checkout — LEAN — 2026-05-28,
+L17 Menu modal remove desktop scroll + uniform card heights — LEAN — 2026-05-31).
 Plus pre-B7 housekeeping commit 16a6f0f (supabase/.temp/ untrack — not a batch).
 
 ---
