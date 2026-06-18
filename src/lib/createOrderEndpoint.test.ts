@@ -243,3 +243,46 @@ describe("create-order handler — negative control (well-formed input is accept
     expect(bodyOf(c).ok).toBe(true);
   });
 });
+
+describe("create-order handler — B17: active free (zero-price) addon is valid", () => {
+  // Regression for "Inactive or invalid menu item" 400 triggered by free
+  // addons (Kečap/Majonez/Pelat — active in menu_items but price_eur_cents = 0).
+  // The price map must include active rows regardless of price so the existence
+  // check does not flag a free addon as missing.
+
+  function setMenuPrices(rows: { id: string; price_eur_cents: number }[]) {
+    hoisted.tableResults.menu_items = { data: rows, error: null };
+  }
+
+  const itemWithFreeAddon = {
+    cart_id: "cart-1",
+    menu_item_id: "item-1",
+    name: "Pizza Margherita",
+    quantity: 2,
+    price_per_item: 1000,
+    addons: [{ id: "sauce-free", name: "Kečap", price: 0, quantity: 1 }],
+  };
+
+  it("accepts a pizza + free addon (does NOT return 'Inactive or invalid menu item')", async () => {
+    // item-1 priced, sauce-free active at 0 cents.
+    setMenuPrices([
+      { id: "item-1", price_eur_cents: 1000 },
+      { id: "sauce-free", price_eur_cents: 0 },
+    ]);
+    const c = makeRes();
+    // Server subtotal = 2 x 1000 (base) + 2 x 0 (addon) = 2000.
+    await handler(makeReq(validBody({ items: [itemWithFreeAddon], total_eur_cents: 2000 })), c.res);
+    expect(bodyOf(c).error).not.toBe("Inactive or invalid menu item");
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c).ok).toBe(true);
+  });
+
+  it("still rejects a free addon whose id is NOT in the active menu set", async () => {
+    // Only the base item is active; the addon id is absent -> genuinely missing.
+    setMenuPrices([{ id: "item-1", price_eur_cents: 1000 }]);
+    const c = makeRes();
+    await handler(makeReq(validBody({ items: [itemWithFreeAddon], total_eur_cents: 2000 })), c.res);
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).error).toBe("Inactive or invalid menu item");
+  });
+});

@@ -9,7 +9,7 @@ vi.mock("@supabase/supabase-js", () => ({
   })),
 }));
 
-import { clientSafeError } from "./create-order";
+import { clientSafeError } from "./create-order.js";
 
 describe("clientSafeError", () => {
   it("sanitizes Postgres unique constraint error for order_create kind", () => {

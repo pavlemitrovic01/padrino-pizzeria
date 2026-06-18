@@ -1,0 +1,7 @@
+# Vercel turns every file under api/ into a Serverless Function.
+# On the Hobby plan a deployment may have at most 12 functions, so test
+# files (which must never run in production) cannot be uploaded as functions.
+# Excluding them keeps the count at the real handlers only and also stops
+# the Vercel build from type-checking tests.
+**/*.test.ts
+**/*.test.tsx

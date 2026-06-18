@@ -5,6 +5,27 @@
 
 ---
 
+## B17 — 2026-06-18 — Free (zero-price) addon validation fix + Vercel function-cap fix — DONE
+
+**Tier:** STRICT
+**SHA:** 0e00809 (branch batch/b17-free-addon-validation: b3da22d + 1447f13 + 0e00809)
+**Branch:** batch/b17-free-addon-validation (per-batch, STRICT)
+**Files (7):**
+  - api/create-order.ts — LOCK ZONE. `fetchMenuPricesCents` price map built with `if (id && p > 0)` → `if (id) m.set(id, p > 0 ? p : 0)`. Map is used for BOTH existence (findMissingMenuItemIds) and pricing; the `p > 0` filter excluded active free addons (Kečap/Majonez/Pelat, price_eur_cents=0) so any order with one returned 400 "Inactive or invalid menu item" (cash AND card). Fix includes every active row; sumAddonsCents already guards `cents > 0` so totals unchanged; subtotal<=0 guard still blocks free-only orders; inactive/absent ids still rejected.
+  - src/lib/createOrderEndpoint.test.ts — +2 tests (pizza + free addon passes; free addon id absent from active set still 400).
+  - api/admin-update-order-status.test.ts, api/bankart-callback.test.ts, api/bankart-order-status.test.ts, api/create-order.test.ts — `.js` extensions on 9 relative import sites (L6; latent TS2835 surfaced by Vercel cold recompile of api tsconfig project).
+  - .vercelignore — NEW. Excludes `**/*.test.ts` + `**/*.test.tsx` from Vercel upload (Hobby 12-function cap: 11 handlers + 4 api tests = 15 → 11).
+**Verify:**
+  build:     PASS(machine) — vite 7.x, exit 0 (2026-06-18)
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 18 files / 213 tests (+2 B17)
+  manual:    PASS(human)   — Pavle Vercel preview smoke: order with all free sauces (Kečap/Majonez/Pelat) accepted, arrived in DB
+  security:  PASS — /security-review clean, 0 HIGH/MEDIUM (anti-tampering invariants preserved: DB-authoritative pricing, is_active existence, total-mismatch + subtotal>0 guards)
+**SCOPE_DRIFT:** acknowledged — plan EXPECTED-FILES 2 (api/create-order.ts + src/lib/createOrderEndpoint.test.ts); actual 7. +5 approved: (a) 4 api test files `.js` extensions — Vercel cold build TS2835 blocker (L6); (b) .vercelignore — Vercel Hobby 12-function deploy blocker. Both pre-approved by Pavle.
+**Notes:** Ad-hoc production bugfix (screenshot-first per W12; ROADMAP row N/A). Root cause was the price>0 filter conflating "exists/active" with "has price"; free sauces added to menu at €0 (DB change, no deploy) activated the latent bug → customer 400s. Two independent deploy blockers surfaced while shipping: latent api test `.js` imports (masked locally by Bundler resolution + tsbuildinfo cache) and the Hobby 12-function cap (test files counted as functions — corrected L8). Production reaches the fix only on merge batch/b17 → main (Pavle decides push/merge).
+
+---
+
 ## L17 — 2026-05-31 — Menu modal: remove desktop scroll + uniform card heights — DONE
 
 **Tier:** LEAN

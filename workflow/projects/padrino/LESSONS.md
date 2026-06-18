@@ -156,13 +156,14 @@ verifikuj broj izvršenih testova, ne samo exit 0.
 
 **PROBLEM:** I3 dodao `api/log.ts` bez praćenja ukupnog broja serverless funkcija. Sa 12 postojećih + 1 nova = 13, Vercel Hobby plan odbio deploy za sve buduće branch-eve: "No more than 12 Serverless Functions can be added to a Deployment on the Hobby plan." Blokirani I3 i I4 preview deploy-i; production nije pogođen (main ostao na I2.1).
 
-**LEKCIJA:** Na Vercel Hobby planu max 12 serverless funkcija po deploy-u. Svaki `.ts` fajl u `api/` root-u postaje zasebna funkcija — test fajlovi (`*.test.ts`) se ne računaju. Pratiti count pre dodavanja novog handlera. Konsolidacija via `?op=` query routing je besplatno rešenje: dva logički srodna handlera → jedan fajl sa internim grananjem. Ne zahteva Pro plan, ne gubi funkcionalnost.
+**LEKCIJA:** Na Vercel Hobby planu max 12 serverless funkcija po deploy-u. Svaki `.ts` fajl u `api/` root-u postaje zasebna funkcija. **KOREKCIJA (B17, 2026-06-18):** raniji navod "test fajlovi (`*.test.ts`) se ne računaju" je NETAČAN — B17 je dokazao da `@vercel/node` broji i `api/*.test.ts` kao funkcije (11 handlera + 4 test fajla = 15 > 12, deploy pao). Trajno rešenje: `.vercelignore` sa `**/*.test.ts` + `**/*.test.tsx` (od B17 prisutan u repo-u) — test fajlovi se ne uploaduju, ne postaju funkcije, i ne kompajliraju se na Vercel build-u. Konsolidacija via `?op=` query routing ostaje besplatno rešenje za prave handlere: dva logički srodna handlera → jedan fajl sa internim grananjem. Ne zahteva Pro plan, ne gubi funkcionalnost.
 
 **PRIMENA:**
-- Pre dodavanja novog `api/*.ts` handlera: `ls api/*.ts | grep -v test | wc -l` → mora biti ≤11 da ima mesta.
+- `.vercelignore` (`**/*.test.ts`, `**/*.test.tsx`) MORA ostati — bez njega test fajlovi se broje i obaraju deploy. Ne brisati.
+- Sa `.vercelignore`, broje se samo pravi handleri: `ls api/*.ts | grep -v test | wc -l` → mora biti ≤12. Trenutno 11.
 - Konsolidacija pattern: `?op=resend-telegram` u admin-orders, `?op=image` u admin-menu. Svaki op-handler je interna funkcija, auth prolazi pre grananja.
-- Ako count pređe 10: razmatrati konsolidaciju proaktivno pre nego što hit limit blokira deploy.
+- Ako count handlera pređe 10: razmatrati konsolidaciju proaktivno pre nego što hit limit blokira deploy.
 - Pro plan rešava limit (unlimited functions) ali nije potreban dok ima slobodnih slotova.
 
-**STATUS:** ACTIVE
-**NEXT REVIEW:** kada count dostigne 10 funkcija.
+**STATUS:** ACTIVE — B17 korekcija 2026-06-18 (test fajlovi SE računaju; `.vercelignore` remedy).
+**NEXT REVIEW:** kada count handlera dostigne 11.

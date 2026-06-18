@@ -8,7 +8,7 @@ vi.mock("@supabase/supabase-js", () => ({
   })),
 }));
 
-import { canTransition, isOrderStatus } from "./admin-update-order-status";
+import { canTransition, isOrderStatus } from "./admin-update-order-status.js";
 
 type HandlerRes = {
   setHeader: (name: string, value: string) => void;
@@ -115,7 +115,7 @@ describe("canTransition", () => {
 // ─── handler smoke ────────────────────────────────────────────
 describe("handler (smoke)", () => {
   it("returns 405 on GET method", async () => {
-    const { default: handler } = await import("./admin-update-order-status");
+    const { default: handler } = await import("./admin-update-order-status.js");
     let capturedStatus = 0;
     const res: HandlerRes = {
       status(code) { capturedStatus = code; return this; },
@@ -127,7 +127,7 @@ describe("handler (smoke)", () => {
   });
 
   it("returns 401 when no Bearer token present", async () => {
-    const { default: handler } = await import("./admin-update-order-status");
+    const { default: handler } = await import("./admin-update-order-status.js");
     let capturedStatus = 0;
     const res: HandlerRes = {
       status(code) { capturedStatus = code; return this; },
@@ -231,7 +231,7 @@ describe("handler (CAS)", () => {
       buildReadChain("pending"),
       buildUpdateChain({ status: "preparing" }),
     ]);
-    const { default: handler } = await import("./admin-update-order-status");
+    const { default: handler } = await import("./admin-update-order-status.js");
     const { res, getStatus, getBody } = makeRes();
     await handler(
       { method: "POST", headers: { authorization: "Bearer tok" }, body: { order_id: "o1", next_status: "preparing" } },
@@ -248,7 +248,7 @@ describe("handler (CAS)", () => {
       buildUpdateChain(null),
       buildReReadChain("cancelled"),
     ]);
-    const { default: handler } = await import("./admin-update-order-status");
+    const { default: handler } = await import("./admin-update-order-status.js");
     const { res, getStatus, getBody } = makeRes();
     await handler(
       { method: "POST", headers: { authorization: "Bearer tok" }, body: { order_id: "o1", next_status: "preparing" } },
@@ -269,7 +269,7 @@ describe("handler (CAS)", () => {
       buildReadChain("done"),
       buildUpdateChain({ status: "done" }),
     ]);
-    const { default: handler } = await import("./admin-update-order-status");
+    const { default: handler } = await import("./admin-update-order-status.js");
     const { res, getStatus, getBody } = makeRes();
     await handler(
       { method: "POST", headers: { authorization: "Bearer tok" }, body: { order_id: "o1", next_status: "done" } },
