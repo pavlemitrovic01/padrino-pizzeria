@@ -56,7 +56,7 @@ vi.mock("@supabase/supabase-js", () => {
   };
 });
 
-import handler from "./bankart-order-status";
+import handler from "./bankart-order-status.js";
 
 // ─── helpers ─────────────────────────────────────────────────
 

@@ -61,7 +61,7 @@ import handler, {
   isDateFresh,
   verifyBankartCallbackSignature,
   type ReqLike,
-} from "./bankart-callback";
+} from "./bankart-callback.js";
 
 // ─── helpers ─────────────────────────────────────────────────
 
