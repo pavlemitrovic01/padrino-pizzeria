@@ -306,7 +306,10 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
     const r = row as unknown as PricingRow;
     const id = toTrimmedString((r as unknown as Record<string, unknown>).id);
     const p = safeInt((r as unknown as Record<string, unknown>).price_eur_cents, 0);
-    if (id && p > 0) m.set(id, p);
+    // Include every active row so the existence check (findMissingMenuItemIds)
+    // recognizes free addons (price 0, e.g. ketchup/mayo). Price stays accurate
+    // (0 for free items); sumAddonsCents already ignores non-positive prices.
+    if (id) m.set(id, p > 0 ? p : 0);
   }
   return m;
 }
