@@ -81,6 +81,7 @@ Dokumentira samo ono što se može dokazati iz trenutnog koda. Koristi se za odr
 | payment_provider | string? | create-order, bankart-* |
 | payment_reference | string? | bankart-* |
 | payment_meta | jsonb? | create-order, bankart-* |
+| telegram_notified_at | timestamptz? | telegram-new-order (idempotency claim — single-flight guard, B18) |
 
 **Hrani:** create-order, bankart-callback, bankart-order-status, telegram-new-order, admin-orders, admin-update-order-status, admin-resend-telegram.
 
