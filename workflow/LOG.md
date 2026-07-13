@@ -5,6 +5,27 @@
 
 ---
 
+## B18 — 2026-07-12 — Idempotent Telegram notifikacija (fix duplog slanja kod kartice) — DONE
+
+**Tier:** STRICT
+**SHA:** 1f0c1f5
+**Branch:** batch/b18-telegram-idempotency (per-batch, STRICT)
+**Files (4):**
+  - api/telegram-new-order.ts — LOCK ZONE. +37 LOC. Atomic idempotency claim before send: `UPDATE orders SET telegram_notified_at = now() WHERE id = ? AND telegram_notified_at IS NULL RETURNING id`. Exactly one concurrent caller wins (Postgres row-lock); others get 0 rows → 200 `{telegram:"already_sent"}` no-op. Fail-open on claim ERROR (logs + sends anyway — degrades to prior possibly-duplicate behavior, never blocks the notification). Resets telegram_notified_at=null on send failure so retry / admin resend still deliver. The 3 payment LOCK files (create-order / bankart-callback / bankart-order-status) UNTOUCHED — their `payment_status!=='paid'` guards remain as a cheap first line.
+  - api/telegram-new-order.test.ts — NEW (5 tests): first-sends/second-noop idempotency, already-notified skip, fail-open on claim error, send-fail releases claim, missing order_id → 400. Stateful supabase mock simulates telegram_notified_at NULL→now().
+  - supabase/migrations/20260712120000_add_telegram_notified_at.sql — NEW. `ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS telegram_notified_at timestamptz`. Applied to prod (pwkqyoaofcbwsecawrjz) + verified nullable, no default.
+  - docs/db-schema-baseline.md — +1 row (telegram_notified_at in orders table).
+**Verify:**
+  build:     PASS(machine) — vite 7.x, exit 0 (2026-07-12)
+  typecheck: PASS(machine) — tsc -b exit 0
+  test:      PASS(machine) — 19 files / 218 tests (+5 B18)
+  manual:    DEFERRED — E2E smoke (test-mode card → exactly 1 Telegram msg) requires deploy; code not yet live. Pavle post-merge smoke pending.
+  code-review: SKIPPED — Pavle chose direct /close.
+**SCOPE_DRIFT:** none — 4 files = EXPECTED-FILES exact.
+**Notes:** Root cause = duplicate Telegram (NOT double charge) on card orders: 3 sources (create-order FINISHED, bankart-callback webhook, bankart-order-status poll) call /api/telegram-new-order for the one Bankart transaction; per-caller `payment_status!=='paid'` guard is TOCTOU (read-then-act, non-atomic) so two can both pass → 2 messages. Fix centralizes one atomic single-flight claim at the shared endpoint. Ad-hoc bug report (screenshot-first per W12; ROADMAP row N/A). Deploy order: migration already on prod (backward-compatible nullable add) → safe to merge b18 → main anytime; fail-open means even code-before-migration would not break. MCP incident during execute: Supabase connector was pointed at the wrong account (izdavanje-leto-2026) — caught by list_projects + list_tables identity check BEFORE apply_migration; Pavle reconnected to padrino org, re-verified orders/admin_users, then applied.
+
+---
+
 ## B17 — 2026-06-18 — Free (zero-price) addon validation fix + Vercel function-cap fix — DONE
 
 **Tier:** STRICT
