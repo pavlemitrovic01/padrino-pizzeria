@@ -406,10 +406,47 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 500, { ok: false, error: msg });
     }
 
+    // Idempotency claim: atomically win the right to notify exactly once.
+    // Card payments can call this endpoint from up to 3 sources for the same
+    // order (create-order FINISHED, bankart-callback webhook, bankart-order-status
+    // poll). Postgres row-level locking serializes this conditional UPDATE, so
+    // only the caller that flips telegram_notified_at NULL->now() proceeds to send.
+    let claimedOwnership = false;
+    const { data: claimed, error: claimErr } = await supabase
+      .from("orders")
+      .update({ telegram_notified_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .is("telegram_notified_at", null)
+      .select("id");
+
+    if (claimErr) {
+      // Fail-open: an idempotency-infra error must never block the notification.
+      // Worst case degrades to the previous (possibly-duplicate) behavior — never
+      // to "restaurant receives no order". Log and continue to send.
+      const cmsg = typeof claimErr.message === "string" && claimErr.message.trim() ? claimErr.message : "claim failed";
+      console.error("telegram-new-order: claim update failed, sending anyway", { orderId, error: cmsg });
+    } else if (!claimed || claimed.length === 0) {
+      // Another caller already claimed this order → idempotent no-op (no duplicate).
+      return json(res, 200, { ok: true, telegram: "already_sent" });
+    } else {
+      claimedOwnership = true;
+    }
+
     const message = formatOrderForTelegram((order ?? {}) as OrderRow);
     const sent = await sendTelegramMessage(message);
 
     if (!sent.ok) {
+      // Release the claim so a retry / manual admin resend can still deliver.
+      if (claimedOwnership) {
+        const { error: resetErr } = await supabase
+          .from("orders")
+          .update({ telegram_notified_at: null })
+          .eq("id", orderId);
+        if (resetErr) {
+          const rmsg = typeof resetErr.message === "string" && resetErr.message.trim() ? resetErr.message : "reset failed";
+          console.error("telegram-new-order: claim reset after send failure failed", { orderId, error: rmsg });
+        }
+      }
       console.error("telegram-new-order: Telegram send failed", { orderId, error: sent.error || "Telegram failed" });
       return json(res, 502, { ok: false, error: sent.error || "Telegram failed" });
     }
