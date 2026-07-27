@@ -5,6 +5,31 @@
 
 ---
 
+## B21 — 2026-07-27 — Brisanje pre-L8.4 inline cart-editing API-ja — DONE
+
+**Tier:** STANDARD
+**SHA:** e1f4ece
+**Branch:** batch/b21-remove-dead-cart-api
+**Files (6):** −243/+3 LOC ukupno, čista delecija bez promene ponašanja
+  - src/context/CartProvider.tsx — LOCK ZONE. −137 LOC. Obrisani `changeSize` + 5 addon/note mutatora (`addAddonToItem`, `increaseAddonQuantity`, `decreaseAddonQuantity`, `removeAddonFromItem`, `setItemNote`) + njihovi ulazi u provider value.
+  - src/context/CartContext.tsx — −9 LOC. Istih 6 članova iz `CartContextType`.
+  - src/hooks/cart/useCatalogData.ts — −44 LOC. Obrisani `setPizzaSizeSafe`, `addDrinkToCart`, `sauceIdSet` + `useMemo`; posle njih ceo `useCart()` poziv u hook-u ostao bez posla → uklonjen zajedno sa `buildImageCandidates` importom. Uklonjena i `onError` opcija (`opts` param + `onErrorRef` + njegov `useEffect`): jedini konzument zove `useCatalogData()` bez argumenata, pa ref nikad nije mogao da opali. `catch` i dalje prazni kataloge — ponašanje netaknuto.
+  - src/context/CartProvider.test.tsx — −41 LOC. Ispao ceo describe blok "note and addon writers keep the row key honest" (2 testa) — testirao je funkcije koje su obrisane.
+  - src/components/CartDrawer.test.tsx — −6 LOC (mock entry-ji u `makeCart`).
+  - src/components/CartDrawer.e2e.test.tsx — −6 LOC (isto).
+**Verify:**
+  build:     PASS(machine) — exit 0 (2026-07-27)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 22 fajla / 267 testova (269 − 2 obrisana, tačno kako je plan predvideo)
+  lint:      PASS(machine) — `npx eslint` na svih 6 izmenjenih fajlova: exit 0, 0 grešaka (jedini output je nasleđeni warning za `eslint-disable no-console` u CartProvider.tsx koji postoji od ranije)
+  manual:    PASS — smoke u živoj app: 33 cm + 50 cm i dalje dva odvojena reda; qty +/− po redu; edit-reopen otvara sheet pre-filled sa tačnom veličinom; edit 33→50 kad 50 već postoji SPAJA u jedan red (qty 2) — prvi put potvrđeno u pravoj app, ranije samo unit test; brisanje reda → empty state. Konzola: samo nasleđeni React duplicate-key error, ništa novo.
+  code-review:     NIJE POKRENUTO — čista delecija, typecheck je dokaz.
+  security-review: NIJE POKRENUTO — ne dira payment/Bankart/RLS.
+**SCOPE_DRIFT:** none — 6 fajlova = EXPECTED-FILES exact match.
+**Notes:** Poreklo mrtvog koda: pre L8.4 je korpa imala inline size toggle + addon/sos/piće pickere + note textarea; L8.4 je sve preselio u `MenuItemDetailSheet` (vidi header komentar u `CartView.tsx`: "Removed in L8.4 — all selection now lives in the detail sheet"), ali je context API ostao bez ijednog pozivaoca. Okidač za brisanje sad, a ne ranije: B20 je uveo invariantu da svaki writer mora re-derivovati row key — mrtav kod koji se mora održavati ispravnim je najgora vrsta duga, i to u lock zoni. **Dokaz nedostižnosti je mašinski, ne argument:** sve je išlo kroz tipizirani `useCart()`, pa uklanjanje članova iz `CartContextType` pretvara svakog preživelog pozivaoca u grešku kompajlera — `typecheck` exit 0 je dokaz da ih nema. **Izgubljeno namerno:** dva B20 testa koja su pokrivala row-key invariantu za `setItemNote`/`addAddonToItem` — ako se inline editovanje korpe ikad vrati, invarianta se mora vratiti s njim (jedini preostali writer koji je nosi je `updateItemInCart`, i dalje pokriven). Tier STANDARD uprkos lock zoni i 6 fajlova (3 su mehaničke izmene testova) — Pavle delegirao odluku, obrazloženje: STRICT bi ovde bio ceremonija jer typecheck daje jači dokaz nego manual review, ali je pun STRICT verify set ipak pokrenut.
+
+---
+
 ## B20 — 2026-07-27 — Cart line identity (33 cm i 50 cm kao odvojeni redovi) — DONE
 
 **Tier:** STRICT
