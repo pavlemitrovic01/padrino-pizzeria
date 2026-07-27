@@ -4,6 +4,7 @@ import {
   toSiteSettingsCheckoutDefaults,
   formatFeeEurShort,
 } from "../../lib/cartDrawerHelpers";
+import { isWithinBusinessHours, nowMinutesInPodgorica } from "../../lib/businessHours";
 import {
   DEFAULT_BILLING_CITY,
   DEFAULT_BILLING_POSTCODE,
@@ -11,6 +12,8 @@ import {
   type DeliveryZoneKey,
 } from "../../lib/config";
 import type { PaymentMethod } from "../../context/CartContext";
+
+const ORDERS_OPEN_RECHECK_MS = 30_000;
 
 export type UseCheckoutFormParams = {
   submitAttempted: boolean;
@@ -51,6 +54,11 @@ export function useCheckoutForm(params: UseCheckoutFormParams) {
   const [cardholder, setCardholder] = useState("");
   const [expMonth, setExpMonth] = useState("");
   const [expYear, setExpYear] = useState("");
+
+  const [ordersOpenTime, setOrdersOpenTime] = useState<string | null>(null);
+  const [ordersCloseTime, setOrdersCloseTime] = useState<string | null>(null);
+  const [hoursLabel, setHoursLabel] = useState("");
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const nameTrim = name.trim();
   const phoneTrim = phone.trim();
@@ -119,7 +127,7 @@ export function useCheckoutForm(params: UseCheckoutFormParams) {
     const loadCheckoutDefaults = async () => {
       const { data, error } = await supabase
         .from("site_settings")
-        .select("default_city, default_postcode")
+        .select("default_city, default_postcode, orders_open_time, orders_close_time, hours_display")
         .eq("id", 1)
         .maybeSingle();
 
@@ -134,6 +142,11 @@ export function useCheckoutForm(params: UseCheckoutFormParams) {
       if (!billingPostcodeTouchedRef.current) {
         setBillingPostcode(defaults.default_postcode);
       }
+
+      const raw = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+      setOrdersOpenTime(typeof raw.orders_open_time === "string" ? raw.orders_open_time : null);
+      setOrdersCloseTime(typeof raw.orders_close_time === "string" ? raw.orders_close_time : null);
+      setHoursLabel(typeof raw.hours_display === "string" ? raw.hours_display.trim() : "");
     };
 
     void loadCheckoutDefaults();
@@ -142,6 +155,19 @@ export function useCheckoutForm(params: UseCheckoutFormParams) {
       active = false;
     };
   }, []);
+
+  // Re-derives ordersOpen periodically so a checkout left open across the
+  // closing boundary reflects it — the server re-checks at submit time
+  // regardless, this is UX only.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), ORDERS_OPEN_RECHECK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  const ordersOpen = useMemo(
+    () => isWithinBusinessHours(ordersOpenTime, ordersCloseTime, nowMinutesInPodgorica(new Date(nowTick))),
+    [ordersOpenTime, ordersCloseTime, nowTick],
+  );
 
   const shouldValidateName = submitAttempted || nameTrim.length > 0;
   const shouldValidatePhone = submitAttempted || phoneTrim.length > 0;
@@ -348,5 +374,8 @@ export function useCheckoutForm(params: UseCheckoutFormParams) {
     // aggregate hint
     invalidFieldLabels,
     checkoutValidationHint,
+    // business hours gate (B19) — UX lock only, server is the real gate
+    ordersOpen,
+    hoursLabel,
   };
 }

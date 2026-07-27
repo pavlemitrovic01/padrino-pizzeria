@@ -22,6 +22,8 @@ type Props = {
   submitting: boolean;
   submitError: string | null;
   canConfirmOrder: boolean;
+  ordersOpen: boolean;
+  hoursLabel: string;
   setSubmitError: (v: string | null) => void;
   // checkout fields
   name: string;
@@ -93,6 +95,8 @@ export default function CheckoutView({
   submitting,
   submitError,
   canConfirmOrder,
+  ordersOpen,
+  hoursLabel,
   setSubmitError,
   name,
   phone,
@@ -152,6 +156,12 @@ export default function CheckoutView({
   return (
     <div className="mt-3 space-y-4 sm:mt-4">
       <form onSubmit={onSubmitOrder} className="space-y-4">
+        {!ordersOpen ? (
+          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            Trenutno ne primamo porudžbine.{hoursLabel ? ` Radno vrijeme: ${hoursLabel}.` : ""}
+          </div>
+        ) : null}
+
         <div className="p-glass p-4 p-glass-hover sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>

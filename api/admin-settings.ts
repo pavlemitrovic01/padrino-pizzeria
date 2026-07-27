@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { getAdminFromDb } from "./_shared/admin-auth.js";
 import { isPlainObject } from "./_shared/parsing.js";
+import { formatHoursLabel } from "./_shared/business-hours.js";
 import { applyCors } from "./_shared/cors.js";
 
 type Json = Record<string, unknown>;
@@ -27,6 +28,8 @@ type SiteSettingsRow = {
   email: string;
   address_line: string;
   hours_display: string;
+  orders_open_time: string | null;
+  orders_close_time: string | null;
   maps_url: string;
   instagram_url: string;
   whatsapp_url: string;
@@ -39,6 +42,13 @@ type SiteSettingsRow = {
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+/** Postgres `time` column -> "HH:MM" (drops seconds) or null. */
+function toTimeStringOrNull(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const m = v.trim().match(/^([01]\d|2[0-3]):([0-5]\d)/);
+  return m ? `${m[1]}:${m[2]}` : null;
 }
 
 function headerString(req: ReqLike, key: string): string {
@@ -111,6 +121,11 @@ function isValidOptionalEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+function isValidOptionalTime(v: string): boolean {
+  if (!v) return true;
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+}
+
 function isValidOptionalUrl(v: string): boolean {
   if (!v) return true;
   if (v.startsWith("viber://")) return true;
@@ -141,6 +156,8 @@ function normalizeSiteSettingsRow(raw: unknown): SiteSettingsRow | null {
     email: toSafeString(raw.email),
     address_line: toSafeString(raw.address_line),
     hours_display: toSafeString(raw.hours_display),
+    orders_open_time: toTimeStringOrNull(raw.orders_open_time),
+    orders_close_time: toTimeStringOrNull(raw.orders_close_time),
     maps_url: toSafeString(raw.maps_url),
     instagram_url: toSafeString(raw.instagram_url),
     whatsapp_url: toSafeString(raw.whatsapp_url),
@@ -160,6 +177,8 @@ function getSelectableColumns() {
     "email",
     "address_line",
     "hours_display",
+    "orders_open_time",
+    "orders_close_time",
     "maps_url",
     "instagram_url",
     "whatsapp_url",
@@ -271,6 +290,33 @@ export default async function handler(req: ReqLike, res: ResLike) {
       const v = toSafeString(body.hours_display ?? body.hoursDisplay);
       if (v.length > 200) return json(res, 400, { ok: false, error: "hours_display is too long" });
       updatePayload.hours_display = v;
+    }
+
+    const hasOrdersOpenTime = "orders_open_time" in body || "ordersOpenTime" in body;
+    const hasOrdersCloseTime = "orders_close_time" in body || "ordersCloseTime" in body;
+
+    if (hasOrdersOpenTime) {
+      const v = toSafeString(body.orders_open_time ?? body.ordersOpenTime);
+      if (!isValidOptionalTime(v)) {
+        return json(res, 400, { ok: false, error: "Invalid orders_open_time (expected HH:MM)" });
+      }
+      updatePayload.orders_open_time = v || null;
+    }
+
+    if (hasOrdersCloseTime) {
+      const v = toSafeString(body.orders_close_time ?? body.ordersCloseTime);
+      if (!isValidOptionalTime(v)) {
+        return json(res, 400, { ok: false, error: "Invalid orders_close_time (expected HH:MM)" });
+      }
+      updatePayload.orders_close_time = v || null;
+    }
+
+    // Single source of truth: whenever both bounds are submitted together
+    // (the admin UI always sends both), hours_display is derived from them
+    // server-side, overriding whatever hours_display block above computed.
+    if (hasOrdersOpenTime && hasOrdersCloseTime) {
+      const derived = formatHoursLabel(updatePayload.orders_open_time, updatePayload.orders_close_time);
+      if (derived) updatePayload.hours_display = derived;
     }
 
     if ("maps_url" in body || "mapsUrl" in body) {

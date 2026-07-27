@@ -208,6 +208,8 @@ export default function CartDrawer() {
     deliveryRulesError,
     paymentJsStateError,
     checkoutValidationHint,
+    ordersOpen,
+    hoursLabel,
   } = useCheckoutForm({
     submitAttempted,
     paymentMethod,
@@ -224,6 +226,7 @@ export default function CartDrawer() {
 
   const canConfirmOrder =
     canSubmit &&
+    ordersOpen &&
     isNameValid &&
     isPhoneValid &&
     isAddressValid &&
@@ -312,6 +315,15 @@ export default function CartDrawer() {
     setSubmitAttempted(true);
 
     if (!canSubmit) return;
+
+    if (!ordersOpen) {
+      setSubmitError(
+        hoursLabel
+          ? `Trenutno ne primamo porudžbine. Radno vrijeme: ${hoursLabel}.`
+          : "Trenutno ne primamo porudžbine.",
+      );
+      return;
+    }
 
     if (!nameTrim || !phoneTrim || !addressTrim) {
       setSubmitError("Popuni sva obavezna polja pre potvrde porudžbine.");
@@ -593,6 +605,8 @@ export default function CartDrawer() {
                   submitting={submitting}
                   submitError={submitError}
                   canConfirmOrder={canConfirmOrder}
+                  ordersOpen={ordersOpen}
+                  hoursLabel={hoursLabel}
                   setSubmitError={setSubmitError}
                   name={name}
                   phone={phone}

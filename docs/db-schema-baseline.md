@@ -30,7 +30,9 @@ Dokumentira samo ono što se može dokazati iz trenutnog koda. Koristi se za odr
 | address_line | string | App, Contact, Footer, admin-settings |
 | default_city | string | App, Contact, CartDrawer, admin-settings |
 | default_postcode | string | Contact, CartDrawer, admin-settings |
-| hours_display | string | Contact, admin-settings |
+| hours_display | string | Contact, admin-settings — B19: server-derived from orders_open_time/orders_close_time on save |
+| orders_open_time | time \| null | admin-settings, create-order (gate), useCheckoutForm — B19 |
+| orders_close_time | time \| null | admin-settings, create-order (gate), useCheckoutForm — B19 |
 | maps_url | string | Contact, admin-settings |
 | instagram_url | string | Contact, admin-settings |
 | whatsapp_url | string | Contact, admin-settings |
@@ -38,7 +40,7 @@ Dokumentira samo ono što se može dokazati iz trenutnog koda. Koristi se za odr
 | created_at | string | admin-settings |
 | updated_at | string | admin-settings |
 
-**Hrani:** SEO/JSON-LD, Contact, Footer, CartDrawer checkout defaults, AdminSettings.
+**Hrani:** SEO/JSON-LD, Contact, Footer, CartDrawer checkout defaults, AdminSettings, api/create-order business-hours gate (B19).
 
 ---
 
