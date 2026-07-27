@@ -408,6 +408,31 @@ bug → B5 won't execute). Same pattern: audit dictated the right scope.
 > Rotated out of `LESSONS.md` (cap: 7 active entries, RULES §20).
 > Kept here for the record; no longer in active rotation.
 
+### L1 — VITE_ADMIN_API_BASE pitfall
+
+**Deprecated 2026-07-27** (B19 close — LESSONS.md at cap, L1 selected for
+rotation because it is factually STALE, not merely low-value: the env var
+`VITE_ADMIN_API_BASE` no longer exists anywhere in `src/`, `api/`, or
+`.env.example` (verified by grep at B19 close), and `src/lib/adminApiBase.ts`
+now returns a hardcoded `SITE_URL` with no env lookup at all. Its stated
+symptom is also the INVERSE of current behavior: L1 says "Network shows
+relative `localhost:5173/api/admin-me`", while the real 2026-07-27 failure
+was an ABSOLUTE `https://padrinobudva.com/api/admin-me` blocked by CORS.
+Superseded by L9, which documents the current mechanism.)
+
+**PROBLEM:** `.env.example` is documentation only — Vite does NOT load it for `import.meta.env`. Admin login failed in local dev because `VITE_ADMIN_API_BASE` was only in `.env.example`, not in actual Vite-loaded env file.
+
+**LEKCIJA:** Real Vite env files: `.env`, `.env.local`, `.env.development`, `.env.development.local` (later overrides earlier). Must be in app root where `vite.config.ts` lives. After ANY `.env*` change → restart `npm run dev`.
+
+**PRIMENA:** Symptom = Network shows `http://localhost:5173/api/admin-me` (relative) → check `VITE_ADMIN_API_BASE` presence in actual loaded file + restart Vite.
+
+**RESIDUAL VALUE:** The generic half — ".env.example is documentation only;
+Vite loads .env/.env.local/.env.development; restart dev after any .env
+change" — remains true and useful. Only the `VITE_ADMIN_API_BASE` specifics
+and the symptom are dead.
+
+---
+
 ### L4 — safeNumber("", fallback) vraća 0, ne fallback
 
 **Deprecated 2026-05-18** (E4 close — LESSONS.md at cap, L4 selected for
