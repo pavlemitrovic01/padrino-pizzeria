@@ -7,16 +7,43 @@ Deprecated entries → `DECISIONS.md` "Deprecated Lessons" section.
 
 ---
 
-## 2026-03-22 — VITE_ADMIN_API_BASE pitfall (L1)
+## 2026-07-27 — Admin i checkout se NE MOGU testirati na localhost-u (L9)
 
-**PROBLEM:** `.env.example` is documentation only — Vite does NOT load it for `import.meta.env`. Admin login failed in local dev because `VITE_ADMIN_API_BASE` was only in `.env.example`, not in actual Vite-loaded env file.
+**PROBLEM:** B19 — pokrenut `npm run dev` da bi Pavle vizuelno proverio
+business-hours gate; `/admin/login` je vratio "Nemaš pristup". Prvi trag
+(allowlist / `admin_users`) bio je pogrešan — konzola je pokazala pravi
+uzrok: `Access to fetch at 'https://padrinobudva.com/api/admin-me' from
+origin 'http://localhost:5173' has been blocked by CORS policy`. Lanac:
+`adminApiBase.ts` u dev modu vraća `SITE_URL`, a `config.ts` ga hardkoduje
+na `https://padrinobudva.com` (bez env override-a) → lokalni frontend zove
+PROD api; `api/_shared/cors.ts` šalje `Access-Control-Allow-Origin` samo za
+origin-e iz `ALLOWED_ORIGINS`, gde `http://localhost:5173` nije. Isto važi i
+za checkout: `apiBase.ts` pada na prod domen. Vite servira samo frontend —
+`/api` funkcije lokalno ne postoje, zato dev i mora da gađa prod.
 
-**LEKCIJA:** Real Vite env files: `.env`, `.env.local`, `.env.development`, `.env.development.local` (later overrides earlier). Must be in app root where `vite.config.ts` lives. After ANY `.env*` change → restart `npm run dev`.
+**LEKCIJA:** Za Padrino je `npm run dev` upotrebljiv SAMO za čist frontend
+rad (layout, stilovi, statične sekcije). Svaka funkcionalnost koja zove
+`/api/*` — admin panel u celini, checkout, create-order — strukturno ne
+radi sa localhost-a i to NIJE bug koji treba popravljati u batch-u.
+Ovo je runtime/CORS blizanac od [[L6]] (koji pokriva build-time razliku
+lokalnog `tsc -b` vs Vercel `api/` builda): u oba slučaja lokalno zeleno ne
+dokazuje ništa, a preview deploy je pravi gate.
 
-**PRIMENA:** Symptom = Network shows `http://localhost:5173/api/admin-me` (relative) → check `VITE_ADMIN_API_BASE` presence in actual loaded file + restart Vite.
+**PRIMENA:**
+- Batch dira admin ili checkout UI → NE planiraj lokalni smoke. Planiraj
+  preview deploy (`cors.ts` auto-dozvoljava preview origin preko
+  `VERCEL_URL` kad je `VERCEL_ENV==="preview"`) ili verifikaciju na produ
+  posle merge-a.
+- Simptom "Nemaš pristup" na `/admin/*` sa localhost-a → prvo pogledaj
+  konzolu za CORS, ne diraj `admin_users`.
+- Preview i prod dele ISTU Supabase bazu — izmena u preview adminu menja
+  živi sajt. Testiraj destruktivne vrednosti u mirnom terminu i odmah vrati.
+- Alternativa (svesna odluka, ne default): dodati `http://localhost:5173` u
+  `ALLOWED_ORIGINS` na Vercelu — trajno širi CORS površinu produkcije.
 
 **STATUS:** ACTIVE
-**NEXT REVIEW:** —
+**NEXT REVIEW:** posle sledećeg admin/checkout UI batch-a — potvrditi da je
+preview-first plan izbegao izgubljeno vreme na lokalni smoke.
 
 ---
 

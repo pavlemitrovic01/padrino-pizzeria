@@ -4,6 +4,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
+import { isWithinBusinessHours, nowMinutesInPodgorica } from "./_shared/business-hours.js";
 import { applyCors } from "./_shared/cors.js";
 import {
   BANKART_FALLBACK_EMAIL,
@@ -909,6 +910,37 @@ async function startBankartDebit(req: ReqLike, orderId: string, requestBody: Ban
   };
 }
 
+/**
+ * Fail-open by design: an unset or unreadable business-hours config must
+ * never block a real order. Only an explicitly configured + parseable
+ * window (both columns set) can produce `open: false`.
+ */
+async function checkOrdersOpen(): Promise<{ open: boolean; hoursDisplay: string }> {
+  try {
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("orders_open_time, orders_close_time, hours_display")
+      .eq("id", 1)
+      .single();
+
+    if (error) {
+      console.warn("[create-order] business-hours read failed, allowing order:", error);
+      return { open: true, hoursDisplay: "" };
+    }
+    if (!isPlainObject(data)) return { open: true, hoursDisplay: "" };
+
+    const open = isWithinBusinessHours(
+      data.orders_open_time,
+      data.orders_close_time,
+      nowMinutesInPodgorica(),
+    );
+    return { open, hoursDisplay: toTrimmedString(data.hours_display) };
+  } catch (err) {
+    console.warn("[create-order] business-hours check threw, allowing order:", err);
+    return { open: true, hoursDisplay: "" };
+  }
+}
+
 export default async function handler(req: ReqLike, res: ResLike) {
   applyCors(req, res, { methods: "POST" });
 
@@ -985,6 +1017,16 @@ export default async function handler(req: ReqLike, res: ResLike) {
       if (looksLikeRealItemButInvalid(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
+    }
+
+    const hours = await checkOrdersOpen();
+    if (!hours.open) {
+      const suffix = hours.hoursDisplay ? ` Radno vrijeme: ${hours.hoursDisplay}.` : "";
+      return json(res, 409, {
+        ok: false,
+        code: "outside_business_hours",
+        error: `Trenutno ne primamo porudžbine.${suffix}`,
+      });
     }
 
     if (payment_method === "card") {

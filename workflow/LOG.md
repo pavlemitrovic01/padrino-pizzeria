@@ -5,6 +5,37 @@
 
 ---
 
+## B19 — 2026-07-27 — Business hours gate (porudžbine samo u radnom vremenu) — DONE
+
+**Tier:** STRICT
+**SHA:** c58775b
+**Branch:** batch/b19-business-hours-gate (per-batch, STRICT)
+**Files (13):**
+  - supabase/migrations/20260726120000_add_business_hours.sql — NEW. `orders_open_time` / `orders_close_time` (`time`, NULL, bez default-a) na `site_settings`. Aplicirano na prod (pwkqyoaofcbwsecawrjz) + verifikovano `time without time zone`, nullable, no default. Nullable je namerno: deploy je bihejvioralno NO-OP dok se vrijeme ne postavi u adminu.
+  - api/_shared/business-hours.ts — NEW. `parseTimeToMinutes` (HH:MM i HH:MM:SS — PostgREST vraća sa sekundama), `nowMinutesInPodgorica` (Intl + `Europe/Podgorica`, DST-safe, nezavisno od UTC runtime-a i od sata kupca), `isWithinBusinessHours` (open<close normalan opseg; open>close prelazak ponoći; open===close = 24h), `formatHoursLabel`.
+  - api/_shared/business-hours.test.ts — NEW (13 testova): granice, prelazak ponoći, DST jan+jul, fail-open na null/malformed, label format.
+  - api/create-order.ts — LOCK ZONE. +42 LOC. `checkOrdersOpen()` + gate POSLE validacije payload-a, PRE `fetchMenuPricesCents`, PRE inserta i PRE `getBankartConfig()` → identično važi za cash i card. Zatvoreno → 409 `{code:"outside_business_hours"}`. Fail-open na DB error / missing row / exception (console.warn + propusti).
+  - api/create-order.test.ts — prošireno sa 4 na 12 testova. Mock nadograđen na pun chainable builder (prati createOrderEndpoint.test.ts presedan) da bi vozio pravi handler: dokazuje da kod zatvorenog NEMA inserta u `orders` i da `fetch` NIJE pozvan (nema Bankart naplate, nema Telegrama).
+  - api/admin-settings.ts — `orders_open_time`/`orders_close_time` u select + POST validaciji (`^([01]\d|2[0-3]):[0-5]\d$`, inače 400). Kad su oba poslata, `hours_display` se IZVODI server-side iz njih → prikaz ne može da odluta od kapije.
+  - src/pages/admin/AdminSettings.tsx — dva `type="time"` inputa (Otvaranje/Zatvaranje) zamenila slobodan tekst `hours_display`; `hours_display` uklonjen iz EditorState (više se ne šalje) → derivacija je jedini pisac. Live preview + kartica u "Brzi pregled".
+  - src/lib/businessHours.ts — NEW. Namerni mirror `api/_shared/business-hours.ts` preko api/src build granice (isti presedan kao parsing.ts). Klijentska kopija je UX-only.
+  - src/lib/businessHours.test.ts — NEW (12 testova).
+  - src/hooks/cart/useCheckoutForm.ts — postojeći `site_settings` select proširen (bez novog API poziva — B17 Vercel function-cap); izlaže `ordersOpen` + `hoursLabel`; 30s re-check da korpa otvorena preko granice zatvaranja ne ostane stale.
+  - src/components/CartDrawer.tsx — LOCK ZONE. `ordersOpen` u `canConfirmOrder` + rani guard u `submitOrder()` sa istom porukom kao server.
+  - src/components/CheckoutView.tsx — amber banner iznad forme kad je zatvoreno.
+  - docs/db-schema-baseline.md — +2 reda + napomena da je `hours_display` sada derivat.
+**Verify:**
+  build:     PASS(machine) — exit 0, vite 7.3.1, built in 5.80s (2026-07-27)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 21 files / 251 tests (+45 B19)
+  manual:    DEFERRED — UI smoke zahteva deploy (kao B18). Prod verifikacija posle merge+push.
+  code-review:     SKIPPED — Pavle izabrao direktan close.
+  security-review: SKIPPED — Pavle izabrao direktan close (uprkos preporuci; batch dira payment path).
+**SCOPE_DRIFT:** none — 13 fajlova = EXPECTED-FILES exact match (diff verifikovan).
+**Notes:** Zahtjev: "porudžbine samo u radnom vremenu koje je na sajtu, mijenja se kroz admin". Odabrano: admin open/close = JEDINI izvor istine (isto svaki dan, bez rasporeda po danima, bez ručnog pauza-prekidača — oboje eksplicitno van opsega). Ključna sigurnosna odluka: fail-open svuda — pogrešno konfigurisana kapija nikad ne smije da blokira pravu porudžbinu (bolje jedna zakasnela nego oboren prijem). **DEPLOY ORDER (kritično):** migracija MORA prije koda — obrnuto bi oborilo `/admin/settings` na 500 jer `getSelectableColumns()` traži kolone kojih nema. Migracija je već na produ, pa je merge bezbjedan u bilo kom trenutku. Pri planiranju otkriven i prijavljen STATE↔repo konflikt (STATE je tvrdio da b18 merge tek predstoji, a `git merge-base --is-ancestor` pokazao da je odavno u main-u; Pavle potvrdio da je B18 E2E smoke prošao). Lokalni smoke pokušan pa odustao — vidi L9 (dev frontend gađa prod API, CORS blokira localhost); LESSONS rotacija: L1 → DECISIONS (dokazano zastareo), L9 dodat.
+
+---
+
 ## B18 — 2026-07-12 — Idempotent Telegram notifikacija (fix duplog slanja kod kartice) — DONE
 
 **Tier:** STRICT

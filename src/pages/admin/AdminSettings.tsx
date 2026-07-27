@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { getAdminApiBase } from "../../lib/adminApiBase";
 import { supabaseAdminAuth } from "../../lib/supabaseAdminAuthClient";
 import { isPlainObject as isRecord } from "../../lib/parsing";
+import { formatHoursLabel } from "../../lib/businessHours";
 
 type AdminRole = "owner" | "staff";
 
@@ -17,6 +18,8 @@ type SiteSettings = {
   email: string;
   address_line: string;
   hours_display: string;
+  orders_open_time: string;
+  orders_close_time: string;
   maps_url: string;
   instagram_url: string;
   whatsapp_url: string;
@@ -32,7 +35,8 @@ type EditorState = {
   phone_e164: string;
   email: string;
   address_line: string;
-  hours_display: string;
+  orders_open_time: string;
+  orders_close_time: string;
   maps_url: string;
   instagram_url: string;
   whatsapp_url: string;
@@ -74,7 +78,8 @@ const EMPTY_EDITOR: EditorState = {
   phone_e164: "",
   email: "",
   address_line: "",
-  hours_display: "",
+  orders_open_time: "",
+  orders_close_time: "",
   maps_url: "",
   instagram_url: "",
   whatsapp_url: "",
@@ -125,6 +130,8 @@ function normalizeSettings(raw: unknown): SiteSettings | null {
     email: toStr(raw.email).trim(),
     address_line: toStr(raw.address_line).trim(),
     hours_display: toStr(raw.hours_display).trim(),
+    orders_open_time: toStr(raw.orders_open_time).trim(),
+    orders_close_time: toStr(raw.orders_close_time).trim(),
     maps_url: toStr(raw.maps_url).trim(),
     instagram_url: toStr(raw.instagram_url).trim(),
     whatsapp_url: toStr(raw.whatsapp_url).trim(),
@@ -142,7 +149,8 @@ function editorFromSettings(settings: SiteSettings): EditorState {
     phone_e164: settings.phone_e164,
     email: settings.email,
     address_line: settings.address_line,
-    hours_display: settings.hours_display,
+    orders_open_time: settings.orders_open_time,
+    orders_close_time: settings.orders_close_time,
     maps_url: settings.maps_url,
     instagram_url: settings.instagram_url,
     whatsapp_url: settings.whatsapp_url,
@@ -250,7 +258,8 @@ function sanitizeEditor(v: EditorState): EditorState {
     phone_e164: v.phone_e164.trim(),
     email: v.email.trim(),
     address_line: v.address_line.trim(),
-    hours_display: v.hours_display.trim(),
+    orders_open_time: v.orders_open_time.trim(),
+    orders_close_time: v.orders_close_time.trim(),
     maps_url: v.maps_url.trim(),
     instagram_url: v.instagram_url.trim(),
     whatsapp_url: v.whatsapp_url.trim(),
@@ -389,6 +398,11 @@ export default function AdminSettings() {
     return `mailto:${raw}`;
   }, [editor.email]);
 
+  const previewHoursLabel = useMemo(
+    () => formatHoursLabel(editor.orders_open_time, editor.orders_close_time),
+    [editor.orders_open_time, editor.orders_close_time],
+  );
+
   return (
     <section className="bg-black text-white py-14">
       <div className="mx-auto max-w-6xl px-4">
@@ -505,15 +519,30 @@ export default function AdminSettings() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-white/70">Radno vrijeme</label>
+                <label className="mb-1.5 block text-xs font-semibold text-white/70">Otvaranje</label>
                 <input
-                  type="text"
-                  value={editor.hours_display}
-                  onChange={(e) => setField("hours_display", e.target.value)}
+                  type="time"
+                  value={editor.orders_open_time}
+                  onChange={(e) => setField("orders_open_time", e.target.value)}
                   className={inputClass(!isOwner || busy)}
-                  placeholder="12–00"
                   disabled={!isOwner || busy}
                 />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-white/70">Zatvaranje</label>
+                <input
+                  type="time"
+                  value={editor.orders_close_time}
+                  onChange={(e) => setField("orders_close_time", e.target.value)}
+                  className={inputClass(!isOwner || busy)}
+                  disabled={!isOwner || busy}
+                />
+                <p className="mt-1.5 text-xs text-white/45">
+                  {previewHoursLabel
+                    ? `Prikaz na sajtu: ${previewHoursLabel}. Sajt prima porudžbine samo u ovom periodu.`
+                    : "Nepodešeno (prazno) = sajt prima porudžbine 0–24h."}
+                </p>
               </div>
 
               <div className="md:col-span-2">
@@ -663,6 +692,15 @@ export default function AdminSettings() {
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">Adresa</div>
                   <div className="mt-1 text-sm font-semibold text-white/90">
                     {editor.address_line || <span className="text-white/35">Nije unijeto</span>}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-white/45">
+                    Radno vrijeme / primanje porudžbina
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white/90">
+                    {previewHoursLabel || <span className="text-white/35">Nepodešeno — sajt prima 0–24h</span>}
                   </div>
                 </div>
 
