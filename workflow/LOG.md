@@ -5,6 +5,28 @@
 
 ---
 
+## B20 — 2026-07-27 — Cart line identity (33 cm i 50 cm kao odvojeni redovi) — DONE
+
+**Tier:** STRICT
+**SHA:** 27a7b51
+**Branch:** batch/b20-cart-line-identity (per-batch, STRICT)
+**Files (3):**
+  - src/lib/cartDrawerHelpers.ts — +69 LOC. `buildCartLineId({identity,size,addons,note})` → `<identity>|<size>|<variant-hash>`; `cartAddonsFingerprint` (sortirani `id:qty`, BEZ cene — `adjustAddonsForSize` prepisuje cenu punjenih ivica pri promeni veličine, pa bi ključ sa cenom migao pod redom koji kupac nije dirao); FNV-1a 32-bit hash za addons+note (length-prefixed input) tako da `cart_id` koji ide na server ostane kratak i bez kupčevog teksta.
+  - src/context/CartProvider.tsx — LOCK ZONE. +77/-100 LOC. `normalizeIncomingItem` više ne prepisuje `id` u `baseKey` — obe grane (pizza i ne-pizza) vraćaju kroz novi `withLineId()`. `addToCart` merge grana pala sa ~90 na 8 linija: poklopljen ključ = identična konfiguracija, menja se SAMO količina. `updateItemInCart` dobio merge-on-collision. `changeSize` + svih 5 addon/note mutatora re-derivuju ključ. GA4 `add_to_cart`/`remove_from_cart` sada šalju `menuItemId` umesto row key-a.
+  - src/context/CartProvider.test.tsx — NEW (18 testova), PRVI CartProvider testovi u repo-u. Pokriva: 33+50 odvojeni redovi (oba redosleda), identičan izbor se stakuje, dodaci se NE udvostručuju pri stakovanju, različiti dodaci/napomena/količina dodatka = novi red, redosled klikanja dodataka nebitan, per-red increase/decrease/remove, edit re-key + merge-on-collision, piće (ne-pizza grana), GA4 item_id.
+**Verify:**
+  build:     PASS(machine) — exit 0, vite (2026-07-27)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 22 fajla / 269 testova (+18 B20)
+  manual:    PASS(human) — smoke u živoj app (localhost:5173, dev server): 3× Margherita 33 cm → JEDAN red qty 3; 50 cm → SVOJ red, 16,00 €; "Stavki: 4". Pavle: "okej je moze merge i close push".
+  lint:      exit 1 — SAMO nasleđeni problemi, nijedan iz ovog batch-a: 2 greške u `api/telegram-new-order.test.ts` (nedirnut fajl, iz B18) + 1 warning "unused eslint-disable no-console" u CartProvider.tsx koji je postojao u originalu (`no-console` nije konfigurisan u `eslint.config.js`).
+  code-review:     SKIPPED — Pavle izabrao direktan close.
+  security-review: NIJE POKRENUTO — batch ne dira payment/Bankart/RLS fajlove (cena se i dalje računa server-side po `menu_item_id`).
+**SCOPE_DRIFT:** none — 3 fajla = EXPECTED-FILES exact match (`git diff --name-only HEAD~1..HEAD` verifikovan).
+**Notes:** Zahtjev (ad-hoc bug report, ROADMAP row N/A): "ne može se poručiti 50 cm i 33 cm iste pice u jednoj porudžbini, stakuju se u korpi". Root cause: `normalizeIncomingItem` je prepisivao `id` svakog pizza reda u `baseKey` (ime bez veličine), a `addToCart` je matchovao red samo po `id`. Simptom je bio gori od "stakuju se": merge grana je računala `bestSize` iz POSTOJEĆE stavke, pa je 50 cm dodat preko 33 cm postajao još jedan 33 cm — server re-prices po `menu_item_id` koji ostaje od prve veličine, dakle pogrešan proizvod u kuhinju + pogrešna naplata u OBA smera (zavisno koja veličina je prva ušla). Iz istog uzroka padala su još dva money bug-a: (1) re-add identičnog izbora je unijao addon liste pa je druga pica nosila duplo sosa (dodaci su per-item i množe se količinom u `totalPrice`); (2) različita napomena je pregažena. Poreklo: pre L8.4 je korpa imala 33/50 toggle po redu, pa je jedan red po imenu BIO dizajn; L8.4 je toggle premestio u `MenuItemDetailSheet` i izbacio ga iz korpe, ali je `baseKey` identitet ostao — zaostatak refaktora, ne namerno pravilo. Bezbednost promene za server: `cart_id` se koristi samo kao "nije prazan" + "nije `meta`" (`telegram-new-order.ts:142`, `admin-orders.ts`), cena ide preko `menu_item_id` — kompozitni ključ ne dira pricing path. Korpa se ne perzistira (čist `useState`, nema localStorage) → nema migracije zatečenih korpi. Tokom smoke-a lažna uzbuna: činilo se da detail sheet guta ponovni "Dodaj" za istu picu — bio je artefakt test skripta (zaostali sheet u DOM-u, klikan stari CTA); sa čistim DOM-om sheet radi ispravno, nema drugog buga. Odloženo namerno (van scope-a, RULES §7): brisanje mrtvog koda `changeSize` + `setPizzaSizeSafe`/`addDrinkToCart` (nigde se ne konzumiraju od L8.4) → zaseban LEAN batch; `changeSize` je u ovom batch-u samo usklađen sa novim ključem da ne vrati bug ako se ponovo zakači. Uočeno u prolazu (nije iz ovog batch-a): React "Encountered two children with the same key" ×4 pri otvaranju menija + detail sheet-a, reprodukovano sa PRAZNOM korpom (dakle nije CartView) — kandidat su addon/sos/piće katalozi u `useCatalogData`; zaseban task.
+
+---
+
 ## B19 — 2026-07-27 — Business hours gate (porudžbine samo u radnom vremenu) — DONE
 
 **Tier:** STRICT
