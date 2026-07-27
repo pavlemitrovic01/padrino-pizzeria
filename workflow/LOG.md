@@ -19,6 +19,7 @@
   typecheck: PASS(machine) — exit 0, tsc -b
   test:      PASS(machine) — exit 0, 22 fajla / 269 testova (+18 B20)
   manual:    PASS(human) — smoke u živoj app (localhost:5173, dev server): 3× Margherita 33 cm → JEDAN red qty 3; 50 cm → SVOJ red, 16,00 €; "Stavki: 4". Pavle: "okej je moze merge i close push".
+  prod:      PASS(human) — posle deploya (merge 5937390), Pavle: "Radi i sve je ok". Napomena o obimu: potvrda je opšta; da li je konkretno provučena PRAVA porudžbina sa obje veličine i provjeren Telegram/admin prikaz nije eksplicitno navedeno. Ako se ta stavka ikad zatraži kao dokaz, tretirati kao nepotvrđenu.
   lint:      exit 1 — SAMO nasleđeni problemi, nijedan iz ovog batch-a: 2 greške u `api/telegram-new-order.test.ts` (nedirnut fajl, iz B18) + 1 warning "unused eslint-disable no-console" u CartProvider.tsx koji je postojao u originalu (`no-console` nije konfigurisan u `eslint.config.js`).
   code-review:     SKIPPED — Pavle izabrao direktan close.
   security-review: NIJE POKRENUTO — batch ne dira payment/Bankart/RLS fajlove (cena se i dalje računa server-side po `menu_item_id`).
