@@ -22,8 +22,8 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B19 — Business hours gate (porudžbine samo u radnom vremenu) (2026-07-27, STRICT, SHA c58775b). Prethodni: B18 — Idempotent Telegram notifikacija (2026-07-12, STRICT, merged 267fba2, E2E smoke potvrđen)
-**Sledeći:** Merge `batch/b19-business-hours-gate` → main + push za production deploy (migracija VEĆ aplicirana na prod — merge bezbedan u bilo kom trenutku). Posle deploya prod verifikacija: `/admin/settings` se učitava → postavi otvoren opseg (npr. 00:00–23:59) → porudžbina prolazi + prikaz na `/#kontakt` se promenio → kratko postavi zatvoren opseg (npr. 03:00–05:00) → banner + blokirano dugme → VRATI pravo radno vreme. Zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** B19 — Business hours gate (porudžbine samo u radnom vremenu) (2026-07-27, STRICT, SHA c58775b, merged b8403bd + pushed) + B19.1 follow-up fix (SHA 9663df2, closed-state checkout dugme). Prethodni: B18 — Idempotent Telegram notifikacija (2026-07-12, STRICT, merged 267fba2, E2E smoke potvrđen)
+**Sledeći:** B20 — cart line identity (33cm i 50cm iste pice se stakuju u jedan red korpe; STRICT, lock zone). Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji. Zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
@@ -35,6 +35,11 @@ Per-batch audit trail (verify gate-ovi, fajlovi, SHA) → `workflow/LOG.md`.
 - B19 (Business hours gate — porudžbine samo u radnom vremenu) — DONE 2026-07-27
   (STRICT; 13 fajlova, +758/-20; SHA c58775b; migracija na produ; fail-open dizajn;
   `Europe/Podgorica` + prelazak ponoći; admin open/close = jedini izvor istine)
+  - B19.1 follow-up (SHA 9663df2, 2026-07-27): closed-state checkout dugme —
+    sivo, stvarno disabled, label "Trenutno ne primamo porudžbine • <sati>";
+    zamenilo poseban crveni banner. Disable SAMO van radnog vremena (validacione
+    greške ostaju klikabilne da bi feedback radio). Otvoren follow-up: nema testa
+    koji pokriva oba stanja labele.
 
 ---
 
