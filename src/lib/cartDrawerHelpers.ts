@@ -1,5 +1,6 @@
 import type { PizzaSize } from "../context/CartContext";
 import { DEFAULT_BILLING_CITY, DEFAULT_BILLING_POSTCODE } from "./config";
+import { toSafeInt } from "./money";
 import { normalizeText } from "./parsing";
 export { normalizeText };
 
@@ -131,6 +132,74 @@ export function stripPizzaSizeFromName(name: string): string {
     .replace(/50\s*cm/gi, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** ------------------------- CART LINE IDENTITY (B20) ------------------------
+ * One cart row = one configuration. Two adds collapse into a single row only
+ * when the customer picked the exact same thing: same menu item, same size,
+ * same addons (ids + per-item quantities), same note. Anything else is a
+ * separate row — a 33 cm and a 50 cm of the same pizza are different products,
+ * not a quantity of one.
+ *
+ * Before B20 the row key was the size-stripped name, so 33 + 50 collapsed and
+ * the second size silently became another of the first.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Stable per-configuration signature of the addon selection.
+ *
+ * Sorted, so the order the customer tapped the addons in never produces a new
+ * row. Price is deliberately NOT part of it: `adjustAddonsForSize` rewrites the
+ * stuffed-crust price when the size changes, and a price-bearing key would
+ * change underneath a row that the customer never touched.
+ */
+export function cartAddonsFingerprint(
+  addons: ReadonlyArray<{ id?: unknown; quantity?: unknown }> | null | undefined,
+): string {
+  if (!addons || addons.length === 0) return "";
+
+  return addons
+    .map((a) => `${String(a?.id ?? "")}:${Math.max(1, toSafeInt(a?.quantity ?? 1, 1))}`)
+    .sort()
+    .join(",");
+}
+
+/** FNV-1a 32-bit. Deterministic, dependency-free, short output. */
+function fnv1a32Hex(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * Builds the cart row key.
+ *
+ * Shape: `<identity>|<size>|<variant-hash>`, e.g. `a3f1…-uuid|50|9c2b41de`.
+ *
+ * Addons and note go in as a hash rather than raw text: this id travels to the
+ * server as `cart_id` (stored on the order, echoed to Telegram), so it stays
+ * short and free of arbitrary customer-typed content. The note is already sent
+ * as its own field — it does not belong in an identifier.
+ */
+export function buildCartLineId(parts: {
+  identity: string;
+  size?: PizzaSize | string | null;
+  addons?: ReadonlyArray<{ id?: unknown; quantity?: unknown }> | null;
+  note?: string | null;
+}): string {
+  const identity = String(parts.identity ?? "").trim() || "unknown";
+  const size = parts.size ? String(parts.size) : "-";
+
+  const addons = cartAddonsFingerprint(parts.addons);
+  const note = String(parts.note ?? "").trim();
+  // Length-prefixed so an addon fingerprint can never blend into the note text
+  // (`"a:1" + "b"` and `"a:1b" + ""` must not hash to the same row).
+  const variant = addons || note ? fnv1a32Hex(`${addons.length}:${addons}:${note}`) : "-";
+
+  return `${identity}|${size}|${variant}`;
 }
 
 export function isPizzaRow(row: { category?: string; name?: string }): boolean {

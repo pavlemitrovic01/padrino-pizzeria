@@ -22,15 +22,20 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B19 — Business hours gate (porudžbine samo u radnom vremenu) (2026-07-27, STRICT, SHA c58775b, merged b8403bd + pushed) + B19.1 follow-up fix (SHA 9663df2, closed-state checkout dugme). Prethodni: B18 — Idempotent Telegram notifikacija (2026-07-12, STRICT, merged 267fba2, E2E smoke potvrđen)
-**Sledeći:** B20 — cart line identity (33cm i 50cm iste pice se stakuju u jedan red korpe; STRICT, lock zone). Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji. Zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** B20 — Cart line identity (33 cm i 50 cm kao odvojeni redovi u korpi) (2026-07-27, STRICT, SHA 27a7b51). Prethodni: B19 — Business hours gate (2026-07-27, STRICT, SHA c58775b, merged b8403bd + pushed) + B19.1 follow-up (SHA 9663df2, closed-state checkout dugme)
+**Sledeći:** Prod verifikacija B20 posle deploya: dodaj 33 cm i 50 cm iste pice → dva odvojena reda sa tačnim cenama → provuci pravu porudžbinu i potvrdi da Telegram/admin prikazuju obe veličine kao zasebne stavke. Zatim otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Kandidati za sledeći batch: LEAN brisanje mrtvog koda (`changeSize` + `setPizzaSizeSafe`/`addDrinkToCart`), React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
-**Faza progres:** sve faze i serije zaključno sa B19 — DONE.
+**Faza progres:** sve faze i serije zaključno sa B20 — DONE.
 Puna hronologija (batch po batch, sa datumima i napomenama) je premeštena u
 `workflow/STATE-ARCHIVE.md` pri B19 close-u (STATE.md je bio ~36KB, target ~8KB).
 Per-batch audit trail (verify gate-ovi, fajlovi, SHA) → `workflow/LOG.md`.
+
+- B20 (Cart line identity — 33 cm i 50 cm kao odvojeni redovi) — DONE 2026-07-27
+  (STRICT; 3 fajla, +521/-100; SHA 27a7b51; ključ reda = menu item + veličina +
+  dodaci + napomena; pao i overcharge na dodacima pri re-add-u; prvi CartProvider
+  testovi u repo-u, 18 komada; uzrok = zaostatak L8.4 refaktora)
 
 - B19 (Business hours gate — porudžbine samo u radnom vremenu) — DONE 2026-07-27
   (STRICT; 13 fajlova, +758/-20; SHA c58775b; migracija na produ; fail-open dizajn;

@@ -24,10 +24,36 @@ import {
   trackAddPaymentInfo,
 } from "../lib/analytics";
 import {
+  buildCartLineId,
   isStuffedCrustAddonName,
   stripPizzaSizeFromName,
   stuffedCrustPriceForSize,
 } from "../lib/cartDrawerHelpers";
+
+/**
+ * Cart row key (B20).
+ *
+ * The key encodes the whole configuration — menu item, size, addons, note —
+ * so every writer that changes one of those must re-derive it. A row left
+ * holding a stale key no longer describes itself: a later identical add would
+ * land as a second row instead of merging into this one.
+ *
+ * Before B20 the key was the size-stripped name, which made a 33 cm and a
+ * 50 cm of the same pizza the same row. Adding the second size did not add it
+ * — it incremented the first one, so the customer got two of the wrong size at
+ * the wrong price (the server prices by `menu_item_id`, which stayed behind).
+ */
+function withLineId(item: CartItem): CartItem {
+  return {
+    ...item,
+    id: buildCartLineId({
+      identity: item.menuItemId ?? item.baseKey ?? item.name,
+      size: item.size ?? null,
+      addons: item.addons,
+      note: item.note ?? "",
+    }),
+  };
+}
 
 function parsePizzaSizeFromText(text: string): PizzaSize | null {
   const t = String(text ?? "").toLowerCase();
@@ -110,7 +136,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     const basePrice = getBasePrice({ ...item, addons: normalizedAddons } as CartItem);
     const finalPrice = basePrice + computeAddonsTotal(normalizedAddons);
 
-    return {
+    return withLineId({
       ...item,
       price: finalPrice,
       basePrice,
@@ -120,7 +146,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
       menuItemId: item.menuItemId ?? item.id,
       variants: item.variants ?? undefined,
       note: item.note ?? "",
-    };
+    });
   }
 
   const baseKey = item.baseKey ?? stripPizzaSizeFromName(item.name);
@@ -153,9 +179,10 @@ function normalizeIncomingItem(item: CartItem): CartItem {
   const adjustedAddons = adjustAddonsForSize(finalSize, normalizedAddons);
   const finalPrice = basePrice + computeAddonsTotal(adjustedAddons);
 
-  return {
+  // `name` stays the size-stripped display name — the cart renders `size` as
+  // its own line ("Veličina: 50 cm"), so the suffix would read twice.
+  return withLineId({
     ...item,
-    id: baseKey,
     name: baseKey,
     baseKey,
     size: finalSize,
@@ -166,7 +193,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     price: finalPrice,
     category,
     note: item.note ?? "",
-  };
+  });
 }
 
 /** -------------------- ORDER / PAYMENT (PRE-NLB PREP) -------------------- */
@@ -205,87 +232,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const item = normalizeIncomingItem(rawItem);
 
     setItems((prev) => {
-      const existing = prev.find((i) => i.id === item.id);
+      const existingIndex = prev.findIndex((i) => i.id === item.id);
 
-      if (existing) {
-        // Re-add merge semantics:
-        //   - quantity: increment by incoming item.quantity (≥1), NOT hardcoded +1.
-        //     Allows MenuItemDetailSheet to send pizzaQty>1 without silently dropping it.
-        //   - addons: union by id — sum quantities for matching ids, append new ids.
-        //     Allows sheet to add addons to an item that's already in the cart without
-        //     silently discarding the new selection. Cap per-addon qty at 99 (defense).
-        //   - note: prefer incoming if non-empty, otherwise preserve existing.
+      // A matching row key means the customer picked the identical thing
+      // again — same item, size, addons and note. The only thing that changes
+      // is how many. Quantity comes from the incoming item (≥1) so the detail
+      // sheet can send pizzaQty>1 without it being dropped.
+      //
+      // Addons are deliberately NOT merged: they are per-item and multiplied
+      // by quantity in `totalPrice`, so summing them here would charge the
+      // second pizza twice for the same sauce. Anything that differs in
+      // addons or note is a different key and lands as its own row.
+      if (existingIndex >= 0) {
         const incomingQty = Math.max(1, toSafeInt(item.quantity ?? 1, 1));
-        const incomingAddons = item.addons ?? [];
-        const incomingNote = (item.note ?? "").trim();
 
-        return prev.map((i) => {
-          if (i.id !== item.id) return i;
-
-          const mergedVariants: Partial<Record<PizzaSize, PizzaVariant>> = {
-            ...(i.variants ?? {}),
-            ...(item.variants ?? {}),
-          };
-
-          // Merge addons: existing first, then sum/append incoming
-          const addonMap = new Map<string, CartAddon>();
-          for (const a of i.addons ?? []) {
-            addonMap.set(a.id, { ...a });
-          }
-          for (const a of incomingAddons) {
-            const prevA = addonMap.get(a.id);
-            if (prevA) {
-              const summed = Math.min(
-                99,
-                Math.max(1, toSafeInt(prevA.quantity ?? 1, 1) + Math.max(1, toSafeInt(a.quantity ?? 1, 1))),
-              );
-              addonMap.set(a.id, { ...prevA, quantity: summed });
-            } else {
-              addonMap.set(a.id, {
-                id: a.id,
-                name: a.name,
-                price: toSafeInt(a.price, 0),
-                quantity: Math.max(1, toSafeInt(a.quantity ?? 1, 1)),
-              });
-            }
-          }
-          const mergedAddons = Array.from(addonMap.values());
-          const addons = adjustAddonsForSize(i.size ?? null, mergedAddons);
-
-          const candidateSize: PizzaSize | null =
-            (isPizzaLike(i.category, i.name) ? (i.size ?? null) : null) ?? null;
-
-          const bestSize: PizzaSize | null =
-            (candidateSize && isPizzaSize(candidateSize) ? candidateSize : null) ??
-            pickBestSize(mergedVariants);
-
-          const chosenVariant = bestSize ? mergedVariants[bestSize] : undefined;
-
-          const nextBasePrice = toSafeInt(
-            chosenVariant?.price ?? i.basePrice ?? item.basePrice ?? getBasePrice(i),
-            0
-          );
-
-          const nextMenuItemId =
-            chosenVariant?.menuItemId ?? i.menuItemId ?? item.menuItemId ?? i.id;
-
-          const nextCategory = chosenVariant?.category ?? i.category;
-
-          const finalPrice = nextBasePrice + computeAddonsTotal(addons);
-
-          return {
-            ...i,
-            quantity: i.quantity + incomingQty,
-            variants: Object.keys(mergedVariants).length ? mergedVariants : i.variants,
-            size: isPizzaLike(i.category, i.name) ? bestSize : null,
-            basePrice: nextBasePrice,
-            menuItemId: nextMenuItemId,
-            category: nextCategory,
-            addons,
-            price: finalPrice,
-            note: incomingNote ? incomingNote : (i.note ?? ""),
-          };
-        });
+        return prev.map((i, idx) =>
+          idx === existingIndex ? { ...i, quantity: i.quantity + incomingQty } : i,
+        );
       }
 
       return [...prev, item];
@@ -296,7 +259,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     trackAddToCart({
-      item_id: item.id,
+      // The row key is per-configuration, so it would split GA4 reporting into
+      // one item_id per addon combination. Report the menu item instead.
+      item_id: item.menuItemId ?? item.id,
       item_name: item.name,
       price: item.price / 100,
       quantity: Math.max(1, toSafeInt(item.quantity ?? 1, 1)),
@@ -308,8 +273,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
    * flow (L8.4) where MenuItemDetailSheet is opened pre-filled from a cart
    * item and saves a new snapshot of size/qty/addons/note.
    *
-   * Differs from addToCart: NO merge semantics. The replacement is normalized
-   * (same pipeline as addToCart) then swapped in place at the matching index.
+   * Differs from addToCart: the replacement is normalized (same pipeline as
+   * addToCart) and swapped in place at the matching index rather than added.
    *
    * If id is not found in the cart, the function logs a warning and no-ops —
    * shouldn't happen in practice (UI only emits this for cart items) but
@@ -326,12 +291,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.warn("updateItemInCart: cart item not found for id", id);
         return prev;
       }
-      // Preserve baseKey-keyed identity by carrying normalized.id (which is
-      // baseKey for pizzas, or original id for non-pizzas). If the replacement
-      // re-keys to a different id (size variant change is fine — both 33/50
-      // share baseKey), splice using the OLD index but use new id.
+
+      // The edit re-keys the row, so it can land on a configuration another
+      // row already holds — switching a 50 cm down to 33 cm when a 33 cm with
+      // the same addons and note is in the cart. Fold that duplicate into the
+      // edited row: two rows sharing a key would collide as React keys and
+      // make qty +/- and remove hit both at once.
       const next = [...prev];
       next[idx] = normalized;
+
+      const duplicateIdx = next.findIndex((i, at) => at !== idx && i.id === normalized.id);
+      if (duplicateIdx >= 0) {
+        next[idx] = {
+          ...normalized,
+          quantity: normalized.quantity + next[duplicateIdx].quantity,
+        };
+        next.splice(duplicateIdx, 1);
+      }
+
       return next;
     });
   };
@@ -352,7 +329,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const removing = items.find((i) => i.id === id);
     if (removing) {
       trackRemoveFromCart({
-        item_id: removing.id,
+        // Same reasoning as add_to_cart: report the menu item, not the row key.
+        item_id: removing.menuItemId ?? removing.id,
         item_name: removing.name,
         price: removing.price / 100,
         quantity: removing.quantity,
@@ -381,10 +359,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return prev.map((i) => {
         if (i.id !== id) return i;
 
-        return {
+        return withLineId({
           ...i,
           baseKey,
-          id: baseKey,
           name: baseKey,
           size,
           menuItemId: next.menuItemId,
@@ -394,7 +371,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           addons,
           price: finalPrice,
           note: i.note ?? "",
-        };
+        });
       });
     });
   };
@@ -428,7 +405,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
-        return { ...i, addons: nextAddons, basePrice, price: finalPrice, note: i.note ?? "" };
+        return withLineId({ ...i, addons: nextAddons, basePrice, price: finalPrice, note: i.note ?? "" });
       })
     );
   };
@@ -447,7 +424,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
-        return { ...i, addons: nextAddons, basePrice, price: finalPrice };
+        return withLineId({ ...i, addons: nextAddons, basePrice, price: finalPrice });
       })
     );
   };
@@ -467,7 +444,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
-        return { ...i, addons: nextAddons, basePrice, price: finalPrice };
+        return withLineId({ ...i, addons: nextAddons, basePrice, price: finalPrice });
       })
     );
   };
@@ -484,13 +461,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const basePrice = getBasePrice(i);
         const finalPrice = basePrice + computeAddonsTotal(nextAddons);
 
-        return { ...i, addons: nextAddons, basePrice, price: finalPrice };
+        return withLineId({ ...i, addons: nextAddons, basePrice, price: finalPrice });
       })
     );
   };
 
   const setItemNote = (id: string, note: string) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, note } : i)));
+    setItems((prev) => prev.map((i) => (i.id === id ? withLineId({ ...i, note }) : i)));
   };
 
   const clearCart = () => setItems([]);
