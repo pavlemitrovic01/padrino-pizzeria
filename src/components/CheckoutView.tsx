@@ -156,12 +156,6 @@ export default function CheckoutView({
   return (
     <div className="mt-3 space-y-4 sm:mt-4">
       <form onSubmit={onSubmitOrder} className="space-y-4">
-        {!ordersOpen ? (
-          <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-            Trenutno ne primamo porudžbine.{hoursLabel ? ` Radno vrijeme: ${hoursLabel}.` : ""}
-          </div>
-        ) : null}
-
         <div className="p-glass p-4 p-glass-hover sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -393,12 +387,17 @@ export default function CheckoutView({
 
         <button
           type="submit"
-          disabled={submitting}
+          // Closed is the only state where clicking can accomplish nothing, so it
+          // hard-disables. Validation errors deliberately keep the button live —
+          // the click is what triggers submitAttempted and reveals what's missing.
+          disabled={submitting || !ordersOpen}
           aria-disabled={submitting || !canConfirmOrder}
           className={[
-            btnSuccessClass,
-            "w-full h-12 text-sm font-extrabold disabled:opacity-50 disabled:hover:scale-100 inline-flex items-center justify-center gap-2",
-            !submitting && !canConfirmOrder ? "ring-1 ring-[#f2b400]/15" : "",
+            "w-full h-12 text-sm font-extrabold inline-flex items-center justify-center gap-2",
+            ordersOpen
+              ? `${btnSuccessClass} disabled:opacity-50 disabled:hover:scale-100`
+              : "rounded-full border border-white/10 bg-white/[0.07] text-white/45 cursor-not-allowed",
+            !submitting && ordersOpen && !canConfirmOrder ? "ring-1 ring-[#f2b400]/15" : "",
           ].join(" ")}
         >
           {submitting ? (
@@ -406,6 +405,10 @@ export default function CheckoutView({
               <span aria-hidden="true" className="h-4 w-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
               Šaljem...
             </>
+          ) : !ordersOpen ? (
+            hoursLabel
+              ? `Trenutno ne primamo porudžbine • ${hoursLabel}`
+              : "Trenutno ne primamo porudžbine"
           ) : (
             `Potvrdi porudžbinu • ${effectiveTotalLabel}`
           )}
