@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabaseClient.ts";
-import { useCart } from "../../context/useCart";
 import type { PizzaSize, PizzaVariant } from "../../context/CartContext";
 import { toSafeInt } from "../../lib/money";
 import {
-  buildImageCandidates,
   hasEurPrice,
   isDrinkCategory,
   isPizzaRow,
@@ -26,15 +24,7 @@ type MenuItemData = {
 
 export type PizzaVariantsMap = Record<string, Partial<Record<PizzaSize, PizzaVariant>>>;
 
-export function useCatalogData(opts?: { onError?: () => void }) {
-  const { addToCart, changeSize } = useCart();
-
-  // Stable ref so the effect closure doesn't need onError in deps
-  const onErrorRef = useRef(opts?.onError);
-  useEffect(() => {
-    onErrorRef.current = opts?.onError;
-  });
-
+export function useCatalogData() {
   const [addonsCatalog, setAddonsCatalog] = useState<
     { id: string; name: string; price: number; imageKey: string }[]
   >([]);
@@ -48,33 +38,6 @@ export function useCatalogData(opts?: { onError?: () => void }) {
   >([]);
 
   const [pizzaVariantsByBaseKey, setPizzaVariantsByBaseKey] = useState<PizzaVariantsMap>({});
-
-  const sauceIdSet = useMemo(() => {
-    return new Set<string>((saucesCatalog ?? []).map((s) => s.id));
-  }, [saucesCatalog]);
-
-  const setPizzaSizeSafe = (itemId: string, itemName: string, nextSize: PizzaSize) => {
-    const baseKey = stripPizzaSizeFromName(itemName);
-    const variants = pizzaVariantsByBaseKey[baseKey];
-    const next = variants?.[nextSize];
-    if (!next) return;
-    changeSize(itemId, nextSize, next);
-  };
-
-  const addDrinkToCart = (d: { id: string; name: string; price: number; imageKey: string; category: string }) => {
-    addToCart({
-      id: `${d.id}-${Date.now()}`,
-      name: d.name,
-      price: d.price,
-      image: buildImageCandidates(null, d.imageKey)[0] ?? "/menu/padrino.webp",
-      description: "",
-      category: d.category,
-      quantity: 1,
-      size: null,
-      baseKey: d.name,
-      menuItemId: d.id,
-    });
-  };
 
   useEffect(() => {
     let mounted = true;
@@ -141,7 +104,6 @@ export function useCatalogData(opts?: { onError?: () => void }) {
         setSaucesCatalog([]);
         setDrinksCatalog([]);
         setPizzaVariantsByBaseKey({});
-        onErrorRef.current?.();
       }
     }
 
@@ -149,15 +111,12 @@ export function useCatalogData(opts?: { onError?: () => void }) {
     return () => {
       mounted = false;
     };
-  }, []); // one-shot loader on mount; onError captured via ref
+  }, []); // one-shot loader on mount
 
   return {
     pizzaVariantsByBaseKey,
     drinksCatalog,
     saucesCatalog,
     addonsCatalog,
-    sauceIdSet,
-    setPizzaSizeSafe,
-    addDrinkToCart,
   };
 }

@@ -125,15 +125,6 @@ export type CartContextType = {
   decrease: (id: string) => void;
   removeFromCart: (id: string) => void;
 
-  changeSize: (id: string, size: PizzaSize, next: PizzaVariant) => void;
-
-  addAddonToItem: (id: string, addon: Omit<CartAddon, "quantity">) => void;
-  increaseAddonQuantity: (id: string, addonId: string) => void;
-  decreaseAddonQuantity: (id: string, addonId: string) => void;
-  removeAddonFromItem: (id: string, addonId: string) => void;
-
-  setItemNote: (id: string, note: string) => void;
-
   clearCart: () => void;
   resetCart: () => void;
 

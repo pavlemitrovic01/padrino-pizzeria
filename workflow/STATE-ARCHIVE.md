@@ -13,6 +13,26 @@
 
 ---
 
+## Rotated at B21 close — 2026-07-27
+
+Moved verbatim from STATE.md by the 2-batch cap (B21 + B20 stay inline).
+
+- B19 (Business hours gate — porudžbine samo u radnom vremenu) — DONE 2026-07-27
+  (STRICT; 13 fajlova, +758/-20; SHA c58775b; migracija na produ; fail-open dizajn;
+  `Europe/Podgorica` + prelazak ponoći; admin open/close = jedini izvor istine)
+  - B19.1 follow-up (SHA 9663df2, 2026-07-27): closed-state checkout dugme —
+    sivo, stvarno disabled, label "Trenutno ne primamo porudžbine • <sati>";
+    zamenilo poseban crveni banner. Disable SAMO van radnog vremena (validacione
+    greške ostaju klikabilne da bi feedback radio). Otvoren follow-up: nema testa
+    koji pokriva oba stanja labele.
+
+**Otvoreno iz B19 (prati se i dalje u STATE.md "Sledeći"):** prod verifikacija
+radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ
+na produ, ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test
+nisu potvrđeni.
+
+---
+
 ## Rotated at B19 close — 2026-07-27
 
 **B17** — Free (zero-price) addon validation fix + Vercel function-cap fix

@@ -318,47 +318,6 @@ describe("CartProvider — edit (updateItemInCart)", () => {
   });
 });
 
-describe("CartProvider — note and addon writers keep the row key honest", () => {
-  it("re-keys a row after its note changes, so a later identical add stacks", () => {
-    const cart = setup();
-
-    add(cart, pizza("33"));
-    const rowId = cart.result.current.items[0].id;
-
-    act(() => cart.result.current.setItemNote(rowId, "bez luka"));
-
-    const editedId = cart.result.current.items[0].id;
-    expect(editedId).not.toBe(rowId);
-
-    // The row now reads as "33 cm, note: bez luka" — an add of exactly that
-    // has to land on it rather than open a second row.
-    add(cart, pizza("33", { note: "bez luka" }));
-
-    expect(cart.result.current.items).toHaveLength(1);
-    expect(cart.result.current.items[0].quantity).toBe(2);
-  });
-
-  it("re-keys a row after an addon is added to it", () => {
-    const cart = setup();
-
-    add(cart, pizza("33"));
-    const rowId = cart.result.current.items[0].id;
-
-    act(() =>
-      cart.result.current.addAddonToItem(rowId, {
-        id: GARLIC.id,
-        name: GARLIC.name,
-        price: GARLIC.price,
-      }),
-    );
-
-    const { items } = cart.result.current;
-    expect(items[0].id).not.toBe(rowId);
-    expect(items[0].addons).toHaveLength(1);
-    expect(items[0].price).toBe(800);
-  });
-});
-
 describe("CartProvider — analytics", () => {
   it("reports the menu item as item_id, not the row key", () => {
     const cart = setup();

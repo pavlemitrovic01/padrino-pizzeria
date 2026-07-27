@@ -22,29 +22,27 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B20 — Cart line identity (33 cm i 50 cm kao odvojeni redovi u korpi) (2026-07-27, STRICT, SHA 27a7b51). Prethodni: B19 — Business hours gate (2026-07-27, STRICT, SHA c58775b, merged b8403bd + pushed) + B19.1 follow-up (SHA 9663df2, closed-state checkout dugme)
-**Sledeći:** B20 je verifikovan na produ (Pavle: "Radi i sve je ok", 2026-07-27) — ništa otvoreno iz njega. Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Kandidati za sledeći batch: LEAN brisanje mrtvog koda (`changeSize` + `setPizzaSizeSafe`/`addDrinkToCart`), React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** B21 — Brisanje pre-L8.4 inline cart-editing API-ja (2026-07-27, STANDARD, SHA e1f4ece). Prethodni: B20 — Cart line identity (2026-07-27, STRICT, SHA 27a7b51, merged 5937390 + pushed, prod potvrđen)
+**Sledeći:** B21 čeka merge → main + push (prod verifikacija posle deploya: korpa radi normalno — dodavanje, qty, brisanje, edit-reopen). Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Kandidati za sledeći batch: LEAN brisanje mrtvog koda (`changeSize` + `setPizzaSizeSafe`/`addDrinkToCart`), React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
-**Faza progres:** sve faze i serije zaključno sa B20 — DONE.
+**Faza progres:** sve faze i serije zaključno sa B21 — DONE.
 Puna hronologija (batch po batch, sa datumima i napomenama) je premeštena u
 `workflow/STATE-ARCHIVE.md` pri B19 close-u (STATE.md je bio ~36KB, target ~8KB).
 Per-batch audit trail (verify gate-ovi, fajlovi, SHA) → `workflow/LOG.md`.
+
+- B21 (Brisanje pre-L8.4 inline cart-editing API-ja) — DONE 2026-07-27
+  (STANDARD; 6 fajlova, +3/-243; SHA e1f4ece; changeSize + 5 addon/note mutatora
+  iz lock zone + setPizzaSizeSafe/addDrinkToCart/sauceIdSet/onError iz
+  useCatalogData; nedostižnost dokazana typecheck-om preko CartContextType)
 
 - B20 (Cart line identity — 33 cm i 50 cm kao odvojeni redovi) — DONE 2026-07-27
   (STRICT; 3 fajla, +521/-100; SHA 27a7b51; ključ reda = menu item + veličina +
   dodaci + napomena; pao i overcharge na dodacima pri re-add-u; prvi CartProvider
   testovi u repo-u, 18 komada; uzrok = zaostatak L8.4 refaktora)
 
-- B19 (Business hours gate — porudžbine samo u radnom vremenu) — DONE 2026-07-27
-  (STRICT; 13 fajlova, +758/-20; SHA c58775b; migracija na produ; fail-open dizajn;
-  `Europe/Podgorica` + prelazak ponoći; admin open/close = jedini izvor istine)
-  - B19.1 follow-up (SHA 9663df2, 2026-07-27): closed-state checkout dugme —
-    sivo, stvarno disabled, label "Trenutno ne primamo porudžbine • <sati>";
-    zamenilo poseban crveni banner. Disable SAMO van radnog vremena (validacione
-    greške ostaju klikabilne da bi feedback radio). Otvoren follow-up: nema testa
-    koji pokriva oba stanja labele.
+B19 i starije → `workflow/STATE-ARCHIVE.md` (rotirano pri B21 close-u, 2-batch cap).
 
 ---
 
