@@ -22,27 +22,27 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B21 — Brisanje pre-L8.4 inline cart-editing API-ja (2026-07-27, STANDARD, SHA e1f4ece). Prethodni: B20 — Cart line identity (2026-07-27, STRICT, SHA 27a7b51, merged 5937390 + pushed, prod potvrđen)
-**Sledeći:** B21 čeka merge → main + push (prod verifikacija posle deploya: korpa radi normalno — dodavanje, qty, brisanje, edit-reopen). Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Kandidati za sledeći batch: LEAN brisanje mrtvog koda (`changeSize` + `setPizzaSizeSafe`/`addDrinkToCart`), React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** B22 — Zaključavanje baze i tajni (2026-10-07, STRICT, SHA 0c340dc; Faza S). Prethodni: B21 — Brisanje pre-L8.4 inline cart-editing API-ja (2026-07-27, STANDARD, SHA e1f4ece, merged f4fb32d)
+**Sledeći:** (1) B22 kod čeka merge `claude/keen-tesla-jprhog` → main + prod smoke (porudžbina gotovinom → Telegram tačno jednom; admin lista porudžbina; meni). Migracija je VEĆ živa na produ. (2) **B23a — 50 cm + punjene ivice** (audit #6, gubi promet od ~aprila 2026: klijent šalje 4 €, baza 2 € → `Total mismatch`) kao mali zaseban STRICT batch, pa (3) B23b — serverska validacija cena (audit #2–#4). Zatim B24 → B25 → B26 (ROADMAP Faza S). Otvoreno iz B19: prod verifikacija zatvorenog opsega radnog vremena nije zabeležena (raditi u mirnom terminu i VRATITI pravo radno vreme). React duplicate-key greška u meniju → B25.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
-**Faza progres:** sve faze i serije zaključno sa B21 — DONE.
+**Faza progres:** Faza S (Security & money-path hardening) IN PROGRESS — B22 DONE; B23–B26 čekaju. Sve ranije faze DONE.
 Puna hronologija (batch po batch, sa datumima i napomenama) je premeštena u
 `workflow/STATE-ARCHIVE.md` pri B19 close-u (STATE.md je bio ~36KB, target ~8KB).
 Per-batch audit trail (verify gate-ovi, fajlovi, SHA) → `workflow/LOG.md`.
+
+- B22 (Zaključavanje baze i tajni — Faza S) — DONE 2026-10-07
+  (STRICT; 12 fajlova, +249/-133; SHA 0c340dc; anon INSERT u orders zatvoren +
+  write grantovi revokovani na prodnoj bazi (SQL Editor); CHECK status/currency;
+  Origin se nikad ne koristi; Telegram endpoint fail-closed; NO FINDINGS security-review)
 
 - B21 (Brisanje pre-L8.4 inline cart-editing API-ja) — DONE 2026-07-27
   (STANDARD; 6 fajlova, +3/-243; SHA e1f4ece; changeSize + 5 addon/note mutatora
   iz lock zone + setPizzaSizeSafe/addDrinkToCart/sauceIdSet/onError iz
   useCatalogData; nedostižnost dokazana typecheck-om preko CartContextType)
 
-- B20 (Cart line identity — 33 cm i 50 cm kao odvojeni redovi) — DONE 2026-07-27
-  (STRICT; 3 fajla, +521/-100; SHA 27a7b51; ključ reda = menu item + veličina +
-  dodaci + napomena; pao i overcharge na dodacima pri re-add-u; prvi CartProvider
-  testovi u repo-u, 18 komada; uzrok = zaostatak L8.4 refaktora)
-
-B19 i starije → `workflow/STATE-ARCHIVE.md` (rotirano pri B21 close-u, 2-batch cap).
+B20 i starije → `workflow/STATE-ARCHIVE.md` (rotirano pri B22 close-u, 2-batch cap).
 
 ---
 

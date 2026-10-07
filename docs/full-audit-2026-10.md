@@ -63,6 +63,7 @@ vercel.json") su netačne ili nepotpune. Realna ocena: ~5/10 dok se B22–B24 ne
 - B2 audit (`docs/delivery-fee-audit.md`) „CLEAN" — proveravao happy path, ne hostile klijenta.
 
 ### #5 Origin trust → curenje Telegram tajne — PoC (kod), prod neverifikovan → B22 (+B24 strukturno)
+> **Korekcija (B22 close, 2026-10-07):** NIJE bio iskoristiv na produkciji — `PUBLIC_SITE_URL` i `TELEGRAM_WEBHOOK_SECRET` su već bili postavljeni u Vercel-u (All Environments), a env ima prednost nad `Origin`-om. Rupa je postojala samo u kodu; B22 je zatvorio i nju.
 - `api/_shared/public-url.ts` `resolvePublicBaseUrl`: ako nema `PUBLIC_SITE_URL|SITE_URL|APP_URL|NEXT_PUBLIC_SITE_URL`, uz `trustOriginHeader: true` koristi `Origin` header.
 - Pozivi sa `trustOriginHeader: true`: `create-order.ts:401` (Telegram notify), `create-order.ts:620` (Bankart URLs), `bankart-order-status.ts:105`.
 - PoC: `Origin: https://attacker.example` → server POST na `https://attacker.example/api/telegram-new-order` sa headerom `x-telegram-secret: <TELEGRAM_WEBHOOK_SECRET>`.

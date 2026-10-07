@@ -13,6 +13,17 @@
 
 ---
 
+## Rotated at B22 close — 2026-10-07
+
+Moved verbatim from STATE.md by the 2-batch cap (B22 + B21 stay inline).
+
+- B20 (Cart line identity — 33 cm i 50 cm kao odvojeni redovi) — DONE 2026-07-27
+  (STRICT; 3 fajla, +521/-100; SHA 27a7b51; ključ reda = menu item + veličina +
+  dodaci + napomena; pao i overcharge na dodacima pri re-add-u; prvi CartProvider
+  testovi u repo-u, 18 komada; uzrok = zaostatak L8.4 refaktora)
+
+---
+
 ## Rotated at B21 close — 2026-07-27
 
 Moved verbatim from STATE.md by the 2-batch cap (B21 + B20 stay inline).

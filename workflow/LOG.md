@@ -5,6 +5,30 @@
 
 ---
 
+## B22 — 2026-10-07 — Zaključavanje baze i tajni (Faza S) — DONE
+
+**Tier:** STRICT
+**SHA:** 0c340dc
+**Branch:** batch/b22-lockdown (lokalno) → pushovano na `claude/keen-tesla-jprhog` (jedina grana na koju cloud sesija sme da pushuje); merge → main čeka Pavla
+**Izvor:** `docs/full-audit-2026-10.md` nalazi #1, #5, #7 + advisor search_path
+**Files (12):** +249/−133
+  - supabase/migrations/20261007120000_lockdown_grants_order_checks.sql — NEW. DROP anon INSERT politike na `orders`; REVOKE insert/update/delete/truncate/references/trigger na orders/menu_items/site_settings za anon+authenticated; REVOKE SELECT orders od anon; btrim `"pending\n"` → CHECK status ∈ (pending, preparing, done, cancelled) + CHECK currency = 'EUR'; `search_path = ''` na `set_total_price` i `set_site_settings_updated_at`. Rollback SQL u komentaru.
+  - api/_shared/public-url.ts — `Origin` i `x-forwarded-*` se nikad ne koriste; redosled env → Host (validan hostname) → DEFAULT_PUBLIC_HOST; opcija `trustOriginHeader` uklonjena.
+  - api/create-order.ts, api/bankart-order-status.ts, api/bankart-callback.ts — LOCK ZONE, samo pozivi prilagođeni novom potpisu (4 linije).
+  - api/telegram-new-order.ts — LOCK ZONE. Fail-closed bez `TELEGRAM_WEBHOOK_SECRET` (500, ne šalje); `crypto.timingSafeEqual` poređenje.
+  - api/_shared/public-url.test.ts, api/telegram-new-order.test.ts, src/lib/createOrderEndpoint.test.ts — +3 testa neto (Origin SSRF regresija iz audita: dokazano pada na starom kodu; required-secret slučajevi).
+  - .env.example, RUNBOOK.md, README.md — `TELEGRAM_WEBHOOK_SECRET` + `PUBLIC_SITE_URL` označeni kao obavezni.
+**Verify:**
+  build:     PASS(machine) — exit 0, 2206 modula, 7.34s (2026-10-07T10:29Z)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 22 fajla / 270 testova
+  prod DB:   PASS(machine) — SQL post-check posle migracije: INSERT politike na orders = 0; has_table_privilege anon INSERT/SELECT orders = false; authenticated INSERT orders = false; anon UPDATE menu_items/site_settings = false; anon SELECT menu_items/site_settings = true; oba CHECK-a postoje; statusi = cancelled/done/pending; proconfig search_path="" na obe funkcije; 804 porudžbine (bez gubitka). Supabase advisor: search_path upozorenja nestala (ostaje samo leaked password protection — nebitno, admin je OTP-only).
+  manual:    PASS(human) — Pavle: "vraceno i deployovano smoke prosao" (PUBLIC_SITE_URL vraćen na All Environments + preview smoke)
+  security-review: PASS — /security-review: NO FINDINGS
+  code-review:     NIJE POKRENUTO — security-review pokrenut umesto njega; Pavle potvrdio close bez njega.
+**SCOPE_DRIFT:** none — 12 fajlova = EXPECTED-FILES exact match.
+**Notes:** Migracija primenjena ručno u Supabase SQL Editoru (Pavle) — MCP `apply_migration` je 3× istekao posle 60s bez ikakvog efekta (pre/post SQL provera + pg_stat_activity prazan); verovatan uzrok: potvrda za DROP/REVOKE nije stizala na nalog. Redosled izmenjen u odnosu na ROADMAP („env → kod → migracija"): migracija prva jer nema zavisnost od koda. **Korekcija audita #5:** `PUBLIC_SITE_URL` i `TELEGRAM_WEBHOOK_SECRET` su već postojali u Vercel-u (All Environments) → Origin trik i otvoren Telegram endpoint NISU bili iskoristivi na produkciji; B22 kod je defense in depth. Pavle je usput prebacio `PUBLIC_SITE_URL` na samo Production, pa vratio na All (L2: preview self-call/callback mora na javni domen). **Izbačeno iz B22 → B26:** `shouldCreateUser:false` + Supabase signup OFF (lomi dodavanje novog osoblja — `api/admin-users.ts` pravi samo `admin_users` red, bez auth naloga); Vercel „Needs Attention" na tajnama (odvojene Production/Preview vrednosti). **Novi nalaz → B24:** `UPSTASH_REDIS_REST_URL/TOKEN` ne postoje u Vercel-u → rate limit na create-order isključen na produkciji. Lint: 2 nasleđene greške u `telegram-new-order.test.ts:47,75` ostavljene za B25 po planu. Prod smoke posle merge-a u main još nije urađen.
+
 ## B21 — 2026-07-27 — Brisanje pre-L8.4 inline cart-editing API-ja — DONE
 
 **Tier:** STANDARD
