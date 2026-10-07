@@ -5,6 +5,31 @@
 
 ---
 
+## B23a — 2026-10-07 — 50 cm + punjene ivice (Total mismatch) — DONE
+
+**Tier:** STRICT
+**SHA:** e7c907c (fix) + c6ab9c8 (ispravke iz code-review-a)
+**Branch:** claude/loving-feynman-1xgtyw (cloud sesija; merge u main radi Pavle)
+**Files (5):** +786/−57
+  - src/lib/cartDrawerHelpers.ts — obrisan `stuffedCrustPriceForSize` (hardkod 200/400). Dodati `stuffedCrustSizeOf`, `addonsForPizzaSize` (fail-closed: bez reda za 50 cm nema ivica na 50 cm) i `remapStuffedCrustForSize` (prebacuje samo ivice izabrane za drugu veličinu; količina ostaje ista, bez duplikata).
+  - src/context/CartProvider.tsx — LOCK ZONE. Obrisan `adjustAddonsForSize`. Cena dodatka se uzima kakva je stigla (ID = red u meniju, a server cenu računa po ID-u).
+  - src/components/MenuItemDetailSheet.tsx — „Dodaci" nude samo ivice za izabranu veličinu, a promena veličine prebacuje izabrane ivice. Pri izmeni stavke iz korpe ivice se usklađuju sa veličinom na kojoj se sheet otvara; dok veličina nije poznata, važi veličina stavke iz korpe. Cena na dugmetu = (osnova + dodaci) × količina (bilo: osnova × količina + dodaci).
+  - supabase/migrations/20261007120000_add_stuffed_crust_50cm.sql — NEW. Idempotentan INSERT „Ivice punjene sirom 50 cm" (400, `dodaci`, `/menu/rub.webp`). **NIJE primenjena:** ide posle deploy-a, uz Pavlov OK.
+  - src/lib/pricingParity.test.tsx — NEW (15 testova). Pravi lanac sheet → CartProvider → CartDrawer checkout (subtotal + dostava) → createOrder → api/create-order handler, nad jednim zajedničkim menijem. Negativna kontrola je razlika u ceni između klijenta i servera (baš klasa ovog buga). Uključeni su i slučajevi izmene stavke iz korpe i unit testovi helpera.
+**Verify:**
+  build:     PASS(machine) — exit 0 (2026-10-07)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 23 fajla / 282 testa (+15 B23a)
+  lint:      exit 1 — SAMO nasleđeni problemi, isti 3 kao na main: 2 greške u `api/telegram-new-order.test.ts` + warning `eslint-disable no-console` u CartProvider.tsx. Izmenjeni fajlovi: `npx eslint` exit 0.
+  repro:     pre izmene, test sa današnjim prod menijem (jedan red ivica) → server vraća `{ ok: false, error: 'Total mismatch' }`; dugme prikazuje 37,00 € umesto 42,00 €.
+  manual:    NIJE POKRENUTO — čeka merge, deploy i migraciju. Prod verifikacija se upisuje posebnim workflow commit-om (presedan B20).
+  code-review:     IZVRŠEN — 12 nalaza. Ispravljeno 5 (u c6ab9c8): ivice pri izmeni iz korpe, remap ne menja ivice koje već odgovaraju veličini, slika u migraciji, test kroz pravi CartDrawer, tačan iznos na dugmetu. Obrazloženo bez izmene 7: serverska provera veličine i strukturisana kolona → B23b; fantomska varijanta je latentna; fail-closed prozor traje do migracije; na produ proveren — nema drugog reda ivica za 50 cm; istorijski docs su van scope-a; kozmetika.
+  security-review: IZVRŠEN — bez nalaza (confidence ≥ 8).
+**SCOPE_DRIFT:** none — 5 fajlova = EXPECTED-FILES exact match (`git diff --name-only origin/main...HEAD`).
+**Notes:** Zahtev: audit #6. Fajl `docs/full-audit-2026-10.md` NE postoji u repou; nalazi su nezavisno potvrđeni u kodu i na prod bazi. Root cause: CartProvider je cenu ivica na 50 cm prepisivao na 400 (hardkod), a server dodatak naplaćuje po ID-u iz `menu_items`, gde je postojao samo red od 200 → `Total mismatch`. Prod (SELECT): stavke 50 cm + ivice po mesecima jan 1 / feb 7 / mar 1 / apr–okt 0, dok je u istom periodu bilo 177 stavki od 50 cm i ~100 stavki 33 cm + ivice. Pre aprila klijent je za ivice na 50 cm slao 400 (od 20. feb), dakle 4 € je poslovna cena. **DEPLOY ORDER (kritično): prvo kod, pa migracija.** Novi kod bez reda za 50 cm ne nudi ivice na 50 cm (fail-closed); obrnut redosled bi starom klijentu prikazao oboje ivice uz svaku picu. Odluka: serverska provera „veličina ivica = veličina pice" ide u B23b (Pavle); preostali rizik je −2 €, i to samo uz ručno menjanje zahteva. Ivice se prepoznaju po imenu, pa red za 50 cm mora da zadrži „50 cm" u imenu. Uočeno usput (van batch-a): sheet bira veličinu samo pri otvaranju, pa tap na picu pre učitavanja menija daje 33 cm bez izbora veličine; postojeći red za 33 cm ima sliku `/extras/rub.webp`, koja ne postoji u repou (vidi se u adminu). Odstupanje od workflow-a: batch je planiran kroz plan mode, a ne `/plan`, pa STATE nije imao aktivan batch; EXPECTED-FILES su uzeti iz odobrenog plana. Lokalno je postavljen `origin/HEAD → main` (potrebno za security-review skill).
+
+---
+
 ## B21 — 2026-07-27 — Brisanje pre-L8.4 inline cart-editing API-ja — DONE
 
 **Tier:** STANDARD
