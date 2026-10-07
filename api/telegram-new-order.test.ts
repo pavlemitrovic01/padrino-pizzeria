@@ -107,7 +107,9 @@ type ResMock = {
   send: (b: string) => void;
 };
 
-function buildReq(body: unknown, headers: Record<string, string> = {}) {
+const TEST_SECRET = "test-webhook-secret";
+
+function buildReq(body: unknown, headers: Record<string, string> = { "x-telegram-secret": TEST_SECRET }) {
   return { method: "POST", headers, body };
 }
 
@@ -148,6 +150,7 @@ describe("telegram-new-order — idempotent claim", () => {
     hoisted.state.updatePatches = [];
     process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
     process.env.TELEGRAM_CHAT_ID = "test-chat-id";
+    process.env.TELEGRAM_WEBHOOK_SECRET = TEST_SECRET;
     installFetch();
   });
 
@@ -211,5 +214,56 @@ describe("telegram-new-order — idempotent claim", () => {
     await handler(buildReq({}) as never, res as never);
     expect(res.statusCode).toBe(400);
     expect(fetchCount).toBe(0);
+  });
+});
+
+describe("telegram-new-order — required secret (B22)", () => {
+  beforeEach(() => {
+    hoisted.state.orders = {};
+    hoisted.state.forceClaimError = false;
+    hoisted.state.updatePatches = [];
+    process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
+    process.env.TELEGRAM_CHAT_ID = "test-chat-id";
+    process.env.TELEGRAM_WEBHOOK_SECRET = TEST_SECRET;
+    installFetch();
+    seedOrder("order-s");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("fails closed when TELEGRAM_WEBHOOK_SECRET is not set — never sends", async () => {
+    delete process.env.TELEGRAM_WEBHOOK_SECRET;
+
+    const res = buildRes();
+    await handler(buildReq({ order_id: "order-s" }) as never, res as never);
+    expect(res.statusCode).toBe(500);
+    expect(fetchCount).toBe(0);
+    expect(hoisted.state.orders["order-s"].telegram_notified_at).toBeNull();
+  });
+
+  it("rejects a request without the secret header with 401", async () => {
+    const res = buildRes();
+    await handler(buildReq({ order_id: "order-s" }, {}) as never, res as never);
+    expect(res.statusCode).toBe(401);
+    expect(fetchCount).toBe(0);
+  });
+
+  it("rejects a wrong secret (same length and different length) with 401", async () => {
+    const sameLength = "x".repeat(TEST_SECRET.length);
+    for (const wrong of [sameLength, "short", `${TEST_SECRET}-extra`]) {
+      const res = buildRes();
+      await handler(buildReq({ order_id: "order-s" }, { "x-telegram-secret": wrong }) as never, res as never);
+      expect(res.statusCode).toBe(401);
+    }
+    expect(fetchCount).toBe(0);
+  });
+
+  it("accepts the correct secret and sends", async () => {
+    const res = buildRes();
+    await handler(buildReq({ order_id: "order-s" }) as never, res as never);
+    expect(res.statusCode).toBe(200);
+    expect(fetchCount).toBe(1);
   });
 });

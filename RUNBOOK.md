@@ -69,10 +69,12 @@ Ove varijable su **server-side** i NE SMIJU imati `VITE_` prefiks:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
+- `TELEGRAM_WEBHOOK_SECRET` — nasumičan string (32+ karaktera), **Production i Preview**. Bez njega `/api/telegram-new-order` odbija svaki zahtev (fail-closed, B22) → restoran ne dobija porudžbine.
+- `PUBLIC_SITE_URL` — `https://padrinobudva.com` u **Production**. Server iz njega gradi Telegram notify URL i Bankart callback/return URL-ove; `Origin` header se nikad ne koristi (B22).
 
 **Za kartice (Bankart):** `BANKART_API_KEY`, `BANKART_API_USERNAME`, `BANKART_API_PASSWORD`, `BANKART_SHARED_SECRET`
 
-**Opcione:** `TELEGRAM_WEBHOOK_SECRET`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (rate limit), `ADMIN_FALLBACK_EMAIL`, `PUBLIC_SITE_URL`, `PAYMENTS_EDGE_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_ANON_KEY`
+**Opcione:** `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (rate limit — bez njih create-order radi bez limita), `ADMIN_FALLBACK_EMAIL`, `PAYMENTS_EDGE_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_ANON_KEY`
 
 #### Bitne napomene
 - `SUPABASE_SERVICE_ROLE_KEY` ≠ `VITE_SUPABASE_ANON_KEY`

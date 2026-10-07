@@ -286,3 +286,30 @@ describe("create-order handler — B17: active free (zero-price) addon is valid"
     expect(bodyOf(c).error).toBe("Inactive or invalid menu item");
   });
 });
+
+describe("create-order handler — B22: Origin never steers the server-side Telegram call (audit #5)", () => {
+  it("POSTs the notification to the Host domain, never to an attacker Origin", async () => {
+    vi.stubEnv("PUBLIC_SITE_URL", "");
+    vi.stubEnv("SITE_URL", "");
+    vi.stubEnv("APP_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "secret-under-test");
+    setMenuPrice("item-1", 1000);
+
+    const captured = makeRes();
+    const req = {
+      method: "POST",
+      headers: { origin: "https://attacker.example", host: "padrinobudva.com" },
+      body: validBody(),
+    };
+    await handler(req as never, captured.res as never);
+
+    expect(captured.statusCode).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls).toContain("https://padrinobudva.com/api/telegram-new-order");
+    expect(urls.some((u) => u.includes("attacker.example"))).toBe(false);
+
+    vi.unstubAllEnvs();
+  });
+});

@@ -47,9 +47,11 @@ Web aplikacija za online narudžbe pizze. Frontend (React + Vite), backend (Verc
 **Server (api/*):**
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — obavezno
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — obavezno
+- `TELEGRAM_WEBHOOK_SECRET` — obavezno (Production + Preview); bez njega Telegram notifikacije ne rade
+- `PUBLIC_SITE_URL` — obavezno u Production (`https://padrinobudva.com`)
 - `BANKART_*` — obavezno ako su kartice uključene
 - `UPSTASH_REDIS_*` — opciono, rate limiting na create-order
-- `ADMIN_FALLBACK_EMAIL`, `PUBLIC_SITE_URL`, `TELEGRAM_WEBHOOK_SECRET` — opciono
+- `ADMIN_FALLBACK_EMAIL` — opciono
 
 Detalje vidi u `.env.example` i `RUNBOOK.md`.
 
