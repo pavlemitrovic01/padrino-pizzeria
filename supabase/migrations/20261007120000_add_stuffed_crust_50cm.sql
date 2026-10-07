@@ -13,10 +13,11 @@
 -- would list both crusts on every pizza.
 --
 -- Idempotent: re-running inserts nothing. `price` mirrors `price_eur_cents`,
--- as on the existing addon rows.
+-- as on the existing addon rows. Image is the file that exists in the repo
+-- (public/menu/rub.webp) — the 33 cm row's '/extras/rub.webp' does not.
 
 INSERT INTO public.menu_items (name, description, category, price, price_eur_cents, image, is_active, sort_order)
-SELECT 'Ivice punjene sirom 50 cm', 'Ivice punjene sirom (50 cm)', 'dodaci', 400, 400, '/extras/rub.webp', true, 1
+SELECT 'Ivice punjene sirom 50 cm', 'Ivice punjene sirom (50 cm)', 'dodaci', 400, 400, '/menu/rub.webp', true, 1
 WHERE NOT EXISTS (
   SELECT 1 FROM public.menu_items WHERE name = 'Ivice punjene sirom 50 cm'
 );

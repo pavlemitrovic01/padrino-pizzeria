@@ -189,9 +189,14 @@ function SheetView(props: {
 
   const [pizzaQty, setPizzaQty] = useState(initialQty);
 
-  // Hydrate selectedAddons map from initial CartAddon[] in edit mode.
+  // Hydrate selectedAddons map from initial CartAddon[] in edit mode. When the
+  // sheet opens on a different size than the crust was picked for (the cart's
+  // size variant is no longer on the menu), the crust follows onto that size's
+  // row. Only with a known size: no size means the catalog has not loaded yet.
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddons>(() =>
-    addonsToSelected(initialAddons),
+    addonsToSelected(
+      defaultSize ? remapStuffedCrustForSize(initialAddons, addonsCatalog, defaultSize) : initialAddons,
+    ),
   );
 
   const [note, setNote] = useState(initialNote);
@@ -241,10 +246,13 @@ function SheetView(props: {
   }, [basePrice, pizzaQty, selectedAddons]);
 
   // Stuffed crust is a separate menu row per size (B23a): offer only the one
-  // that matches the selected size.
+  // that matches the selected size. Until a size is known (edit opened before
+  // the catalog loaded) the cart item's own size decides, so the crust it
+  // already carries stays listed and removable.
+  const crustSize = selectedSize ?? initialSize;
   const addonsForSize = useMemo(
-    () => addonsForPizzaSize(addonsCatalog, selectedSize),
-    [addonsCatalog, selectedSize],
+    () => addonsForPizzaSize(addonsCatalog, crustSize),
+    [addonsCatalog, crustSize],
   );
 
   const catalogLoaded =

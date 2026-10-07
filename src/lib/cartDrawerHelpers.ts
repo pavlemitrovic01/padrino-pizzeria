@@ -161,24 +161,29 @@ export function addonsForPizzaSize<T extends { name: string }>(
 }
 
 /**
- * Re-points selected stuffed crust at the row for `size` when the customer
- * switches size: id, name and price come from that row, quantity is kept. A
- * crust with no row for the new size is dropped. Other addons pass through.
+ * Re-points stuffed crust picked for the other size at the row for `size`:
+ * id, name and price come from that row, quantity is kept. A crust with no row
+ * for `size` is dropped. Other addons, and crust already on a row for `size`,
+ * pass through untouched — such a row also wins over a remapped duplicate.
  */
 export function remapStuffedCrustForSize(
   selected: ReadonlyArray<CartAddon>,
   catalog: ReadonlyArray<{ id: string; name: string; price: number }>,
   size: PizzaSize | null,
 ): CartAddon[] {
+  const crustSize: PizzaSize = size === "50" ? "50" : "33";
+  const fitsSize = (a: CartAddon) => {
+    const s = stuffedCrustSizeOf(a.name);
+    return s === null || s === crustSize;
+  };
   const target = addonsForPizzaSize(catalog, size).find((a) => stuffedCrustSizeOf(a.name) !== null);
 
   const next: CartAddon[] = [];
   for (const a of selected) {
-    if (stuffedCrustSizeOf(a.name) === null || a.id === target?.id) {
-      if (!next.some((n) => n.id === a.id)) next.push(a);
-      continue;
-    }
-    if (!target || next.some((n) => n.id === target.id)) continue;
+    if (fitsSize(a) && !next.some((n) => n.id === a.id)) next.push(a);
+  }
+  for (const a of selected) {
+    if (fitsSize(a) || !target || next.some((n) => n.id === target.id)) continue;
     next.push({ id: target.id, name: target.name, price: target.price, quantity: a.quantity });
   }
   return next;

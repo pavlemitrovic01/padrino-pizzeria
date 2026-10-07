@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import userEvent from "@testing-library/user-event";
 
@@ -13,9 +13,10 @@ import userEvent from "@testing-library/user-event";
  * the addon by id from `menu_items`, where only one 2 € crust row existed.
  * Every 50 cm + crust order since April died on `Total mismatch`.
  *
- * The chain under test is the real one end to end:
+ * The chain under test is the real one end to end — nothing in it is copied:
  *   MenuItemDetailSheet (size + addons picked by clicking)
- *     → CartProvider.addToCart (normalization, row price, totalPrice)
+ *     → CartProvider.addToCart (normalization, row price)
+ *     → CartDrawer checkout (subtotal + delivery fee, order items, submit)
  *     → createOrder() (client payload normalization + POST)
  *     → api/create-order handler (server re-pricing from menu_items)
  *
@@ -39,33 +40,51 @@ type MenuRow = {
 
 type SupabaseResult = { data: unknown; error: unknown };
 
+type ServerCall = { status: number; body: unknown; request: Record<string, unknown> };
+
 const hoisted = vi.hoisted(() => {
-  const state: { rows: unknown[]; serverCalls: { status: number; body: unknown }[] } = {
-    rows: [],
-    serverCalls: [],
-  };
+  const state: {
+    /** menu_items as the browser reads them. */
+    clientRows: unknown[];
+    /** menu_items as the server reads them; null = same as the client. */
+    serverRows: unknown[] | null;
+    /** When set, the browser's menu read waits for it (catalog still loading). */
+    catalogGate: Promise<void> | null;
+    serverCalls: ServerCall[];
+  } = { clientRows: [], serverRows: null, catalogGate: null, serverCalls: [] };
   return { state };
 });
 
-// Client side: the browser Supabase client, read by useCatalogData.
+// Client side: the browser Supabase client. menu_items feeds useCatalogData;
+// every other read (site_settings for the checkout form) fails, as in
+// CartDrawer.e2e.test.tsx, and the drawer falls back to its defaults.
 vi.mock("./supabaseClient", () => {
-  function makeQuery() {
+  function makeQuery(table: string) {
+    const failed: SupabaseResult = { data: null, error: new Error("mocked") };
     const q: Record<string, unknown> = {};
     const chain = () => q;
     q.select = chain;
     q.eq = chain;
+    q.in = chain;
     q.order = chain;
-    q.then = (onF: (v: SupabaseResult) => unknown, onR?: (e: unknown) => unknown) =>
-      Promise.resolve({ data: hoisted.state.rows, error: null }).then(onF, onR);
+    q.limit = chain;
+    q.single = () => Promise.resolve(failed);
+    q.maybeSingle = () => Promise.resolve(failed);
+    q.then = (onF: (v: SupabaseResult) => unknown, onR?: (e: unknown) => unknown) => {
+      if (table !== "menu_items") return Promise.resolve(failed).then(onF, onR);
+      return (hoisted.state.catalogGate ?? Promise.resolve())
+        .then(() => ({ data: hoisted.state.clientRows, error: null }))
+        .then(onF, onR);
+    };
     return q;
   }
-  return { supabase: { from: () => makeQuery() } };
+  return { supabase: { from: (table: string) => makeQuery(table) } };
 });
 
 // Server side: the service-role client inside api/create-order.ts
 // (builder shape: createOrderEndpoint.test.ts precedent).
 vi.mock("@supabase/supabase-js", () => {
-  function makeBuilder(result: SupabaseResult) {
+  function makeBuilder(result: () => SupabaseResult) {
     const builder: Record<string, unknown> = {};
     const chain = () => builder;
     builder.select = chain;
@@ -73,43 +92,44 @@ vi.mock("@supabase/supabase-js", () => {
     builder.in = chain;
     builder.insert = chain;
     builder.update = chain;
-    builder.single = () => Promise.resolve(result);
+    builder.single = () => Promise.resolve(result());
     builder.then = (onF: (v: SupabaseResult) => unknown, onR?: (e: unknown) => unknown) =>
-      Promise.resolve(result).then(onF, onR);
+      Promise.resolve(result()).then(onF, onR);
     return builder;
   }
 
   return {
     createClient: () => ({
       from: (table: string) => {
-        if (table === "menu_items") return makeBuilder({ data: hoisted.state.rows, error: null });
-        if (table === "orders") return makeBuilder({ data: { id: "order-parity" }, error: null });
-        return makeBuilder({ data: [], error: null });
+        if (table === "menu_items") {
+          return makeBuilder(() => ({
+            data: hoisted.state.serverRows ?? hoisted.state.clientRows,
+            error: null,
+          }));
+        }
+        if (table === "orders") return makeBuilder(() => ({ data: { id: "order-parity" }, error: null }));
+        return makeBuilder(() => ({ data: [], error: null }));
       },
     }),
   };
 });
 
-vi.mock("./analytics", () => ({
-  trackAddToCart: vi.fn(),
-  trackRemoveFromCart: vi.fn(),
-  trackAddPaymentInfo: vi.fn(),
-}));
+// Side channels, not the subject: GA4 and the Bankart card SDK (cash orders only).
+vi.mock("./analytics");
+vi.mock("./bankartPaymentJs");
 
 import handler from "../../api/create-order";
+import CartDrawer from "../components/CartDrawer";
 import MenuItemDetailSheet from "../components/MenuItemDetailSheet";
 import { CartProvider } from "../context/CartProvider";
 import { useCart } from "../context/useCart";
-import type { CartContextType } from "../context/CartContext";
-import { createOrder, type CreateOrderPayload } from "./createOrder";
+import type { CartAddon, CartContextType, CartItem, PizzaSize } from "../context/CartContext";
 import {
   addonsForPizzaSize,
-  buildImageCandidates,
-  isDrinkCategory,
   remapStuffedCrustForSize,
   stuffedCrustSizeOf,
 } from "./cartDrawerHelpers";
-import { formatEUR, toSafeInt } from "./money";
+import { formatEUR } from "./money";
 
 function row(id: string, name: string, category: string, cents: number): MenuRow {
   return {
@@ -175,9 +195,9 @@ function makeRes(): CapturedRes {
 async function bridgeFetch(input: unknown, init?: { body?: unknown }) {
   if (String(input).endsWith("/create-order")) {
     const c = makeRes();
-    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-    await handler({ method: "POST", headers: {}, body }, c.res);
-    hoisted.state.serverCalls.push({ status: c.statusCode, body: c.body });
+    const request = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    await handler({ method: "POST", headers: {}, body: request }, c.res);
+    hoisted.state.serverCalls.push({ status: c.statusCode, body: c.body, request });
     return {
       ok: c.statusCode >= 200 && c.statusCode < 300,
       status: c.statusCode,
@@ -226,13 +246,15 @@ function Sheet() {
 /**
  * The sheet is keyed per pizza so a second configuration starts from a fresh
  * sheet (an outer key change unmounts it outright — no exit animation left
- * in the DOM), while CartProvider above it keeps the cart.
+ * in the DOM), while CartProvider above it keeps the cart. CartDrawer is the
+ * real checkout; it renders nothing until the cart is opened.
  */
 function App({ sheetKey }: { sheetKey: number }) {
   return (
     <CartProvider>
       <CartProbe />
       <Sheet key={sheetKey} />
+      <CartDrawer />
     </CartProvider>
   );
 }
@@ -242,20 +264,25 @@ function currentCart(): CartContextType {
   return cartRef.current;
 }
 
+/** Lets pending catalog reads resolve and React settle. */
+async function flush() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
 /**
  * Lets the closed sheet's catalog load, then taps the pizza — the sheet picks
  * its default size on open, from the variants it has at that moment.
  */
 async function sheetReady() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
+  await flush();
   await userEvent.click(screen.getByRole("button", { name: "Otvori picu" }));
   await screen.findByRole("button", { name: /^50 cm/ });
   await screen.findByText("Bbq");
 }
 
-async function pickSize(size: "33" | "50") {
+async function pickSize(size: PizzaSize) {
   await userEvent.click(screen.getByRole("button", { name: new RegExp(`^${size} cm`) }));
 }
 
@@ -264,13 +291,14 @@ async function pickAddon(name: string) {
 }
 
 function ctaButton() {
-  return screen.getByRole("button", { name: /Dodaj u porudžbinu/ });
+  return screen.getByRole("button", { name: /^(Dodaj u porudžbinu|Sačuvaj izmene)/ });
 }
 
-/** formatEUR uses a no-break space; compare amounts with whitespace collapsed. */
+/** The CTA reads "<label> — <total>"; formatEUR uses a no-break space. */
 function expectCtaTotal(cents: number) {
   const collapse = (s: string) => s.replace(/\s+/g, " ").trim();
-  expect(collapse(ctaButton().textContent ?? "")).toContain(collapse(formatEUR(cents)));
+  const shown = collapse(ctaButton().textContent ?? "").split(" — ")[1];
+  expect(shown).toBe(collapse(formatEUR(cents)));
 }
 
 async function confirmSheet() {
@@ -278,59 +306,36 @@ async function confirmSheet() {
 }
 
 /**
- * Cart → order items, mirroring the inline mapping in CartDrawer.tsx
- * (handleSubmit, `items: items.map(...)`). CartDrawer is a lock zone, so the
- * mapping is copied here rather than extracted.
+ * Checks the cart out through the real CartDrawer (cash) and returns what the
+ * server answered. `payDelivery` takes the "Doplati" path for a zone whose
+ * free-delivery minimum the cart does not reach.
  */
-function orderPayload(totalPrice: number): CreateOrderPayload {
-  const { items, totalItems } = currentCart();
-  return {
-    customer_name: "Test Kupac",
-    customer_phone: "+38269000000",
-    customer_address: "Slobode 10, Budva",
-    total_price: totalPrice,
-    total_items: totalItems,
-    note: null,
-    payment_method: "cash",
-    items: items.map((it) => {
-      const drink = isDrinkCategory(it.category ?? "");
-      const addons = drink ? [] : (it.addons ?? []);
+async function checkout(zone: RegExp = /budva/i, payDelivery = false): Promise<ServerCall> {
+  hoisted.state.serverCalls.length = 0;
+  await act(async () => {
+    currentCart().openCart();
+  });
 
-      const addonsTotal = addons.reduce((s, a) => s + toSafeInt(a.price, 0) * (a.quantity ?? 1), 0);
-      const basePrice = toSafeInt(it.basePrice, toSafeInt(it.price, 0));
-      const rawSize = it.size ?? null;
-      const size: "33" | "50" | null = rawSize === "33" || rawSize === "50" ? rawSize : null;
-      const image =
-        String(it.image ?? "").trim() || buildImageCandidates(null, it.name)[0] || "/menu/padrino.webp";
+  await userEvent.click(await screen.findByRole("button", { name: /poruči/i }));
+  await userEvent.type(screen.getByPlaceholderText("Npr. Petar Petrovic"), "Petar Petrovic");
+  await userEvent.type(screen.getByPlaceholderText("+382..."), "+38269000000");
+  await userEvent.type(screen.getByPlaceholderText("Ulica i broj"), "Slobode 10");
+  await userEvent.click(screen.getByRole("button", { name: /izaberi zonu/i }));
+  await userEvent.click(screen.getByRole("option", { name: zone }));
+  if (payDelivery) await userEvent.click(screen.getByRole("button", { name: /doplati/i }));
 
-      return {
-        cart_id: it.id,
-        menu_item_id: it.menuItemId ?? null,
-        name: it.name,
-        size,
-        quantity: toSafeInt(it.quantity, 1),
-        base_price: basePrice,
-        price_per_item: basePrice + addonsTotal,
-        addons: addons.map((a) => ({
-          id: a.id,
-          name: a.name,
-          price: toSafeInt(a.price, 0),
-          quantity: a.quantity ?? 1,
-        })),
-        note: it.note ?? null,
-        image,
-        category: it.category ?? "",
-      };
-    }),
-  };
+  const form = document.querySelector("form");
+  expect(form).not.toBeNull();
+  fireEvent.submit(form!);
+
+  await waitFor(() => expect(hoisted.state.serverCalls).toHaveLength(1));
+  return hoisted.state.serverCalls[0];
 }
 
-/** Sends the cart at its own total; returns what the server answered. */
-async function placeOrder(totalPrice = currentCart().totalPrice) {
-  hoisted.state.serverCalls.length = 0;
-  await createOrder(orderPayload(totalPrice)).catch(() => null);
-  expect(hoisted.state.serverCalls).toHaveLength(1);
-  return hoisted.state.serverCalls[0];
+function expectAccepted(call: ServerCall, totalCents: number) {
+  expect(call.request.total_eur_cents).toBe(totalCents);
+  expect(call.body).toEqual(expect.objectContaining({ ok: true }));
+  expect(call.status).toBe(200);
 }
 
 function lastAddons() {
@@ -339,7 +344,9 @@ function lastAddons() {
 }
 
 beforeEach(() => {
-  hoisted.state.rows = [...MENU_ROWS];
+  hoisted.state.clientRows = [...MENU_ROWS];
+  hoisted.state.serverRows = null;
+  hoisted.state.catalogGate = null;
   hoisted.state.serverCalls.length = 0;
   cartRef.current = null;
   vi.stubGlobal("fetch", vi.fn(bridgeFetch));
@@ -350,7 +357,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("B23a — sheet, cart and server agree on what a cart costs", () => {
+describe("B23a — sheet, cart, checkout and server agree on what a cart costs", () => {
   it("50 cm + stuffed crust: the 50 cm crust row is sent and the server accepts the total", async () => {
     render(<App sheetKey={1} />);
     await sheetReady();
@@ -367,12 +374,10 @@ describe("B23a — sheet, cart and server agree on what a cart costs", () => {
     ]);
     expect(currentCart().totalPrice).toBe(expected);
 
-    const server = await placeOrder();
-    expect(server.status).toBe(200);
-    expect((server.body as Record<string, unknown>).ok).toBe(true);
+    expectAccepted(await checkout(), expected);
   });
 
-  it("50 cm × 2 with crust and a sauce: the sheet shows (base + addons) × qty, same as cart and server", async () => {
+  it("50 cm × 2 with crust and a sauce: the sheet shows (base + addons) × qty, same as checkout and server", async () => {
     render(<App sheetKey={1} />);
     await sheetReady();
 
@@ -387,8 +392,7 @@ describe("B23a — sheet, cart and server agree on what a cart costs", () => {
     await confirmSheet();
     expect(currentCart().totalPrice).toBe(expected);
 
-    const server = await placeOrder();
-    expect(server.status).toBe(200);
+    expectAccepted(await checkout(), expected);
   });
 
   it("crust picked on 33 cm follows the switch to 50 cm (id and price swap, qty kept)", async () => {
@@ -412,11 +416,10 @@ describe("B23a — sheet, cart and server agree on what a cart costs", () => {
       { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 2 },
     ]);
 
-    const server = await placeOrder();
-    expect(server.status).toBe(200);
+    expectAccepted(await checkout(), expected);
   });
 
-  it("33 cm + stuffed crust stays on the 33 cm crust row (regression guard)", async () => {
+  it("33 cm + stuffed crust with a paid delivery: crust row and delivery fee both match the server", async () => {
     render(<App sheetKey={1} />);
     await sheetReady();
 
@@ -424,16 +427,16 @@ describe("B23a — sheet, cart and server agree on what a cart costs", () => {
     expect(screen.queryByText("Ivice punjene sirom 50 cm")).toBeNull();
     await pickAddon("Ivice punjene sirom");
 
-    const expected = 900 + 200;
-    expectCtaTotal(expected);
+    const subtotal = 900 + 200;
+    expectCtaTotal(subtotal);
 
     await confirmSheet();
     expect(lastAddons()).toEqual([
       { id: "crust-33", name: "Ivice punjene sirom", price: 200, quantity: 1 },
     ]);
 
-    const server = await placeOrder();
-    expect(server.status).toBe(200);
+    // Bečići: 3 € delivery below the 15 € free-delivery minimum.
+    expectAccepted(await checkout(/bečići/i, true), subtotal + 300);
   });
 
   it("33 cm + crust and 50 cm + crust in one order: the server accepts the mixed cart", async () => {
@@ -450,26 +453,32 @@ describe("B23a — sheet, cart and server agree on what a cart costs", () => {
     await confirmSheet();
 
     await waitFor(() => expect(currentCart().items).toHaveLength(2));
-    expect(currentCart().totalPrice).toBe(900 + 200 + 1600 + 400);
+    const expected = 900 + 200 + 1600 + 400;
+    expect(currentCart().totalPrice).toBe(expected);
 
-    const server = await placeOrder();
-    expect(server.status).toBe(200);
+    expectAccepted(await checkout(), expected);
   });
 
-  it("negative control: a total that differs from the server's recompute is rejected", async () => {
+  it("negative control: when the client's price for a row differs from the server's, checkout is rejected", async () => {
+    // The B23a bug class: the client believes the 50 cm crust costs 4 €, the
+    // server's menu_items row says 2 €.
+    hoisted.state.serverRows = MENU_ROWS.map((r) =>
+      r.id === CRUST_50.id ? { ...r, price: 200, price_eur_cents: 200 } : r,
+    );
+
     render(<App sheetKey={1} />);
     await sheetReady();
     await pickSize("50");
     await pickAddon("Ivice punjene sirom 50 cm");
     await confirmSheet();
 
-    const server = await placeOrder(currentCart().totalPrice + 100);
-    expect(server.status).toBe(400);
-    expect((server.body as Record<string, unknown>).error).toBe("Total mismatch");
+    const call = await checkout();
+    expect(call.status).toBe(400);
+    expect(call.body).toEqual(expect.objectContaining({ error: "Total mismatch" }));
   });
 
   it("no 50 cm crust row in the menu: crust is not offered on 50 cm, still offered on 33 cm", async () => {
-    hoisted.state.rows = MENU_ROWS.filter((r) => r.id !== CRUST_50.id);
+    hoisted.state.clientRows = MENU_ROWS.filter((r) => r.id !== CRUST_50.id);
 
     render(<App sheetKey={1} />);
     await sheetReady();
@@ -479,6 +488,82 @@ describe("B23a — sheet, cart and server agree on what a cart costs", () => {
 
     await pickSize("33");
     expect(screen.getByText("Ivice punjene sirom")).toBeInTheDocument();
+  });
+});
+
+// ─── Edit-reopen (CartDrawer → sheet pre-filled from a cart row) ─────────────
+
+const EDITED_50: { size: PizzaSize; addons: CartAddon[] } = {
+  size: "50",
+  addons: [{ id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 1 }],
+};
+
+/**
+ * What CartDrawer passes when a 50 cm + crust row is edited: the row as a menu
+ * item (size-stripped name, its own base price) plus its size and addons. The
+ * sheet wrapper is mounted closed; tapping "Uredi" opens it.
+ */
+function EditSheet({ onConfirm }: { onConfirm: (ci: CartItem) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Uredi
+      </button>
+      <MenuItemDetailSheet
+        item={open ? { ...PIZZA_50, name: "Kapričoza" } : null}
+        isHalal={false}
+        onClose={() => setOpen(false)}
+        onConfirm={onConfirm}
+        editingCartItemId="row-1"
+        initialSize={EDITED_50.size}
+        initialQty={1}
+        initialAddons={EDITED_50.addons}
+        initialNote=""
+      />
+    </>
+  );
+}
+
+describe("B23a — edit-reopen keeps the crust matched to the size", () => {
+  it("50 cm variant gone from the menu: the sheet opens on 33 cm and the crust moves to the 33 cm row", async () => {
+    hoisted.state.clientRows = MENU_ROWS.filter((r) => r.id !== PIZZA_50.id);
+    const onConfirm = vi.fn();
+
+    render(<EditSheet onConfirm={onConfirm} />);
+    await flush();
+    await userEvent.click(screen.getByRole("button", { name: "Uredi" }));
+    await screen.findByText("Bbq");
+
+    expect(screen.queryByText("Ivice punjene sirom 50 cm")).toBeNull();
+    expect(screen.getByText("Ivice punjene sirom")).toBeInTheDocument();
+    expectCtaTotal(900 + 200);
+
+    await confirmSheet();
+    const confirmed = onConfirm.mock.calls[0][0] as CartItem;
+    expect(confirmed.addons).toEqual([
+      { id: "crust-33", name: "Ivice punjene sirom", price: 200, quantity: 1 },
+    ]);
+  });
+
+  it("edit opened before the catalog loaded: the crust the row carries stays listed and selected", async () => {
+    let release: () => void = () => {};
+    hoisted.state.catalogGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    render(<EditSheet onConfirm={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Uredi" }));
+    await act(async () => {
+      release();
+    });
+    await screen.findByText("Bbq");
+
+    // The 50 cm crust the row carries is the one listed (selected → stepper);
+    // the 33 cm crust is not offered next to it.
+    expect(screen.getByText("Ivice punjene sirom 50 cm")).toBeInTheDocument();
+    expect(screen.queryByText("Ivice punjene sirom")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Smanji" })).toHaveLength(2); // pizza + crust
   });
 });
 
@@ -513,11 +598,17 @@ describe("B23a — stuffed crust per size helpers", () => {
       { id: "krofne", name: "Krofne", price: 200, quantity: 1 },
     ];
     expect(remapStuffedCrustForSize(selected, catalog, "50")).toEqual([
-      { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 2 },
       { id: "krofne", name: "Krofne", price: 200, quantity: 1 },
+      { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 2 },
     ]);
     // Already on the right row: unchanged.
     expect(remapStuffedCrustForSize(selected, catalog, "33")).toEqual(selected);
+  });
+
+  it("remapStuffedCrustForSize never replaces a crust already on a row for the size", () => {
+    const withKulen = [...catalog, { id: "crust-kulen", name: "Punjene ivice sa kulenom", price: 300 }];
+    const selected = [{ id: "crust-kulen", name: "Punjene ivice sa kulenom", price: 300, quantity: 1 }];
+    expect(remapStuffedCrustForSize(selected, withKulen, "33")).toEqual(selected);
   });
 
   it("remapStuffedCrustForSize drops the crust when the new size has no row, and never duplicates an id", () => {
@@ -525,12 +616,13 @@ describe("B23a — stuffed crust per size helpers", () => {
     const selected = [{ id: "crust-33", name: "Ivice punjene sirom", price: 200, quantity: 1 }];
     expect(remapStuffedCrustForSize(selected, without50, "50")).toEqual([]);
 
+    // The row that already matched wins over the remapped duplicate.
     const both = [
       { id: "crust-33", name: "Ivice punjene sirom", price: 200, quantity: 1 },
       { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 3 },
     ];
     expect(remapStuffedCrustForSize(both, catalog, "50")).toEqual([
-      { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 1 },
+      { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 3 },
     ]);
   });
 });
