@@ -1,8 +1,15 @@
 import crypto from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createClient } from "@supabase/supabase-js";
-import { buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, safeNumber } from "./_shared/parsing.js";
+import {
+  amountMismatchNote,
+  bankartAmountMatches,
+  debitTransition,
+  writeIfPaymentStatusUnchanged,
+} from "./_shared/payment-status.js";
+import { notifyNewOrder } from "./_shared/telegram.js";
+import { createBankartSignature, safeJsonParse } from "./_shared/bankart-debit.js";
+import { buildSupabaseAdmin, getFirstEnv } from "./_shared/env.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -34,6 +41,8 @@ type BankartCallbackBody = {
 type OrderRow = {
   id: string;
   status: string | null;
+  total_eur_cents: number | null;
+  currency: string | null;
   payment_method: string | null;
   payment_status: string | null;
   payment_provider: string | null;
@@ -57,36 +66,7 @@ function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
-
-function getFirstEnv(...names: string[]): string {
-  for (const name of names) {
-    const value = getEnv(name);
-    if (value) return value;
-  }
-  return "";
-}
-
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-    getEnv("SUPABASE_SERVICE_KEY") ||
-    getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/bankart-callback" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
+const supabase = buildSupabaseAdmin("bankart-callback");
 
 function headerString(req: ReqLike, key: string): string {
   const raw = req.headers?.[key.toLowerCase()];
@@ -120,40 +100,6 @@ async function readRawBody(req: ReqLike): Promise<string> {
   });
 }
 
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-
-async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
-  const url = buildTelegramPayload(req.headers, orderId, { trustOriginHeader: false }).notify_url;
-
-  const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (secret) headers["x-telegram-secret"] = secret;
-
-  const controller = new AbortController();
-  const timeoutMs = 12000;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ order_id: orderId }),
-      signal: controller.signal,
-    });
-  } catch {
-    // best effort
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 function getRequestUri(req: ReqLike): string {
   const rawUrl = toTrimmedString(req.url);
   if (!rawUrl) return "/api/bankart-callback";
@@ -166,18 +112,9 @@ function getRequestUri(req: ReqLike): string {
   }
 }
 
-export function createBankartSignature(
-  sharedSecret: string,
-  method: string,
-  contentType: string,
-  dateHeader: string,
-  requestUri: string,
-  bodyText: string,
-): string {
-  const bodyHash = crypto.createHash("sha512").update(bodyText, "utf8").digest("hex");
-  const message = [method.toUpperCase(), bodyHash, contentType, dateHeader, requestUri].join("\n");
-  return crypto.createHmac("sha512", sharedSecret).update(message, "utf8").digest("base64");
-}
+// Same HMAC as the debit request (api/_shared/bankart-debit.ts); re-exported for
+// the callback tests.
+export { createBankartSignature };
 
 export function safeEqualSignature(a: string, b: string): boolean {
   const left = Buffer.from(a, "utf8");
@@ -226,6 +163,9 @@ export function verifyBankartCallbackSignature(req: ReqLike, rawBody: string): {
   return { ok: true };
 }
 
+const ORDER_COLUMNS =
+  "id,status,total_eur_cents,currency,payment_method,payment_status,payment_provider,payment_reference,payment_meta";
+
 async function findOrderForCallback(callback: BankartCallbackBody): Promise<OrderRow | null> {
   const merchantTransactionId = toTrimmedString(callback.merchantTransactionId);
   const merchantMetaData = toTrimmedString(callback.merchantMetaData);
@@ -236,7 +176,7 @@ async function findOrderForCallback(callback: BankartCallbackBody): Promise<Orde
   for (const candidate of candidates) {
     const { data, error } = await supabase
       .from("orders")
-      .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+      .select(ORDER_COLUMNS)
       .eq("id", candidate)
       .maybeSingle();
 
@@ -248,7 +188,7 @@ async function findOrderForCallback(callback: BankartCallbackBody): Promise<Orde
   if (uuid) {
     const { data, error } = await supabase
       .from("orders")
-      .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+      .select(ORDER_COLUMNS)
       .eq("payment_reference", uuid)
       .maybeSingle();
 
@@ -261,7 +201,7 @@ async function findOrderForCallback(callback: BankartCallbackBody): Promise<Orde
   if (referenceUuid && referenceUuid !== uuid) {
     const { data, error } = await supabase
       .from("orders")
-      .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+      .select(ORDER_COLUMNS)
       .eq("payment_reference", referenceUuid)
       .maybeSingle();
 
@@ -275,7 +215,7 @@ async function findOrderForCallback(callback: BankartCallbackBody): Promise<Orde
   if (embeddedUuid && embeddedUuid !== merchantTransactionId) {
     const { data, error } = await supabase
       .from("orders")
-      .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+      .select(ORDER_COLUMNS)
       .eq("id", embeddedUuid)
       .maybeSingle();
 
@@ -291,7 +231,7 @@ async function findOrderForCallback(callback: BankartCallbackBody): Promise<Orde
     if (purchaseIdSuffix && purchaseIdSuffix !== uuid) {
       const { data, error } = await supabase
         .from("orders")
-        .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+        .select(ORDER_COLUMNS)
         .eq("payment_reference", purchaseIdSuffix)
         .maybeSingle();
 
@@ -342,7 +282,7 @@ async function updateOrderAfterCallback(
   order: OrderRow,
   callback: BankartCallbackBody,
   rawBody: string,
-): Promise<{ shouldNotifyTelegram: boolean }> {
+): Promise<{ shouldNotifyTelegram: boolean; written: boolean }> {
   const result = toTrimmedString(callback.result).toUpperCase();
   const transactionType = toTrimmedString(callback.transactionType).toUpperCase();
   const uuid = toTrimmedString(callback.uuid);
@@ -357,16 +297,21 @@ async function updateOrderAfterCallback(
   let shouldNotifyTelegram = false;
 
   if (transactionType === "DEBIT") {
-    if (result === "OK") {
-      patch.payment_status = "paid";
-      if (order.payment_status !== "paid") {
-        shouldNotifyTelegram = true;
-      }
-    } else if (result === "ERROR") {
-      patch.payment_status = "failed";
-      patch.status = "cancelled";
-    } else if (result === "PENDING") {
-      patch.payment_status = "pending";
+    // B24: status only moves forward (a late PENDING/ERROR never un-pays an
+    // order), and an OK for an amount the server did not charge is not paid.
+    if (result === "OK" && !bankartAmountMatches(order, callback)) {
+      console.error("[bankart-callback] amount/currency mismatch, not marking paid", {
+        orderId: order.id,
+        amount: callback.amount,
+        currency: callback.currency,
+      });
+      patch.payment_meta = { ...(patch.payment_meta as JsonRecord), amount_check: amountMismatchNote(callback) };
+    } else if (result === "OK" || result === "ERROR" || result === "PENDING") {
+      const t = debitTransition(order.payment_status, result === "OK" ? "ok" : result === "ERROR" ? "error" : "pending");
+      if (t.paymentStatus !== order.payment_status) patch.payment_status = t.paymentStatus;
+      if (t.cancel) patch.status = "cancelled";
+      if (t.reopen && order.status === "cancelled") patch.status = "pending";
+      shouldNotifyTelegram = t.becamePaid;
     }
   } else if (transactionType === "REFUND") {
     if (result === "OK") {
@@ -389,12 +334,8 @@ async function updateOrderAfterCallback(
     }
   }
 
-  const { error } = await supabase.from("orders").update(patch).eq("id", order.id);
-  if (error) {
-    throw new Error(`DB update failed (${error.message})`);
-  }
-
-  return { shouldNotifyTelegram };
+  const written = await writeIfPaymentStatusUnchanged(supabase, order.id, order.payment_status, patch);
+  return { shouldNotifyTelegram: written && shouldNotifyTelegram, written };
 }
 
 export default async function handler(req: ReqLike, res: ResLike) {
@@ -425,15 +366,23 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return sendText(res, 200, "OK");
     }
 
-    const { shouldNotifyTelegram } = await updateOrderAfterCallback(order, callback, rawBody);
+    // Compare-and-set: if the poll or create-order changed the payment status
+    // after we read it, read it again and decide on the fresh row (once).
+    const first = await updateOrderAfterCallback(order, callback, rawBody);
+    let { shouldNotifyTelegram } = first;
+    if (!first.written) {
+      const { data: fresh } = await supabase.from("orders").select(ORDER_COLUMNS).eq("id", order.id).maybeSingle();
+      if (fresh) ({ shouldNotifyTelegram } = await updateOrderAfterCallback(fresh as OrderRow, callback, rawBody));
+    }
 
     if (shouldNotifyTelegram) {
-      await bestEffortTelegramNotify(req, order.id);
+      await notifyNewOrder(supabase, order.id);
     }
 
     return sendText(res, 200, "OK");
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown callback error";
-    return sendText(res, 500, message);
+    // L5: the detail goes to the log, not to the caller.
+    console.error("[bankart-callback] failed:", err);
+    return sendText(res, 500, "Internal error");
   }
 }

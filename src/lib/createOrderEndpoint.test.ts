@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { afterEach, describe, it, expect, beforeEach, vi } from "vitest";
 
 /**
  * E1 — api/create-order.ts hostile-input characterization (server-side).
@@ -29,16 +29,23 @@ vi.mock("@supabase/supabase-js", () => {
   function makeBuilder(result: SupabaseResult) {
     const builder: Record<string, unknown> = {};
     const chain = () => builder;
+    let claim = false;
     builder.select = chain;
     builder.eq = chain;
     builder.in = chain;
+    // Telegram send claim (api/_shared/telegram.ts): update().eq().is().select("*")
+    // answers with the claimed row.
+    builder.is = () => {
+      claim = true;
+      return builder;
+    };
     builder.insert = chain;
     builder.update = chain;
     builder.single = () => Promise.resolve(result);
     builder.then = (
       onF: (v: SupabaseResult) => unknown,
       onR?: (e: unknown) => unknown,
-    ) => Promise.resolve(result).then(onF, onR);
+    ) => Promise.resolve(claim ? { data: [{ id: "claimed", items: [] }], error: null } : result).then(onF, onR);
     return builder;
   }
 
@@ -105,6 +112,7 @@ function validBody(overrides: Partial<Body> = {}): Body {
     customer_phone: "0671234567",
     customer_address: "Jadranski put 1, Budva",
     payment_method: "cash",
+    delivery_zone: "budva", // free delivery (B23e: the server prices delivery from the zone)
     items: [validItem],
     total_eur_cents: 2000, // 2 x 1000
     ...overrides,
@@ -284,5 +292,35 @@ describe("create-order handler — B17: active free (zero-price) addon is valid"
     await handler(makeReq(validBody({ items: [itemWithFreeAddon], total_eur_cents: 2000 })), c.res);
     expect(c.statusCode).toBe(400);
     expect(bodyOf(c).error).toBe("Inactive or invalid menu item");
+  });
+});
+
+describe("create-order handler — Origin never steers a server-side call (B22 audit #5, B24)", () => {
+  it("sends the kitchen message straight to Telegram — no self-HTTP call an Origin could redirect", async () => {
+    vi.stubEnv("PUBLIC_SITE_URL", "");
+    vi.stubEnv("SITE_URL", "");
+    vi.stubEnv("APP_URL", "");
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-bot-token");
+    vi.stubEnv("TELEGRAM_CHAT_ID", "test-chat-id");
+    setMenuPrice("item-1", 1000);
+
+    const captured = makeRes();
+    const req = {
+      method: "POST",
+      headers: { origin: "https://attacker.example", host: "padrinobudva.com" },
+      body: validBody(),
+    };
+    await handler(req as never, captured.res as never);
+
+    expect(captured.statusCode).toBe(200);
+    const fetchMock = vi.mocked(fetch);
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls).toEqual(["https://api.telegram.org/bottest-bot-token/sendMessage"]);
+    expect(urls.some((u) => u.includes("attacker.example"))).toBe(false);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 });

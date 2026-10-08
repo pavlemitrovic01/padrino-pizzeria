@@ -129,6 +129,11 @@ import {
   stuffedCrustSizeOf as serverStuffedCrustSizeOf,
 } from "../../api/_shared/stuffed-crust";
 import { displayNameOfMenuRow, pizzaSizeOfName } from "../../api/_shared/menu-display";
+import {
+  DELIVERY_ZONES as SERVER_DELIVERY_ZONES,
+  formatDeliveryFee,
+} from "../../api/_shared/delivery-zones";
+import { DELIVERY_ZONES } from "./config";
 import CartDrawer from "../components/CartDrawer";
 import MenuItemDetailSheet from "../components/MenuItemDetailSheet";
 import { CartProvider } from "../context/CartProvider";
@@ -136,6 +141,7 @@ import { useCart } from "../context/useCart";
 import type { CartAddon, CartContextType, CartItem, PizzaSize } from "../context/CartContext";
 import {
   addonsForPizzaSize,
+  formatFeeEurShort,
   parsePizzaSizeFromName,
   remapStuffedCrustForSize,
   stripPizzaSizeFromName,
@@ -687,6 +693,7 @@ describe("B23b — client and server read crust and pizza sizes the same way", (
           customer_phone: "0671234567",
           customer_address: "Jadranski put 1, Budva",
           payment_method: "cash",
+          delivery_zone: "budva",
           items: [
             {
               cart_id: "kap-50",
@@ -776,4 +783,21 @@ describe("B23d — the server stores what an honest cart sends, read from the me
       expect.objectContaining({ name: "Kapričoza", size: "33", base_price: 900, price_per_item: 900, addons: [] }),
     ]);
   });
+});
+
+describe("B23e — client and server hold the same delivery zones", () => {
+  // The server charges delivery from its own copy of the zone table
+  // (api/_shared/delivery-zones.ts). If the copies drift, the server rejects
+  // honest carts with "Total mismatch" or charges a fee the customer never saw.
+  it("same keys, labels, minimums and fees, in the same order", () => {
+    expect(SERVER_DELIVERY_ZONES.map((z) => ({ ...z }))).toEqual(DELIVERY_ZONES.map((z) => ({ ...z })));
+  });
+
+  it.each(DELIVERY_ZONES.map((z) => [z.key, z.feeCents] as const))(
+    "the kitchen reads the same fee text for %s",
+    (_key, fee) => {
+      expect(formatDeliveryFee(fee)).toBe(formatFeeEurShort(fee));
+      expect(formatDeliveryFee(0)).toBe(formatFeeEurShort(0));
+    },
+  );
 });

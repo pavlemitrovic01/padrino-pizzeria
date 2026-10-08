@@ -10,6 +10,7 @@ const hoisted = vi.hoisted(() => {
     tableResults: {} as Record<string, { data: unknown; error: unknown }>,
     lastUpdatePatch: null as Record<string, unknown> | null,
     updateCallCount: 0,
+    casMisses: 0,
   };
   return { state };
 });
@@ -20,6 +21,16 @@ vi.mock("@supabase/supabase-js", () => {
   function makeUpdateEqBuilder(): Record<string, unknown> {
     const b: Record<string, unknown> = {};
     b.eq = () => b;
+    // Telegram claim and the compare-and-set payment write both end in
+    // .select(); casMisses makes the next N payment writes match no row.
+    b.is = () => b;
+    b.select = () => {
+      if (hoisted.state.casMisses > 0) {
+        hoisted.state.casMisses--;
+        return Promise.resolve({ data: [], error: null });
+      }
+      return Promise.resolve({ data: [{ id: "claimed" }], error: null });
+    };
     b.then = (
       onF: (v: { data: unknown; error: unknown }) => unknown,
       onR?: (e: unknown) => unknown,
@@ -35,8 +46,11 @@ vi.mock("@supabase/supabase-js", () => {
     b.maybeSingle = () => Promise.resolve(result);
     b.single = () => Promise.resolve(result);
     b.update = (patch: Record<string, unknown>) => {
-      hoisted.state.lastUpdatePatch = { ...patch };
-      hoisted.state.updateCallCount++;
+      // The Telegram claim/release is not the payment update under test.
+      if (!("telegram_notified_at" in patch)) {
+        hoisted.state.lastUpdatePatch = { ...patch };
+        hoisted.state.updateCallCount++;
+      }
       return makeUpdateEqBuilder();
     };
     b.then = (
@@ -130,6 +144,8 @@ function makeSignedReq(rawBody: string): ReqLike {
 const pendingOrder = {
   id: "order-test-1",
   status: "pending",
+  total_eur_cents: 2500,
+  currency: "EUR",
   payment_method: "bankart",
   payment_status: "pending",
   payment_provider: null,
@@ -141,6 +157,9 @@ beforeEach(() => {
   hoisted.state.tableResults = {};
   hoisted.state.lastUpdatePatch = null;
   hoisted.state.updateCallCount = 0;
+  hoisted.state.casMisses = 0;
+  process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
+  process.env.TELEGRAM_CHAT_ID = "test-chat-id";
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }),
@@ -351,7 +370,8 @@ describe("handler integration — Bankart callback payment→DB flow", () => {
     await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
 
     expect(res.statusCode).toBe(200);
-    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
+    // B24: already paid stays paid — the patch carries only the callback meta.
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBeUndefined();
     expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
   });
 
@@ -465,5 +485,76 @@ describe("handler integration — refund/chargeback flow", () => {
     expect(res.statusCode).toBe(200);
     expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
     expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+  });
+});
+
+describe("handler — payment status only moves forward, and only for the charged amount (B24)", () => {
+  async function callback(order: Record<string, unknown>, body: Record<string, unknown>) {
+    hoisted.state.tableResults.orders = { data: order, error: null };
+    const rawBody = JSON.stringify({ transactionType: "DEBIT", merchantTransactionId: pendingOrder.id, uuid: "u", ...body });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+    return res;
+  }
+
+  function telegramCalls() {
+    return (fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+  }
+
+  it("a late DEBIT/PENDING never turns a paid order back into pending", async () => {
+    const res = await callback({ ...pendingOrder, payment_status: "paid" }, { result: "PENDING" });
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBeUndefined();
+    expect(hoisted.state.lastUpdatePatch?.status).toBeUndefined();
+  });
+
+  it("a late DEBIT/ERROR never fails or cancels a paid order", async () => {
+    await callback({ ...pendingOrder, payment_status: "paid" }, { result: "ERROR" });
+
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBeUndefined();
+    expect(hoisted.state.lastUpdatePatch?.status).toBeUndefined();
+  });
+
+  it("DEBIT/OK for the charged amount marks paid and notifies the kitchen", async () => {
+    await callback(pendingOrder, { result: "OK", amount: "25.00", currency: "EUR" });
+
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
+    expect(telegramCalls()).toBe(1);
+  });
+
+  it.each([
+    { amount: "20.00", currency: "EUR" },
+    { amount: "25.00", currency: "USD" },
+    { amount: "abc", currency: "EUR" },
+  ])("DEBIT/OK for %j is not marked paid and the kitchen is not told", async (reported) => {
+    await callback(pendingOrder, { result: "OK", ...reported });
+
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBeUndefined();
+    expect((hoisted.state.lastUpdatePatch?.payment_meta as Record<string, unknown>)?.amount_check).toMatchObject({
+      amount_mismatch: true,
+    });
+    expect(telegramCalls()).toBe(0);
+  });
+
+  it("DEBIT/OK after a failed attempt marks paid and reopens the cancelled order", async () => {
+    await callback({ ...pendingOrder, payment_status: "failed", status: "cancelled" }, { result: "OK", amount: "25.00" });
+
+    expect(hoisted.state.lastUpdatePatch).toMatchObject({ payment_status: "paid", status: "pending" });
+    expect(telegramCalls()).toBe(1);
+  });
+});
+
+describe("handler — compare-and-set payment write (B24 review)", () => {
+  it("when another writer changed the status first, it re-reads the order and decides again", async () => {
+    hoisted.state.tableResults.orders = { data: pendingOrder, error: null };
+    hoisted.state.casMisses = 1;
+    const rawBody = JSON.stringify({ result: "OK", transactionType: "DEBIT", merchantTransactionId: pendingOrder.id, uuid: "u", amount: "25.00" });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.updateCallCount).toBe(2);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
   });
 });

@@ -393,6 +393,7 @@ export default function CartDrawer() {
         cardholder: paymentJsRequested ? cardholderTrim : null,
         total_price: effectiveTotalCents,
         total_items: totalItems,
+        delivery_zone: selectedDeliveryZone.key,
         note: (() => {
           const base = orderNote.trim();
           const paymentLine = `Plaćanje: ${paymentLabel(paymentMethod)}`;

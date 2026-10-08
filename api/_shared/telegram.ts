@@ -1,23 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
-import { isPlainObject, normalizeText, safeInt } from "./_shared/parsing.js";
-import { applyCors } from "./_shared/cors.js";
+/**
+ * The kitchen's Telegram message for an order — format, claim and send (B24).
+ *
+ * Before B24 the format lived twice (api/telegram-new-order.ts and the admin
+ * resend in api/admin-orders.ts) and every notification was a self-HTTP call
+ * from create-order / bankart-callback / bankart-order-status to the
+ * telegram-new-order endpoint, guarded by a shared secret and awaited for up
+ * to 12 s — long enough for a client timeout + retry to create a duplicate
+ * order. Now each handler calls notifyNewOrder() directly with its own
+ * service-role client; the endpoint and its secret are gone.
+ */
 
-type Json = Record<string, unknown>;
-
-type HeaderValue = string | string[] | undefined;
-type HeadersLike = Record<string, HeaderValue>;
-
-type ReqLike = {
-  method?: string;
-  headers?: HeadersLike;
-  body?: unknown;
-};
-
-type ResLike = {
-  setHeader: (name: string, value: string) => void;
-  status: (code: number) => ResLike;
-  send: (body: string) => void;
-};
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPlainObject, normalizeText, safeInt } from "./parsing.js";
+import { getEnv } from "./env.js";
 
 type CartAddon = {
   name?: unknown;
@@ -34,7 +29,7 @@ type CartItem = {
   note?: unknown;
 };
 
-type OrderRow = {
+export type OrderRow = {
   id?: unknown;
   customer_name?: unknown;
   customer_phone?: unknown;
@@ -58,59 +53,6 @@ function toTrimmedString(v: unknown): string {
   }
 }
 
-function headerString(req: ReqLike, key: string): string {
-  const raw = req.headers?.[key];
-  if (typeof raw === "string") return raw.trim();
-  if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
-  return "";
-}
-
-function headerStringCI(req: ReqLike, key: string): string {
-  return (
-    headerString(req, key) ||
-    headerString(req, key.toLowerCase()) ||
-    headerString(req, key.toUpperCase())
-  );
-}
-
-function json(res: ResLike, status: number, body: Json) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.send(JSON.stringify(body));
-}
-
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
-
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-    getEnv("SUPABASE_SERVICE_KEY") ||
-    getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  try {
-    const u = new URL(SUPABASE_URL);
-    if (!u.hostname.endsWith(".supabase.co")) {
-      throw new Error("Invalid supabaseUrl: Expected *.supabase.co host.");
-    }
-  } catch {
-    throw new Error("Invalid supabaseUrl: Provided URL is malformed.");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/telegram-new-order" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
 
 function formatTotalFromCents(cents: number) {
   const n = Number.isFinite(cents) ? Math.trunc(cents) : 0;
@@ -240,7 +182,7 @@ function extractOrderNote(order: OrderRow, items: CartItem[]) {
   return meta ? toTrimmedString(meta.note) : "";
 }
 
-function formatOrderForTelegram(order: OrderRow) {
+export function formatOrderForTelegram(order: OrderRow) {
   const id = toTrimmedString(order?.id);
   const name = toTrimmedString(order?.customer_name) || "-";
   const phone = toTrimmedString(order?.customer_phone) || "-";
@@ -333,7 +275,7 @@ async function fetchWithTimeout(input: string, init: RequestInit, timeoutMs: num
   }
 }
 
-async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?: string }> {
   const token = getEnv("TELEGRAM_BOT_TOKEN");
   const chatId = getEnv("TELEGRAM_CHAT_ID");
 
@@ -368,93 +310,62 @@ async function sendTelegramMessage(text: string): Promise<{ ok: boolean; error?:
   }
 }
 
-export default async function handler(req: ReqLike, res: ResLike) {
-  applyCors(req, res, {
-    methods: "POST",
-    allowHeaders: "content-type, x-requested-with, x-telegram-secret",
-  });
+export type NotifyResult = "sent" | "already_sent" | "failed";
 
-  if (req.method === "OPTIONS") {
-    res.status(204).send("");
-    return;
-  }
-
-  if (req.method !== "POST") {
-    return json(res, 405, { ok: false, error: "Method not allowed" });
-  }
-
+/**
+ * Sends the kitchen message for an order exactly once.
+ *
+ * Card orders can reach this from up to 3 places for the same order
+ * (create-order FINISHED, bankart-callback, bankart-order-status poll), so the
+ * send is claimed first with a conditional UPDATE on telegram_notified_at
+ * (B18): only the caller that flips it NULL → now() sends. A claim error fails
+ * open (send anyway — never "the restaurant gets no order"); a failed send
+ * releases the claim so a later caller or the admin resend can deliver.
+ *
+ * Never throws: a notification problem must not fail the order or the payment.
+ */
+export async function notifyNewOrder(supabase: SupabaseClient, orderId: string): Promise<NotifyResult> {
   try {
-    // optional secret guard
-    const expected = getEnv("TELEGRAM_WEBHOOK_SECRET");
-    if (expected) {
-      const got = headerStringCI(req, "x-telegram-secret");
-      if (!got || got !== expected) {
-        return json(res, 401, { ok: false, error: "Unauthorized" });
-      }
-    }
-
-    const body = isPlainObject(req.body) ? req.body : null;
-    if (!body) return json(res, 400, { ok: false, error: "Invalid JSON body" });
-
-    const orderId = toTrimmedString(body.order_id) || toTrimmedString(body.orderId);
-    if (!orderId) return json(res, 400, { ok: false, error: "Missing order_id" });
-
-    const { data: order, error: readErr } = await supabase.from("orders").select("*").eq("id", orderId).single();
-    if (readErr) {
-      const msg = typeof readErr.message === "string" && readErr.message.trim() ? readErr.message : "DB read failed";
-      console.error("telegram-new-order: DB read failed", { orderId, error: msg });
-      return json(res, 500, { ok: false, error: msg });
-    }
-
-    // Idempotency claim: atomically win the right to notify exactly once.
-    // Card payments can call this endpoint from up to 3 sources for the same
-    // order (create-order FINISHED, bankart-callback webhook, bankart-order-status
-    // poll). Postgres row-level locking serializes this conditional UPDATE, so
-    // only the caller that flips telegram_notified_at NULL->now() proceeds to send.
-    let claimedOwnership = false;
+    // The claim returns the row, so a send costs one round trip and a caller
+    // that loses the claim reads nothing.
     const { data: claimed, error: claimErr } = await supabase
       .from("orders")
       .update({ telegram_notified_at: new Date().toISOString() })
       .eq("id", orderId)
       .is("telegram_notified_at", null)
-      .select("id");
+      .select("*");
 
+    let order: unknown;
+    let claimedOwnership = false;
     if (claimErr) {
-      // Fail-open: an idempotency-infra error must never block the notification.
-      // Worst case degrades to the previous (possibly-duplicate) behavior — never
-      // to "restaurant receives no order". Log and continue to send.
-      const cmsg = typeof claimErr.message === "string" && claimErr.message.trim() ? claimErr.message : "claim failed";
-      console.error("telegram-new-order: claim update failed, sending anyway", { orderId, error: cmsg });
-    } else if (!claimed || claimed.length === 0) {
-      // Another caller already claimed this order → idempotent no-op (no duplicate).
-      return json(res, 200, { ok: true, telegram: "already_sent" });
+      console.error("[telegram] claim failed, sending anyway", { orderId, error: claimErr.message });
+      const { data, error: readErr } = await supabase.from("orders").select("*").eq("id", orderId).single();
+      if (readErr || !data) {
+        console.error("[telegram] order read failed", { orderId, error: readErr?.message ?? "not found" });
+        return "failed";
+      }
+      order = data;
+    } else if (!Array.isArray(claimed) || claimed.length === 0) {
+      return "already_sent"; // sent earlier — or no such order: nothing to send either way
     } else {
+      order = claimed[0];
       claimedOwnership = true;
     }
 
-    const message = formatOrderForTelegram((order ?? {}) as OrderRow);
-    const sent = await sendTelegramMessage(message);
+    const sent = await sendTelegramMessage(formatOrderForTelegram(order as OrderRow));
+    if (sent.ok) return "sent";
 
-    if (!sent.ok) {
-      // Release the claim so a retry / manual admin resend can still deliver.
-      if (claimedOwnership) {
-        const { error: resetErr } = await supabase
-          .from("orders")
-          .update({ telegram_notified_at: null })
-          .eq("id", orderId);
-        if (resetErr) {
-          const rmsg = typeof resetErr.message === "string" && resetErr.message.trim() ? resetErr.message : "reset failed";
-          console.error("telegram-new-order: claim reset after send failure failed", { orderId, error: rmsg });
-        }
-      }
-      console.error("telegram-new-order: Telegram send failed", { orderId, error: sent.error || "Telegram failed" });
-      return json(res, 502, { ok: false, error: sent.error || "Telegram failed" });
+    console.error("[telegram] send failed", { orderId, error: sent.error ?? "Telegram failed" });
+    if (claimedOwnership) {
+      const { error: resetErr } = await supabase
+        .from("orders")
+        .update({ telegram_notified_at: null })
+        .eq("id", orderId);
+      if (resetErr) console.error("[telegram] claim release failed", { orderId, error: resetErr.message });
     }
-
-    return json(res, 200, { ok: true, telegram: "sent" });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("telegram-new-order: unhandled error", { error: msg });
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+    return "failed";
+  } catch (err: unknown) {
+    console.error("[telegram] notify threw", { orderId, error: err instanceof Error ? err.message : String(err) });
+    return "failed";
   }
 }

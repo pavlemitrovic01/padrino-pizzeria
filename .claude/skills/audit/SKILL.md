@@ -33,7 +33,7 @@ Spawn 2 Explore agents in parallel (single message, two Agent calls):
 **Agent A — "build-health":**
 ```
 description: 'Audit: build/typecheck/test verification + code metrics'
-prompt: 'Run npm run build, npm run typecheck, npm run test.
+prompt: 'Run npm run build, npm run typecheck, npm run test, npm run lint.
   Report exit codes + key metrics:
   - Build: modules count, time
   - Test: files count, tests count
@@ -89,6 +89,23 @@ If mismatch → drift between STATE and LOG.
 
 Razlog: Internal /audit poredi STATE↔LOG (oba mogu biti istovremeno wrong). STATE↔git je objektivna provera da workflow nije past sebe samog. F1.6 case study: bez ovog step-a, /audit bi rekao "DRIFT SUMMARY: clean" iako je git past STATE.
 
+### Step 3.6 — Closed batches that never reached main (B26)
+
+1. `git fetch origin --prune`, then for every remote branch other than main:
+   `git log --oneline origin/main..origin/<branch>`
+2. A branch whose commits include `workflow: close B…` (or `fix(B…)`) and that
+   is not in `origin/main` = a batch closed on a branch that was never merged.
+3. Output: "Unmerged closed batches: none" or one line per branch with its
+   batch IDs, e.g. `claude/keen-tesla-jprhog — B22 (closed 2026-10-07)`.
+
+Razlog: 2026-10-08 sesija je počela sa STATE.md na main-u koji je govorio
+„Sledeći: B23b", dok su B22, B23b i B23c već bili zatvoreni na tri
+nespojene grane. STATE↔git (Step 3.5) to ne vidi — gleda samo trenutnu granu.
+
+**Money path:** for each lock-zone file changed since the last audit, check
+that its batch's LOG entry answers the STRICT plan's NAPADAČ question (what a
+hand-edited request can do). Missing → report it as drift.
+
 ### Step 4 — LOG ↔ git cross-check
 
 For each LOG entry in last 5:
@@ -129,6 +146,10 @@ Build health
   build:     PASS(machine) — [moduli, time]
   typecheck: PASS(machine)
   test:      PASS(machine) — [files, tests]
+  lint:      PASS(machine)
+
+Unmerged closed batches
+  [none | branch — batch IDs]
 
 Git state
   Dirty:    [N | clean]

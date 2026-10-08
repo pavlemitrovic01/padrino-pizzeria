@@ -63,6 +63,7 @@ npm run typecheck
 npm run build
 npm run typecheck
 npm run test
+npm run lint
 ```
 
 **STRICT:**
@@ -70,8 +71,12 @@ npm run test
 npm run build
 npm run typecheck
 npm run test
+npm run lint
 ```
 Plus: ask Pavle for manual smoke checklist confirmation.
+
+`npm run lint` is a gate since B26 (it was clean as of B25): exit ≠ 0 is a
+FAIL like the others — no "inherited lint errors" exception.
 
 For each command, capture exit code.
 

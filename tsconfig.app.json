@@ -29,8 +29,6 @@
     "**/*.test.tsx",
     "node_modules",
     "dist",
-    "supabase",
-    "supabase/functions",
-    "supabase/functions/**"
+    "supabase"
   ]
 }

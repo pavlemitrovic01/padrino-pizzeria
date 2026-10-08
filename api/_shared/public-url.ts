@@ -1,18 +1,23 @@
 // api/_shared/public-url.ts
 //
-// Shared public-base-URL resolver and Telegram payload builder.
+// Shared public-base-URL resolver (the Bankart return/callback URLs).
 // Consolidates 3 prior copies: api/create-order.ts,
 // api/bankart-order-status.ts, api/bankart-callback.ts (B8).
 //
-// SECURITY (locked, DECISIONS 2026-05-16 + 2026-05-17): bankart-callback
-// MUST NOT trust the browser-controlled Origin header when building
-// notify_url. trustOriginHeader defaults to FALSE (safe). Browser-facing
-// endpoints (create-order, bankart-order-status) pass trustOriginHeader: true.
+// SECURITY (B22, docs/full-audit-2026-10.md #5): the Origin header is NEVER
+// used. It is fully client-controlled (curl sets anything), and the result
+// became the URL the server POSTed to with x-telegram-secret (that self-call
+// is gone since B24) and the Bankart callback/return URLs — trusting it leaked
+// the secret to any origin.
+// x-forwarded-host / x-forwarded-proto are ignored for the same reason.
+// Order: env (PUBLIC_SITE_URL|SITE_URL|APP_URL|NEXT_PUBLIC_SITE_URL) → Host
+// header (Vercel only routes a request here when Host is one of this
+// project's domains) → DEFAULT_PUBLIC_HOST. Production must set
+// PUBLIC_SITE_URL, so prod never reaches the Host fallback (LESSONS L2).
 //
-// Signature: DECISIONS-locked resolvePublicBaseUrl(req, …) refined to
-// resolvePublicBaseUrl(headers, …) — caller passes req.headers, not the
-// whole request. Matches api/_shared/admin-auth.ts pattern; lowers TS
-// structural-compat risk under Vercel nodenext. Repo > docs (RULES §SoT).
+// Signature: resolvePublicBaseUrl(headers) — caller passes req.headers, not
+// the whole request. Matches api/_shared/admin-auth.ts pattern; lowers TS
+// structural-compat risk under Vercel nodenext.
 //
 // Self-contained: inlines getEnv / headerString / headerStringCI so the
 // callers' local copies (used elsewhere in each handler) stay untouched.
@@ -45,12 +50,11 @@ function headerStringCI(headers: HeadersLike | undefined, key: string): string {
   );
 }
 
-export function resolvePublicBaseUrl(
-  headers: HeadersLike | undefined,
-  opts: { trustOriginHeader?: boolean } = {},
-): string {
-  const { trustOriginHeader = false } = opts;
+// Hostname with an optional port; anything else (scheme, path, spaces,
+// userinfo) is rejected so a malformed Host can never shape the URL.
+const HOST_PATTERN = /^[a-z0-9.-]+(:\d{1,5})?$/i;
 
+export function resolvePublicBaseUrl(headers: HeadersLike | undefined): string {
   const envSite =
     getEnv("PUBLIC_SITE_URL") ||
     getEnv("SITE_URL") ||
@@ -58,24 +62,8 @@ export function resolvePublicBaseUrl(
     getEnv("NEXT_PUBLIC_SITE_URL");
   if (envSite) return envSite.replace(/\/+$/, "");
 
-  if (trustOriginHeader) {
-    const origin = headerStringCI(headers, "origin");
-    if (origin) return origin.replace(/\/+$/, "");
-  }
-
-  const proto = headerStringCI(headers, "x-forwarded-proto") || "https";
-  const host =
-    headerStringCI(headers, "x-forwarded-host") || headerStringCI(headers, "host");
-  if (host) return `${proto}://${host}`.replace(/\/+$/, "");
+  const host = headerStringCI(headers, "host");
+  if (host && HOST_PATTERN.test(host)) return `https://${host.toLowerCase()}`;
 
   return DEFAULT_PUBLIC_HOST;
-}
-
-export function buildTelegramPayload(
-  headers: HeadersLike | undefined,
-  orderId: string,
-  opts: { trustOriginHeader?: boolean } = {},
-): { order_id: string; notify_url: string } {
-  const url = resolvePublicBaseUrl(headers, opts);
-  return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
 }

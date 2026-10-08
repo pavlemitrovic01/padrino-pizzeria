@@ -262,7 +262,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.id === id);
       if (idx < 0) {
-        // eslint-disable-next-line no-console
         console.warn("updateItemInCart: cart item not found for id", id);
         return prev;
       }

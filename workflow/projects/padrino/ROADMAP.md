@@ -2,6 +2,14 @@
 
 ## Current Phase
 
+**AKTIVNO: Faza S — Security & money-path hardening (B22–B26)** — iz full audita
+2026-10-06 (`docs/full-audit-2026-10.md`). Ima prioritet nad Fazama L–O.
+
+> ⚠ Korekcija (audit 2026-10-06): tvrdnje niže „server-side price validation
+> verified correct" i „critical RLS closed" NISU tačne — anon INSERT u `orders`
+> je živ na prod-u, a `create-order` prihvata klijentske količine/dostavu/nazive.
+> Vidi audit #1–#6. Tekst niže ostaje kao istorijski zapis.
+
 **Refactor-to-9 program — Faze A–J COMPLETED ✓ (J1 done; J2 deferred per strategy).**
 J1 DONE 2026-05-22 (doc-only): TEMPLATE.md NEW 246 LOC + .env.example ALLOWED_ORIGINS drift fix.
 Exit criterion #8 CLOSED. Self-score for Refactor-to-9: **8.5/10**
@@ -32,6 +40,21 @@ abstraction (deferred to Faza J).
 
 Pre-W0 history: 9 closed batches (B1-B9) under old workflow.
 See `DECISIONS.md` "Phase History" for full record.
+
+## Faza S — DONE ✓ u kodu (Security & money-path hardening, audit 2026-10-06) — B22, B23e–B26 čekaju merge + prod prolaz
+
+Izvor nalaza + PoC tabela: `docs/full-audit-2026-10.md` (#N = broj nalaza tamo).
+Redosled: B22 → B23 → B24 → B26; B25 bilo kad posle B22. B26 poslednji
+(B23/B24 testovi su safety net za lock-zone refaktor). Posle B22/B23/B24
+obavezno `/security-review` pre `/close`.
+
+| ID | Naslov | Tier | Estimate | Notes |
+|----|--------|------|----------|-------|
+| B22 | Zaključavanje baze i tajni | STRICT | 3-5h | **DONE 2026-10-07 (SHA 0c340dc).** Audit #1, #5, #7 (CHECK), nisko (grants, search_path, OTP). **Pavle ručno PRE deploy-a:** Vercel Production `PUBLIC_SITE_URL`, `TELEGRAM_WEBHOOK_SECRET` (32+ random), provera `UPSTASH_*`; Supabase Auth signup OFF + leaked password protection ON. **Migracija:** DROP anon INSERT policy na `orders`; REVOKE INSERT/UPDATE/DELETE/TRUNCATE na public tabelama za anon+authenticated (frontend samo SELECT `menu_items`/`site_settings`); popravi `"pending\n"` red pa CHECK `status IN (pending,preparing,done,cancelled)` + CHECK `currency='EUR'`; `search_path` na 2 funkcije. **Kod:** `public-url.ts` nikad Origin/Host (env → DEFAULT_PUBLIC_HOST); `telegram-new-order` fail-closed bez tajne + `timingSafeEqual`; `AdminLogin` `shouldCreateUser:false`. **Deploy redosled:** env → kod (preview smoke cash+card test-mode, Telegram stiže) → migracija → prod smoke. Kod pre env-a = Telegram staje. |
+| B23 | Server je jedini izvor cene | STRICT | 8-12h | **DONE 2026-10-08 (B23a e7c907c+c6ab9c8, B23b ddd8846, B23c 0a2562f+39a5012, B23d d393d6d, B23e e49ee16).** B23a–B23d u main-u (c2df757); B23e čeka merge. Kolone `delivery_fee_cents`/`delivery_zone` nisu dodate — dostavu računa i u napomenu piše server. Audit #2, #3, #4, #6, #7 (server-fixed). (1) **50 cm + ivice prvo** (gubi novac): preporuka zaseban DB red „Ivice punjene sirom 50 cm" 4 €, klijent bira ID po veličini, brisanje hardkoda 200/400. (2) DetailSheet total = `(base+addons)×qty`. (3) `create-order`: qty int 1–50 / addon 1–10; name/category/size iz DB; `status`/`currency` server-fixed. (4) Dostava: klijent šalje `delivery_zone_key`, server računa fee + prag besplatne dostave; kolone `delivery_fee_cents`, `delivery_zone`; kraj regex parsiranja. Odluka: zone u DB tabeli (preporuka) vs `api/_shared`. Stari tabovi bez zone key → „Osvežite stranicu". (5) PoC iz audita → regresioni testovi + client↔server parity test. Ako traje >2-3 dana, (1) izdvojiti u zaseban batch. |
+| B24 | Plaćanje i notifikacije — robusnost | STRICT | 6-10h | **DONE 2026-10-08 (SHA 42024c6 + review 2a80915), čeka merge; migracija idempotency napisana, nije primenjena.** Audit #5 (strukturno), #8, #9, #10, #13. `api/_shared/telegram.ts` (format + claim + send) zovu create-order/callback/order-status direktno — bez self-HTTP; admin resend isti modul (−~250 LOC dup); brisanje `telegram-new-order` endpoint-a (oslobađa 1/12 Vercel slot). Callback: amount/currency provera + monotoni payment status. Idempotency: klijentski UUID pokušaja + unique kolona. Brisanje poziva + edge funkcije `payments-create-session` (Pavle undeploy). Sanitizacija sirovih grešaka (L5). Odluka: `@vercel/functions` waitUntil (nova dep) — preporuka ne odmah. |
+| B25 | Frontend hardening, performanse, menu podaci | STANDARD | 4-6h | **DONE 2026-10-08 (SHA 25e15d3), čeka merge; CSP je Report-Only, GA4 consent nije rađen (odluka), duplicate-key nije reprodukovan.** Audit #11, #12, nisko. Security headeri u `vercel.json`; CSP prvo Report-Only (Bankart, GTM, Supabase), enforce posle ~7 dana bez violation-a. GA4 consent ili bez GA na checkout-u. `/api/log` size limit. Upload samo jpeg/png/webp. Menu podaci (`"sosevi\n"`, trailing space) + istraga React duplicate-key. Kompresija hero/contact/about/krofna, brisanje `public/hero.jpg`. Lint fix. |
+| B26 | Čišćenje koda i istina u dokumentaciji | STRICT | 6-8h | **DONE 2026-10-08 (SHA 4e2048d+77c16c4+ad3e9e9+7cd6097), čeka merge; env aliasi i LESSON rotacija ostavljeni Pavlu.** Arhitektura/proces sekcije audita. `api/_shared` helperi (supabase admin client, json, env, headers) umesto ~9 kopija; brisanje GPS/poligon koda, `NLB_*` aliasa, starog META write-path-a (read-compat ostaje); `create-order.ts` < 800 LOC. Docs: CONTEXT (testovi, headeri, jedinstvena lock lista), TEMPLATE (netačne tvrdnje), README/RUNBOOK/.env.example (env obavezni). Workflow: `npm run lint` u `/close` gate; „šta može napadač?" sekcija u STRICT `/plan` i `/audit`; LESSON „audit happy-path ≠ audit napadača". |
 
 ## Faza A — DONE ✓ (Stabilization & Audit)
 

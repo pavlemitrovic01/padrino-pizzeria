@@ -1,9 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import { getAdminFromDb } from "./_shared/admin-auth.js";
 import { isPlainObject } from "./_shared/parsing.js";
 import { applyCors } from "./_shared/cors.js";
-
-type Json = Record<string, unknown>;
+import { detectImageType } from "./_shared/image-type.js";
+import { buildSupabaseAdmin } from "./_shared/env.js";
+import { json } from "./_shared/http.js";
 
 type HeaderValue = string | string[] | undefined;
 type HeadersLike = Record<string, HeaderValue>;
@@ -57,33 +57,7 @@ function queryString(req: ReqLike, key: string): string {
   return "";
 }
 
-function json(res: ResLike, status: number, body: Json) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.send(JSON.stringify(body));
-}
-
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
-
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY") || getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/admin-menu" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
+const supabase = buildSupabaseAdmin("admin-menu");
 
 function normalizeEmail(v: string) {
   return v.trim().toLowerCase();
@@ -225,23 +199,6 @@ function decodeBase64Payload(input: string): Buffer | null {
   }
 }
 
-function detectExtension(contentType: string, fallbackName: string): string {
-  const normalizedType = contentType.trim().toLowerCase();
-
-  if (normalizedType === "image/jpeg" || normalizedType === "image/jpg") return "jpg";
-  if (normalizedType === "image/png") return "png";
-  if (normalizedType === "image/webp") return "webp";
-  if (normalizedType === "image/gif") return "gif";
-
-  const file = fallbackName.trim().toLowerCase();
-  if (file.endsWith(".jpg") || file.endsWith(".jpeg")) return "jpg";
-  if (file.endsWith(".png")) return "png";
-  if (file.endsWith(".webp")) return "webp";
-  if (file.endsWith(".gif")) return "gif";
-
-  return "bin";
-}
-
 function sanitizeBaseName(value: string): string {
   const raw = value.trim().toLowerCase();
   const safe = raw
@@ -294,16 +251,11 @@ async function handleImageUpload(
   res: ResLike,
 ) {
   const fileName = toTrimmedString(body.fileName);
-  const contentType = toTrimmedString(body.contentType).toLowerCase();
   const base64 = toTrimmedString(body.base64);
   const itemName = toTrimmedString(body.itemName);
 
   if (!base64) {
     return json(res, 400, { ok: false, error: "Image payload is required" });
-  }
-
-  if (!contentType || !contentType.startsWith("image/")) {
-    return json(res, 400, { ok: false, error: "Only image uploads are allowed" });
   }
 
   const bytes = decodeBase64Payload(base64);
@@ -315,10 +267,11 @@ async function handleImageUpload(
     return json(res, 400, { ok: false, error: "Image is too large (max 5MB)" });
   }
 
-  const ext = detectExtension(contentType, fileName);
-  if (!["jpg", "png", "webp", "gif"].includes(ext)) {
-    return json(res, 400, { ok: false, error: "Unsupported image format" });
+  const detected = detectImageType(bytes);
+  if (!detected) {
+    return json(res, 400, { ok: false, error: "Unsupported image format (JPEG, PNG or WebP)" });
   }
+  const { ext, contentType } = detected;
 
   const baseName = sanitizeBaseName(itemName || fileName || "menu-item");
   const path = `admin/${Date.now()}-${baseName}.${ext}`;

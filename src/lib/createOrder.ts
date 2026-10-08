@@ -52,6 +52,9 @@ export type CreateOrderPayload = {
 
   note?: string | null;
 
+  // ključ zone iz DELIVERY_ZONES — server iz njega računa dostavu (B23e)
+  delivery_zone?: string | null;
+
   // checkout state (opciono)
   payment_method?: PaymentMethod;
 };
@@ -155,6 +158,68 @@ function getResultRedirectUrl(body: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * B24: one checkout attempt = one order. Each attempt gets a random key; the
+ * same order sent again (the customer taps "Poruči" after a timeout that hid a
+ * response which had in fact succeeded) reuses it, and the server answers with
+ * the first order instead of making a second one. Any change to the order, or
+ * a success, starts a new attempt. The card token is new on every tap, so it
+ * is not part of what makes two attempts "the same".
+ *
+ * Kept in sessionStorage as well as memory, so a customer who reloads the tab
+ * mid-checkout and sends the same order again still gets the first one back.
+ */
+const ATTEMPT_STORAGE_KEY = "padrino:order-attempt";
+let lastAttempt: { signature: string; key: string } | null = null;
+
+function readStoredAttempt(): { signature: string; key: string } | null {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(ATTEMPT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (isRecord(parsed) && typeof parsed.signature === "string" && typeof parsed.key === "string") {
+      return { signature: parsed.signature, key: parsed.key };
+    }
+  } catch {
+    // storage unavailable (private mode, blocked) — memory only
+  }
+  return null;
+}
+
+function storeAttempt(attempt: { signature: string; key: string } | null): void {
+  lastAttempt = attempt;
+  try {
+    if (attempt) globalThis.sessionStorage?.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify(attempt));
+    else globalThis.sessionStorage?.removeItem(ATTEMPT_STORAGE_KEY);
+  } catch {
+    // storage unavailable — memory only
+  }
+}
+
+function newAttemptKey(): string {
+  try {
+    const c = globalThis.crypto as Crypto | undefined;
+    if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  } catch {
+    // ignore
+  }
+  return `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}
+
+function attemptKeyFor(apiBody: Record<string, unknown>): string {
+  const { transaction_token: _token, ...rest } = apiBody;
+  void _token;
+  const signature = JSON.stringify(rest);
+  const known = lastAttempt ?? readStoredAttempt();
+  if (known && known.signature === signature) {
+    lastAttempt = known;
+    return known.key;
+  }
+  const next = { signature, key: newAttemptKey() };
+  storeAttempt(next);
+  return next.key;
+}
+
 export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
@@ -164,6 +229,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   const billing_postcode = normalizeOptionalString(payload.billing_postcode);
   const cardholder = normalizeOptionalString(payload.cardholder);
   const transaction_token = normalizeOptionalString(payload.transaction_token);
+  const delivery_zone = normalizeOptionalString(payload.delivery_zone);
 
   if (!customer_name || !customer_phone || !customer_address) {
     throw new Error("Unesite ime, telefon i adresu.");
@@ -273,6 +339,8 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   if (billing_postcode) apiBody.billing_postcode = billing_postcode;
   if (cardholder) apiBody.cardholder = cardholder;
   if (transaction_token) apiBody.transaction_token = transaction_token;
+  if (delivery_zone) apiBody.delivery_zone = delivery_zone;
+  apiBody.idempotency_key = attemptKeyFor(apiBody);
 
   const base = getApiBase().replace(/\/+$/, "");
   const url = `${base}/create-order`;
@@ -302,6 +370,9 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   if (flow === "card_redirect" && !redirectUrl) {
     throw new Error("Kartično plaćanje je pokrenuto, ali redirect link nije vraćen.");
   }
+
+  // The order exists: the next order, even an identical one, is a new attempt.
+  storeAttempt(null);
 
   return {
     success: true,

@@ -113,6 +113,14 @@ SCOPE-EXPANSION-RULE: STOP and report, not autonomous
 
 Then standard plan body (CILJ, PLAN, RIZIK, VERIFY, ZABRANE).
 
+**STRICT only — add a NAPADAČ section** (B26, audit 2026-10): what can a
+person do with a hand-edited request (curl, devtools) against the files this
+batch touches — every field the server reads from the client, and whether the
+server decides it (from the DB / its own tables) or trusts it. Name the test
+that proves each answer. A plan that only describes the honest client is not
+a STRICT plan: the 2026-05 audits checked the happy path and missed that the
+server took quantity, delivery fee, names and status from the request.
+
 ### Step 4 — Wait for explicit approval
 
 Show the plan. Wait for Pavle to say one of: "ok", "piši", "važi", "kreni".

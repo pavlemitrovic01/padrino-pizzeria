@@ -10,26 +10,43 @@ type Call = { table: string; op: string; payload?: unknown };
 const hoisted = vi.hoisted(() => {
   const tableResults: Record<string, SupabaseResult> = {};
   const calls: Call[] = [];
-  return { tableResults, calls };
+  // B24: answers for `.eq("idempotency_key", …)` lookups and for inserts, in
+  // order; when a queue is empty the table result above is used.
+  const idempotency = { lookups: [] as SupabaseResult[], inserts: [] as SupabaseResult[] };
+  return { tableResults, calls, idempotency };
 });
 
 vi.mock("@supabase/supabase-js", () => {
   function makeBuilder(table: string, result: SupabaseResult) {
     const builder: Record<string, unknown> = {};
     const chain = () => builder;
+    let byIdempotencyKey = false;
+    let inserting = false;
     builder.select = chain;
-    builder.eq = chain;
-    builder.in = chain;
-    builder.insert = (...args: unknown[]) => {
-      hoisted.calls.push({ table, op: "insert", payload: args[0] });
+    builder.eq = (col: string) => {
+      if (col === "idempotency_key") byIdempotencyKey = true;
       return builder;
     };
-    builder.update = chain;
-    builder.single = () => Promise.resolve(result);
+    builder.in = chain;
+    builder.is = chain;
+    builder.insert = (...args: unknown[]) => {
+      hoisted.calls.push({ table, op: "insert", payload: args[0] });
+      inserting = true;
+      return builder;
+    };
+    builder.update = (...args: unknown[]) => {
+      hoisted.calls.push({ table, op: "update", payload: args[0] });
+      return builder;
+    };
+    builder.single = () =>
+      Promise.resolve(inserting ? (hoisted.idempotency.inserts.shift() ?? result) : result);
     builder.then = (
       onF: (v: SupabaseResult) => unknown,
       onR?: (e: unknown) => unknown,
-    ) => Promise.resolve(result).then(onF, onR);
+    ) =>
+      Promise.resolve(
+        byIdempotencyKey ? (hoisted.idempotency.lookups.shift() ?? { data: [], error: null }) : result,
+      ).then(onF, onR);
     return builder;
   }
 
@@ -132,6 +149,7 @@ function validBody(overrides: Record<string, unknown> = {}): Record<string, unkn
     customer_phone: "0671234567",
     customer_address: "Jadranski put 1, Budva",
     payment_method: "cash",
+    delivery_zone: "budva", // free delivery (B23e: the server prices delivery from the zone)
     items: [validItem],
     total_eur_cents: 2000,
     ...overrides,
@@ -434,9 +452,9 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     vi.unstubAllGlobals();
   });
 
-  async function submit(items: unknown[], totalCents?: number) {
+  async function submit(items: unknown[], totalCents?: number, extra: Record<string, unknown> = {}) {
     const c = makeRes();
-    await handler(makeReq(validBody({ items, total_eur_cents: totalCents })), c.res);
+    await handler(makeReq(validBody({ items, total_eur_cents: totalCents, ...extra })), c.res);
     return c;
   }
 
@@ -498,12 +516,11 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     expect(insertedTotal()).toBe(99 * (1600 + 99 * 400));
   });
 
-  it("rejects a total that is not a safe whole number (fee read from the client's note)", async () => {
+  it("ignores a delivery fee written into the note (B23e: it used to overflow the total)", async () => {
     const c = await submit([pizza50(), clientMeta(`Dostava: 1${"0".repeat(300)} €`)]);
 
-    expect(c.statusCode).toBe(400);
-    expect(bodyOf(c).error).toBe("Invalid calculated total");
-    expect(insertedInto("orders")).toBe(false);
+    expect(c.statusCode).toBe(200);
+    expect(insertedTotal()).toBe(1600);
   });
 
   it("rejects an item row without cart_id (Telegram lists only rows that have one)", async () => {
@@ -529,24 +546,26 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     expectInvalidStructure(await submit([pizza50(), { foo: 1 }], 1600));
   });
 
-  // Regression: every meta shape the kitchen hides stays unpriced and accepted,
-  // and the delivery fee in its note still counts.
-  it("accepts the client's meta row and charges the delivery fee from its note", async () => {
-    const c = await submit([pizza50(), clientMeta("Zona: Bečići, Dostava: 3 €")], 1600 + 300);
+  // Regression: every meta shape the kitchen hides stays unpriced and accepted;
+  // delivery is charged from the zone (B23e), never from the note.
+  it("accepts the client's meta row and charges delivery from the zone", async () => {
+    const c = await submit([pizza50(), clientMeta("Zona: Lastva, Dostava: 5€")], 1600 + 500, {
+      delivery_zone: "lastva",
+    });
 
     expect(c.statusCode).toBe(200);
-    expect(insertedTotal()).toBe(1600 + 300);
+    expect(insertedTotal()).toBe(1600 + 500);
   });
 
   it.each([
     { cart_id: "c-note", name: "Napomena", category: "Meta", note: "Dostava: 2 €" },
     { cart_id: "c-note", name: "meta", category: "", note: "Dostava: 2 €" },
     { order_note: "Dostava: 2 €", total_items: 1 },
-  ])("accepts meta shape %j without pricing it", async (meta) => {
-    const c = await submit([pizza50(), meta], 1600 + 200);
+  ])("accepts meta shape %j without pricing it or its \"Dostava\" text", async (meta) => {
+    const c = await submit([pizza50(), meta], 1600);
 
     expect(c.statusCode).toBe(200);
-    expect(insertedTotal()).toBe(1600 + 200);
+    expect(insertedTotal()).toBe(1600);
   });
 
   it("still rejects an order that holds nothing but meta", async () => {
@@ -641,9 +660,14 @@ describe("create-order handler — stored rows read as the menu row that was cha
     return c;
   }
 
-  function storedItems(): Record<string, unknown>[] {
+  function storedRows(): Record<string, unknown>[] {
     const call = hoisted.calls.find((x) => x.table === "orders" && x.op === "insert");
     return ((call?.payload as Record<string, unknown> | undefined)?.items ?? []) as Record<string, unknown>[];
+  }
+
+  // The item rows; the server always stores its own meta row first (B23e).
+  function storedItems(): Record<string, unknown>[] {
+    return storedRows().filter((r) => r.cart_id !== "meta");
   }
 
   it("stores an honest cart row exactly as sent: kitchen reads \"1x Diavolo (50)\"", async () => {
@@ -713,7 +737,7 @@ describe("create-order handler — stored rows read as the menu row that was cha
     expect(storedItems()[0]).toMatchObject({ name: "Coca-Cola 0,33 l", size: null });
   });
 
-  it("leaves the meta row and the client's cart_id, note, image, category and quantity as sent", async () => {
+  it("keeps the customer's note and each row's cart_id, note, image, category and quantity", async () => {
     const meta = {
       cart_id: "meta",
       menu_item_id: null,
@@ -723,17 +747,17 @@ describe("create-order handler — stored rows read as the menu row that was cha
       base_price: null,
       price_per_item: 0,
       addons: [],
-      note: "Zona: Bečići, Dostava: 3 €",
+      note: "zvono ne radi\nPlaćanje: Gotovina\nZona: Budva, Dostava: 0€",
       image: "",
       category: "meta",
     };
     const row = diavolo50({ quantity: 2, note: "dobro pečena", category: "pizza" });
-    const c = await submit([meta, row], 2 * 2500 + 300);
+    const c = await submit([meta, row], 2 * 2500);
 
     expect(c.statusCode).toBe(200);
-    const [storedMeta, stored] = storedItems();
+    const [storedMeta, stored] = storedRows();
     expect(storedMeta).toMatchObject({ cart_id: "meta", name: "META", price_per_item: 0, addons: [] });
-    expect(String(storedMeta.note)).toContain("Plaćanje: Gotovina");
+    expect(storedMeta.note).toBe("Plaćanje: Gotovina\nZona: Budva, Dostava: 0€\nzvono ne radi");
     expect(stored).toMatchObject({
       cart_id: "c-diavolo-50",
       menu_item_id: "diavolo-50",
@@ -760,5 +784,385 @@ describe("create-order handler — stored rows read as the menu row that was cha
     expect(c.statusCode).toBe(200);
     expect(bodyOf(c).flow).toBe("card_redirect");
     expect(storedItems()[0]).toMatchObject({ name: "Diavolo", size: "33", price_per_item: 1000 });
+  });
+});
+
+describe("create-order handler — delivery, status and currency are the server's (B23e)", () => {
+  const MENU = [
+    { id: "pizza-33", name: "Kapričoza 33 cm", price_eur_cents: 900 },
+    { id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 },
+  ];
+
+  function pizza(id: "pizza-33" | "pizza-50") {
+    return {
+      cart_id: `c-${id}`,
+      menu_item_id: id,
+      name: "Kapričoza",
+      size: id === "pizza-50" ? "50" : "33",
+      quantity: 1,
+      price_per_item: id === "pizza-50" ? 1600 : 900,
+      addons: [],
+    };
+  }
+
+  function meta(note: string) {
+    return { cart_id: "meta", menu_item_id: null, name: "META", size: null, quantity: 1, price_per_item: 0, addons: [], note, image: "", category: "meta" };
+  }
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-test-id" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(body: Record<string, unknown>) {
+    const c = makeRes();
+    await handler(makeReq(validBody(body)), c.res);
+    return c;
+  }
+
+  function inserted(): Record<string, unknown> {
+    const call = hoisted.calls.find((x) => x.table === "orders" && x.op === "insert");
+    return (call?.payload ?? {}) as Record<string, unknown>;
+  }
+
+  function storedMeta(): Record<string, unknown>[] {
+    return ((inserted().items ?? []) as Record<string, unknown>[]).filter((r) => r.cart_id === "meta");
+  }
+
+  function expectInvalidZone(c: CapturedRes) {
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).code).toBe("invalid_delivery_zone");
+    expect(insertedInto("orders")).toBe(false);
+  }
+
+  it("stores a cash order as pending in EUR, whatever status and currency the request sends", async () => {
+    const c = await submit({ items: [pizza("pizza-50")], total_eur_cents: 1600, status: "done", currency: "RSD" });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserted()).toMatchObject({ status: "pending", currency: "EUR" });
+  });
+
+  it("charges the zone fee below the zone's minimum — a total without it is a mismatch", async () => {
+    const short = await submit({ delivery_zone: "becici", items: [pizza("pizza-33")], total_eur_cents: 900 });
+    expect(short.statusCode).toBe(400);
+    expect(bodyOf(short).error).toBe("Total mismatch");
+
+    hoisted.calls.length = 0;
+    const ok = await submit({ delivery_zone: "becici", items: [pizza("pizza-33")], total_eur_cents: 900 + 300 });
+    expect(ok.statusCode).toBe(200);
+    expect(inserted().total_eur_cents).toBe(1200);
+  });
+
+  it("delivers free from the zone's minimum up", async () => {
+    const c = await submit({ delivery_zone: "becici", items: [pizza("pizza-50")], total_eur_cents: 1600 });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserted().total_eur_cents).toBe(1600);
+  });
+
+  it("audit PoC: a note saying \"Dostava: 0\" does not waive the fee", async () => {
+    const c = await submit({
+      delivery_zone: "lastva",
+      items: [meta("Zona: Lastva, Dostava: 0"), pizza("pizza-50")],
+      total_eur_cents: 1600,
+    });
+
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).error).toBe("Total mismatch");
+    expect(insertedInto("orders")).toBe(false);
+  });
+
+  it("rejects an unknown zone key before anything is stored or charged", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+
+    const c = await submit({ delivery_zone: "petrovac", payment_method: "card", items: [pizza("pizza-50")], total_eur_cents: 1600 });
+
+    expectInvalidZone(c);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("a cart loaded before B23e (no zone key) is charged from the label in its note", async () => {
+    const c = await submit({
+      delivery_zone: undefined,
+      items: [meta("Plaćanje: Gotovina\nZona: Bečići, Dostava: 0€"), pizza("pizza-33")],
+      total_eur_cents: 1200,
+    });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserted().total_eur_cents).toBe(1200);
+  });
+
+  it("rejects a request with no zone key and no zone in its note, or an unknown label", async () => {
+    expectInvalidZone(await submit({ delivery_zone: undefined, items: [pizza("pizza-50")], total_eur_cents: 1600 }));
+    hoisted.calls.length = 0;
+    expectInvalidZone(
+      await submit({ delivery_zone: undefined, items: [meta("Zona: Petrovac, Dostava: 0"), pizza("pizza-50")], total_eur_cents: 1600 }),
+    );
+  });
+
+  it("writes payment, zone and fee first in the note; lines in the cart's format are dropped, other text follows", async () => {
+    const note = "Plaćanje: Kartica\nDostava: 0\nzvono ne radi\nPlaćanje: Gotovina\nZona: Bečići, Dostava: 3€";
+    const c = await submit({ delivery_zone: "becici", items: [meta(note), pizza("pizza-33")], total_eur_cents: 1200 });
+
+    expect(c.statusCode).toBe(200);
+    const rows = storedMeta();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].note).toBe("Plaćanje: Gotovina\nZona: Bečići, Dostava: 3€\nDostava: 0\nzvono ne radi");
+    expect(rows[0].order_note).toBe(rows[0].note);
+    expect((inserted().items as unknown[])[0]).toBe(rows[0]);
+  });
+
+  it("adds the meta row when the request has none, and keeps a single one when it has several", async () => {
+    const none = await submit({ delivery_zone: "budva", items: [pizza("pizza-50")], total_eur_cents: 1600 });
+    expect(none.statusCode).toBe(200);
+    expect(storedMeta().map((r) => r.note)).toEqual(["Plaćanje: Gotovina\nZona: Budva, Dostava: 0€"]);
+
+    hoisted.calls.length = 0;
+    const several = await submit({
+      delivery_zone: "budva",
+      items: [meta("prvi"), pizza("pizza-50"), { ...meta("drugi"), cart_id: "c-x", name: "Meta" }],
+      total_eur_cents: 1600,
+    });
+    expect(several.statusCode).toBe(200);
+    expect(storedMeta().map((r) => r.note)).toEqual(["Plaćanje: Gotovina\nZona: Budva, Dostava: 0€\nprvi"]);
+    expect((inserted().items as unknown[]).length).toBe(2);
+  });
+
+  it("a card order charges Bankart the total with the fee and notes \"Plaćanje: Kartica\"", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+    const bankart = { success: true, returnType: "REDIRECT", redirectUrl: "https://pay.example/r", uuid: "u-1" };
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(bankart)) });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const c = await submit({ delivery_zone: "becici", payment_method: "card", items: [pizza("pizza-33")], total_eur_cents: 1200 });
+
+    expect(c.statusCode).toBe(200);
+    const debit = JSON.parse(String((fetchSpy.mock.calls[0] as [string, { body: string }])[1].body)) as Record<string, unknown>;
+    expect(debit.amount).toBe("12.00");
+    expect(debit.currency).toBe("EUR");
+    expect(String(storedMeta()[0].note).split("\n")[0]).toBe("Plaćanje: Kartica");
+  });
+});
+
+describe("create-order handler — one checkout attempt is one order (B24)", () => {
+  const MENU = [{ id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 }];
+  const KEY = "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d";
+  const line = { cart_id: "c-1", menu_item_id: "pizza-50", name: "Kapričoza", size: "50", quantity: 1, price_per_item: 1600, addons: [] };
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.idempotency.lookups.length = 0;
+    hoisted.idempotency.inserts.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-new" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(makeReq(validBody({ items: [line], total_eur_cents: 1600, idempotency_key: KEY, ...extra })), c.res);
+    return c;
+  }
+
+  function inserts(): Record<string, unknown>[] {
+    return hoisted.calls.filter((x) => x.table === "orders" && x.op === "insert").map((x) => x.payload as Record<string, unknown>);
+  }
+
+  it("stores the attempt key with a new order", async () => {
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c).id).toBe("order-new");
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0].idempotency_key).toBe(KEY);
+  });
+
+  it("a repeated cash attempt gets the first order back — no second order, no second message", async () => {
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-first", payment_method: "cash", payment_status: null }], error: null });
+
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c)).toMatchObject({ ok: true, id: "order-first", flow: "cash", replayed: true });
+    expect(inserts()).toHaveLength(0);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("a repeated card attempt gets its Bankart redirect back, without a second debit", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+    hoisted.idempotency.lookups.push({
+      data: [
+        {
+          id: "order-card",
+          payment_method: "card",
+          payment_status: "pending",
+          payment_meta: { phase: "redirect", response: { redirectUrl: "https://pay.example/r" } },
+        },
+      ],
+      error: null,
+    });
+
+    const c = await submit({ payment_method: "card" });
+
+    expect(bodyOf(c)).toMatchObject({ id: "order-card", flow: "card_redirect", redirect_url: "https://pay.example/r" });
+    expect(inserts()).toHaveLength(0);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("a card attempt whose payment failed is not repeated — the retry is a new order and takes over the key", async () => {
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-failed", payment_method: "card", payment_status: "failed" }], error: null });
+
+    const c = await submit();
+
+    expect(bodyOf(c).id).toBe("order-new");
+    expect(inserts()).toHaveLength(1);
+    // The key moves to the retry, so a lost response of the retry is still deduplicated.
+    expect(inserts()[0].idempotency_key).toBe(KEY);
+    expect(hoisted.calls.some((x) => x.table === "orders" && x.op === "update")).toBe(true);
+  });
+
+  it("two identical attempts racing: the loser answers with the winner's order", async () => {
+    hoisted.idempotency.lookups.push({ data: [], error: null });
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-winner", payment_method: "cash", payment_status: null }], error: null });
+    hoisted.idempotency.inserts.push({ data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } });
+
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c)).toMatchObject({ id: "order-winner", replayed: true });
+  });
+
+  it("before the migration (no column) the order is still taken, without the key", async () => {
+    hoisted.idempotency.lookups.push({ data: null, error: { code: "42703", message: "column orders.idempotency_key does not exist" } });
+    hoisted.idempotency.inserts.push({
+      data: null,
+      error: { code: "PGRST204", message: "Could not find the 'idempotency_key' column of 'orders' in the schema cache" },
+    });
+
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c).id).toBe("order-new");
+    expect(inserts()).toHaveLength(2);
+    expect(inserts()[1].idempotency_key).toBeUndefined();
+  });
+
+  it("ignores a key that is not a plausible random id", async () => {
+    const c = await submit({ idempotency_key: "short" });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserts()[0].idempotency_key).toBeUndefined();
+  });
+});
+
+describe("create-order handler — code review fixes (B24 review)", () => {
+  const MENU = [{ id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 }];
+  const KEY = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
+  const line = { cart_id: "c-1", menu_item_id: "pizza-50", name: "Kapričoza", size: "50", quantity: 1, price_per_item: 1600, addons: [] };
+  const CARD_ERROR = "Plaćanje karticom trenutno nije moguće. Pokušajte ponovo ili izaberite plaćanje pouzećem.";
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.idempotency.lookups.length = 0;
+    hoisted.idempotency.inserts.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-new" }, error: null };
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submitCard(extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(
+      makeReq(validBody({ items: [line], total_eur_cents: 1600, payment_method: "card", idempotency_key: KEY, ...extra })),
+      c.res,
+    );
+    return c;
+  }
+
+  function updates(): Record<string, unknown>[] {
+    return hoisted.calls.filter((x) => x.table === "orders" && x.op === "update").map((x) => x.payload as Record<string, unknown>);
+  }
+
+  it("a card decline (Bankart's own text, no \"Bankart\" in it) gets the card-payment message", async () => {
+    const declined = { success: false, errors: [{ errorMessage: "The transaction was declined" }] };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(declined)) }));
+
+    const c = await submitCard();
+
+    expect(c.statusCode).toBe(500);
+    expect(bodyOf(c).error).toBe(CARD_ERROR);
+    expect(updates()[0]).toMatchObject({ status: "cancelled", payment_status: "failed" });
+  });
+
+  it("a network error on the debit leaves the order pending (outcome unknown), not failed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("socket hang up")));
+
+    const c = await submitCard();
+
+    expect(c.statusCode).toBe(500);
+    expect(bodyOf(c).error).toBe(CARD_ERROR);
+    expect(updates()).toHaveLength(1);
+    expect(updates()[0].payment_status).toBeUndefined();
+    expect(updates()[0].status).toBeUndefined();
+    expect((updates()[0].payment_meta as Record<string, unknown>).phase).toBe("init_network_error");
+  });
+
+  it("a retry after closing time still gets the order that was placed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T10:00:00Z")); // 11:00 Podgorica
+    hoisted.tableResults.site_settings = { data: { orders_open_time: "12:00", orders_close_time: "23:00", hours_display: "12–23" }, error: null };
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-placed", payment_method: "cash", payment_status: null }], error: null });
+    vi.stubGlobal("fetch", vi.fn());
+
+    const c = makeRes();
+    await handler(makeReq(validBody({ items: [line], total_eur_cents: 1600, idempotency_key: KEY })), c.res);
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c)).toMatchObject({ id: "order-placed", replayed: true });
+  });
+
+  it("a race lost to an attempt whose card then failed is reported as failed, never as pending", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    hoisted.idempotency.lookups.push({ data: [], error: null });
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-a", payment_method: "card", payment_status: "failed" }], error: null });
+    hoisted.idempotency.inserts.push({ data: null, error: { code: "23505", message: "duplicate key" } });
+
+    const c = await submitCard();
+
+    expect(c.statusCode).toBe(409);
+    expect(bodyOf(c)).toMatchObject({ ok: false, code: "payment_not_completed" });
   });
 });

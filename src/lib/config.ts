@@ -19,9 +19,9 @@
  *   - Contact email/phone literals    → DB-driven (site_settings)
  *
  * Real-money note: DELIVERY_ZONES values (minCents/feeCents) are the
- * customer-visible delivery pricing. Server-side create-order.ts
- * validates client-sent feeCents — any divergence here is a real
- * pricing bug. Edit with care.
+ * customer-visible delivery pricing. The server charges delivery from its
+ * own copy, api/_shared/delivery-zones.ts (B23e) — change both together;
+ * src/lib/pricingParity.test.tsx fails when they differ.
  */
 
 export const SITE_URL = "https://padrinobudva.com";

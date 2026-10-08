@@ -46,10 +46,11 @@ Web aplikacija za online narudžbe pizze. Frontend (React + Vite), backend (Verc
 
 **Server (api/*):**
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — obavezno
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — obavezno
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — obavezno (poruke kuhinji šalju handleri direktno, B24)
+- `PUBLIC_SITE_URL` — obavezno u Production (`https://padrinobudva.com`; Bankart return/callback URL-ovi)
 - `BANKART_*` — obavezno ako su kartice uključene
-- `UPSTASH_REDIS_*` — opciono, rate limiting na create-order
-- `ADMIN_FALLBACK_EMAIL`, `PUBLIC_SITE_URL`, `TELEGRAM_WEBHOOK_SECRET` — opciono
+- `UPSTASH_REDIS_*` — obavezno u Production: bez njih create-order radi bez rate limita
+- `ADMIN_FALLBACK_EMAIL` — opciono
 
 Detalje vidi u `.env.example` i `RUNBOOK.md`.
 
@@ -58,7 +59,8 @@ Detalje vidi u `.env.example` i `RUNBOOK.md`.
 ## Build / test / deploy
 
 - **Build:** `npm run build` (tsc + vite)
-- **Test:** `npm test` (Vitest, apiBase, createOrder, money)
+- **Test:** `npm test` (Vitest — server handleri, klijent↔server parity, korpa/checkout)
+- **Lint:** `npm run lint`
 - **Deploy:** Vercel (`vercel --prod`), env na Vercel dashboardu
 
 ---
@@ -76,12 +78,13 @@ src/
 ├── context/          # CartProvider, useCart
 └── auth/             # AuthProvider
 
-api/                  # Vercel serverless
-├── create-order.ts   # Narudžbina, Bankart, rate limit
-├── telegram-new-order.ts
+api/                  # Vercel serverless (10 funkcija; Hobby limit 12)
+├── create-order.ts   # Narudžbina: provere, cena sa servera, dostava po zoni, Bankart, rate limit
 ├── bankart-callback.ts
 ├── bankart-order-status.ts
-└── admin-*           # Admin CRUD
+├── log.ts            # Klijentski logovi + CSP prijave
+├── admin-*           # Admin CRUD
+└── _shared/          # telegram, order-items, bankart-debit, delivery-zones, payment-status, env, http, …
 ```
 
 ---
@@ -90,7 +93,7 @@ api/                  # Vercel serverless
 
 Neki fajlovi i sistemi se ne menjaju bez eksplicitnog odobrenja:
 
-- `api/create-order.ts`, `api/bankart-*`, `api/telegram-new-order.ts`
+- `api/create-order.ts`, `api/bankart-*`, `api/_shared/telegram.ts`, `api/_shared/order-items.ts`, `api/_shared/bankart-debit.ts`
 - `src/components/CartDrawer.tsx`
 - Payment flow, refund sync, create-order arhitektura
 

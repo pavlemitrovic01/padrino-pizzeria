@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolvePublicBaseUrl, buildTelegramPayload } from "./public-url";
+import { resolvePublicBaseUrl } from "./public-url";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -32,141 +32,80 @@ describe("resolvePublicBaseUrl — env precedence", () => {
     expect(resolvePublicBaseUrl({})).toBe("https://next.example.com");
   });
 
-  it("env wins over Origin even when trustOriginHeader is true", () => {
+  it("env wins over Origin and Host", () => {
     vi.stubEnv("PUBLIC_SITE_URL", "https://padrinobudva.com");
+    const headers = { origin: "https://attacker.example.com", host: "preview.vercel.app" };
+    expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
+  });
+});
+
+function clearSiteEnv() {
+  vi.stubEnv("PUBLIC_SITE_URL", "");
+  vi.stubEnv("SITE_URL", "");
+  vi.stubEnv("APP_URL", "");
+  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+}
+
+describe("resolvePublicBaseUrl — Origin is never trusted (B22, audit #5)", () => {
+  it("ignores an attacker Origin and uses the Host header", () => {
+    clearSiteEnv();
+    const headers = { origin: "https://attacker.example.com", host: "padrinobudva.com" };
+    expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
+  });
+
+  it("ignores an attacker Origin even with no Host — falls back to the default", () => {
+    clearSiteEnv();
     const headers = { origin: "https://attacker.example.com" };
-    expect(resolvePublicBaseUrl(headers, { trustOriginHeader: true })).toBe("https://padrinobudva.com");
-  });
-});
-
-describe("resolvePublicBaseUrl — trustOriginHeader: true (browser-facing endpoints)", () => {
-  it("uses Origin when no env is set and trustOriginHeader is true", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { origin: "https://padrinobudva.com" };
-    expect(resolvePublicBaseUrl(headers, { trustOriginHeader: true })).toBe("https://padrinobudva.com");
+    expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
   });
 
-  it("strips trailing slash from Origin", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { origin: "https://padrinobudva.com/" };
-    expect(resolvePublicBaseUrl(headers, { trustOriginHeader: true })).toBe("https://padrinobudva.com");
-  });
-});
-
-describe("resolvePublicBaseUrl — trustOriginHeader: false (callback security invariant)", () => {
-  it("ignores Origin when trustOriginHeader is false", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+  it("ignores x-forwarded-host and x-forwarded-proto", () => {
+    clearSiteEnv();
     const headers = {
-      origin: "https://attacker.example.com",
-      "x-forwarded-proto": "https",
-      "x-forwarded-host": "padrinobudva.com",
+      "x-forwarded-proto": "http",
+      "x-forwarded-host": "attacker.example.com",
+      host: "padrinobudva.com",
     };
-    expect(resolvePublicBaseUrl(headers, { trustOriginHeader: false })).toBe("https://padrinobudva.com");
-  });
-
-  it("ignores Origin when trustOriginHeader is omitted (safe default)", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { origin: "https://attacker.example.com" };
     expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
   });
 });
 
-describe("resolvePublicBaseUrl — x-forwarded fallback", () => {
-  it("builds URL from x-forwarded-proto and x-forwarded-host", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { "x-forwarded-proto": "https", "x-forwarded-host": "padrinobudva.com" };
-    expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
+describe("resolvePublicBaseUrl — Host fallback", () => {
+  it("builds an https URL from the Host header", () => {
+    clearSiteEnv();
+    expect(resolvePublicBaseUrl({ host: "padrino-pizzeria-git-b22.vercel.app" })).toBe(
+      "https://padrino-pizzeria-git-b22.vercel.app",
+    );
   });
 
-  it("falls back to host header when x-forwarded-host is absent", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { "x-forwarded-proto": "https", host: "padrinobudva.com" };
-    expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
+  it("keeps an explicit port and lowercases the host", () => {
+    clearSiteEnv();
+    expect(resolvePublicBaseUrl({ host: "LocalHost:5173" })).toBe("https://localhost:5173");
   });
 
-  it("defaults proto to https when x-forwarded-proto is absent", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { host: "padrinobudva.com" };
-    expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
+  it("reads the host header in lower or upper case (Node lowercases incoming names)", () => {
+    clearSiteEnv();
+    // A non-default host, so a miss (falling back to padrinobudva.com) would fail.
+    expect(resolvePublicBaseUrl({ host: "preview.example.app" })).toBe("https://preview.example.app");
+    expect(resolvePublicBaseUrl({ HOST: "preview.example.app" })).toBe("https://preview.example.app");
   });
 
-  it("accepts header keys case-insensitively (CI lookup)", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { "X-Forwarded-Proto": "https", "X-Forwarded-Host": "padrinobudva.com" };
-    expect(resolvePublicBaseUrl(headers)).toBe("https://padrinobudva.com");
+  it("rejects a malformed Host (path, userinfo, scheme) and uses the default", () => {
+    clearSiteEnv();
+    for (const host of ["evil.com/x", "user@evil.com", "https://evil.com", "a b"]) {
+      expect(resolvePublicBaseUrl({ host })).toBe("https://padrinobudva.com");
+    }
   });
 });
 
 describe("resolvePublicBaseUrl — final hardcoded fallback", () => {
   it("returns https://padrinobudva.com when all sources are absent", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    clearSiteEnv();
     expect(resolvePublicBaseUrl(undefined)).toBe("https://padrinobudva.com");
   });
 
   it("returns https://padrinobudva.com for empty headers object", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    clearSiteEnv();
     expect(resolvePublicBaseUrl({})).toBe("https://padrinobudva.com");
-  });
-});
-
-describe("buildTelegramPayload", () => {
-  it("returns correct shape with notify_url suffix", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "https://padrinobudva.com");
-    const result = buildTelegramPayload({}, "order-123", { trustOriginHeader: true });
-    expect(result).toEqual({
-      order_id: "order-123",
-      notify_url: "https://padrinobudva.com/api/telegram-new-order",
-    });
-  });
-
-  it("passes trustOriginHeader through to resolvePublicBaseUrl", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { origin: "https://padrinobudva.com" };
-    const result = buildTelegramPayload(headers, "order-456", { trustOriginHeader: true });
-    expect(result.notify_url).toBe("https://padrinobudva.com/api/telegram-new-order");
-  });
-
-  it("ignores Origin when trustOriginHeader is false (callback invariant)", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
-    vi.stubEnv("SITE_URL", "");
-    vi.stubEnv("APP_URL", "");
-    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    const headers = { origin: "https://attacker.example.com" };
-    const result = buildTelegramPayload(headers, "order-789", { trustOriginHeader: false });
-    expect(result.notify_url).not.toContain("attacker");
-    expect(result.notify_url).toBe("https://padrinobudva.com/api/telegram-new-order");
   });
 });

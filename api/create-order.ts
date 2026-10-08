@@ -1,22 +1,28 @@
-import crypto from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
-import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
+import { resolvePublicBaseUrl } from "./_shared/public-url.js";
+import { isPlainObject, safeInt } from "./_shared/parsing.js";
 import { isWithinBusinessHours, nowMinutesInPodgorica } from "./_shared/business-hours.js";
-import { crustSizeForItem, stuffedCrustSizeOf } from "./_shared/stuffed-crust.js";
-import { displayNameOfMenuRow, pizzaSizeOfName } from "./_shared/menu-display.js";
+import {
+  deliveryFeeCents,
+  findDeliveryZone,
+  findDeliveryZoneByLabel,
+  formatDeliveryFee,
+  type DeliveryZone,
+} from "./_shared/delivery-zones.js";
 import { applyCors } from "./_shared/cors.js";
+import { notifyNewOrder } from "./_shared/telegram.js";
 import {
   BANKART_FALLBACK_EMAIL,
   BANKART_FALLBACK_CITY,
   BANKART_FALLBACK_POSTCODE,
-  BANKART_DESCRIPTION_PREFIX,
 } from "./_shared/config.js";
+import { buildSupabaseAdmin, getEnv } from "./_shared/env.js";
+import { json } from "./_shared/http.js";
+import { isMetaRow, isPriceableItemRow, zoneLabelFromNote, withServerMetaRow, fetchMenuRows, findCrustSizeMismatch, sumAddonsCents, findMissingMenuItemIds, withMenuRowDisplay, safeTotalCentsFromBody } from "./_shared/order-items.js";
+import { BankartInitError, getBankartConfig, bankartMetaSnapshot, buildBankartDebitRequest, startBankartDebit } from "./_shared/bankart-debit.js";
 
 type PaymentMethod = "cash" | "card";
-type Json = Record<string, unknown>;
 
 type HeaderValue = string | string[] | undefined;
 type HeadersLike = Record<string, HeaderValue>;
@@ -31,57 +37,6 @@ type ResLike = {
   setHeader: (name: string, value: string) => void;
   status: (code: number) => ResLike;
   send: (body: string) => void;
-};
-
-type BankartConfig = {
-  baseUrl: string;
-  apiKey: string;
-  username: string;
-  password: string;
-  sharedSecret: string;
-  language: string;
-};
-
-type BankartDebitRequest = {
-  merchantTransactionId: string;
-  amount: string;
-  currency: string;
-  successUrl: string;
-  cancelUrl: string;
-  errorUrl: string;
-  callbackUrl: string;
-  description: string;
-  language: string;
-  merchantMetaData: string;
-  extraData: Record<string, string>;
-  transactionToken?: string;
-  customer?: {
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    billingAddress1?: string;
-    billingCity?: string;
-    billingPostcode?: string;
-    billingCountry?: string;
-    billingPhone?: string;
-    shippingFirstName?: string;
-    shippingLastName?: string;
-    shippingAddress1?: string;
-    shippingCountry?: string;
-    shippingPhone?: string;
-    ipAddress?: string;
-  };
-};
-
-type BankartDebitResponse = {
-  success?: unknown;
-  uuid?: unknown;
-  purchaseId?: unknown;
-  returnType?: unknown;
-  redirectUrl?: unknown;
-  paymentMethod?: unknown;
-  errors?: unknown;
-  extraData?: unknown;
 };
 
 function toTrimmedString(v: unknown): string {
@@ -103,478 +58,7 @@ function headerStringCI(req: ReqLike, key: string): string {
   );
 }
 
-function json(res: ResLike, status: number, body: Json) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.send(JSON.stringify(body));
-}
-
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
-
-function getFirstEnv(...names: string[]): string {
-  for (const name of names) {
-    const value = getEnv(name);
-    if (value) return value;
-  }
-  return "";
-}
-
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-    getEnv("SUPABASE_SERVICE_KEY") ||
-    getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/create-order" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
-
-/**
- * Legacy meta zapis koji frontend ubacuje u items[0]:
- * { total_items: number, order_note?: string }
- */
-function looksLikeLegacyMetaItem(v: unknown) {
-  if (!isPlainObject(v)) return false;
-  const keys = Object.keys(v);
-  if (keys.length === 0) return false;
-
-  const allowed = new Set(["total_items", "order_note", "note"]);
-  const itemish = ["quantity", "price_per_item", "name", "menu_item_id", "cart_id", "menuItemId"];
-  if (itemish.some((k) => k in v)) return false;
-
-  return keys.every((k) => allowed.has(k));
-}
-
-/**
- * A row the kitchen never sees. Telegram (api/telegram-new-order.ts) and the
- * admin panel (src/lib/adminOrdersLib.ts) both hide the rows whose cart_id,
- * name or category is "meta" and list the others, so the server prices every
- * other row (B23c). The frontend's own meta row is
- * { cart_id: "meta", name: "META", category: "meta", note }; legacy meta rows
- * ({ total_items, order_note }) carry no item at all.
- */
-function isMetaRow(v: unknown): boolean {
-  if (!isPlainObject(v)) return false;
-  if (looksLikeLegacyMetaItem(v)) return true;
-  return [v.cart_id, v.name, v.category].some((x) => normalizeText(toTrimmedString(x)) === "meta");
-}
-
-// Far above any real order (prod max: 6 of an item, 10 of an addon) and low
-// enough that no quantity × price can overflow the total (a non-finite total
-// is stored as NULL and Telegram shows "Ukupno: 0,00 €").
-const MAX_LINE_QUANTITY = 99;
-
-function isLineQuantity(v: unknown): boolean {
-  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_LINE_QUANTITY;
-}
-
-/**
- * B23c: a row that is not meta is food the kitchen will make, so the server
- * must be able to price it exactly: a cart_id (Telegram lists only rows that
- * have one), a menu_item_id, a whole quantity 1–99, and addons that each have
- * an id and a whole quantity 1–99. The kitchen prints max(1, quantity) and
- * lists every addon object, so anything looser (no price, quantity −1 or 0, an
- * addon without id) was stored and made but never charged.
- */
-function isPriceableItemRow(v: unknown): boolean {
-  if (!isPlainObject(v)) return false;
-  if (!toTrimmedString(v.cart_id)) return false;
-
-  const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
-  if (!menuItemId || !isLineQuantity(v.quantity)) return false;
-
-  if (v.addons === undefined || v.addons === null) return true;
-  if (!Array.isArray(v.addons)) return false;
-  return v.addons.every(
-    (a) => isPlainObject(a) && toTrimmedString(a.id) !== "" && isLineQuantity(a.quantity),
-  );
-}
-
-type Zone = {
-  id: string;
-  name: string;
-  fee_eur: number;
-  polygon: number[][];
-};
-
-type PricingRow = {
-  id: string;
-  name: string;
-  price_eur_cents: number;
-};
-
-async function fetchZones(): Promise<Zone[]> {
-  const { data, error } = await supabase.from("delivery_zones").select("id,name,fee_eur,polygon");
-  if (error) throw new Error(`DB: zones fetch failed (${error.message})`);
-
-  const zones: Zone[] = [];
-  for (const row of Array.isArray(data) ? data : []) {
-    const id = toTrimmedString((row as Record<string, unknown>).id);
-    const name = toTrimmedString((row as Record<string, unknown>).name);
-    const fee = safeNumber((row as Record<string, unknown>).fee_eur, 0);
-
-    const polygonRaw = (row as Record<string, unknown>).polygon;
-    const polygon: number[][] = Array.isArray(polygonRaw)
-      ? (polygonRaw as unknown[]).map((pt) => {
-          if (!Array.isArray(pt) || pt.length < 2) return [0, 0];
-          return [safeNumber(pt[0], 0), safeNumber(pt[1], 0)];
-        })
-      : [];
-
-    if (!id || !name || polygon.length < 3) continue;
-    zones.push({ id, name, fee_eur: fee, polygon });
-  }
-
-  return zones;
-}
-
-function isPointInPolygon(point: [number, number], polygon: number[][]) {
-  const x = point[0];
-  const y = point[1];
-
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i][0];
-    const yi = polygon[i][1];
-    const xj = polygon[j][0];
-    const yj = polygon[j][1];
-
-    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 0.0) + xi;
-    if (intersect) inside = !inside;
-  }
-
-  return inside;
-}
-
-type LatLng = { lat: number; lng: number };
-
-function parseLatLngFromBody(body: Record<string, unknown>): LatLng | null {
-  const lat = body.lat ?? body.latitude ?? body.customer_lat ?? body.customerLat;
-  const lng = body.lng ?? body.longitude ?? body.customer_lng ?? body.customerLng;
-
-  const la = safeNumber(lat, Number.NaN);
-  const lo = safeNumber(lng, Number.NaN);
-
-  if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
-  if (la < -90 || la > 90 || lo < -180 || lo > 180) return null;
-
-  return { lat: la, lng: lo };
-}
-
-function appendMetaLine(existing: string, line: string): string {
-  const e = existing.trim();
-  const l = line.trim();
-  if (!l) return e;
-  if (!e) return l;
-
-  const existingLines = e.split(/\r?\n/).map((s) => s.trim());
-  if (existingLines.some((x) => normalizeText(x) === normalizeText(l))) return e;
-
-  return `${e}\n${l}`;
-}
-
-function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): unknown[] {
-  const line = `Plaćanje: ${payment === "cash" ? "Gotovina" : "Kartica"}`;
-  const items = Array.isArray(rawItems) ? [...rawItems] : [];
-
-  const idx = items.findIndex((it) => isMetaRow(it));
-  if (idx === -1) return items;
-
-  const meta = items[idx];
-  if (!isPlainObject(meta)) return items;
-
-  const existing = toTrimmedString(meta.order_note) || toTrimmedString(meta.note);
-  const merged = appendMetaLine(existing, line);
-
-  items[idx] = { ...meta, order_note: merged, note: merged };
-  return items;
-}
-
-type MenuRows = {
-  prices: Map<string, number>;
-  // Row names, for the stuffed-crust size check (B23b).
-  names: Map<string, string>;
-};
-
-async function fetchMenuRows(ids: string[]): Promise<MenuRows> {
-  const uniq = Array.from(new Set(ids.filter(Boolean)));
-  if (uniq.length === 0) return { prices: new Map(), names: new Map() };
-
-  const { data, error } = await supabase
-    .from("menu_items")
-    .select("id,name,price_eur_cents")
-    .eq("is_active", true)
-    .in("id", uniq);
-
-  if (error) throw new Error(`DB: pricing fetch failed (${error.message})`);
-
-  const prices = new Map<string, number>();
-  const names = new Map<string, string>();
-  for (const row of Array.isArray(data) ? data : []) {
-    const r = row as unknown as PricingRow;
-    const id = toTrimmedString((r as unknown as Record<string, unknown>).id);
-    const p = safeInt((r as unknown as Record<string, unknown>).price_eur_cents, 0);
-    // Include every active row so the existence check (findMissingMenuItemIds)
-    // recognizes free addons (price 0, e.g. ketchup/mayo). Price stays accurate
-    // (0 for free items); sumAddonsCents already ignores non-positive prices.
-    if (id) {
-      prices.set(id, p > 0 ? p : 0);
-      names.set(id, toTrimmedString((r as unknown as Record<string, unknown>).name));
-    }
-  }
-  return { prices, names };
-}
-
-/**
- * B23b: the first addon that is the stuffed crust of the other pizza size
- * (e.g. the 2 € 33 cm crust on a 50 cm pizza), or null. Both sizes come from
- * menu row names — never from the `size` field the client sends.
- *
- * A crust row ordered as an item of its own is refused too: the kitchen lists
- * it as a separate line it could put on any pizza, and the cart never sends it
- * that way (prod: 0 such rows).
- */
-function findCrustSizeMismatch(
-  items: Record<string, unknown>[],
-  names: Map<string, string>,
-): { menuItemId: string; addonId: string } | null {
-  for (const item of items) {
-    const menuItemId = toTrimmedString(item.menu_item_id) || toTrimmedString(item.menuItemId);
-    const itemName = names.get(menuItemId) ?? "";
-    if (stuffedCrustSizeOf(itemName) !== null) return { menuItemId, addonId: "" };
-    const fits = crustSizeForItem(itemName);
-
-    const addons = Array.isArray(item.addons) ? item.addons : [];
-    for (const a of addons) {
-      if (!isPlainObject(a)) continue;
-      const addonId = toTrimmedString(a.id);
-      const crust = stuffedCrustSizeOf(names.get(addonId) ?? "");
-      if (crust !== null && crust !== fits) return { menuItemId, addonId };
-    }
-  }
-  return null;
-}
-
-function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
-  const list = Array.isArray(addons) ? addons : [];
-  let total = 0;
-
-  for (const a of list) {
-    if (!isPlainObject(a)) continue;
-    const addonId = toTrimmedString(a.id);
-    const q = safeInt(a.quantity, 1);
-    if (!addonId || q <= 0) continue;
-
-    const cents = priceMap.get(addonId) ?? 0;
-    if (cents > 0) total += q * cents;
-  }
-
-  return total;
-}
-
-function findMissingMenuItemIds(ids: string[], priceMap: Map<string, number>): string[] {
-  const uniq = Array.from(new Set(ids.filter(Boolean)));
-  return uniq.filter((id) => !priceMap.has(id));
-}
-
-/**
- * B23d: Telegram prints each row's name, size and addon names as stored, and
- * the admin panel its price_per_item and addon prices — while the server
- * charges by id. So the server stores what it charged: those fields come from
- * the menu rows. An honest cart already sends exactly this ("Diavolo" + "50"
- * for the row "Diavolo 50 cm", Telegram: "1x Diavolo (50)"), so the kitchen
- * reads the same. Meta rows, and each row's cart_id, quantity, note, image and
- * category, stay as sent.
- */
-function withMenuRowDisplay(
-  items: unknown[],
-  prices: Map<string, number>,
-  names: Map<string, string>,
-): unknown[] {
-  return items.map((it) => {
-    if (!isPlainObject(it) || isMetaRow(it)) return it;
-
-    const menuItemId = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
-    const rowName = names.get(menuItemId) ?? "";
-    const basePrice = prices.get(menuItemId) ?? 0;
-
-    const addons = Array.isArray(it.addons)
-      ? it.addons.map((a) => {
-          if (!isPlainObject(a)) return a;
-          const addonId = toTrimmedString(a.id);
-          return { ...a, name: names.get(addonId) ?? "", price: prices.get(addonId) ?? 0 };
-        })
-      : it.addons;
-
-    return {
-      ...it,
-      name: displayNameOfMenuRow(rowName),
-      size: pizzaSizeOfName(rowName),
-      base_price: basePrice,
-      price_per_item: basePrice + sumAddonsCents(addons, prices),
-      addons,
-    };
-  });
-}
-
-function getDeliveryFeeCentsFromMeta(
-  items: unknown[],
-  zones: Zone[],
-  point: LatLng | null,
-): { feeCents: number; zoneName: string } {
-  if (point) {
-    const pt: [number, number] = [point.lng, point.lat];
-    for (const z of zones) {
-      if (isPointInPolygon(pt, z.polygon)) {
-        return { feeCents: Math.round(z.fee_eur * 100), zoneName: z.name };
-      }
-    }
-  }
-
-  let metaNote = "";
-  for (const it of items) {
-    if (!isPlainObject(it)) continue;
-    if (!isMetaRow(it)) continue;
-
-    const n = toTrimmedString(it.order_note) || toTrimmedString(it.note);
-    if (n) metaNote = n;
-    break;
-  }
-
-  const lines = metaNote.split(/\r?\n/).map((s) => s.trim());
-  let feeEur: number | null = null;
-  let zoneName = "";
-
-  for (const line of lines) {
-    if (!zoneName) {
-      const mz = line.match(/Zona\s*:?\s*([^,\n\r]+)/i);
-      if (mz && typeof mz[1] === "string") zoneName = mz[1].trim();
-    }
-
-    if (feeEur == null) {
-      const mf = line.match(/Dostava\s*:?\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
-      if (mf && typeof mf[1] === "string") {
-        const v = Number(mf[1].replace(",", "."));
-        if (Number.isFinite(v) && v >= 0) feeEur = v;
-      }
-    }
-  }
-
-  if (feeEur != null) return { feeCents: Math.round(feeEur * 100), zoneName };
-  return { feeCents: 0, zoneName };
-}
-
-function safeTotalCentsFromBody(body: Record<string, unknown>): number {
-  const cents = body.total_eur_cents ?? body.totalEurCents;
-  const asCents = safeInt(cents, -1);
-  if (asCents >= 0) return asCents;
-
-  const price = body.total_price ?? body.totalPrice;
-  const n = safeNumber(price, Number.NaN);
-  if (Number.isFinite(n) && n >= 0) return Math.round(n * 100);
-
-  return 0;
-}
-
-
-async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
-  const url = buildTelegramPayload(req.headers, orderId, { trustOriginHeader: true }).notify_url;
-
-  const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (secret) headers["x-telegram-secret"] = secret;
-
-  const controller = new AbortController();
-  const timeoutMs = 12000;
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ order_id: orderId }),
-      signal: controller.signal,
-    });
-  } catch {
-    // best effort
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function bestEffortPaymentsCreateSession(orderId: string, paymentMethod: PaymentMethod) {
-  const projectRef = getEnv("SUPABASE_PROJECT_REF");
-  const anon = getEnv("SUPABASE_ANON_KEY") || getEnv("VITE_SUPABASE_ANON_KEY");
-  const token = getEnv("PAYMENTS_EDGE_TOKEN");
-  if (!projectRef || !anon) return;
-
-  const url = `https://${projectRef}.supabase.co/functions/v1/payments-create-session`;
-
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    authorization: `Bearer ${anon}`,
-  };
-  if (token) headers["x-padrino-token"] = token;
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ order_id: orderId, payment_method: paymentMethod }),
-    });
-  } catch {
-    // best effort
-  }
-}
-
-function getBankartConfig(): BankartConfig {
-  const baseUrl = getFirstEnv("BANKART_API_BASE_URL", "NLB_API_BASE_URL") || "https://gateway.bankart.si/api/v3";
-  const apiKey = getFirstEnv("BANKART_API_KEY", "NLB_API_KEY");
-  const username = getFirstEnv("BANKART_API_USERNAME", "BANKART_API_USER", "NLB_API_USERNAME", "NLB_API_USER");
-  const password = getFirstEnv("BANKART_API_PASSWORD", "NLB_API_PASSWORD");
-  const sharedSecret = getFirstEnv("BANKART_SHARED_SECRET", "NLB_SHARED_SECRET");
-  const language = (getFirstEnv("BANKART_LANGUAGE", "NLB_LANGUAGE") || "en").toLowerCase();
-
-  if (!apiKey || !username || !password || !sharedSecret) {
-    throw new Error("Missing Bankart env: API key / username / password / shared secret");
-  }
-
-  return {
-    baseUrl: baseUrl.replace(/\/+$/, ""),
-    apiKey,
-    username,
-    password,
-    sharedSecret,
-    language: language.length === 2 ? language : "en",
-  };
-}
-
-function normalizeBankartApiBaseUrl(baseUrl: string): string {
-  const trimmed = baseUrl.replace(/\/+$/, "");
-  return trimmed.replace(/\/api\/v3$/i, "");
-}
-
-function splitCustomerName(fullName: string): { firstName: string; lastName: string } {
-  const parts = fullName.split(/\s+/).filter(Boolean);
-  if (parts.length <= 1) {
-    return { firstName: fullName || "Kupac", lastName: "" };
-  }
-
-  const firstName = parts.shift() ?? fullName;
-  return { firstName, lastName: parts.join(" ") };
-}
+const supabase = buildSupabaseAdmin("create-order");
 
 function getClientIp(req: ReqLike): string {
   const forwarded = headerStringCI(req, "x-forwarded-for");
@@ -602,62 +86,13 @@ function getRatelimit(): Ratelimit | null {
   return ratelimitInstance;
 }
 
-function centsToAmountString(cents: number): string {
-  const normalized = Number.isFinite(cents) ? Math.max(0, Math.trunc(cents)) : 0;
-  return (normalized / 100).toFixed(2);
-}
-
-function createBankartSignature(
-  sharedSecret: string,
-  method: string,
-  contentType: string,
-  dateHeader: string,
-  requestUri: string,
-  bodyText: string,
-): string {
-  const bodyHash = crypto.createHash("sha512").update(bodyText, "utf8").digest("hex");
-  const message = [method.toUpperCase(), bodyHash, contentType, dateHeader, requestUri].join("\n");
-  return crypto.createHmac("sha512", sharedSecret).update(message, "utf8").digest("base64");
-}
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function safeBankartErrorMessage(body: unknown, status: number, fallback: string): string {
-  if (isPlainObject(body)) {
-    const topError = toTrimmedString(body.errorMessage) || toTrimmedString(body.message);
-    if (topError) return topError;
-
-    const errors = Array.isArray(body.errors) ? body.errors : [];
-    const first = errors[0];
-    if (isPlainObject(first)) {
-      const parts = [
-        toTrimmedString(first.errorMessage),
-        toTrimmedString(first.adapterMessage),
-        toTrimmedString(first.errorCode),
-        toTrimmedString(first.adapterCode),
-      ].filter(Boolean);
-      if (parts.length > 0) return parts.join(" | ");
-    }
-  }
-
-  return `${fallback} (HTTP ${status})`;
-}
-
 /**
  * Sanitizes errors returned to the browser client. Never relays raw
  * Bankart/network/DB error text — those go to server logs only.
  *
- * NOTE: kind="payment_init" routing in the handler depends on the substring
- * "bankart" in err.message. All current Bankart throw sites in startBankartDebit
- * use a "Bankart" prefix (verified 2026-05-12, lines 758/770/791/796/810/818/833/
- * 838/853). If a future refactor drops the prefix, replace this heuristic with
- * a custom BankartInitError class (B11.1).
+ * kind="payment_init" is chosen for a BankartInitError (every throw in
+ * api/_shared/bankart-debit.ts, a card decline included) and, as before, for
+ * any error mentioning "bankart".
  */
 export function clientSafeError(
   _err: unknown,
@@ -669,47 +104,8 @@ export function clientSafeError(
   return "Plaćanje karticom trenutno nije moguće. Pokušajte ponovo ili izaberite plaćanje pouzećem.";
 }
 
-function bankartMetaSnapshot(input: {
-  phase: string;
-  requestBody?: BankartDebitRequest;
-  responseBody?: unknown;
-  responseStatus?: number;
-  message?: string;
-}): Record<string, unknown> {
-  const out: Record<string, unknown> = { phase: input.phase };
-  if (typeof input.responseStatus === "number") out.responseStatus = input.responseStatus;
-  if (input.message) out.message = input.message;
-  if (input.requestBody) out.request = input.requestBody;
-  if (input.responseBody !== undefined) out.response = input.responseBody;
-  return out;
-}
-
-async function updateOrderPaymentState(
-  orderId: string,
-  values: {
-    status?: string;
-    payment_status?: string | null;
-    payment_reference?: string | null;
-    payment_meta?: Record<string, unknown> | null;
-  },
-) {
-  const patch: Record<string, unknown> = {};
-
-  if (typeof values.status === "string") patch.status = values.status;
-  if (values.payment_status !== undefined) patch.payment_status = values.payment_status;
-  if (values.payment_reference !== undefined) patch.payment_reference = values.payment_reference;
-  if (values.payment_meta !== undefined) patch.payment_meta = values.payment_meta;
-
-  if (Object.keys(patch).length === 0) return;
-
-  const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
-  if (error) {
-    throw new Error(`DB payment update failed (${error.message})`);
-  }
-}
-
 function buildBankartUrls(req: ReqLike, orderId: string) {
-  const base = resolvePublicBaseUrl(req.headers, { trustOriginHeader: true });
+  const base = resolvePublicBaseUrl(req.headers);
   const encoded = encodeURIComponent(orderId);
 
   return {
@@ -720,286 +116,97 @@ function buildBankartUrls(req: ReqLike, orderId: string) {
   };
 }
 
-function buildBankartDebitRequest(
-  req: ReqLike,
-  orderId: string,
-  input: {
-    amountCents: number;
-    currency: string;
-    customerName: string;
-    bankartCustomerName?: string;
-    customerPhone: string;
-    customerAddress: string;
-    customerEmail?: string | null;
-    billingCity?: string | null;
-    billingPostcode?: string | null;
-    transactionToken?: string | null;
-  },
-): BankartDebitRequest {
-  const urls = buildBankartUrls(req, orderId);
-  const bankartCustomerName = toTrimmedString(input.bankartCustomerName) || input.customerName;
-  const { firstName, lastName } = splitCustomerName(bankartCustomerName);
-  const clientIp = getClientIp(req);
-  const config = getBankartConfig();
-  const customerEmail = toTrimmedString(input.customerEmail) || BANKART_FALLBACK_EMAIL;
-  const billingCity = toTrimmedString(input.billingCity) || BANKART_FALLBACK_CITY;
-  const billingPostcode = toTrimmedString(input.billingPostcode) || BANKART_FALLBACK_POSTCODE;
-  const transactionToken = toTrimmedString(input.transactionToken);
-
-  const requestBody: BankartDebitRequest = {
-    merchantTransactionId: orderId,
-    amount: centsToAmountString(input.amountCents),
-    currency: input.currency || "EUR",
-    successUrl: urls.successUrl,
-    cancelUrl: urls.cancelUrl,
-    errorUrl: urls.errorUrl,
-    callbackUrl: urls.callbackUrl,
-    description: `${BANKART_DESCRIPTION_PREFIX} ${orderId}`.slice(0, 255),
-    language: config.language,
-    merchantMetaData: orderId.slice(0, 255),
-    extraData: {
-      source: "padrino-web",
-      orderId,
-      paymentMethod: "card",
-      integration: transactionToken ? "payment_js" : "redirect",
-    },
-    customer: {
-      firstName: firstName.slice(0, 50),
-      lastName: lastName.slice(0, 50),
-      email: customerEmail.slice(0, 100),
-      billingAddress1: input.customerAddress.slice(0, 50),
-      billingCity: billingCity.slice(0, 50),
-      billingPostcode: billingPostcode.slice(0, 16),
-      billingCountry: "ME",
-      billingPhone: input.customerPhone.slice(0, 20),
-      shippingFirstName: firstName.slice(0, 50),
-      shippingLastName: lastName.slice(0, 50),
-      shippingAddress1: input.customerAddress.slice(0, 50),
-      shippingCountry: "ME",
-      shippingPhone: input.customerPhone.slice(0, 20),
-      ipAddress: clientIp || undefined,
-    },
-  };
-
-  if (transactionToken) {
-    requestBody.transactionToken = transactionToken;
-  }
-
-  return requestBody;
+/**
+ * B24: one checkout attempt = one order. The cart sends a random key per
+ * attempt (src/lib/createOrder.ts) and reuses it when it resends the same
+ * order — e.g. after a timeout hid a response that had in fact succeeded — so
+ * the retry gets the first order back instead of a second one in the kitchen.
+ * Stored in the unique `orders.idempotency_key` (migration
+ * 20261009120000_orders_idempotency_key.sql).
+ */
+function idempotencyKeyFrom(body: Record<string, unknown>): string | null {
+  const key = toTrimmedString(body.idempotency_key);
+  return /^[A-Za-z0-9_-]{16,100}$/.test(key) ? key : null;
 }
 
-async function startBankartDebit(req: ReqLike, orderId: string, requestBody: BankartDebitRequest) {
-  const config = getBankartConfig();
-  const requestUri = `/api/v3/transaction/${encodeURIComponent(config.apiKey)}/debit`;
-  const url = `${normalizeBankartApiBaseUrl(config.baseUrl)}${requestUri}`;
-  const contentType = "application/json; charset=utf-8";
-  const dateHeader = new Date().toUTCString();
-  const bodyText = JSON.stringify(requestBody);
-  const signature = createBankartSignature(
-    config.sharedSecret,
-    "POST",
-    contentType,
-    dateHeader,
-    requestUri,
-    bodyText,
-  );
+type ExistingOrder = {
+  id: string;
+  payment_method: string | null;
+  payment_status: string | null;
+  payment_meta: unknown;
+};
 
-  const auth = Buffer.from(`${config.username}:${config.password}`).toString("base64");
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        authorization: `Basic ${auth}`,
-        "content-type": contentType,
-        date: dateHeader,
-        "x-date": dateHeader,
-        "x-signature": signature,
-      },
-      body: bodyText,
-    });
-  } catch (err: unknown) {
-    const message =
-      err instanceof Error ? `Bankart init network error (${err.message})` : "Bankart init network error";
-
-    await updateOrderPaymentState(orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_network_error",
-        requestBody,
-        message,
-      }),
-    });
-
-    throw new Error(message);
-  }
-
-  const responseText = await response.text();
-  const responseBody = safeJsonParse(responseText);
-
-  if (!response.ok) {
-    const message = safeBankartErrorMessage(responseBody, response.status, "Bankart init failed");
-
-    await updateOrderPaymentState(orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_http_error",
-        requestBody,
-        responseBody,
-        responseStatus: response.status,
-        message,
-      }),
-    });
-
-    throw new Error(message);
-  }
-
-  const bankart = isPlainObject(responseBody) ? (responseBody as BankartDebitResponse) : null;
-  if (!bankart) {
-    const message = "Bankart init failed: invalid JSON response";
-
-    await updateOrderPaymentState(orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_invalid_json",
-        requestBody,
-        responseBody,
-        responseStatus: response.status,
-        message,
-      }),
-    });
-
-    throw new Error(message);
-  }
-
-  const transactionUuid = toTrimmedString(bankart.uuid);
-  const returnType = toTrimmedString(bankart.returnType).toUpperCase();
-  const redirectUrl = toTrimmedString(bankart.redirectUrl);
-
-  if (bankart.success !== true || returnType === "ERROR") {
-    const message = safeBankartErrorMessage(bankart, response.status, "Bankart rejected transaction");
-
-    await updateOrderPaymentState(orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_error",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-        message,
-      }),
-    });
-
-    throw new Error(message);
-  }
-
-  if (returnType === "REDIRECT") {
-    if (!redirectUrl) {
-      const message = "Bankart init failed: missing redirect URL";
-
-      await updateOrderPaymentState(orderId, {
-        status: "cancelled",
-        payment_status: "failed",
-        payment_reference: transactionUuid || null,
-        payment_meta: bankartMetaSnapshot({
-          phase: "init_missing_redirect",
-          requestBody,
-          responseBody: bankart,
-          responseStatus: response.status,
-          message,
-        }),
-      });
-
-      throw new Error(message);
-    }
-
-    await updateOrderPaymentState(orderId, {
-      payment_status: "pending",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "redirect",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-      }),
-    });
-
-    return {
-      flow: "card_redirect" as const,
-      redirectUrl,
-      bankartUuid: transactionUuid,
-      bankartPurchaseId: toTrimmedString(bankart.purchaseId),
-      bankartReturnType: returnType,
-    };
-  }
-
-  if (returnType === "PENDING") {
-    await updateOrderPaymentState(orderId, {
-      payment_status: "pending",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "pending",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-      }),
-    });
-
-    return {
-      flow: "card_pending" as const,
-      bankartUuid: transactionUuid,
-      bankartPurchaseId: toTrimmedString(bankart.purchaseId),
-      bankartReturnType: returnType,
-    };
-  }
-
-  if (returnType === "FINISHED") {
-    await updateOrderPaymentState(orderId, {
-      payment_status: "paid",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "finished",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-      }),
-    });
-
-    await bestEffortTelegramNotify(req, orderId);
-
-    return {
-      flow: "card_paid" as const,
-      bankartUuid: transactionUuid,
-      bankartPurchaseId: toTrimmedString(bankart.purchaseId),
-      bankartReturnType: returnType,
-    };
-  }
-
-  await updateOrderPaymentState(orderId, {
-    payment_status: "pending",
-    payment_reference: transactionUuid || null,
-    payment_meta: bankartMetaSnapshot({
-      phase: "other_return_type",
-      requestBody,
-      responseBody: bankart,
-      responseStatus: response.status,
-      message: `Unhandled returnType: ${returnType || "UNKNOWN"}`,
-    }),
-  });
-
+async function findOrderByIdempotencyKey(key: string): Promise<ExistingOrder | null> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id,payment_method,payment_status,payment_meta")
+    .eq("idempotency_key", key);
+  // An error here (e.g. the column is not migrated yet) means "no earlier
+  // attempt known" — never a reason to refuse the order.
+  if (error || !Array.isArray(data) || data.length === 0) return null;
+  const row = data[0] as Record<string, unknown>;
+  const id = toTrimmedString(row.id);
+  if (!id) return null;
   return {
-    flow: "card_pending" as const,
-    bankartUuid: transactionUuid,
-    bankartPurchaseId: toTrimmedString(bankart.purchaseId),
-    bankartReturnType: returnType || "UNKNOWN",
+    id,
+    payment_method: toTrimmedString(row.payment_method) || null,
+    payment_status: toTrimmedString(row.payment_status) || null,
+    payment_meta: row.payment_meta,
   };
+}
+
+function isUnknownIdempotencyColumn(err: { code?: unknown; message?: unknown } | null): boolean {
+  if (!err) return false;
+  const code = toTrimmedString(err.code);
+  const message = toTrimmedString(err.message);
+  return (code === "PGRST204" || code === "42703") && message.includes("idempotency_key");
+}
+
+/**
+ * A failed card attempt is not repeated: its key moves to the retry, so a
+ * later lost response of the retry is still deduplicated.
+ */
+async function releaseIdempotencyKey(orderId: string, key: string): Promise<void> {
+  const { error } = await supabase
+    .from("orders")
+    .update({ idempotency_key: null })
+    .eq("id", orderId)
+    .eq("idempotency_key", key);
+  if (error) console.warn("[create-order] could not release idempotency key:", error.message);
+}
+
+/** The response the first attempt gave (or would give now), for a repeated key. */
+function replayExistingOrder(res: ResLike, existing: ExistingOrder) {
+  const id = existing.id;
+  const base = { ok: true, id, order_id: id, orderId: id, replayed: true };
+
+  if (existing.payment_method !== "card") return json(res, 200, { ...base, flow: "cash" });
+
+  if (existing.payment_status === "paid") {
+    return json(res, 200, { ...base, payment_method: "card", payment_status: "paid", flow: "card_paid" });
+  }
+
+  if (existing.payment_status && existing.payment_status !== "pending") {
+    // failed / refunded / cancelled: never report it as a pending payment.
+    return json(res, 409, {
+      ok: false,
+      code: "payment_not_completed",
+      id,
+      error: "Plaćanje za ovu porudžbinu nije uspelo. Pokušaj ponovo ili izaberi plaćanje pouzećem.",
+    });
+  }
+
+  const meta = isPlainObject(existing.payment_meta) ? existing.payment_meta : {};
+  const response = isPlainObject(meta.response) ? meta.response : {};
+  const redirectUrl = meta.phase === "redirect" ? toTrimmedString(response.redirectUrl) : "";
+  return json(res, 200, {
+    ...base,
+    payment_method: "card",
+    payment_status: "pending",
+    flow: redirectUrl ? "card_redirect" : "card_pending",
+    redirect_url: redirectUrl || null,
+    redirectUrl: redirectUrl || null,
+  });
 }
 
 /**
@@ -1087,8 +294,9 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const rawItems: unknown[] = Array.isArray(body.items) ? body.items : [];
 
-    const currency = toTrimmedString(body.currency) || "EUR";
-    const status = toTrimmedString(body.status) || "pending";
+    // B23e: status and currency are the server's, whatever the request says
+    // (a cash order sent as "done" used to be stored as done).
+    const currency = "EUR";
 
     const pmRaw = toTrimmedString(body.payment_method) || toTrimmedString(body.paymentMethod);
     if (pmRaw && pmRaw !== "cash" && pmRaw !== "card") {
@@ -1111,6 +319,33 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }
     }
 
+    const zoneKey = toTrimmedString(body.delivery_zone);
+    const zone: DeliveryZone | null = zoneKey
+      ? findDeliveryZone(zoneKey)
+      : findDeliveryZoneByLabel(zoneLabelFromNote(rawItems));
+    if (!zone) {
+      return json(res, 400, {
+        ok: false,
+        code: "invalid_delivery_zone",
+        error: "Izaberi zonu dostave i pokušaj ponovo.",
+      });
+    }
+
+    // B24: a repeated attempt gets its first order back — checked before the
+    // business hours and the menu, so a retry after closing time (or after a
+    // price change) still answers with the order that was placed. A card
+    // attempt whose payment failed is not repeated: the retry is a new order
+    // and takes over the key.
+    const idempotencyKey = idempotencyKeyFrom(body);
+    if (idempotencyKey) {
+      const existing = await findOrderByIdempotencyKey(idempotencyKey);
+      if (existing && existing.payment_method === "card" && existing.payment_status === "failed") {
+        await releaseIdempotencyKey(existing.id, idempotencyKey);
+      } else if (existing) {
+        return replayExistingOrder(res, existing);
+      }
+    }
+
     const hours = await checkOrdersOpen();
     if (!hours.open) {
       const suffix = hours.hoursDisplay ? ` Radno vrijeme: ${hours.hoursDisplay}.` : "";
@@ -1125,11 +360,9 @@ export default async function handler(req: ReqLike, res: ResLike) {
       getBankartConfig();
     }
 
-    const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
-
     // Every row that is not meta is priced from menu_items — price_per_item is
     // the client's own figure and never decides whether a row is charged.
-    const calcItems = itemsForInsert.filter(
+    const calcItems = rawItems.filter(
       (it): it is Record<string, unknown> => isPlainObject(it) && !isMetaRow(it),
     );
 
@@ -1150,7 +383,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }
     }
 
-    const { prices: priceMap, names: menuNames } = await fetchMenuRows(idsToFetch);
+    const { prices: priceMap, names: menuNames } = await fetchMenuRows(supabase, idsToFetch);
     const missingIds = findMissingMenuItemIds(idsToFetch, priceMap);
 
     if (missingIds.length > 0) {
@@ -1182,22 +415,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Invalid calculated subtotal" });
     }
 
-    const point = parseLatLngFromBody(body);
-
-    let zones: Zone[] = [];
-    if (point) {
-      try {
-        zones = await fetchZones();
-      } catch {
-        zones = [];
-      }
-    }
-
-    const delivery = getDeliveryFeeCentsFromMeta(itemsForInsert, zones, point);
-
-    const computedTotalCents = subtotal_eur_cents + Math.max(0, delivery.feeCents);
-    // A non-finite total is stored as NULL (Telegram: "Ukupno: 0,00 €"); the
-    // delivery fee is read from the client's note, so it is checked here too.
+    // B23e: the fee comes from the server's zone table and the subtotal it
+    // priced — never from the client's note.
+    const feeCents = deliveryFeeCents(zone, subtotal_eur_cents);
+    const computedTotalCents = subtotal_eur_cents + feeCents;
+    // A non-finite total is stored as NULL (Telegram: "Ukupno: 0,00 €").
     if (!Number.isSafeInteger(computedTotalCents)) {
       return json(res, 400, { ok: false, error: "Invalid calculated total" });
     }
@@ -1211,8 +433,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
       customer_name,
       customer_phone,
       customer_address,
-      items: withMenuRowDisplay(itemsForInsert, priceMap, menuNames),
-      status: payment_method === "card" ? "pending" : status,
+      items: withServerMetaRow(withMenuRowDisplay(rawItems, priceMap, menuNames), [
+        `Plaćanje: ${payment_method === "cash" ? "Gotovina" : "Kartica"}`,
+        `Zona: ${zone.label}, Dostava: ${formatDeliveryFee(feeCents)}`,
+      ]),
+      status: "pending",
       currency,
       total_eur_cents: computedTotalCents,
       payment_method,
@@ -1230,11 +455,26 @@ export default async function handler(req: ReqLike, res: ResLike) {
           : null,
     };
 
-    const { data: inserted, error: insErr } = await supabase
+    if (idempotencyKey) insertRow.idempotency_key = idempotencyKey;
+
+    let { data: inserted, error: insErr } = await supabase
       .from("orders")
       .insert(insertRow)
       .select("id")
       .single();
+
+    if (insErr && idempotencyKey && toTrimmedString(insErr.code) === "23505") {
+      // Two identical attempts raced; the other one inserted first.
+      const existing = await findOrderByIdempotencyKey(idempotencyKey);
+      if (existing) return replayExistingOrder(res, existing);
+    }
+
+    if (insErr && isUnknownIdempotencyColumn(insErr)) {
+      // Code deployed before its migration: take the order without the key.
+      console.warn("[create-order] orders.idempotency_key missing — apply migration 20261009120000");
+      delete insertRow.idempotency_key;
+      ({ data: inserted, error: insErr } = await supabase.from("orders").insert(insertRow).select("id").single());
+    }
 
     if (insErr || !inserted?.id) {
       console.error("[create-order] DB insert failed:", insErr);
@@ -1244,8 +484,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const orderId = toTrimmedString(inserted.id);
 
     if (payment_method === "cash") {
-      await bestEffortTelegramNotify(req, orderId);
-      void bestEffortPaymentsCreateSession(orderId, payment_method);
+      await notifyNewOrder(supabase, orderId);
 
       return json(res, 200, {
         ok: true,
@@ -1256,7 +495,9 @@ export default async function handler(req: ReqLike, res: ResLike) {
       });
     }
 
-    const bankartRequest = buildBankartDebitRequest(req, orderId, {
+    const bankartRequest = buildBankartDebitRequest(orderId, {
+      urls: buildBankartUrls(req, orderId),
+      clientIp: getClientIp(req),
       amountCents: computedTotalCents,
       currency,
       customerName: customer_name,
@@ -1269,7 +510,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       transactionToken: transaction_token || null,
     });
 
-    const bankart = await startBankartDebit(req, orderId, bankartRequest);
+    const bankart = await startBankartDebit(supabase, orderId, bankartRequest);
 
     return json(res, 200, {
       ok: true,
@@ -1288,7 +529,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
   } catch (err: unknown) {
     console.error("[create-order] order creation failed:", err);
     const kind: "order_create" | "payment_init" =
-      err instanceof Error && err.message.toLowerCase().includes("bankart")
+      err instanceof BankartInitError || (err instanceof Error && err.message.toLowerCase().includes("bankart"))
         ? "payment_init"
         : "order_create";
     return json(res, 500, { ok: false, error: clientSafeError(err, kind) });

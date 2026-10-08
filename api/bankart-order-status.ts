@@ -1,7 +1,15 @@
-import { createClient } from "@supabase/supabase-js";
-import { buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, safeNumber } from "./_shared/parsing.js";
+import {
+  amountMismatchNote,
+  bankartAmountMatches,
+  debitTransition,
+  writeIfPaymentStatusUnchanged,
+} from "./_shared/payment-status.js";
+import { notifyNewOrder } from "./_shared/telegram.js";
+import { safeJsonParse, safeBankartErrorMessage } from "./_shared/bankart-debit.js";
 import { applyCors } from "./_shared/cors.js";
+import { buildSupabaseAdmin, getFirstEnv } from "./_shared/env.js";
+import { json } from "./_shared/http.js";
 
 type Json = Record<string, unknown>;
 type HeaderValue = string | string[] | undefined;
@@ -22,6 +30,8 @@ type ResLike = {
 type OrderRow = {
   id: string;
   status: string | null;
+  total_eur_cents: number | null;
+  currency: string | null;
   payment_method: string | null;
   payment_status: string | null;
   payment_provider: string | null;
@@ -62,69 +72,7 @@ function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-function json(res: ResLike, status: number, body: Json) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.send(JSON.stringify(body));
-}
-
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
-
-function getFirstEnv(...names: string[]): string {
-  for (const name of names) {
-    const value = getEnv(name);
-    if (value) return value;
-  }
-  return "";
-}
-
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-    getEnv("SUPABASE_SERVICE_KEY") ||
-    getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/bankart-order-status" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
-
-
-async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
-  const url = buildTelegramPayload(req.headers, orderId, { trustOriginHeader: true }).notify_url;
-
-  const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (secret) headers["x-telegram-secret"] = secret;
-
-  const controller = new AbortController();
-  const timeoutMs = 12000;
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ order_id: orderId }),
-      signal: controller.signal,
-    });
-  } catch {
-    // best effort
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+const supabase = buildSupabaseAdmin("bankart-order-status");
 
 function getQueryParam(req: ReqLike, key: string): string {
   try {
@@ -156,7 +104,7 @@ function getBankartConfig(): BankartConfig {
 async function fetchOrderById(orderId: string): Promise<OrderRow | null> {
   const { data, error } = await supabase
     .from("orders")
-    .select("id,status,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
+    .select("id,status,total_eur_cents,currency,payment_method,payment_status,payment_provider,payment_reference,payment_meta")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -203,35 +151,6 @@ function shouldFetchBankartStatus(order: OrderRow): boolean {
 
   const ageMs = Date.now() - lastCheckedAt;
   return ageMs >= getStatusRefreshMinIntervalMs();
-}
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function safeBankartErrorMessage(body: unknown, status: number, fallback: string): string {
-  if (isPlainObject(body)) {
-    const topError = toTrimmedString(body.errorMessage) || toTrimmedString(body.message);
-    if (topError) return topError;
-
-    const errors = Array.isArray(body.errors) ? body.errors : [];
-    const first = errors[0];
-    if (isPlainObject(first)) {
-      const parts = [
-        toTrimmedString(first.errorMessage) || toTrimmedString(first.message),
-        toTrimmedString(first.adapterMessage),
-        toTrimmedString(first.errorCode) || toTrimmedString(first.code),
-        toTrimmedString(first.adapterCode),
-      ].filter(Boolean);
-      if (parts.length > 0) return parts.join(" | ");
-    }
-  }
-
-  return `${fallback} (HTTP ${status})`;
 }
 
 async function fetchBankartStatusByMerchantTransactionId(orderId: string): Promise<BankartStatusResponse> {
@@ -300,9 +219,9 @@ function mergePaymentMeta(existing: unknown, statusSnapshot: Json): Json {
 }
 
 async function applyBankartStatusToOrder(
-  req: ReqLike,
   order: OrderRow,
   statusBody: BankartStatusResponse,
+  retried = false,
 ): Promise<OrderRow> {
   const transactionStatus = toTrimmedString(statusBody.transactionStatus).toUpperCase();
   const transactionType = toTrimmedString(statusBody.transactionType).toUpperCase();
@@ -332,31 +251,42 @@ async function applyBankartStatusToOrder(
       if (order.payment_status !== "paid") shouldNotifyTelegram = true;
       nextPaymentStatus = "paid";
     }
-  } else {
-    if (transactionStatus === "SUCCESS") {
-      if (order.payment_status !== "paid") shouldNotifyTelegram = true;
-      nextPaymentStatus = "paid";
-    } else if (transactionStatus === "ERROR") {
-      nextPaymentStatus = "failed";
-      nextStatus = "cancelled";
-    } else if (transactionStatus === "PENDING") {
-      nextPaymentStatus = "pending";
-    }
+  } else if (transactionStatus === "SUCCESS" && !bankartAmountMatches(order, statusBody)) {
+    // B24: an amount the server did not charge is never marked paid.
+    console.error("[bankart-order-status] amount/currency mismatch, not marking paid", {
+      orderId: order.id,
+      amount: statusBody.amount,
+      currency: statusBody.currency,
+    });
+    patch.payment_meta = { ...mergedMeta, amount_check: amountMismatchNote(statusBody) };
+  } else if (transactionStatus === "SUCCESS" || transactionStatus === "ERROR" || transactionStatus === "PENDING") {
+    // B24: status only moves forward — a stale PENDING/ERROR never un-pays.
+    const t = debitTransition(
+      order.payment_status,
+      transactionStatus === "SUCCESS" ? "ok" : transactionStatus === "ERROR" ? "error" : "pending",
+    );
+    nextPaymentStatus = t.paymentStatus;
+    if (t.cancel) nextStatus = "cancelled";
+    if (t.reopen && order.status === "cancelled") nextStatus = "pending";
+    shouldNotifyTelegram = t.becamePaid;
   }
 
   if (nextStatus !== order.status) patch.status = nextStatus;
   if (nextPaymentStatus !== order.payment_status) patch.payment_status = nextPaymentStatus;
 
-  const shouldUpdateDb = Object.keys(patch).length > 0;
-  if (shouldUpdateDb) {
-    const { error } = await supabase.from("orders").update(patch).eq("id", order.id);
-    if (error) {
-      throw new Error(`DB payment update failed (${error.message})`);
+  // Compare-and-set (B24 review): a callback may have settled the order since
+  // we read it — then decide again from the fresh row (once).
+  const written = await writeIfPaymentStatusUnchanged(supabase, order.id, order.payment_status, patch);
+  if (!written) {
+    const fresh = await fetchOrderById(order.id);
+    if (fresh && fresh.payment_status !== order.payment_status && !retried) {
+      return applyBankartStatusToOrder(fresh, statusBody, true);
     }
+    return fresh ?? order;
   }
 
   if (shouldNotifyTelegram) {
-    await bestEffortTelegramNotify(req, order.id);
+    await notifyNewOrder(supabase, order.id);
   }
 
   return {
@@ -455,7 +385,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       bankartStatus = await fetchBankartStatusByMerchantTransactionId(order.id);
 
       if (bankartStatus.success === true) {
-        order = await applyBankartStatusToOrder(req, order, bankartStatus);
+        order = await applyBankartStatusToOrder(order, bankartStatus);
       } else {
         const mergedMeta = mergePaymentMeta(order.payment_meta, buildStatusSnapshot(bankartStatus));
         const { error } = await supabase
@@ -468,10 +398,12 @@ export default async function handler(req: ReqLike, res: ResLike) {
         }
 
         order = { ...order, payment_meta: mergedMeta };
-        lookupError = toTrimmedString(bankartStatus.errorMessage) || "Bankart status lookup returned unsuccessful result";
+        lookupError = "Bankart status lookup returned unsuccessful result";
       }
     } catch (err: unknown) {
-      lookupError = err instanceof Error ? err.message : "Bankart status lookup failed";
+      // L5: the raw Bankart/DB message is logged, never sent to the browser.
+      console.error("[bankart-order-status] status lookup failed:", err);
+      lookupError = "Bankart status lookup failed";
     }
 
     return json(
@@ -485,7 +417,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }),
     );
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return json(res, 500, { ok: false, error: msg || "Unknown error" });
+    console.error("[bankart-order-status] failed:", err);
+    return json(res, 500, { ok: false, error: "Provera plaćanja trenutno nije moguća. Pokušajte ponovo." });
   }
 }
