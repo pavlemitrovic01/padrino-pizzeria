@@ -261,3 +261,117 @@ describe("create-order handler — business hours gate (B19)", () => {
     expect(c.statusCode).toBe(200);
   });
 });
+
+describe("create-order handler — stuffed crust must match the pizza size (B23b)", () => {
+  // Same naming as prod: one menu_items row per pizza size, one crust row per size.
+  const MENU = [
+    { id: "pizza-33", name: "Kapričoza 33 cm", price_eur_cents: 900 },
+    { id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 },
+    { id: "crust-33", name: "Ivice punjene sirom", price_eur_cents: 200 },
+    { id: "crust-50", name: "Ivice punjene sirom 50 cm", price_eur_cents: 400 },
+    { id: "sauce-bbq", name: "Bbq", price_eur_cents: 100 },
+    { id: "drink", name: "Coca-Cola 0,33 l", price_eur_cents: 250 },
+  ];
+  const MISMATCH_ERROR = "Punjene ivice ne odgovaraju veličini pice. Ukloni ih iz korpe i dodaj ponovo.";
+
+  function line(menuItemId: string, size: "33" | "50" | null, addonIds: string[], quantity = 1) {
+    return {
+      cart_id: `cart-${menuItemId}`,
+      menu_item_id: menuItemId,
+      name: menuItemId,
+      size,
+      quantity,
+      price_per_item: 1, // ignored by the server, which prices by id
+      addons: addonIds.map((id) => ({ id, name: id, price: 0, quantity: 1 })),
+    };
+  }
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-test-id" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(items: unknown[], totalCents: number, extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(makeReq(validBody({ items, total_eur_cents: totalCents, ...extra })), c.res);
+    return c;
+  }
+
+  function expectMismatch(c: CapturedRes) {
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).code).toBe("crust_size_mismatch");
+    expect(bodyOf(c).error).toBe(MISMATCH_ERROR);
+    expect(insertedInto("orders")).toBe(false);
+  }
+
+  it("rejects a 50 cm pizza with the 33 cm crust (2 € under) and never inserts", async () => {
+    expectMismatch(await submit([line("pizza-50", "50", ["crust-33"])], 1600 + 200));
+  });
+
+  it("rejects a 33 cm pizza with the 50 cm crust", async () => {
+    expectMismatch(await submit([line("pizza-33", "33", ["crust-50"])], 900 + 400));
+  });
+
+  it("rejects a 50 cm pizza carrying both crust rows", async () => {
+    expectMismatch(await submit([line("pizza-50", "50", ["crust-50", "crust-33"])], 1600 + 400 + 200));
+  });
+
+  it("takes the size from the pizza's menu row, not the size the client sent", async () => {
+    expectMismatch(await submit([line("pizza-50", "33", ["crust-33"])], 1600 + 200));
+    expectMismatch(await submit([line("pizza-50", null, ["crust-33"])], 1600 + 200));
+  });
+
+  it("rejects a mismatched card order before Bankart is called", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+
+    const c = await submit([line("pizza-50", "50", ["crust-33"])], 1600 + 200, { payment_method: "card" });
+
+    expectMismatch(c);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole order when only one line mismatches", async () => {
+    const items = [line("pizza-33", "33", ["crust-33"]), line("pizza-50", "50", ["crust-33"])];
+    expectMismatch(await submit(items, 900 + 200 + 1600 + 200));
+  });
+
+  it("accepts a 50 cm pizza with the 50 cm crust (quantity 2)", async () => {
+    const c = await submit([line("pizza-50", "50", ["crust-50"], 2)], (1600 + 400) * 2);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedInto("orders")).toBe(true);
+  });
+
+  it("accepts a 33 cm pizza with the 33 cm crust next to a non-crust addon", async () => {
+    const c = await submit([line("pizza-33", "33", ["crust-33", "sauce-bbq"])], 900 + 200 + 100);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedInto("orders")).toBe(true);
+  });
+
+  it("accepts pizzas without crust and items without a size", async () => {
+    const items = [line("pizza-50", "50", ["sauce-bbq"]), line("drink", null, [])];
+    const c = await submit(items, 1600 + 100 + 250);
+
+    expect(c.statusCode).toBe(200);
+  });
+
+  it("mirrors the cart for an item with no size: 33 cm crust accepted, 50 cm crust rejected", async () => {
+    const ok = await submit([line("drink", null, ["crust-33"])], 250 + 200);
+    expect(ok.statusCode).toBe(200);
+
+    hoisted.calls.length = 0;
+    expectMismatch(await submit([line("drink", null, ["crust-50"])], 250 + 400));
+  });
+});

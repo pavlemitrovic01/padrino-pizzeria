@@ -5,6 +5,7 @@ import { Redis } from "@upstash/redis";
 import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
 import { isWithinBusinessHours, nowMinutesInPodgorica } from "./_shared/business-hours.js";
+import { crustSizeForItem, stuffedCrustSizeOf } from "./_shared/stuffed-crust.js";
 import { applyCors } from "./_shared/cors.js";
 import {
   BANKART_FALLBACK_EMAIL,
@@ -200,6 +201,7 @@ type Zone = {
 
 type PricingRow = {
   id: string;
+  name: string;
   price_eur_cents: number;
 };
 
@@ -290,19 +292,26 @@ function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): un
   return items;
 }
 
-async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>> {
+type MenuRows = {
+  prices: Map<string, number>;
+  // Row names, for the stuffed-crust size check (B23b).
+  names: Map<string, string>;
+};
+
+async function fetchMenuRows(ids: string[]): Promise<MenuRows> {
   const uniq = Array.from(new Set(ids.filter(Boolean)));
-  if (uniq.length === 0) return new Map();
+  if (uniq.length === 0) return { prices: new Map(), names: new Map() };
 
   const { data, error } = await supabase
     .from("menu_items")
-    .select("id,price_eur_cents")
+    .select("id,name,price_eur_cents")
     .eq("is_active", true)
     .in("id", uniq);
 
   if (error) throw new Error(`DB: pricing fetch failed (${error.message})`);
 
-  const m = new Map<string, number>();
+  const prices = new Map<string, number>();
+  const names = new Map<string, string>();
   for (const row of Array.isArray(data) ? data : []) {
     const r = row as unknown as PricingRow;
     const id = toTrimmedString((r as unknown as Record<string, unknown>).id);
@@ -310,9 +319,36 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
     // Include every active row so the existence check (findMissingMenuItemIds)
     // recognizes free addons (price 0, e.g. ketchup/mayo). Price stays accurate
     // (0 for free items); sumAddonsCents already ignores non-positive prices.
-    if (id) m.set(id, p > 0 ? p : 0);
+    if (id) {
+      prices.set(id, p > 0 ? p : 0);
+      names.set(id, toTrimmedString((r as unknown as Record<string, unknown>).name));
+    }
   }
-  return m;
+  return { prices, names };
+}
+
+/**
+ * B23b: the first addon that is the stuffed crust of the other pizza size
+ * (e.g. the 2 € 33 cm crust on a 50 cm pizza), or null. Both sizes come from
+ * menu row names — never from the `size` field the client sends.
+ */
+function findCrustSizeMismatch(
+  items: Record<string, unknown>[],
+  names: Map<string, string>,
+): { menuItemId: string; addonId: string } | null {
+  for (const item of items) {
+    const menuItemId = toTrimmedString(item.menu_item_id) || toTrimmedString(item.menuItemId);
+    const fits = crustSizeForItem(names.get(menuItemId) ?? "");
+
+    const addons = Array.isArray(item.addons) ? item.addons : [];
+    for (const a of addons) {
+      if (!isPlainObject(a)) continue;
+      const addonId = toTrimmedString(a.id);
+      const crust = stuffedCrustSizeOf(names.get(addonId) ?? "");
+      if (crust !== null && crust !== fits) return { menuItemId, addonId };
+    }
+  }
+  return null;
 }
 
 function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
@@ -1061,11 +1097,21 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }
     }
 
-    const priceMap = await fetchMenuPricesCents(idsToFetch);
+    const { prices: priceMap, names: menuNames } = await fetchMenuRows(idsToFetch);
     const missingIds = findMissingMenuItemIds(idsToFetch, priceMap);
 
     if (missingIds.length > 0) {
       return json(res, 400, { ok: false, error: "Inactive or invalid menu item" });
+    }
+
+    const crustMismatch = findCrustSizeMismatch(calcItems, menuNames);
+    if (crustMismatch) {
+      console.warn("[create-order] stuffed crust does not match pizza size:", crustMismatch);
+      return json(res, 400, {
+        ok: false,
+        code: "crust_size_mismatch",
+        error: "Punjene ivice ne odgovaraju veličini pice. Ukloni ih iz korpe i dodaj ponovo.",
+      });
     }
 
     let subtotal_eur_cents = 0;

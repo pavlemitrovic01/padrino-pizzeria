@@ -119,6 +119,10 @@ vi.mock("./analytics");
 vi.mock("./bankartPaymentJs");
 
 import handler from "../../api/create-order";
+import {
+  crustSizeForItem as serverCrustSizeForItem,
+  stuffedCrustSizeOf as serverStuffedCrustSizeOf,
+} from "../../api/_shared/stuffed-crust";
 import CartDrawer from "../components/CartDrawer";
 import MenuItemDetailSheet from "../components/MenuItemDetailSheet";
 import { CartProvider } from "../context/CartProvider";
@@ -126,6 +130,7 @@ import { useCart } from "../context/useCart";
 import type { CartAddon, CartContextType, CartItem, PizzaSize } from "../context/CartContext";
 import {
   addonsForPizzaSize,
+  parsePizzaSizeFromName,
   remapStuffedCrustForSize,
   stuffedCrustSizeOf,
 } from "./cartDrawerHelpers";
@@ -624,5 +629,74 @@ describe("B23a — stuffed crust per size helpers", () => {
     expect(remapStuffedCrustForSize(both, catalog, "50")).toEqual([
       { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 3 },
     ]);
+  });
+});
+
+describe("B23b — client and server read crust and pizza sizes the same way", () => {
+  // The server refuses a crust that does not fit the pizza (api/_shared/
+  // stuffed-crust.ts), with its own copy of the cart's name rules — api/ never
+  // imports from src/. If the copies drift, the server refuses carts the
+  // client built in good faith, or lets a mismatched crust through.
+  const NAMES = [
+    "Ivice punjene sirom",
+    "Ivice punjene sirom 50 cm",
+    "  IVICE   PUNJENE sirom  50cm ",
+    "Punjene ivice sa kulenom",
+    "Punjena ivica",
+    "Ivica punjena 50 cm",
+    "Rub",
+    "Rub pizza",
+    "Ivice punjene 150 cm",
+    "Kapričoza 33 cm",
+    "Kapričoza 50 cm",
+    "Quattro formaggi 50cm",
+    "Papricciosa",
+    "Coca-Cola 0,33 l",
+    "Bbq",
+    "Krofne",
+    "",
+  ];
+
+  it.each(NAMES)("stuffed crust size of %j", (name) => {
+    expect(serverStuffedCrustSizeOf(name)).toBe(stuffedCrustSizeOf(name));
+  });
+
+  it.each(NAMES)("crust size that fits the item %j", (name) => {
+    // The cart sizes a menu row by its name and offers the 50 cm crust on 50 cm
+    // only (addonsForPizzaSize).
+    const clientFits = parsePizzaSizeFromName(name) === "50" ? "50" : "33";
+    expect(serverCrustSizeForItem(name)).toBe(clientFits);
+  });
+
+  it("the server refuses the 33 cm crust on a 50 cm pizza from this menu", async () => {
+    const c = makeRes();
+    await handler(
+      {
+        method: "POST",
+        headers: {},
+        body: {
+          customer_name: "Test Kupac",
+          customer_phone: "0671234567",
+          customer_address: "Jadranski put 1, Budva",
+          payment_method: "cash",
+          items: [
+            {
+              cart_id: "kap-50",
+              menu_item_id: PIZZA_50.id,
+              name: PIZZA_50.name,
+              size: "50",
+              quantity: 1,
+              price_per_item: 1800,
+              addons: [{ id: CRUST_33.id, name: CRUST_33.name, price: 200, quantity: 1 }],
+            },
+          ],
+          total_eur_cents: 1800,
+        },
+      },
+      c.res,
+    );
+
+    expect(c.statusCode).toBe(400);
+    expect((c.body as Record<string, unknown>).code).toBe("crust_size_mismatch");
   });
 });
