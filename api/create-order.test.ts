@@ -340,6 +340,11 @@ describe("create-order handler — stuffed crust must match the pizza size (B23b
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it("rejects a crust row ordered as an item of its own", async () => {
+    const crustLine = { ...line("crust-33", null, []), name: "Ivice punjene sirom" };
+    expectMismatch(await submit([line("pizza-50", "50", []), crustLine], 1600 + 200));
+  });
+
   it("rejects the whole order when only one line mismatches", async () => {
     const items = [line("pizza-33", "33", ["crust-33"]), line("pizza-50", "50", ["crust-33"])];
     expectMismatch(await submit(items, 900 + 200 + 1600 + 200));
@@ -475,14 +480,36 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     expectInvalidStructure(await submit([pizza50(), minusOne], 1600 - 900));
   });
 
-  it.each([0, 1.5, "2", null, undefined])("rejects item quantity %j", async (quantity) => {
+  it.each([0, 1.5, "2", null, undefined, 100, 1e308])("rejects item quantity %j", async (quantity) => {
     expectInvalidStructure(await submit([cola, pizza50({ quantity })]));
   });
 
   // (d) + (e) Addons: the kitchen prints every addon object, at least 1x.
-  it.each([0, -1, 1.5, "1", undefined])("rejects addon quantity %j", async (quantity) => {
+  it.each([0, -1, 1.5, "1", undefined, 100, 1e308])("rejects addon quantity %j", async (quantity) => {
     const addon = { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity };
     expectInvalidStructure(await submit([pizza50({ addons: [addon] })]));
+  });
+
+  it("accepts up to 99 of an item and of an addon", async () => {
+    const addon = { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 99 };
+    const c = await submit([pizza50({ quantity: 99, addons: [addon] })]);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedTotal()).toBe(99 * (1600 + 99 * 400));
+  });
+
+  it("rejects a total that is not a safe whole number (fee read from the client's note)", async () => {
+    const c = await submit([pizza50(), clientMeta(`Dostava: 1${"0".repeat(300)} €`)]);
+
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).error).toBe("Invalid calculated total");
+    expect(insertedInto("orders")).toBe(false);
+  });
+
+  it("rejects an item row without cart_id (Telegram lists only rows that have one)", async () => {
+    expectInvalidStructure(await submit([cola, pizza50({ cart_id: undefined })], 250 + 1600));
+    hoisted.calls.length = 0;
+    expectInvalidStructure(await submit([cola, pizza50({ cart_id: "  " })], 250 + 1600));
   });
 
   it("rejects an addon with no id", async () => {

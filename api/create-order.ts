@@ -158,9 +158,9 @@ function looksLikeLegacyMetaItem(v: unknown) {
 
 /**
  * A row the kitchen never sees. Telegram (api/telegram-new-order.ts) and the
- * admin panel (src/lib/adminOrdersLib.ts) hide exactly the rows whose cart_id,
- * name or category is "meta" and list every other row, so the server prices
- * every other row (B23c). The frontend's own meta row is
+ * admin panel (src/lib/adminOrdersLib.ts) both hide the rows whose cart_id,
+ * name or category is "meta" and list the others, so the server prices every
+ * other row (B23c). The frontend's own meta row is
  * { cart_id: "meta", name: "META", category: "meta", note }; legacy meta rows
  * ({ total_items, order_note }) carry no item at all.
  */
@@ -170,27 +170,34 @@ function isMetaRow(v: unknown): boolean {
   return [v.cart_id, v.name, v.category].some((x) => normalizeText(toTrimmedString(x)) === "meta");
 }
 
-function isPositiveWholeNumber(v: unknown): boolean {
-  return typeof v === "number" && Number.isInteger(v) && v >= 1;
+// Far above any real order (prod max: 6 of an item, 10 of an addon) and low
+// enough that no quantity × price can overflow the total (a non-finite total
+// is stored as NULL and Telegram shows "Ukupno: 0,00 €").
+const MAX_LINE_QUANTITY = 99;
+
+function isLineQuantity(v: unknown): boolean {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_LINE_QUANTITY;
 }
 
 /**
  * B23c: a row that is not meta is food the kitchen will make, so the server
- * must be able to price it exactly: a menu_item_id, a whole quantity ≥ 1, and
- * addons that each have an id and a whole quantity ≥ 1. The kitchen prints
- * max(1, quantity) and lists every addon object, so anything looser (no price,
- * quantity −1 or 0, an addon without id) was stored and made but never charged.
+ * must be able to price it exactly: a cart_id (Telegram lists only rows that
+ * have one), a menu_item_id, a whole quantity 1–99, and addons that each have
+ * an id and a whole quantity 1–99. The kitchen prints max(1, quantity) and
+ * lists every addon object, so anything looser (no price, quantity −1 or 0, an
+ * addon without id) was stored and made but never charged.
  */
 function isPriceableItemRow(v: unknown): boolean {
   if (!isPlainObject(v)) return false;
+  if (!toTrimmedString(v.cart_id)) return false;
 
   const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
-  if (!menuItemId || !isPositiveWholeNumber(v.quantity)) return false;
+  if (!menuItemId || !isLineQuantity(v.quantity)) return false;
 
   if (v.addons === undefined || v.addons === null) return true;
   if (!Array.isArray(v.addons)) return false;
   return v.addons.every(
-    (a) => isPlainObject(a) && toTrimmedString(a.id) !== "" && isPositiveWholeNumber(a.quantity),
+    (a) => isPlainObject(a) && toTrimmedString(a.id) !== "" && isLineQuantity(a.quantity),
   );
 }
 
@@ -333,6 +340,10 @@ async function fetchMenuRows(ids: string[]): Promise<MenuRows> {
  * B23b: the first addon that is the stuffed crust of the other pizza size
  * (e.g. the 2 € 33 cm crust on a 50 cm pizza), or null. Both sizes come from
  * menu row names — never from the `size` field the client sends.
+ *
+ * A crust row ordered as an item of its own is refused too: the kitchen lists
+ * it as a separate line it could put on any pizza, and the cart never sends it
+ * that way (prod: 0 such rows).
  */
 function findCrustSizeMismatch(
   items: Record<string, unknown>[],
@@ -340,7 +351,9 @@ function findCrustSizeMismatch(
 ): { menuItemId: string; addonId: string } | null {
   for (const item of items) {
     const menuItemId = toTrimmedString(item.menu_item_id) || toTrimmedString(item.menuItemId);
-    const fits = crustSizeForItem(names.get(menuItemId) ?? "");
+    const itemName = names.get(menuItemId) ?? "";
+    if (stuffedCrustSizeOf(itemName) !== null) return { menuItemId, addonId: "" };
+    const fits = crustSizeForItem(itemName);
 
     const addons = Array.isArray(item.addons) ? item.addons : [];
     for (const a of addons) {
@@ -1142,6 +1155,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const delivery = getDeliveryFeeCentsFromMeta(itemsForInsert, zones, point);
 
     const computedTotalCents = subtotal_eur_cents + Math.max(0, delivery.feeCents);
+    // A non-finite total is stored as NULL (Telegram: "Ukupno: 0,00 €"); the
+    // delivery fee is read from the client's note, so it is checked here too.
+    if (!Number.isSafeInteger(computedTotalCents)) {
+      return json(res, 400, { ok: false, error: "Invalid calculated total" });
+    }
     const bodyTotalCents = safeTotalCentsFromBody(body);
 
     if (bodyTotalCents > 0 && Math.abs(bodyTotalCents - computedTotalCents) > 1) {
