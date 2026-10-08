@@ -5,6 +5,29 @@
 
 ---
 
+## B23c — 2026-10-08 — Server naplaćuje svaki red koji kuhinja vidi — DONE
+
+**Tier:** STRICT
+**SHA:** 0a2562f (fix) + 39a5012 (ispravke iz code review-a)
+**Branch:** claude/vibrant-euler-oxmwb0 (cloud sesija; isti branch kao B23b; merge u main radi Pavle)
+**Files (2):** +234/−39
+  - api/create-order.ts — LOCK ZONE. `looksLikeCartMetaItem` + `looksLikeRealItemButInvalid` → `isMetaRow` (pravilo kuhinje: `cart_id`/`name`/`category` = „meta", kao `isMetaRow` u `api/telegram-new-order.ts` i `src/lib/adminOrdersLib.ts`; + legacy `{ total_items, order_note }`) i `isPriceableItemRow` (neprazan `cart_id`, `menu_item_id`, količina ceo broj 1–99, dodaci: objekat sa `id` i količinom 1–99). Izbačena labava rupa „nema `menu_item_id` i cena 0 → meta". `calcItems` = svaki red koji nije meta (više ne bira po `typeof price_per_item`). Total mora biti `Number.isSafeInteger` → inače 400 `Invalid calculated total`. `findCrustSizeMismatch` (B23b) odbija i red ivica poslat kao samostalna stavka. `withPaymentInMetaItems` i `getDeliveryFeeCentsFromMeta` koriste `isMetaRow`. Poruka za nevalidan red ostaje postojeći `400 "Invalid item structure"`.
+  - api/create-order.test.ts — 30 testova: rupe (a)–(e), količine 0/−1/1,5/"2"/null/undefined/100/1e308 za stavku i dodatak, 99 prihvaćeno, red bez `cart_id`, nevalidni redovi, total koji nije siguran ceo broj (dostava od 301 cifre), ivice kao samostalna stavka; regresija: klijentski meta red + dostava iz napomene, meta po `category`/`name`, legacy meta, porudžbina samo od meta reda odbijena. Mock beleži sadržaj upisa (provera upisanog totala).
+**Verify:**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 20:53 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 24 fajla / 363 testa (+30 B23c; pre 333)
+  lint:      izmenjeni fajlovi `npx eslint` exit 0
+  repro:     pre izmene sve rupe → 200 ok: (a) kola + 3× pica 50 cm bez `price_per_item` → upisano total 250 (umesto 5050); (b) red bez `menu_item_id` sa cenom 0 → prihvaćen kao meta, kuhinja ga prikazuje; (c) pica 50 ×1 + pica 33 ×−1 → total 700; (d) dodatak količine 0/−1 → nenaplaćen; (e) dodatak bez `id` → nenaplaćen. 7 testova iz review-a: pada bez 39a5012, prolazi sa njim (git stash provera).
+  preview:   Vercel READY za 0a2562f (dpl_132wuJajzmb8njxp2dxDiumGTvBw) i 39a5012 (dpl_H5JP9yQ9cuNtZScsWfRBD6HGrR37). Build Logs nisu čitani (Vercel MCP 403); smoke nije moguć iz containera (*.vercel.app blokiran).
+  code-review:     IZVRŠEN (origin/main...HEAD = B23b + B23c) — 12 nalaza. Ispravljeno 3 (u 39a5012): ogromna količina → Infinity → NULL total („Ukupno: 0,00 €"; `total_eur_cents` je nullable bigint) → limit 99 + siguran ceo broj; red bez `cart_id` (Telegram ga ne prikazuje, server naplaćuje) → odbijen; ivice kao samostalna stavka (2 € manje, kuhinja vidi zaseban red) → odbijene. Obrazloženo bez izmene 9: klijentski `size`/ime stavke/ime dodatka/`price_per_item` koje kuhinja i admin čitaju (4 nalaza, uklj. „altitude: server da prepiše redove iz menu_items") → B23d, traži Pavlovu odluku o izgledu poruka u kuhinji; paritet testa za „50cm" bez razmaka u ne-pica kategiji — na produ nema takvih redova, greška bi išla na štetu kupca (fail-closed); tri kopije `isMetaRow` → spajanje dira Telegram (lock zona), kasnije; mrtav defanzivni kod — ne čisti se u lock zoni bez dobitka; veličina iz imena umesto kolone — svesna odluka B23a; STATE drift — rešen ovim close-om.
+  security-review: NIJE POKRENUTO — Pavle: „code review pa close".
+  manual:    NIJE POKRENUTO — čeka merge u main. Prod: negativni smoke (stavka količine −1 → 400 `Invalid item structure`, bez reda u `orders`) + SQL nad sledećim pravim porudžbinama; upisuje se posebnim workflow commit-om (presedan B20/B23a).
+**SCOPE_DRIFT:** none — 2 fajla = EXPECTED-FILES exact match (`git diff --name-only ca4c001..HEAD`).
+**Notes:** Nađeno u B23b (stavka bez `price_per_item` upisana a nenaplaćena). Recon: Telegram prikazuje svaki red sa `cart_id` koji nije meta, admin svaki red koji nije meta, oba sa „najmanje 1x"; server je naplaćivao samo redove koji su mu „ličili" na stavku → sve između = besplatna hrana. Prod (SELECT, 120 dana): svih 747 pravih redova i 525 dodataka već imaju oblik koji novo pravilo traži; svih 502 meta reda su meta po pravilu kuhinje; max količina 6 (stavka) / 10 (dodatak); 0 redova bez `cart_id`; ivice nikad kao samostalna stavka. Svih 60 „neobičnih" redova u istoriji je iz jan–feb 2026 (stari oblici pre serverske provere cene). Odstupanja od workflow-a (kao B23b): STATE nije imao aktivan batch, bez `batch/` grane, fix commit-i pre /close na zahtev stop hook-a. **Otvoreno → B23d:** server čuva klijentske prikazne podatke (`name`, `size`, imena dodataka, cene redova) a naplaćuje po ID-ju. **Otvoreno (provera):** iznos dostave se čita iz klijentske napomene („Dostava: X €").
+
+---
+
 ## B23b — 2026-10-08 — Serverska provera veličine ivica — DONE
 
 **Tier:** STRICT

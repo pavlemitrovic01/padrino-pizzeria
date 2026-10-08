@@ -13,6 +13,18 @@
 
 ---
 
+## Rotated at B23c close — 2026-10-08
+
+Moved verbatim from STATE.md by the 2-batch cap (B23c + B23b stay inline).
+
+- B23a (50 cm + punjene ivice — Total mismatch) — DONE 2026-10-07
+  (STRICT; 5 fajlova, +786/-57; SHA e7c907c + c6ab9c8; ivice po veličini kao poseban
+  red u meniju, korpa više ne prepisuje cene; parity test kroz pravi checkout do
+  servera; merged 413dc7c; migracija primenjena 2026-10-08; prod potvrđen —
+  UI + E2E porudžbina)
+
+---
+
 ## Rotated at B23b close — 2026-10-08
 
 Moved verbatim from STATE.md by the 2-batch cap (B23b + B23a stay inline).
