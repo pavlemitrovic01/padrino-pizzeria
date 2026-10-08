@@ -157,39 +157,41 @@ function looksLikeLegacyMetaItem(v: unknown) {
 }
 
 /**
- * NOVO: “META” item koji frontend šalje kao “pravi item”
- * (cart_id/meta, category/meta, name/META), ima note, ali nema menu_item_id
+ * A row the kitchen never sees. Telegram (api/telegram-new-order.ts) and the
+ * admin panel (src/lib/adminOrdersLib.ts) hide exactly the rows whose cart_id,
+ * name or category is "meta" and list every other row, so the server prices
+ * every other row (B23c). The frontend's own meta row is
+ * { cart_id: "meta", name: "META", category: "meta", note }; legacy meta rows
+ * ({ total_items, order_note }) carry no item at all.
  */
-function looksLikeCartMetaItem(v: unknown) {
+function isMetaRow(v: unknown): boolean {
   if (!isPlainObject(v)) return false;
-
-  const cartId = toTrimmedString(v.cart_id);
-  const name = toTrimmedString(v.name);
-  const category = toTrimmedString(v.category);
-
-  if (cartId.toLowerCase() === "meta") return true;
-  if (category.toLowerCase() === "meta") return true;
-  if (name.toUpperCase() === "META") return true;
-
-  const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
-  const p = v.price_per_item ?? v.pricePerItem;
-  if (!menuItemId && typeof p === "number" && p === 0) return true;
-
-  return false;
+  if (looksLikeLegacyMetaItem(v)) return true;
+  return [v.cart_id, v.name, v.category].some((x) => normalizeText(toTrimmedString(x)) === "meta");
 }
 
-function looksLikeRealItemButInvalid(v: unknown) {
+function isPositiveWholeNumber(v: unknown): boolean {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1;
+}
+
+/**
+ * B23c: a row that is not meta is food the kitchen will make, so the server
+ * must be able to price it exactly: a menu_item_id, a whole quantity ≥ 1, and
+ * addons that each have an id and a whole quantity ≥ 1. The kitchen prints
+ * max(1, quantity) and lists every addon object, so anything looser (no price,
+ * quantity −1 or 0, an addon without id) was stored and made but never charged.
+ */
+function isPriceableItemRow(v: unknown): boolean {
   if (!isPlainObject(v)) return false;
+
   const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
-  const name = toTrimmedString(v.name);
-  const qty = v.quantity;
+  if (!menuItemId || !isPositiveWholeNumber(v.quantity)) return false;
 
-  const hasItemish = !!name || typeof qty === "number" || !!menuItemId;
-  if (!hasItemish) return false;
-
-  if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
-
-  return !menuItemId;
+  if (v.addons === undefined || v.addons === null) return true;
+  if (!Array.isArray(v.addons)) return false;
+  return v.addons.every(
+    (a) => isPlainObject(a) && toTrimmedString(a.id) !== "" && isPositiveWholeNumber(a.quantity),
+  );
 }
 
 type Zone = {
@@ -279,7 +281,7 @@ function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): un
   const line = `Plaćanje: ${payment === "cash" ? "Gotovina" : "Kartica"}`;
   const items = Array.isArray(rawItems) ? [...rawItems] : [];
 
-  const idx = items.findIndex((it) => isPlainObject(it) && (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)));
+  const idx = items.findIndex((it) => isMetaRow(it));
   if (idx === -1) return items;
 
   const meta = items[idx];
@@ -390,7 +392,7 @@ function getDeliveryFeeCentsFromMeta(
   let metaNote = "";
   for (const it of items) {
     if (!isPlainObject(it)) continue;
-    if (!looksLikeLegacyMetaItem(it) && !looksLikeCartMetaItem(it)) continue;
+    if (!isMetaRow(it)) continue;
 
     const n = toTrimmedString(it.order_note) || toTrimmedString(it.note);
     if (n) metaNote = n;
@@ -1050,7 +1052,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
 
     for (const it of rawItems) {
-      if (looksLikeRealItemButInvalid(it)) {
+      if (!isMetaRow(it) && !isPriceableItemRow(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
     }
@@ -1071,14 +1073,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
 
-    const calcItems = itemsForInsert.filter((it): it is Record<string, unknown> => {
-      if (!isPlainObject(it)) return false;
-      if (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)) return false;
-
-      const q = it.quantity;
-      const p = it.price_per_item ?? it.pricePerItem;
-      return typeof q === "number" && typeof p === "number";
-    });
+    // Every row that is not meta is priced from menu_items — price_per_item is
+    // the client's own figure and never decides whether a row is charged.
+    const calcItems = itemsForInsert.filter(
+      (it): it is Record<string, unknown> => isPlainObject(it) && !isMetaRow(it),
+    );
 
     if (calcItems.length === 0) {
       return json(res, 400, { ok: false, error: "Invalid item structure" });
