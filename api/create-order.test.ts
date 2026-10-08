@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type SupabaseResult = { data: unknown; error: unknown };
-type Call = { table: string; op: string };
+type Call = { table: string; op: string; payload?: unknown };
 
 // Module-top-level supabase init mock (B4 precedent — required because
 // create-order.ts calls buildSupabaseAdmin() at module load time).
@@ -21,8 +21,7 @@ vi.mock("@supabase/supabase-js", () => {
     builder.eq = chain;
     builder.in = chain;
     builder.insert = (...args: unknown[]) => {
-      hoisted.calls.push({ table, op: "insert" });
-      void args;
+      hoisted.calls.push({ table, op: "insert", payload: args[0] });
       return builder;
     };
     builder.update = chain;
@@ -259,5 +258,507 @@ describe("create-order handler — business hours gate (B19)", () => {
     await handler(makeReq(validBody()), c.res);
 
     expect(c.statusCode).toBe(200);
+  });
+});
+
+describe("create-order handler — stuffed crust must match the pizza size (B23b)", () => {
+  // Same naming as prod: one menu_items row per pizza size, one crust row per size.
+  const MENU = [
+    { id: "pizza-33", name: "Kapričoza 33 cm", price_eur_cents: 900 },
+    { id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 },
+    { id: "crust-33", name: "Ivice punjene sirom", price_eur_cents: 200 },
+    { id: "crust-50", name: "Ivice punjene sirom 50 cm", price_eur_cents: 400 },
+    { id: "sauce-bbq", name: "Bbq", price_eur_cents: 100 },
+    { id: "drink", name: "Coca-Cola 0,33 l", price_eur_cents: 250 },
+  ];
+  const MISMATCH_ERROR = "Punjene ivice ne odgovaraju veličini pice. Ukloni ih iz korpe i dodaj ponovo.";
+
+  function line(menuItemId: string, size: "33" | "50" | null, addonIds: string[], quantity = 1) {
+    return {
+      cart_id: `cart-${menuItemId}`,
+      menu_item_id: menuItemId,
+      name: menuItemId,
+      size,
+      quantity,
+      price_per_item: 1, // ignored by the server, which prices by id
+      addons: addonIds.map((id) => ({ id, name: id, price: 0, quantity: 1 })),
+    };
+  }
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-test-id" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(items: unknown[], totalCents: number, extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(makeReq(validBody({ items, total_eur_cents: totalCents, ...extra })), c.res);
+    return c;
+  }
+
+  function expectMismatch(c: CapturedRes) {
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).code).toBe("crust_size_mismatch");
+    expect(bodyOf(c).error).toBe(MISMATCH_ERROR);
+    expect(insertedInto("orders")).toBe(false);
+  }
+
+  it("rejects a 50 cm pizza with the 33 cm crust (2 € under) and never inserts", async () => {
+    expectMismatch(await submit([line("pizza-50", "50", ["crust-33"])], 1600 + 200));
+  });
+
+  it("rejects a 33 cm pizza with the 50 cm crust", async () => {
+    expectMismatch(await submit([line("pizza-33", "33", ["crust-50"])], 900 + 400));
+  });
+
+  it("rejects a 50 cm pizza carrying both crust rows", async () => {
+    expectMismatch(await submit([line("pizza-50", "50", ["crust-50", "crust-33"])], 1600 + 400 + 200));
+  });
+
+  it("takes the size from the pizza's menu row, not the size the client sent", async () => {
+    expectMismatch(await submit([line("pizza-50", "33", ["crust-33"])], 1600 + 200));
+    expectMismatch(await submit([line("pizza-50", null, ["crust-33"])], 1600 + 200));
+  });
+
+  it("rejects a mismatched card order before Bankart is called", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+
+    const c = await submit([line("pizza-50", "50", ["crust-33"])], 1600 + 200, { payment_method: "card" });
+
+    expectMismatch(c);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("rejects a crust row ordered as an item of its own", async () => {
+    const crustLine = { ...line("crust-33", null, []), name: "Ivice punjene sirom" };
+    expectMismatch(await submit([line("pizza-50", "50", []), crustLine], 1600 + 200));
+  });
+
+  it("rejects the whole order when only one line mismatches", async () => {
+    const items = [line("pizza-33", "33", ["crust-33"]), line("pizza-50", "50", ["crust-33"])];
+    expectMismatch(await submit(items, 900 + 200 + 1600 + 200));
+  });
+
+  it("accepts a 50 cm pizza with the 50 cm crust (quantity 2)", async () => {
+    const c = await submit([line("pizza-50", "50", ["crust-50"], 2)], (1600 + 400) * 2);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedInto("orders")).toBe(true);
+  });
+
+  it("accepts a 33 cm pizza with the 33 cm crust next to a non-crust addon", async () => {
+    const c = await submit([line("pizza-33", "33", ["crust-33", "sauce-bbq"])], 900 + 200 + 100);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedInto("orders")).toBe(true);
+  });
+
+  it("accepts pizzas without crust and items without a size", async () => {
+    const items = [line("pizza-50", "50", ["sauce-bbq"]), line("drink", null, [])];
+    const c = await submit(items, 1600 + 100 + 250);
+
+    expect(c.statusCode).toBe(200);
+  });
+
+  it("mirrors the cart for an item with no size: 33 cm crust accepted, 50 cm crust rejected", async () => {
+    const ok = await submit([line("drink", null, ["crust-33"])], 250 + 200);
+    expect(ok.statusCode).toBe(200);
+
+    hoisted.calls.length = 0;
+    expectMismatch(await submit([line("drink", null, ["crust-50"])], 250 + 400));
+  });
+});
+
+describe("create-order handler — every row the kitchen sees is priced (B23c)", () => {
+  // Telegram and the admin panel list every row that is not "meta" (cart_id,
+  // name or category = "meta") and print its quantity as at least 1x. Any row
+  // the server lets through without pricing it is food the kitchen makes for free.
+  const MENU = [
+    { id: "pizza-33", name: "Kapričoza 33 cm", price_eur_cents: 900 },
+    { id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 },
+    { id: "crust-50", name: "Ivice punjene sirom 50 cm", price_eur_cents: 400 },
+    { id: "cola", name: "Coca-Cola 0,33 l", price_eur_cents: 250 },
+  ];
+
+  const cola = { cart_id: "c-cola", menu_item_id: "cola", name: "Coca-Cola", quantity: 1, price_per_item: 250, addons: [] };
+
+  function pizza50(overrides: Record<string, unknown> = {}) {
+    return {
+      cart_id: "c-pizza",
+      menu_item_id: "pizza-50",
+      name: "Kapričoza 50 cm",
+      size: "50",
+      quantity: 1,
+      price_per_item: 1600,
+      addons: [] as unknown[],
+      ...overrides,
+    };
+  }
+
+  function clientMeta(note: string) {
+    return {
+      cart_id: "meta",
+      menu_item_id: null,
+      name: "META",
+      size: null,
+      quantity: 1,
+      base_price: null,
+      price_per_item: 0,
+      addons: [],
+      note,
+      image: "",
+      category: "meta",
+    };
+  }
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-test-id" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function submit(items: unknown[], totalCents?: number) {
+    const c = makeRes();
+    await handler(makeReq(validBody({ items, total_eur_cents: totalCents })), c.res);
+    return c;
+  }
+
+  function insertedTotal(): unknown {
+    const call = hoisted.calls.find((x) => x.table === "orders" && x.op === "insert");
+    return (call?.payload as Record<string, unknown> | undefined)?.total_eur_cents;
+  }
+
+  function expectInvalidStructure(c: CapturedRes) {
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).error).toBe("Invalid item structure");
+    expect(insertedInto("orders")).toBe(false);
+  }
+
+  // (a) No price_per_item: the row used to be skipped by pricing but stored.
+  it("prices an item sent without price_per_item — a total that leaves it out is a mismatch", async () => {
+    const unpriced = pizza50({ quantity: 3, price_per_item: undefined });
+    const c = await submit([cola, unpriced], 250);
+
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).error).toBe("Total mismatch");
+    expect(insertedInto("orders")).toBe(false);
+  });
+
+  it("prices an item sent without price_per_item — with no client total the stored total includes it", async () => {
+    const c = await submit([cola, pizza50({ quantity: 3, price_per_item: undefined })]);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedTotal()).toBe(250 + 3 * 1600);
+  });
+
+  // (b) No menu_item_id + price 0 used to pass as "meta", yet the kitchen lists it.
+  it("rejects a row with no menu_item_id and price 0 that is not marked meta", async () => {
+    const fakeMeta = { cart_id: "c-x", menu_item_id: null, name: "Kapričoza 50 cm", quantity: 2, price_per_item: 0, addons: [] };
+    expectInvalidStructure(await submit([cola, fakeMeta], 250));
+  });
+
+  // (c) Quantity must be a whole number ≥ 1: the kitchen prints max(1, qty).
+  it("rejects a negative quantity that would pull the total down", async () => {
+    const minusOne = { ...pizza50(), cart_id: "c-33", menu_item_id: "pizza-33", name: "Kapričoza 33 cm", size: "33", quantity: -1 };
+    expectInvalidStructure(await submit([pizza50(), minusOne], 1600 - 900));
+  });
+
+  it.each([0, 1.5, "2", null, undefined, 100, 1e308])("rejects item quantity %j", async (quantity) => {
+    expectInvalidStructure(await submit([cola, pizza50({ quantity })]));
+  });
+
+  // (d) + (e) Addons: the kitchen prints every addon object, at least 1x.
+  it.each([0, -1, 1.5, "1", undefined, 100, 1e308])("rejects addon quantity %j", async (quantity) => {
+    const addon = { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity };
+    expectInvalidStructure(await submit([pizza50({ addons: [addon] })]));
+  });
+
+  it("accepts up to 99 of an item and of an addon", async () => {
+    const addon = { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 99 };
+    const c = await submit([pizza50({ quantity: 99, addons: [addon] })]);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedTotal()).toBe(99 * (1600 + 99 * 400));
+  });
+
+  it("rejects a total that is not a safe whole number (fee read from the client's note)", async () => {
+    const c = await submit([pizza50(), clientMeta(`Dostava: 1${"0".repeat(300)} €`)]);
+
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).error).toBe("Invalid calculated total");
+    expect(insertedInto("orders")).toBe(false);
+  });
+
+  it("rejects an item row without cart_id (Telegram lists only rows that have one)", async () => {
+    expectInvalidStructure(await submit([cola, pizza50({ cart_id: undefined })], 250 + 1600));
+    hoisted.calls.length = 0;
+    expectInvalidStructure(await submit([cola, pizza50({ cart_id: "  " })], 250 + 1600));
+  });
+
+  it("rejects an addon with no id", async () => {
+    const addon = { name: "Ivice punjene sirom 50 cm", price: 400, quantity: 1 };
+    expectInvalidStructure(await submit([pizza50({ addons: [addon] })], 1600));
+  });
+
+  it("rejects an addon that is not an object, and addons that are not a list", async () => {
+    expectInvalidStructure(await submit([pizza50({ addons: ["crust-50"] })], 1600));
+    hoisted.calls.length = 0;
+    expectInvalidStructure(await submit([pizza50({ addons: { id: "crust-50", quantity: 1 } })], 1600));
+  });
+
+  it("rejects a row that is not an object, or an object that is no item and no meta", async () => {
+    expectInvalidStructure(await submit([pizza50(), "Kapričoza 50 cm"], 1600));
+    hoisted.calls.length = 0;
+    expectInvalidStructure(await submit([pizza50(), { foo: 1 }], 1600));
+  });
+
+  // Regression: every meta shape the kitchen hides stays unpriced and accepted,
+  // and the delivery fee in its note still counts.
+  it("accepts the client's meta row and charges the delivery fee from its note", async () => {
+    const c = await submit([pizza50(), clientMeta("Zona: Bečići, Dostava: 3 €")], 1600 + 300);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedTotal()).toBe(1600 + 300);
+  });
+
+  it.each([
+    { cart_id: "c-note", name: "Napomena", category: "Meta", note: "Dostava: 2 €" },
+    { cart_id: "c-note", name: "meta", category: "", note: "Dostava: 2 €" },
+    { order_note: "Dostava: 2 €", total_items: 1 },
+  ])("accepts meta shape %j without pricing it", async (meta) => {
+    const c = await submit([pizza50(), meta], 1600 + 200);
+
+    expect(c.statusCode).toBe(200);
+    expect(insertedTotal()).toBe(1600 + 200);
+  });
+
+  it("still rejects an order that holds nothing but meta", async () => {
+    expectInvalidStructure(await submit([clientMeta("Dostava: 3 €")], 300));
+  });
+});
+
+describe("create-order handler — stored rows read as the menu row that was charged (B23d)", () => {
+  // Telegram prints "1x {name} ({size})" and each addon by name; the admin
+  // panel shows price_per_item and addon prices. The server charges by id, so
+  // it stores those fields from the menu rows, not from the request.
+  const MENU = [
+    { id: "diavolo-33", name: "Diavolo 33 cm", price_eur_cents: 1000 },
+    { id: "diavolo-50", name: "Diavolo 50 cm", price_eur_cents: 2000 },
+    { id: "bianco-33", name: "Bianco 33 cm", price_eur_cents: 1100 },
+    { id: "montenegro-50", name: "Montenegro 50 cm", price_eur_cents: 2000 },
+    { id: "crust-50", name: "Ivice punjene sirom 50 cm", price_eur_cents: 400 },
+    { id: "pelat", name: "Pelat ", price_eur_cents: 100 }, // trailing space, as on prod
+    { id: "kecap", name: "Kečap", price_eur_cents: 0 },
+    { id: "cola", name: "Coca-Cola 0,33 l", price_eur_cents: 250 },
+  ];
+
+  const CRUST_50 = { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 1 };
+  const PELAT = { id: "pelat", name: "Pelat", price: 100, quantity: 1 };
+  const KECAP = { id: "kecap", name: "Kečap", price: 0, quantity: 1 };
+
+  // A row exactly as CartDrawer sends it.
+  function diavolo50(overrides: Record<string, unknown> = {}) {
+    return {
+      cart_id: "c-diavolo-50",
+      menu_item_id: "diavolo-50",
+      name: "Diavolo",
+      size: "50",
+      quantity: 1,
+      base_price: 2000,
+      price_per_item: 2000 + 400 + 100,
+      addons: [CRUST_50, PELAT] as unknown[],
+      note: "bez luka",
+      image: "/menu/diavolo.webp",
+      category: "pizza",
+      ...overrides,
+    };
+  }
+
+  function diavolo33(overrides: Record<string, unknown> = {}) {
+    return {
+      cart_id: "c-diavolo-33",
+      menu_item_id: "diavolo-33",
+      name: "Diavolo",
+      size: "33",
+      quantity: 1,
+      base_price: 1000,
+      price_per_item: 1000,
+      addons: [] as unknown[],
+      note: null,
+      image: "/menu/diavolo.webp",
+      category: "pizza",
+      ...overrides,
+    };
+  }
+
+  const cola = {
+    cart_id: "c-cola",
+    menu_item_id: "cola",
+    name: "Coca-Cola 0,33 l",
+    size: null,
+    quantity: 1,
+    base_price: 250,
+    price_per_item: 250,
+    addons: [],
+    note: null,
+    image: "/menu/coca-cola.webp",
+    category: "pica",
+  };
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-test-id" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(items: unknown[], totalCents: number, extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(makeReq(validBody({ items, total_eur_cents: totalCents, ...extra })), c.res);
+    return c;
+  }
+
+  function storedItems(): Record<string, unknown>[] {
+    const call = hoisted.calls.find((x) => x.table === "orders" && x.op === "insert");
+    return ((call?.payload as Record<string, unknown> | undefined)?.items ?? []) as Record<string, unknown>[];
+  }
+
+  it("stores an honest cart row exactly as sent: kitchen reads \"1x Diavolo (50)\"", async () => {
+    const sent = [diavolo50(), cola];
+    const c = await submit(sent, 2500 + 250);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()).toEqual(sent);
+  });
+
+  it("stores the charged row's size and name, not the size the client sent", async () => {
+    const edited = diavolo33({ name: "Diavolo 50 cm XXL", size: "50" });
+    const c = await submit([edited], 1000);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0]).toMatchObject({ name: "Diavolo", size: "33" });
+  });
+
+  it("stores a free addon under its own name, not one the client made up", async () => {
+    const renamed = { ...KECAP, name: "Ivice punjene sirom 50 cm" };
+    const c = await submit([diavolo33({ addons: [renamed] })], 1000);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0].addons).toEqual([{ id: "kecap", name: "Kečap", price: 0, quantity: 1 }]);
+  });
+
+  it("stores the server's line and addon prices when the client shifts them (total unchanged)", async () => {
+    const shiftedA = diavolo50({
+      base_price: 1000,
+      price_per_item: 1000,
+      addons: [{ ...CRUST_50, price: 0 }, { ...PELAT, price: 500 }],
+    });
+    const shiftedB = diavolo33({ base_price: 2000, price_per_item: 2000, quantity: 2 });
+    const c = await submit([shiftedA, shiftedB], 2500 + 2 * 1000);
+
+    expect(c.statusCode).toBe(200);
+    const [a, b] = storedItems();
+    expect(a).toMatchObject({ base_price: 2000, price_per_item: 2500 });
+    expect(a.addons).toEqual([CRUST_50, PELAT]);
+    expect(b).toMatchObject({ base_price: 1000, price_per_item: 1000, quantity: 2 });
+  });
+
+  it("counts addon quantity in price_per_item, as the cart does", async () => {
+    const c = await submit([diavolo50({ addons: [CRUST_50, { ...PELAT, quantity: 3 }], price_per_item: 2700 })], 2700);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0]).toMatchObject({ base_price: 2000, price_per_item: 2000 + 400 + 3 * 100 });
+  });
+
+  it("fixes the two prod rows that read wrong in the kitchen", async () => {
+    // 2026-06-23: a 50 cm row sent with size null → "1x Montenegro" with no size.
+    const noSize = { ...diavolo50(), cart_id: "c-mn", menu_item_id: "montenegro-50", name: "Montenegro", size: null, addons: [], price_per_item: 2000 };
+    // 2026-09-17: the size left in the name → "1x Bianco 33 cm (33)".
+    const sizeInName = { ...diavolo33(), cart_id: "c-bi", menu_item_id: "bianco-33", name: "Bianco 33 cm", base_price: 1100, price_per_item: 1100 };
+    const c = await submit([noSize, sizeInName], 2000 + 1100);
+
+    expect(c.statusCode).toBe(200);
+    const [mn, bi] = storedItems();
+    expect(mn).toMatchObject({ name: "Montenegro", size: "50" });
+    expect(bi).toMatchObject({ name: "Bianco", size: "33" });
+  });
+
+  it("keeps a drink's whole name and stores no size for it", async () => {
+    const c = await submit([{ ...cola, name: "Coca", size: "50" }], 250);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0]).toMatchObject({ name: "Coca-Cola 0,33 l", size: null });
+  });
+
+  it("leaves the meta row and the client's cart_id, note, image, category and quantity as sent", async () => {
+    const meta = {
+      cart_id: "meta",
+      menu_item_id: null,
+      name: "META",
+      size: null,
+      quantity: 1,
+      base_price: null,
+      price_per_item: 0,
+      addons: [],
+      note: "Zona: Bečići, Dostava: 3 €",
+      image: "",
+      category: "meta",
+    };
+    const row = diavolo50({ quantity: 2, note: "dobro pečena", category: "pizza" });
+    const c = await submit([meta, row], 2 * 2500 + 300);
+
+    expect(c.statusCode).toBe(200);
+    const [storedMeta, stored] = storedItems();
+    expect(storedMeta).toMatchObject({ cart_id: "meta", name: "META", price_per_item: 0, addons: [] });
+    expect(String(storedMeta.note)).toContain("Plaćanje: Gotovina");
+    expect(stored).toMatchObject({
+      cart_id: "c-diavolo-50",
+      menu_item_id: "diavolo-50",
+      quantity: 2,
+      note: "dobro pečena",
+      image: "/menu/diavolo.webp",
+      category: "pizza",
+    });
+  });
+
+  it("stores the menu rows on a card order too, before Bankart is called", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+    const bankart = { success: true, returnType: "REDIRECT", redirectUrl: "https://pay.example/r", uuid: "u-1" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(bankart)) }),
+    );
+
+    const c = await submit([diavolo33({ name: "Diavolo 50 cm", size: "50" })], 1000, { payment_method: "card" });
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c).flow).toBe("card_redirect");
+    expect(storedItems()[0]).toMatchObject({ name: "Diavolo", size: "33", price_per_item: 1000 });
   });
 });

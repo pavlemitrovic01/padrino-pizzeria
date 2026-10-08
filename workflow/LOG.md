@@ -5,6 +5,81 @@
 
 ---
 
+## B23d — 2026-10-08 — Server upisuje prikazne podatke reda iz menu_items — DONE
+
+**Tier:** STRICT
+**SHA:** d393d6d
+**Branch:** claude/wonderful-cray-5p9z2e (cloud sesija; fast-forward na `claude/vibrant-euler-oxmwb0` = B23b + B23c, pa B23d; merge u main radi Pavle)
+**Files (5):** +412/−3
+  - api/create-order.ts — LOCK ZONE. Novi `withMenuRowDisplay`: za svaki red koji nije meta upisuje `name` (ime reda bez „33/50 cm"), `size` (iz imena reda), `base_price`, `addons[].name` + `addons[].price` iz `menu_items` i `price_per_item` = osnova + `sumAddonsCents`. Meta redovi i `cart_id`/`quantity`/`note`/`image`/`category` ostaju klijentski. Primenjuje se samo na `insertRow.items`, posle `Total mismatch`; isti SELECT (`fetchMenuRows`), bez novog upita. Naplata, provere i odgovori nedirnuti.
+  - api/_shared/menu-display.ts — NEW. `pizzaSizeOfName` (ogledalo `parsePizzaSizeFromName`) i `displayNameOfMenuRow` (ogledalo `stripPizzaSizeFromName`) iz `src/lib/cartDrawerHelpers.ts`. Import sa `.js` (L6).
+  - api/_shared/menu-display.test.ts — NEW (6 testova): prod imena, velika slova/razmaci, piće/sos/ivice, 150/500 cm.
+  - api/create-order.test.ts — 9 testova handler-a nad sadržajem upisa: pošten red upisan identično; 33 cm sa `size:"50"` → „Diavolo"/"33"; besplatan dodatak preimenovan u ivice → „Kečap" 0; cene pomerene između redova (total isti) → serverske; količina dodatka u `price_per_item`; dva prod slučaja (Montenegro 50 bez `size`, „Bianco 33 cm"); piće bez veličine; meta + klijentska polja sačuvana; kartica (upis pre Bankart-a).
+  - src/lib/pricingParity.test.tsx — 13 testova: tabela imena server = klijent (ime + veličina) + pravi checkout (50 cm + ivice + Bbq i 33 cm) → upisani redovi = poslati redovi. Serverski mock `insert` beleži payload.
+**Verify:**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 21:16 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 25 fajlova / 391 test (+28 B23d; pre 363)
+  lint:      izmenjeni fajlovi `npx eslint` exit 0
+  repro:     pre izmene 6 B23d testova pada — upisuje se ono što je klijent poslao (`size:"50"` na 33 cm, „Ivice…" za 0 €, klijentske cene, Montenegro bez veličine, piće sa `size:"50"`, kartica); posle izmene prolaze. Mutacija helper-a („50 cm" se ne skida) → parity pada 4 testa.
+  preview:   Vercel READY za d393d6d (dpl_6qvfNxNr9huWSvM5eTvau4ToXZ13). Smoke nije moguć iz containera (*.vercel.app blokiran).
+  code-review:     NIJE POKRENUTO — preporučeno pre /close, Pavle: „može close".
+  security-review: NIJE POKRENUTO — preporučeno (money path), Pavle: „može close".
+  manual:    NIJE POKRENUTO — čeka merge u main. Prod: prva prava porudžbina → Telegram isti format („1x Diavolo (50)", dodaci po imenu) + SQL nad sledećim porudžbinama (`name`/`size`/imena dodataka/cene = `menu_items`); upisuje se posebnim workflow commit-om (presedan B23a).
+**SCOPE_DRIFT:** none — 5 fajlova = EXPECTED-FILES exact match (`git diff --name-only 62d60c3..HEAD`).
+**Notes:** Otvoreno iz B23c code review-a. Odluka (Pavle): prepisuju se ime, veličina, imena dodataka i cene redova; `category` ostaje klijentska (njena izmena šteti samo porudžbini samog kupca). Prod (SELECT, 120 dana): 746/747 redova isto ime + veličina, 525/525 imena dodataka, 747/747 kategorija. Razlike: „Bianco 33 cm" + 33 (kuhinja: „1x Bianco 33 cm (33)") i Montenegro 50 cm sa `size: null` (2026-06-23, „1x Montenegro" bez veličine) — oba sada ispravna. 16 razlika u cenama = kasnije promene cena u meniju (jun–avg), ne klijent. Prazno ime reda u meniju dalo bi prazno ime (Telegram „Proizvod") — na produ nema takvih redova. **Drift pri startu:** STATE na main-u je pokazivao „Sledeći: B23b", jer su B23b + B23c (i B22) samo na nemergovanim granama — prijavljeno, rešeno fast-forward-om na `claude/vibrant-euler-oxmwb0` (Pavle). Odstupanja od workflow-a (kao B23a–c): planirano kroz plan mode (STATE bez aktivnog batch-a, EXPECTED-FILES iz odobrenog plana); bez `batch/` grane; fix commit pre /close. LESSONS bez izmene (na cap-u 7). ROADMAP: nema reda za B23d (Faza S redovi postoje samo na nemergovanoj B22 grani) → preskočeno.
+
+---
+
+## B23c — 2026-10-08 — Server naplaćuje svaki red koji kuhinja vidi — DONE
+
+**Tier:** STRICT
+**SHA:** 0a2562f (fix) + 39a5012 (ispravke iz code review-a)
+**Branch:** claude/vibrant-euler-oxmwb0 (cloud sesija; isti branch kao B23b; merge u main radi Pavle)
+**Files (2):** +234/−39
+  - api/create-order.ts — LOCK ZONE. `looksLikeCartMetaItem` + `looksLikeRealItemButInvalid` → `isMetaRow` (pravilo kuhinje: `cart_id`/`name`/`category` = „meta", kao `isMetaRow` u `api/telegram-new-order.ts` i `src/lib/adminOrdersLib.ts`; + legacy `{ total_items, order_note }`) i `isPriceableItemRow` (neprazan `cart_id`, `menu_item_id`, količina ceo broj 1–99, dodaci: objekat sa `id` i količinom 1–99). Izbačena labava rupa „nema `menu_item_id` i cena 0 → meta". `calcItems` = svaki red koji nije meta (više ne bira po `typeof price_per_item`). Total mora biti `Number.isSafeInteger` → inače 400 `Invalid calculated total`. `findCrustSizeMismatch` (B23b) odbija i red ivica poslat kao samostalna stavka. `withPaymentInMetaItems` i `getDeliveryFeeCentsFromMeta` koriste `isMetaRow`. Poruka za nevalidan red ostaje postojeći `400 "Invalid item structure"`.
+  - api/create-order.test.ts — 30 testova: rupe (a)–(e), količine 0/−1/1,5/"2"/null/undefined/100/1e308 za stavku i dodatak, 99 prihvaćeno, red bez `cart_id`, nevalidni redovi, total koji nije siguran ceo broj (dostava od 301 cifre), ivice kao samostalna stavka; regresija: klijentski meta red + dostava iz napomene, meta po `category`/`name`, legacy meta, porudžbina samo od meta reda odbijena. Mock beleži sadržaj upisa (provera upisanog totala).
+**Verify:**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 20:53 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 24 fajla / 363 testa (+30 B23c; pre 333)
+  lint:      izmenjeni fajlovi `npx eslint` exit 0
+  repro:     pre izmene sve rupe → 200 ok: (a) kola + 3× pica 50 cm bez `price_per_item` → upisano total 250 (umesto 5050); (b) red bez `menu_item_id` sa cenom 0 → prihvaćen kao meta, kuhinja ga prikazuje; (c) pica 50 ×1 + pica 33 ×−1 → total 700; (d) dodatak količine 0/−1 → nenaplaćen; (e) dodatak bez `id` → nenaplaćen. 7 testova iz review-a: pada bez 39a5012, prolazi sa njim (git stash provera).
+  preview:   Vercel READY za 0a2562f (dpl_132wuJajzmb8njxp2dxDiumGTvBw) i 39a5012 (dpl_H5JP9yQ9cuNtZScsWfRBD6HGrR37). Build Logs nisu čitani (Vercel MCP 403); smoke nije moguć iz containera (*.vercel.app blokiran).
+  code-review:     IZVRŠEN (origin/main...HEAD = B23b + B23c) — 12 nalaza. Ispravljeno 3 (u 39a5012): ogromna količina → Infinity → NULL total („Ukupno: 0,00 €"; `total_eur_cents` je nullable bigint) → limit 99 + siguran ceo broj; red bez `cart_id` (Telegram ga ne prikazuje, server naplaćuje) → odbijen; ivice kao samostalna stavka (2 € manje, kuhinja vidi zaseban red) → odbijene. Obrazloženo bez izmene 9: klijentski `size`/ime stavke/ime dodatka/`price_per_item` koje kuhinja i admin čitaju (4 nalaza, uklj. „altitude: server da prepiše redove iz menu_items") → B23d, traži Pavlovu odluku o izgledu poruka u kuhinji; paritet testa za „50cm" bez razmaka u ne-pica kategiji — na produ nema takvih redova, greška bi išla na štetu kupca (fail-closed); tri kopije `isMetaRow` → spajanje dira Telegram (lock zona), kasnije; mrtav defanzivni kod — ne čisti se u lock zoni bez dobitka; veličina iz imena umesto kolone — svesna odluka B23a; STATE drift — rešen ovim close-om.
+  security-review: NIJE POKRENUTO — Pavle: „code review pa close".
+  manual:    NIJE POKRENUTO — čeka merge u main. Prod: negativni smoke (stavka količine −1 → 400 `Invalid item structure`, bez reda u `orders`) + SQL nad sledećim pravim porudžbinama; upisuje se posebnim workflow commit-om (presedan B20/B23a).
+**SCOPE_DRIFT:** none — 2 fajla = EXPECTED-FILES exact match (`git diff --name-only ca4c001..HEAD`).
+**Notes:** Nađeno u B23b (stavka bez `price_per_item` upisana a nenaplaćena). Recon: Telegram prikazuje svaki red sa `cart_id` koji nije meta, admin svaki red koji nije meta, oba sa „najmanje 1x"; server je naplaćivao samo redove koji su mu „ličili" na stavku → sve između = besplatna hrana. Prod (SELECT, 120 dana): svih 747 pravih redova i 525 dodataka već imaju oblik koji novo pravilo traži; svih 502 meta reda su meta po pravilu kuhinje; max količina 6 (stavka) / 10 (dodatak); 0 redova bez `cart_id`; ivice nikad kao samostalna stavka. Svih 60 „neobičnih" redova u istoriji je iz jan–feb 2026 (stari oblici pre serverske provere cene). Odstupanja od workflow-a (kao B23b): STATE nije imao aktivan batch, bez `batch/` grane, fix commit-i pre /close na zahtev stop hook-a. **Otvoreno → B23d:** server čuva klijentske prikazne podatke (`name`, `size`, imena dodataka, cene redova) a naplaćuje po ID-ju. **Otvoreno (provera):** iznos dostave se čita iz klijentske napomene („Dostava: X €").
+
+---
+
+## B23b — 2026-10-08 — Serverska provera veličine ivica — DONE
+
+**Tier:** STRICT
+**SHA:** ddd8846
+**Branch:** claude/vibrant-euler-oxmwb0 (cloud sesija; merge u main radi Pavle)
+**Files (5):** +335/−7
+  - api/create-order.ts — LOCK ZONE. Isti `menu_items` SELECT čita i `name` (`fetchMenuPricesCents` → `fetchMenuRows`, vraća cene + imena; bez novog upita). Novi `findCrustSizeMismatch`: posle provere neaktivnih ID-jeva, pre subtotal-a, upisa i Bankart-a → 400 `{ code: "crust_size_mismatch", error: "Punjene ivice ne odgovaraju veličini pice. Ukloni ih iz korpe i dodaj ponovo." }` (L5: validaciona 400, bez ID-jeva; ID-jevi samo u `console.warn`). Matematika cene i `Total mismatch` nedirnuti.
+  - api/_shared/stuffed-crust.ts — NEW. Ogledalo klijentskih pravila iz `cartDrawerHelpers.ts`: `stuffedCrustSizeOf` (red ivica = 50 cm ako ime ima „50 cm", inače 33) i `crustSizeForItem` (stavka prima ivice 50 cm samo ako je njen red „… 50 cm"). Import sa `.js` (L6).
+  - api/_shared/stuffed-crust.test.ts — NEW (6 testova): dijakritici, „Punjene ivice sa kulenom", „rub", „Coca-Cola 0,33 l", 150/500 cm.
+  - api/create-order.test.ts — 10 testova handler-a: odbija 50+ivice33, 33+ivice50, obe ivice, klijentski `size` "33"/null na redu od 50 cm, karticu pre Bankart-a, celu porudžbinu kad greši jedna stavka; prihvata 50+ivice50 (×2), 33+ivice33+sos, bez ivica, stavku bez veličine + ivice 33 (ogledalo korpe).
+  - src/lib/pricingParity.test.tsx — 35 testova: tabela imena na kojoj klijent i server moraju isto da čitaju ivice i veličinu stavke + server odbija ivice 33 na 50 cm iz zajedničkog menija.
+**Verify:**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 14:10 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 24 fajla / 333 testa (+51 B23b; pre 282)
+  lint:      izmenjeni fajlovi `npx eslint` exit 0
+  repro:     pre izmene — 6 neusklađenih zahteva (50+ivice33, 33+ivice50, obe, `size` "33"/null na 50 cm, jedna loša stavka od dve) → 200 ok + upis; kartica stigla do Bankart debit poziva. Posle izmene → 400 bez upisa.
+  preview:   Vercel dpl_6T1Dp6wWuEHvqbyCnj9MnT1Rz2HD za ddd8846 = READY (build prošao, uklj. novi `api/_shared` modul). Build Logs nije pročitan (Vercel MCP 403 na scope); preview smoke nije pokrenut (container mreža blokira *.vercel.app).
+  code-review:     NIJE POKRENUTO — preporučeno pre /close, Pavle: „može close".
+  security-review: NIJE POKRENUTO — preporučeno pre /close, Pavle: „može close".
+  manual:    NIJE POKRENUTO — čeka merge u main. Prod: negativni smoke (50 cm + ivice 33 → 400 `crust_size_mismatch`, bez reda u `orders`) + SQL nad sledećim pravim porudžbinama sa ivicama; upisuje se posebnim workflow commit-om (presedan B20/B23a).
+**SCOPE_DRIFT:** none — 5 fajlova = EXPECTED-FILES exact match (`git diff --name-only origin/main...HEAD`).
+**Notes:** Zahtev iz B23a code-review-a (odloženo u B23b). Prod pre plana (SELECT): pice su zasebni redovi „… 33 cm" (14) / „… 50 cm" (13); dva reda ivica (200 / 400); ivice nikad na stavci koja nije pica. Istorija ivica po veličini reda pice: 33+ivice33 128, 50+ivice50 1 (B23a E2E), 50+ivice33 9 (jan–mar, legalno pre B23a) + **1 sa `size: null` (2026-06-23) — prošla 2 € manje**. Zato je izvor istine ime reda u bazi, ne klijentsko `size`. Korpa se ne čuva između sesija (nema localStorage) → stare korpe postoje samo u tabu otvorenom pre B23a deploy-a. Odstupanja od workflow-a: (a) STATE nije imao aktivan batch (`/plan` ga ne upisuje) — EXPECTED-FILES iz odobrenog plana, kao B23a; (b) bez `batch/` grane — cloud sesija sme da pushuje samo na `claude/vibrant-euler-oxmwb0`; (c) fix commit ddd8846 napravljen pre /close na zahtev stop hook-a (presedan B23a e7c907c). **Nađeno usput (van scope-a → B23c):** stavka sa `menu_item_id` bez `price_per_item` prolazi `looksLikeRealItemButInvalid`, ispada iz `calcItems` (ne naplaćuje se), a upisuje se u `items` — privremeni test: kola 2,50 € + 3× pica 50 cm bez cene → 200 ok, upisano, naplaćeno 2,50 €. Nije provereno da li stiže do kuhinje (Telegram/admin).
+
+---
+
 ## B23a — 2026-10-07 — 50 cm + punjene ivice (Total mismatch) — DONE
 
 **Tier:** STRICT

@@ -13,6 +13,40 @@
 
 ---
 
+## Rotated at B23d close — 2026-10-08
+
+Moved verbatim from STATE.md by the 2-batch cap (B23d + B23c stay inline).
+
+- B23b (Serverska provera veličine ivica) — DONE 2026-10-08
+  (STRICT; 5 fajlova, +335/-7; SHA ddd8846; server odbija ivice koje ne odgovaraju
+  veličini pice — 400 `crust_size_mismatch` pre upisa i Bankart-a; veličina iz imena
+  reda u bazi, ne iz klijentskog `size`; parity test klijent↔server; čeka merge)
+
+---
+
+## Rotated at B23c close — 2026-10-08
+
+Moved verbatim from STATE.md by the 2-batch cap (B23c + B23b stay inline).
+
+- B23a (50 cm + punjene ivice — Total mismatch) — DONE 2026-10-07
+  (STRICT; 5 fajlova, +786/-57; SHA e7c907c + c6ab9c8; ivice po veličini kao poseban
+  red u meniju, korpa više ne prepisuje cene; parity test kroz pravi checkout do
+  servera; merged 413dc7c; migracija primenjena 2026-10-08; prod potvrđen —
+  UI + E2E porudžbina)
+
+---
+
+## Rotated at B23b close — 2026-10-08
+
+Moved verbatim from STATE.md by the 2-batch cap (B23b + B23a stay inline).
+
+- B21 (Brisanje pre-L8.4 inline cart-editing API-ja) — DONE 2026-07-27
+  (STANDARD; 6 fajlova, +3/-243; SHA e1f4ece; changeSize + 5 addon/note mutatora
+  iz lock zone + setPizzaSizeSafe/addDrinkToCart/sauceIdSet/onError iz
+  useCatalogData; nedostižnost dokazana typecheck-om preko CartContextType)
+
+---
+
 ## Rotated at B23a close — 2026-10-07
 
 Moved verbatim from STATE.md by the 2-batch cap (B23a + B21 stay inline).

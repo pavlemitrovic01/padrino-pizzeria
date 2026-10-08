@@ -5,6 +5,8 @@ import { Redis } from "@upstash/redis";
 import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
 import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
 import { isWithinBusinessHours, nowMinutesInPodgorica } from "./_shared/business-hours.js";
+import { crustSizeForItem, stuffedCrustSizeOf } from "./_shared/stuffed-crust.js";
+import { displayNameOfMenuRow, pizzaSizeOfName } from "./_shared/menu-display.js";
 import { applyCors } from "./_shared/cors.js";
 import {
   BANKART_FALLBACK_EMAIL,
@@ -156,39 +158,48 @@ function looksLikeLegacyMetaItem(v: unknown) {
 }
 
 /**
- * NOVO: “META” item koji frontend šalje kao “pravi item”
- * (cart_id/meta, category/meta, name/META), ima note, ali nema menu_item_id
+ * A row the kitchen never sees. Telegram (api/telegram-new-order.ts) and the
+ * admin panel (src/lib/adminOrdersLib.ts) both hide the rows whose cart_id,
+ * name or category is "meta" and list the others, so the server prices every
+ * other row (B23c). The frontend's own meta row is
+ * { cart_id: "meta", name: "META", category: "meta", note }; legacy meta rows
+ * ({ total_items, order_note }) carry no item at all.
  */
-function looksLikeCartMetaItem(v: unknown) {
+function isMetaRow(v: unknown): boolean {
   if (!isPlainObject(v)) return false;
-
-  const cartId = toTrimmedString(v.cart_id);
-  const name = toTrimmedString(v.name);
-  const category = toTrimmedString(v.category);
-
-  if (cartId.toLowerCase() === "meta") return true;
-  if (category.toLowerCase() === "meta") return true;
-  if (name.toUpperCase() === "META") return true;
-
-  const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
-  const p = v.price_per_item ?? v.pricePerItem;
-  if (!menuItemId && typeof p === "number" && p === 0) return true;
-
-  return false;
+  if (looksLikeLegacyMetaItem(v)) return true;
+  return [v.cart_id, v.name, v.category].some((x) => normalizeText(toTrimmedString(x)) === "meta");
 }
 
-function looksLikeRealItemButInvalid(v: unknown) {
+// Far above any real order (prod max: 6 of an item, 10 of an addon) and low
+// enough that no quantity × price can overflow the total (a non-finite total
+// is stored as NULL and Telegram shows "Ukupno: 0,00 €").
+const MAX_LINE_QUANTITY = 99;
+
+function isLineQuantity(v: unknown): boolean {
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= MAX_LINE_QUANTITY;
+}
+
+/**
+ * B23c: a row that is not meta is food the kitchen will make, so the server
+ * must be able to price it exactly: a cart_id (Telegram lists only rows that
+ * have one), a menu_item_id, a whole quantity 1–99, and addons that each have
+ * an id and a whole quantity 1–99. The kitchen prints max(1, quantity) and
+ * lists every addon object, so anything looser (no price, quantity −1 or 0, an
+ * addon without id) was stored and made but never charged.
+ */
+function isPriceableItemRow(v: unknown): boolean {
   if (!isPlainObject(v)) return false;
+  if (!toTrimmedString(v.cart_id)) return false;
+
   const menuItemId = toTrimmedString(v.menu_item_id) || toTrimmedString(v.menuItemId);
-  const name = toTrimmedString(v.name);
-  const qty = v.quantity;
+  if (!menuItemId || !isLineQuantity(v.quantity)) return false;
 
-  const hasItemish = !!name || typeof qty === "number" || !!menuItemId;
-  if (!hasItemish) return false;
-
-  if (looksLikeLegacyMetaItem(v) || looksLikeCartMetaItem(v)) return false;
-
-  return !menuItemId;
+  if (v.addons === undefined || v.addons === null) return true;
+  if (!Array.isArray(v.addons)) return false;
+  return v.addons.every(
+    (a) => isPlainObject(a) && toTrimmedString(a.id) !== "" && isLineQuantity(a.quantity),
+  );
 }
 
 type Zone = {
@@ -200,6 +211,7 @@ type Zone = {
 
 type PricingRow = {
   id: string;
+  name: string;
   price_eur_cents: number;
 };
 
@@ -277,7 +289,7 @@ function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): un
   const line = `Plaćanje: ${payment === "cash" ? "Gotovina" : "Kartica"}`;
   const items = Array.isArray(rawItems) ? [...rawItems] : [];
 
-  const idx = items.findIndex((it) => isPlainObject(it) && (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)));
+  const idx = items.findIndex((it) => isMetaRow(it));
   if (idx === -1) return items;
 
   const meta = items[idx];
@@ -290,19 +302,26 @@ function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): un
   return items;
 }
 
-async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>> {
+type MenuRows = {
+  prices: Map<string, number>;
+  // Row names, for the stuffed-crust size check (B23b).
+  names: Map<string, string>;
+};
+
+async function fetchMenuRows(ids: string[]): Promise<MenuRows> {
   const uniq = Array.from(new Set(ids.filter(Boolean)));
-  if (uniq.length === 0) return new Map();
+  if (uniq.length === 0) return { prices: new Map(), names: new Map() };
 
   const { data, error } = await supabase
     .from("menu_items")
-    .select("id,price_eur_cents")
+    .select("id,name,price_eur_cents")
     .eq("is_active", true)
     .in("id", uniq);
 
   if (error) throw new Error(`DB: pricing fetch failed (${error.message})`);
 
-  const m = new Map<string, number>();
+  const prices = new Map<string, number>();
+  const names = new Map<string, string>();
   for (const row of Array.isArray(data) ? data : []) {
     const r = row as unknown as PricingRow;
     const id = toTrimmedString((r as unknown as Record<string, unknown>).id);
@@ -310,9 +329,42 @@ async function fetchMenuPricesCents(ids: string[]): Promise<Map<string, number>>
     // Include every active row so the existence check (findMissingMenuItemIds)
     // recognizes free addons (price 0, e.g. ketchup/mayo). Price stays accurate
     // (0 for free items); sumAddonsCents already ignores non-positive prices.
-    if (id) m.set(id, p > 0 ? p : 0);
+    if (id) {
+      prices.set(id, p > 0 ? p : 0);
+      names.set(id, toTrimmedString((r as unknown as Record<string, unknown>).name));
+    }
   }
-  return m;
+  return { prices, names };
+}
+
+/**
+ * B23b: the first addon that is the stuffed crust of the other pizza size
+ * (e.g. the 2 € 33 cm crust on a 50 cm pizza), or null. Both sizes come from
+ * menu row names — never from the `size` field the client sends.
+ *
+ * A crust row ordered as an item of its own is refused too: the kitchen lists
+ * it as a separate line it could put on any pizza, and the cart never sends it
+ * that way (prod: 0 such rows).
+ */
+function findCrustSizeMismatch(
+  items: Record<string, unknown>[],
+  names: Map<string, string>,
+): { menuItemId: string; addonId: string } | null {
+  for (const item of items) {
+    const menuItemId = toTrimmedString(item.menu_item_id) || toTrimmedString(item.menuItemId);
+    const itemName = names.get(menuItemId) ?? "";
+    if (stuffedCrustSizeOf(itemName) !== null) return { menuItemId, addonId: "" };
+    const fits = crustSizeForItem(itemName);
+
+    const addons = Array.isArray(item.addons) ? item.addons : [];
+    for (const a of addons) {
+      if (!isPlainObject(a)) continue;
+      const addonId = toTrimmedString(a.id);
+      const crust = stuffedCrustSizeOf(names.get(addonId) ?? "");
+      if (crust !== null && crust !== fits) return { menuItemId, addonId };
+    }
+  }
+  return null;
 }
 
 function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
@@ -337,6 +389,46 @@ function findMissingMenuItemIds(ids: string[], priceMap: Map<string, number>): s
   return uniq.filter((id) => !priceMap.has(id));
 }
 
+/**
+ * B23d: Telegram prints each row's name, size and addon names as stored, and
+ * the admin panel its price_per_item and addon prices — while the server
+ * charges by id. So the server stores what it charged: those fields come from
+ * the menu rows. An honest cart already sends exactly this ("Diavolo" + "50"
+ * for the row "Diavolo 50 cm", Telegram: "1x Diavolo (50)"), so the kitchen
+ * reads the same. Meta rows, and each row's cart_id, quantity, note, image and
+ * category, stay as sent.
+ */
+function withMenuRowDisplay(
+  items: unknown[],
+  prices: Map<string, number>,
+  names: Map<string, string>,
+): unknown[] {
+  return items.map((it) => {
+    if (!isPlainObject(it) || isMetaRow(it)) return it;
+
+    const menuItemId = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
+    const rowName = names.get(menuItemId) ?? "";
+    const basePrice = prices.get(menuItemId) ?? 0;
+
+    const addons = Array.isArray(it.addons)
+      ? it.addons.map((a) => {
+          if (!isPlainObject(a)) return a;
+          const addonId = toTrimmedString(a.id);
+          return { ...a, name: names.get(addonId) ?? "", price: prices.get(addonId) ?? 0 };
+        })
+      : it.addons;
+
+    return {
+      ...it,
+      name: displayNameOfMenuRow(rowName),
+      size: pizzaSizeOfName(rowName),
+      base_price: basePrice,
+      price_per_item: basePrice + sumAddonsCents(addons, prices),
+      addons,
+    };
+  });
+}
+
 function getDeliveryFeeCentsFromMeta(
   items: unknown[],
   zones: Zone[],
@@ -354,7 +446,7 @@ function getDeliveryFeeCentsFromMeta(
   let metaNote = "";
   for (const it of items) {
     if (!isPlainObject(it)) continue;
-    if (!looksLikeLegacyMetaItem(it) && !looksLikeCartMetaItem(it)) continue;
+    if (!isMetaRow(it)) continue;
 
     const n = toTrimmedString(it.order_note) || toTrimmedString(it.note);
     if (n) metaNote = n;
@@ -1014,7 +1106,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     }
 
     for (const it of rawItems) {
-      if (looksLikeRealItemButInvalid(it)) {
+      if (!isMetaRow(it) && !isPriceableItemRow(it)) {
         return json(res, 400, { ok: false, error: "Invalid item structure" });
       }
     }
@@ -1035,14 +1127,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
 
-    const calcItems = itemsForInsert.filter((it): it is Record<string, unknown> => {
-      if (!isPlainObject(it)) return false;
-      if (looksLikeLegacyMetaItem(it) || looksLikeCartMetaItem(it)) return false;
-
-      const q = it.quantity;
-      const p = it.price_per_item ?? it.pricePerItem;
-      return typeof q === "number" && typeof p === "number";
-    });
+    // Every row that is not meta is priced from menu_items — price_per_item is
+    // the client's own figure and never decides whether a row is charged.
+    const calcItems = itemsForInsert.filter(
+      (it): it is Record<string, unknown> => isPlainObject(it) && !isMetaRow(it),
+    );
 
     if (calcItems.length === 0) {
       return json(res, 400, { ok: false, error: "Invalid item structure" });
@@ -1061,11 +1150,21 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }
     }
 
-    const priceMap = await fetchMenuPricesCents(idsToFetch);
+    const { prices: priceMap, names: menuNames } = await fetchMenuRows(idsToFetch);
     const missingIds = findMissingMenuItemIds(idsToFetch, priceMap);
 
     if (missingIds.length > 0) {
       return json(res, 400, { ok: false, error: "Inactive or invalid menu item" });
+    }
+
+    const crustMismatch = findCrustSizeMismatch(calcItems, menuNames);
+    if (crustMismatch) {
+      console.warn("[create-order] stuffed crust does not match pizza size:", crustMismatch);
+      return json(res, 400, {
+        ok: false,
+        code: "crust_size_mismatch",
+        error: "Punjene ivice ne odgovaraju veličini pice. Ukloni ih iz korpe i dodaj ponovo.",
+      });
     }
 
     let subtotal_eur_cents = 0;
@@ -1097,6 +1196,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const delivery = getDeliveryFeeCentsFromMeta(itemsForInsert, zones, point);
 
     const computedTotalCents = subtotal_eur_cents + Math.max(0, delivery.feeCents);
+    // A non-finite total is stored as NULL (Telegram: "Ukupno: 0,00 €"); the
+    // delivery fee is read from the client's note, so it is checked here too.
+    if (!Number.isSafeInteger(computedTotalCents)) {
+      return json(res, 400, { ok: false, error: "Invalid calculated total" });
+    }
     const bodyTotalCents = safeTotalCentsFromBody(body);
 
     if (bodyTotalCents > 0 && Math.abs(bodyTotalCents - computedTotalCents) > 1) {
@@ -1107,7 +1211,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       customer_name,
       customer_phone,
       customer_address,
-      items: itemsForInsert,
+      items: withMenuRowDisplay(itemsForInsert, priceMap, menuNames),
       status: payment_method === "card" ? "pending" : status,
       currency,
       total_eur_cents: computedTotalCents,
