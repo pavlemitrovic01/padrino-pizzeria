@@ -1,4 +1,4 @@
-import type { PizzaSize } from "../context/CartContext";
+import type { CartAddon, PizzaSize } from "../context/CartContext";
 import { DEFAULT_BILLING_CITY, DEFAULT_BILLING_POSTCODE } from "./config";
 import { toSafeInt } from "./money";
 import { normalizeText } from "./parsing";
@@ -114,16 +114,79 @@ export function isStuffedCrustAddonName(addonName: string) {
   return false;
 }
 
-export function stuffedCrustPriceForSize(size: PizzaSize | string | number | null | undefined): number {
-  const s = String(size ?? "").toLowerCase();
-  return s.includes("50") ? 400 : 200;
-}
-
 export function parsePizzaSizeFromName(name: string): PizzaSize | null {
   const t = normalizeText(name);
   if (/\b50\s*cm\b/.test(t)) return "50";
   if (/\b33\s*cm\b/.test(t)) return "33";
   return null;
+}
+
+/** ------------------------- STUFFED CRUST PER SIZE (B23a) --------------------
+ * Stuffed crust costs more on a 50 cm pizza, so each size has its own
+ * `menu_items` row: "Ivice punjene sirom" (33 cm) and "Ivice punjene sirom
+ * 50 cm". The server prices an addon by its id alone, so the client must send
+ * the row that matches the pizza — the price always comes from that row.
+ *
+ * Before B23a there was one 2 € row and the cart rewrote its price to 4 € on
+ * 50 cm (hardcoded 200/400). The server still charged the row's 2 €, so every
+ * 50 cm + crust order failed with "Total mismatch".
+ *
+ * Rows are recognized by name (`isStuffedCrustAddonName`); the 50 cm row must
+ * keep "50 cm" in its name, or it is taken for a 33 cm crust.
+ * -------------------------------------------------------------------------- */
+
+/** The pizza size a stuffed-crust row belongs to; null for any other addon. */
+export function stuffedCrustSizeOf(name: string): PizzaSize | null {
+  if (!isStuffedCrustAddonName(name)) return null;
+  return parsePizzaSizeFromName(name) === "50" ? "50" : "33";
+}
+
+/**
+ * The addon catalog as offered for one pizza size: every non-crust addon, plus
+ * only the crust row for that size. With no size (non-pizza items) the 33 cm
+ * row is offered, as before.
+ *
+ * Fails closed: if the menu has no 50 cm crust row, a 50 cm pizza is offered
+ * no crust at all — never the 33 cm row, which would undercharge.
+ */
+export function addonsForPizzaSize<T extends { name: string }>(
+  catalog: ReadonlyArray<T>,
+  size: PizzaSize | null,
+): T[] {
+  const crustSize: PizzaSize = size === "50" ? "50" : "33";
+  return catalog.filter((a) => {
+    const s = stuffedCrustSizeOf(a.name);
+    return s === null || s === crustSize;
+  });
+}
+
+/**
+ * Re-points stuffed crust picked for the other size at the row for `size`:
+ * id, name and price come from that row, quantity is kept. A crust with no row
+ * for `size` is dropped. Other addons, and crust already on a row for `size`,
+ * pass through untouched — such a row also wins over a remapped duplicate.
+ */
+export function remapStuffedCrustForSize(
+  selected: ReadonlyArray<CartAddon>,
+  catalog: ReadonlyArray<{ id: string; name: string; price: number }>,
+  size: PizzaSize | null,
+): CartAddon[] {
+  const crustSize: PizzaSize = size === "50" ? "50" : "33";
+  const fitsSize = (a: CartAddon) => {
+    const s = stuffedCrustSizeOf(a.name);
+    return s === null || s === crustSize;
+  };
+  const target = addonsForPizzaSize(catalog, size).find((a) => stuffedCrustSizeOf(a.name) !== null);
+
+  const next: CartAddon[] = [];
+  for (const a of selected) {
+    if (fitsSize(a) && !next.some((n) => n.id === a.id)) next.push(a);
+  }
+  for (const a of selected) {
+    if (fitsSize(a) || !target || next.some((n) => n.id === target.id)) continue;
+    next.push({ id: target.id, name: target.name, price: target.price, quantity: a.quantity });
+  }
+  return next;
 }
 
 export function stripPizzaSizeFromName(name: string): string {
@@ -149,9 +212,9 @@ export function stripPizzaSizeFromName(name: string): string {
  * Stable per-configuration signature of the addon selection.
  *
  * Sorted, so the order the customer tapped the addons in never produces a new
- * row. Price is deliberately NOT part of it: `adjustAddonsForSize` rewrites the
- * stuffed-crust price when the size changes, and a price-bearing key would
- * change underneath a row that the customer never touched.
+ * row. Price is deliberately NOT part of it: the id already names the menu row
+ * the price comes from, and a price-bearing key would split rows whenever a
+ * price changed underneath a configuration the customer never touched.
  */
 export function cartAddonsFingerprint(
   addons: ReadonlyArray<{ id?: unknown; quantity?: unknown }> | null | undefined,

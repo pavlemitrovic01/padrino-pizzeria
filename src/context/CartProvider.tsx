@@ -23,12 +23,7 @@ import {
   trackRemoveFromCart,
   trackAddPaymentInfo,
 } from "../lib/analytics";
-import {
-  buildCartLineId,
-  isStuffedCrustAddonName,
-  stripPizzaSizeFromName,
-  stuffedCrustPriceForSize,
-} from "../lib/cartDrawerHelpers";
+import { buildCartLineId, stripPizzaSizeFromName } from "../lib/cartDrawerHelpers";
 
 /**
  * Cart row key (B20).
@@ -70,28 +65,6 @@ function isPizzaLike(category: string, name: string) {
     /33\s*cm|50\s*cm/i.test(name)
   );
 }
-
-function adjustAddonsForSize(size: PizzaSize | null | undefined, addons: CartAddon[]): CartAddon[] {
-  if (!addons.length) return addons;
-
-  const targetPrice = stuffedCrustPriceForSize(size);
-
-  let changed = false;
-  const next = addons.map((a) => {
-    if (!isStuffedCrustAddonName(a.name)) return a;
-
-    const qty = Math.max(1, toSafeInt(a.quantity ?? 1, 1));
-    const currentPrice = toSafeInt(a.price ?? 0, 0);
-
-    if (currentPrice === targetPrice && qty === a.quantity) return a;
-
-    changed = true;
-    return { ...a, price: targetPrice, quantity: qty };
-  });
-
-  return changed ? next : addons;
-}
-/** ---------------------------------------------------------------------- */
 
 function computeAddonsTotal(addons?: CartAddon[]): number {
   if (!addons || addons.length === 0) return 0;
@@ -176,8 +149,10 @@ function normalizeIncomingItem(item: CartItem): CartItem {
   const menuItemId = chosenVariant?.menuItemId ?? incomingMenuItemId;
   const category = chosenVariant?.category ?? item.category;
 
-  const adjustedAddons = adjustAddonsForSize(finalSize, normalizedAddons);
-  const finalPrice = basePrice + computeAddonsTotal(adjustedAddons);
+  // Addon prices are taken as given: each addon id is a menu row, and the
+  // server prices it by that id. Stuffed crust is per size by row (B23a,
+  // picked in MenuItemDetailSheet) — the cart must not rewrite its price.
+  const finalPrice = basePrice + computeAddonsTotal(normalizedAddons);
 
   // `name` stays the size-stripped display name — the cart renders `size` as
   // its own line ("Veličina: 50 cm"), so the suffix would read twice.
@@ -189,7 +164,7 @@ function normalizeIncomingItem(item: CartItem): CartItem {
     menuItemId,
     variants,
     basePrice,
-    addons: adjustedAddons,
+    addons: normalizedAddons,
     price: finalPrice,
     category,
     note: item.note ?? "",

@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, type PanInfo } from "framer-motion";
 import type { CartItem, CartAddon, PizzaSize, PizzaVariant } from "../context/CartContext";
 import { formatEUR } from "../lib/money";
-import { buildImageCandidates, isDrinkCategory, stripPizzaSizeFromName } from "../lib/cartDrawerHelpers";
+import {
+  addonsForPizzaSize,
+  buildImageCandidates,
+  isDrinkCategory,
+  remapStuffedCrustForSize,
+  stripPizzaSizeFromName,
+} from "../lib/cartDrawerHelpers";
 import { useCatalogData } from "../hooks/cart/useCatalogData";
 import { SmartMiniAddonImage } from "./CartDrawerImage";
 
@@ -40,6 +46,22 @@ type Props = {
 type CatalogItem = { id: string; name: string; price: number };
 
 type SelectedAddons = Map<string, { name: string; price: number; qty: number }>;
+
+function selectedToAddons(selected: SelectedAddons): CartAddon[] {
+  const addons: CartAddon[] = [];
+  for (const [id, a] of selected) {
+    addons.push({ id, name: a.name, price: a.price, quantity: a.qty });
+  }
+  return addons;
+}
+
+function addonsToSelected(addons: CartAddon[]): SelectedAddons {
+  const m: SelectedAddons = new Map();
+  for (const a of addons) {
+    m.set(a.id, { name: a.name, price: a.price, qty: a.quantity });
+  }
+  return m;
+}
 
 function getSafeCents(row: DbMenuItem): number {
   return typeof row.price_eur_cents === "number"
@@ -167,14 +189,15 @@ function SheetView(props: {
 
   const [pizzaQty, setPizzaQty] = useState(initialQty);
 
-  // Hydrate selectedAddons map from initial CartAddon[] in edit mode.
-  const [selectedAddons, setSelectedAddons] = useState<SelectedAddons>(() => {
-    const m: SelectedAddons = new Map();
-    for (const a of initialAddons) {
-      m.set(a.id, { name: a.name, price: a.price, qty: a.quantity });
-    }
-    return m;
-  });
+  // Hydrate selectedAddons map from initial CartAddon[] in edit mode. When the
+  // sheet opens on a different size than the crust was picked for (the cart's
+  // size variant is no longer on the menu), the crust follows onto that size's
+  // row. Only with a known size: no size means the catalog has not loaded yet.
+  const [selectedAddons, setSelectedAddons] = useState<SelectedAddons>(() =>
+    addonsToSelected(
+      defaultSize ? remapStuffedCrustForSize(initialAddons, addonsCatalog, defaultSize) : initialAddons,
+    ),
+  );
 
   const [note, setNote] = useState(initialNote);
 
@@ -214,14 +237,34 @@ function SheetView(props: {
   const displayName = stripSize(item.name);
   const heroImage = buildImageCandidates(item.image, item.name)[0] ?? "/menu/padrino.webp";
 
+  // Addons are per pizza: (base + addons) × qty — the same sum the cart
+  // (CartProvider.totalPrice) and the server (q × base + q × addons) make.
   const totalCents = useMemo(() => {
     let addonsSum = 0;
     for (const [, a] of selectedAddons) addonsSum += a.price * a.qty;
-    return basePrice * pizzaQty + addonsSum;
+    return (basePrice + addonsSum) * pizzaQty;
   }, [basePrice, pizzaQty, selectedAddons]);
+
+  // Stuffed crust is a separate menu row per size (B23a): offer only the one
+  // that matches the selected size. Until a size is known (edit opened before
+  // the catalog loaded) the cart item's own size decides, so the crust it
+  // already carries stays listed and removable.
+  const crustSize = selectedSize ?? initialSize;
+  const addonsForSize = useMemo(
+    () => addonsForPizzaSize(addonsCatalog, crustSize),
+    [addonsCatalog, crustSize],
+  );
 
   const catalogLoaded =
     saucesCatalog.length > 0 || drinksCatalog.length > 0 || addonsCatalog.length > 0;
+
+  // A crust already picked follows the size switch onto that size's row.
+  function selectSize(size: PizzaSize) {
+    setSelectedSize(size);
+    setSelectedAddons((prev) =>
+      addonsToSelected(remapStuffedCrustForSize(selectedToAddons(prev), addonsCatalog, size)),
+    );
+  }
 
   function toggleAddon(id: string, name: string, price: number) {
     setSelectedAddons((prev) => {
@@ -254,10 +297,7 @@ function SheetView(props: {
     if (confirmedRef.current) return;
     confirmedRef.current = true;
 
-    const addons: CartAddon[] = [];
-    for (const [id, a] of selectedAddons) {
-      addons.push({ id, name: a.name, price: a.price, quantity: a.qty });
-    }
+    const addons = selectedToAddons(selectedAddons);
 
     // L8.4: prefer the active variant (33 or 50) for menu-item identity so
     // CartProvider.normalizeIncomingItem records the right size + variant
@@ -382,7 +422,7 @@ function SheetView(props: {
                     <button
                       key={sz}
                       type="button"
-                      onClick={() => setSelectedSize(sz)}
+                      onClick={() => selectSize(sz)}
                       className={[
                         "flex-1 rounded-2xl border px-4 py-3 transition-all duration-150",
                         isActive
@@ -445,10 +485,10 @@ function SheetView(props: {
           )}
 
           {/* Addons (donuts, extras) */}
-          {addonsCatalog.length > 0 && (
+          {addonsForSize.length > 0 && (
             <AddonSection
               title="Dodaci"
-              items={addonsCatalog}
+              items={addonsForSize}
               selected={selectedAddons}
               onToggle={toggleAddon}
               onChangeQty={changeAddonQty}
