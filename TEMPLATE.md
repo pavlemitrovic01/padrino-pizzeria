@@ -11,9 +11,15 @@ deploy-uješ za drugog klijenta.
 ne iz preuranjene apstrakcije. Vidi DECISIONS 2026-05-17 ("refactor not rewrite")
 i ROADMAP exit criterion #8.
 
-Refactor-to-9 program (Faze A–I, J1 finale) je doveo strukturu na template-grade:
-no file >800 LOC, hostile-input tests, HMAC verified, RLS closed, CORS locked, logger
-active. Exit criteria #1–#7 sve zatvorene — ovo je #8.
+Refactor-to-9 program (Faze A–I, J1 finale) je tvrdio template-grade strukturu
+(„no file >800 LOC, hostile-input tests, RLS closed, CORS locked"). Audit
+2026-10-06 (`docs/full-audit-2026-10.md`) je pokazao da to nije bilo tačno:
+create-order.ts 1191 LOC, hostile-input testovi samo za total/cenu, anon INSERT
+u `orders` živ, CORS ne štiti server od non-browser poziva. Faza S (B22–B26) je
+to popravila: grants zaključani (B22), server jedini izvor cene i dostave
+(B23a–e), Telegram bez self-HTTP-a + status plaćanja samo napred + idempotency
+(B24), security headeri/CSP Report-Only (B25), create-order.ts 510 LOC (B26).
+CORS i dalje štiti samo browsere — server-side provere su prava odbrana.
 
 ---
 
@@ -82,7 +88,8 @@ Ovi moduli sadrže pattern, ne vrednosti. Pri kloniranju preuzmi ih as-is.
 |-----|--------|
 | GPS delivery polygon path | `delivery_zones` tabela ne postoji u prod DB; klijent nikad ne šalje lat/lng — arhitekturalno mrtvo (B2/F2 won't-execute) |
 | Legacy Telegram DB trigger | Dropnut B15; Vercel Protection blokirao 401 sve pozive |
-| Edge functions `admin-orders` + `telegram-new-order` | Deletovani B12; `payments-create-session` ostaje |
+| Edge functions `admin-orders` + `telegram-new-order` | Deletovani B12; `payments-create-session` (no-op) obrisan iz repoa B24 |
+| Vercel endpoint `api/telegram-new-order` + `TELEGRAM_WEBHOOK_SECRET` | Obrisan B24 — handleri zovu `api/_shared/telegram.ts` direktno |
 
 ---
 
@@ -119,9 +126,8 @@ u kodu ali ne treba ih postavljati na klonu.
 
 | Var | Required | Default ako nedostaje | Source |
 |-----|----------|----------------------|--------|
-| `TELEGRAM_BOT_TOKEN` | **YES** (notifikacije) | notifikacije tiho padaju | `api/telegram-new-order.ts` |
-| `TELEGRAM_CHAT_ID` | **YES** (notifikacije) | notifikacije tiho padaju | `api/telegram-new-order.ts` |
-| `TELEGRAM_WEBHOOK_SECRET` | optional | bez HMAC provere webhook-a | `api/create-order.ts` |
+| `TELEGRAM_BOT_TOKEN` | **YES** (notifikacije) | notifikacije tiho padaju | `api/_shared/telegram.ts` |
+| `TELEGRAM_CHAT_ID` | **YES** (notifikacije) | notifikacije tiho padaju | `api/_shared/telegram.ts` |
 
 > Telegram je best-effort — nikad ne blokira transakciju. Bez tokena narudžba prolazi,
 > notifikacija ne stiže.
@@ -131,35 +137,29 @@ u kodu ali ne treba ih postavljati na klonu.
 | Var | Required | Default ako nedostaje | Source |
 |-----|----------|----------------------|--------|
 | `BANKART_SHARED_SECRET` | **YES** (HMAC) | callback odbijen | `api/bankart-callback.ts` |
-| `BANKART_API_KEY` | **YES** (plaćanja) | Bankart API pozivi pucaju | `api/create-order.ts` |
-| `BANKART_API_USERNAME` | **YES** (plaćanja) | Bankart API pozivi pucaju | `api/create-order.ts` |
-| `BANKART_API_PASSWORD` | **YES** (plaćanja) | Bankart API pozivi pucaju | `api/create-order.ts` |
-| `BANKART_API_BASE_URL` | optional | `https://gateway.bankart.si/api/v3` | `api/create-order.ts` |
-| `BANKART_LANGUAGE` | optional | `en` | `api/create-order.ts` |
+| `BANKART_API_KEY` | **YES** (plaćanja) | Bankart API pozivi pucaju | `api/_shared/bankart-debit.ts` |
+| `BANKART_API_USERNAME` | **YES** (plaćanja) | Bankart API pozivi pucaju | `api/_shared/bankart-debit.ts` |
+| `BANKART_API_PASSWORD` | **YES** (plaćanja) | Bankart API pozivi pucaju | `api/_shared/bankart-debit.ts` |
+| `BANKART_API_BASE_URL` | optional | `https://gateway.bankart.si/api/v3` | `api/_shared/bankart-debit.ts` |
+| `BANKART_LANGUAGE` | optional | `en` | `api/_shared/bankart-debit.ts` |
 | `BANKART_CALLBACK_MAX_SKEW_SECONDS` | optional | `300` (5 min) | `api/bankart-callback.ts` |
 | `BANKART_STATUS_MIN_INTERVAL_SECONDS` | optional | `15` | `api/bankart-order-status.ts` |
 
-**Edge function poziv (payments-create-session, iz api/create-order.ts):**
+**Rate limiting:**
 
 | Var | Required | Default ako nedostaje | Source |
 |-----|----------|----------------------|--------|
-| `SUPABASE_PROJECT_REF` | YES (edge fn) | edge fn se ne poziva | `api/create-order.ts` |
-| `SUPABASE_ANON_KEY` | YES (edge fn) | edge fn se ne poziva | `api/create-order.ts` |
-| `PAYMENTS_EDGE_TOKEN` | YES (edge fn) | poziv bez autorizacije | `api/create-order.ts` |
+| `UPSTASH_REDIS_REST_URL` | **YES** (production) | **bez limita** (fail-open, nema in-memory fallback-a) | `api/create-order.ts` |
+| `UPSTASH_REDIS_REST_TOKEN` | **YES** (production) | **bez limita** (fail-open, nema in-memory fallback-a) | `api/create-order.ts` |
 
-**Rate limiting (opciono):**
-
-| Var | Required | Default ako nedostaje | Source |
-|-----|----------|----------------------|--------|
-| `UPSTASH_REDIS_REST_URL` | optional | in-memory fallback (fail-open) | `api/create-order.ts` |
-| `UPSTASH_REDIS_REST_TOKEN` | optional | in-memory fallback (fail-open) | `api/create-order.ts` |
+Više se ne čitaju (B24): `TELEGRAM_WEBHOOK_SECRET`, `SUPABASE_PROJECT_REF`, `SUPABASE_ANON_KEY`, `PAYMENTS_EDGE_TOKEN`.
 
 **Admin + security:**
 
 | Var | Required | Default ako nedostaje | Source |
 |-----|----------|----------------------|--------|
 | `ADMIN_FALLBACK_EMAIL` | optional break-glass | bez fallback admina | `api/_shared/admin-auth.ts` |
-| `PUBLIC_SITE_URL` | optional | izvodi se iz request headera | `api/_shared/public-url.ts` |
+| `PUBLIC_SITE_URL` | **YES** (production) | Host header (samo Preview; Origin se nikad ne koristi, B22) | `api/_shared/public-url.ts` |
 | `ALLOWED_ORIGINS` | **YES** (production) | sve origins odbijene | `api/_shared/cors.ts` |
 
 **Vercel auto-env (ne postavljaš ručno):**
@@ -169,17 +169,6 @@ u kodu ali ne treba ih postavljati na klonu.
 | `VERCEL_ENV` | Vercel automatski | `api/_shared/cors.ts` (preview allow) |
 | `VERCEL_URL` | Vercel automatski | `api/_shared/cors.ts` (preview allow) |
 | `VERCEL_GIT_COMMIT_SHA` | Vercel automatski | `vite.config.ts` → `VITE_BUILD_SHA` |
-
-### Edge function (`supabase/functions/payments-create-session/`, Deno env)
-
-| Var | Required | Default ako nedostaje | Source |
-|-----|----------|----------------------|--------|
-| `SUPABASE_URL` | **YES** | — | `supabase/functions/payments-create-session/index.ts` |
-| `SUPABASE_SERVICE_ROLE_KEY` | **YES** | — | `supabase/functions/payments-create-session/index.ts` |
-| `PAYMENTS_EDGE_TOKEN` | optional (guard) | bez token provere | `supabase/functions/payments-create-session/index.ts` |
-
-> Supabase automatski ubacuje `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` u edge
-> funkcije. `PAYMENTS_EDGE_TOKEN` postavljaš kao Supabase Secret.
 
 ---
 

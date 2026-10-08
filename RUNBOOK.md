@@ -18,10 +18,13 @@ Cilj: da se nikad više ne gubi vrijeme na iste probleme.
 Flow porudžbine:
 
 1. Frontend (Vite + React) validira i šalje porudžbinu
-2. `api/create-order.ts` — server-side pricing validation, upisuje order u Supabase `orders`
-3. Nakon uspješnog DB write-a, `create-order.ts` direktno poziva
-   `api/telegram-new-order` (server-to-server, best-effort, 12s timeout) —
-   fetchuje order detalje iz Supabase-a i šalje Telegram notifikaciju
+2. `api/create-order.ts` — cena svake stavke iz `menu_items`, dostava iz serverske
+   tabele zona (`api/_shared/delivery-zones.ts`), upisuje order u Supabase `orders`
+   (jedan pokušaj = jedna porudžbina: `idempotency_key`)
+3. Nakon uspješnog DB write-a (gotovina) ili kad Bankart potvrdi plaćanje
+   (kartica), handler direktno zove `notifyNewOrder()` iz
+   `api/_shared/telegram.ts` — atomski claim na `telegram_notified_at`, pa
+   slanje u Telegram (7s timeout). Nema self-HTTP poziva ni endpoint-a (B24).
 4. Telegram je **notifikacija**, ne dio transakcije
 
 ❗ Telegram failure **nikad ne smije blokirati order**
@@ -38,14 +41,15 @@ padrino-pizzeria.vercel.app/api/telegram-new-order → 401 via trigger).
 **Removed via:** `supabase/migrations/20260512150000_drop_telegram_trigger.sql`
 (`DROP TRIGGER IF EXISTS`).
 
-**Aktivni Telegram flow:** `api/create-order.ts` poziva
-`api/telegram-new-order` direct server-to-server (12s timeout) — vidi §1 i §6.
+**Aktivni Telegram flow:** `notifyNewOrder()` (`api/_shared/telegram.ts`),
+pozivaju ga create-order, bankart-callback i bankart-order-status — vidi §1 i §6.
+Endpoint `api/telegram-new-order` je obrisan u B24.
 
 ---
 
 ## 2) Environment variables (OBAVEZNO 1:1)
 
-**Setup:** Kopiraj `.env.example` u `.env.local` i popuni stvarne vrednosti. Na Vercel-u postavi env u dashboardu. Supabase Edge funkcije koriste iste varijable — postavi ih u Supabase dashboardu za svaku funkciju.
+**Setup:** Kopiraj `.env.example` u `.env.local` i popuni stvarne vrednosti. Na Vercel-u postavi env u dashboardu. Supabase Edge funkcija više nema u repou (`payments-create-session` obrisana u B24; ako je još deploy-ovana, ugasi je u Supabase dashboardu).
 
 ### 2.1 Frontend (Vite / browser)
 
@@ -69,12 +73,14 @@ Ove varijable su **server-side** i NE SMIJU imati `VITE_` prefiks:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
-- `TELEGRAM_WEBHOOK_SECRET` — nasumičan string (32+ karaktera), **Production i Preview**. Bez njega `/api/telegram-new-order` odbija svaki zahtev (fail-closed, B22) → restoran ne dobija porudžbine.
-- `PUBLIC_SITE_URL` — `https://padrinobudva.com` u **Production**. Server iz njega gradi Telegram notify URL i Bankart callback/return URL-ove; `Origin` header se nikad ne koristi (B22).
+- `PUBLIC_SITE_URL` — `https://padrinobudva.com` u **Production**. Server iz njega gradi Bankart callback/return URL-ove; `Origin` header se nikad ne koristi (B22).
+- `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` — rate limit na create-order (10 / 60 s po IP). Bez njih create-order radi **bez limita**.
 
 **Za kartice (Bankart):** `BANKART_API_KEY`, `BANKART_API_USERNAME`, `BANKART_API_PASSWORD`, `BANKART_SHARED_SECRET`
 
-**Opcione:** `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (rate limit — bez njih create-order radi bez limita), `ADMIN_FALLBACK_EMAIL`, `PAYMENTS_EDGE_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_ANON_KEY`
+**Opcione:** `ADMIN_FALLBACK_EMAIL`
+
+**Više se ne čitaju (B24, mogu se obrisati iz Vercel-a):** `TELEGRAM_WEBHOOK_SECRET`, `PAYMENTS_EDGE_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_ANON_KEY`
 
 #### Bitne napomene
 - `SUPABASE_SERVICE_ROLE_KEY` ≠ `VITE_SUPABASE_ANON_KEY`
@@ -109,26 +115,11 @@ Ako su env varijable promijenjene na Vercel-u → OBAVEZNO novi deploy
 
 ## 4) Testiranje (obavezno prije svake isporuke)
 
-### 4.1 PowerShell test Telegram endpointa (PROD)
+### 4.1 Ponovno slanje Telegram poruke (PROD)
 
-⚠️ U PowerShell-u curl je alias za Invoke-WebRequest
-➡️ Uvijek koristiti Invoke-RestMethod
-
-Invoke-RestMethod -Method Post `
-  -Uri "https://padrinobudva.com/api/telegram-new-order" `
-  -ContentType "application/json" `
-  -Body '{"order_id":"<REAL_UUID_IZ_SUPABASE>"}'
-
-
-Očekivani odgovor:
-
-{
-  "ok": true,
-  "telegram": "sent"
-}
-
-
-I poruka mora stići u Telegram grupu.
+Javnog Telegram endpoint-a više nema (B24). Poruku za postojeću porudžbinu
+šalje admin panel: Porudžbine → „Pošalji ponovo" (`/api/admin-orders?op=resend-telegram`,
+traži admin prijavu). Poruka mora stići u Telegram grupu.
 
 ### 4.2 End-to-end test (najbitniji)
 
@@ -172,25 +163,23 @@ Očekivano:
 
 aplikacija radi na http://localhost:3000
 
-/api/telegram-new-order postoji
+/api/* rute postoje
 
 “Resend Telegram” radi lokalno
 
-6) Telegram endpoint — ponašanje (VAŽNO)
+6) Telegram slanje — ponašanje (VAŽNO)
 
-Endpoint /api/telegram-new-order:
+notifyNewOrder() (api/_shared/telegram.ts):
 
-uvijek pokušava poslati Telegram
+šalje tačno jednom po porudžbini (claim na telegram_notified_at)
 
-ima timeout (12s)
+ima timeout (7s)
 
 ako Telegram padne:
 
-order ostaje validan
+order ostaje validan, claim se oslobađa (admin „Pošalji ponovo" ili sledeći poziv može da pošalje)
 
-endpoint vraća { ok: true, telegram: "failed" }
-
-greška se loguje u Vercel logs
+greška se loguje u Vercel logs kao "[telegram] …"
 
 Telegram je best-effort, nikad SPOF.
 
@@ -209,7 +198,7 @@ Rješenje:
 
 provjeri sekciju 2
 
-pogledaj Vercel logs za rutu /api/telegram-new-order
+pogledaj Vercel logs za rutu /api/create-order (poruke "[telegram] …")
 
 7.2 Missing env: SUPABASE_URL
 
@@ -253,9 +242,9 @@ pogrešan filter
 
 Rješenje:
 
-filtrirati po ruti /api/telegram-new-order
+filtrirati po ruti /api/create-order i tekstu "[telegram]"
 
-7.5 404 na /api/telegram-new-order u DEV-u
+7.5 404 na /api/* u DEV-u
 
 Ovo je NORMALNO u Vite dev režimu.
 
