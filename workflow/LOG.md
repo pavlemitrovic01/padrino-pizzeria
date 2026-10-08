@@ -5,6 +5,14 @@
 
 ---
 
+## Faza S — 2026-10-08 — merge u main + migracije — DONE (prod smoke OTVOREN)
+
+**Merge:** `claude/wonderful-cray-5p9z2e` → main, merge commit 9499183 (`--no-ff`, stablo = grana 55d36d3). Gate-ovi na spojenom main-u: build / typecheck / lint exit 0, test 29 fajlova / 447. Vercel production `dpl_7ifRfYN7ZtEXcRDgKxxy4Vj5yErF` = READY (23:31 UTC). Rollback: `dpl_8rZWs8bMhUMZfq3T6SP8WjNt9c6p` (c2df757).
+**Migracije (prod `pwkqyoaofcbwsecawrjz`, MCP, uz Pavlov OK — odobren plan):** `orders_idempotency_key` (Supabase verzija 20261008232313) i `menu_items_hygiene` (20261008232840), primenjene PRE merge-a (kod na produ c2df757 ih ne koristi). SELECT posle: `idempotency_key` text + parcijalni unique index; 0 imena/kategorija/opisa sa razmakom ili `\n`; Don Pomidoro 33 cm → `/menu/pomodoro.webp`, Ivice punjene sirom → `/menu/rub.webp`; „Pelat", „Slatko Ljuti", kategorija „sosevi"; porudžbina 805 i aktivnih stavki 48 kao pre.
+**Prod smoke:** NIJE POKRENUT — container ne dopire do padrinobudva.com (proxy 403) ni do deploy URL-a (Vercel MCP 403 na scope); restoran zatvoren u trenutku deploy-a (posle 01:00). Čeka Pavla (lista u STATE.md) + SQL nad prvim pravim porudžbinama.
+
+---
+
 ## Review — 2026-10-08 — code-review nalazi nad B22–B26 — DONE
 
 **SHA:** 2a80915 · **Branch:** claude/wonderful-cray-5p9z2e
