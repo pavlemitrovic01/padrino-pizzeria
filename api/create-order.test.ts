@@ -553,3 +553,212 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     expectInvalidStructure(await submit([clientMeta("Dostava: 3 €")], 300));
   });
 });
+
+describe("create-order handler — stored rows read as the menu row that was charged (B23d)", () => {
+  // Telegram prints "1x {name} ({size})" and each addon by name; the admin
+  // panel shows price_per_item and addon prices. The server charges by id, so
+  // it stores those fields from the menu rows, not from the request.
+  const MENU = [
+    { id: "diavolo-33", name: "Diavolo 33 cm", price_eur_cents: 1000 },
+    { id: "diavolo-50", name: "Diavolo 50 cm", price_eur_cents: 2000 },
+    { id: "bianco-33", name: "Bianco 33 cm", price_eur_cents: 1100 },
+    { id: "montenegro-50", name: "Montenegro 50 cm", price_eur_cents: 2000 },
+    { id: "crust-50", name: "Ivice punjene sirom 50 cm", price_eur_cents: 400 },
+    { id: "pelat", name: "Pelat ", price_eur_cents: 100 }, // trailing space, as on prod
+    { id: "kecap", name: "Kečap", price_eur_cents: 0 },
+    { id: "cola", name: "Coca-Cola 0,33 l", price_eur_cents: 250 },
+  ];
+
+  const CRUST_50 = { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 1 };
+  const PELAT = { id: "pelat", name: "Pelat", price: 100, quantity: 1 };
+  const KECAP = { id: "kecap", name: "Kečap", price: 0, quantity: 1 };
+
+  // A row exactly as CartDrawer sends it.
+  function diavolo50(overrides: Record<string, unknown> = {}) {
+    return {
+      cart_id: "c-diavolo-50",
+      menu_item_id: "diavolo-50",
+      name: "Diavolo",
+      size: "50",
+      quantity: 1,
+      base_price: 2000,
+      price_per_item: 2000 + 400 + 100,
+      addons: [CRUST_50, PELAT] as unknown[],
+      note: "bez luka",
+      image: "/menu/diavolo.webp",
+      category: "pizza",
+      ...overrides,
+    };
+  }
+
+  function diavolo33(overrides: Record<string, unknown> = {}) {
+    return {
+      cart_id: "c-diavolo-33",
+      menu_item_id: "diavolo-33",
+      name: "Diavolo",
+      size: "33",
+      quantity: 1,
+      base_price: 1000,
+      price_per_item: 1000,
+      addons: [] as unknown[],
+      note: null,
+      image: "/menu/diavolo.webp",
+      category: "pizza",
+      ...overrides,
+    };
+  }
+
+  const cola = {
+    cart_id: "c-cola",
+    menu_item_id: "cola",
+    name: "Coca-Cola 0,33 l",
+    size: null,
+    quantity: 1,
+    base_price: 250,
+    price_per_item: 250,
+    addons: [],
+    note: null,
+    image: "/menu/coca-cola.webp",
+    category: "pica",
+  };
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-test-id" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(items: unknown[], totalCents: number, extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(makeReq(validBody({ items, total_eur_cents: totalCents, ...extra })), c.res);
+    return c;
+  }
+
+  function storedItems(): Record<string, unknown>[] {
+    const call = hoisted.calls.find((x) => x.table === "orders" && x.op === "insert");
+    return ((call?.payload as Record<string, unknown> | undefined)?.items ?? []) as Record<string, unknown>[];
+  }
+
+  it("stores an honest cart row exactly as sent: kitchen reads \"1x Diavolo (50)\"", async () => {
+    const sent = [diavolo50(), cola];
+    const c = await submit(sent, 2500 + 250);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()).toEqual(sent);
+  });
+
+  it("stores the charged row's size and name, not the size the client sent", async () => {
+    const edited = diavolo33({ name: "Diavolo 50 cm XXL", size: "50" });
+    const c = await submit([edited], 1000);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0]).toMatchObject({ name: "Diavolo", size: "33" });
+  });
+
+  it("stores a free addon under its own name, not one the client made up", async () => {
+    const renamed = { ...KECAP, name: "Ivice punjene sirom 50 cm" };
+    const c = await submit([diavolo33({ addons: [renamed] })], 1000);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0].addons).toEqual([{ id: "kecap", name: "Kečap", price: 0, quantity: 1 }]);
+  });
+
+  it("stores the server's line and addon prices when the client shifts them (total unchanged)", async () => {
+    const shiftedA = diavolo50({
+      base_price: 1000,
+      price_per_item: 1000,
+      addons: [{ ...CRUST_50, price: 0 }, { ...PELAT, price: 500 }],
+    });
+    const shiftedB = diavolo33({ base_price: 2000, price_per_item: 2000, quantity: 2 });
+    const c = await submit([shiftedA, shiftedB], 2500 + 2 * 1000);
+
+    expect(c.statusCode).toBe(200);
+    const [a, b] = storedItems();
+    expect(a).toMatchObject({ base_price: 2000, price_per_item: 2500 });
+    expect(a.addons).toEqual([CRUST_50, PELAT]);
+    expect(b).toMatchObject({ base_price: 1000, price_per_item: 1000, quantity: 2 });
+  });
+
+  it("counts addon quantity in price_per_item, as the cart does", async () => {
+    const c = await submit([diavolo50({ addons: [CRUST_50, { ...PELAT, quantity: 3 }], price_per_item: 2700 })], 2700);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0]).toMatchObject({ base_price: 2000, price_per_item: 2000 + 400 + 3 * 100 });
+  });
+
+  it("fixes the two prod rows that read wrong in the kitchen", async () => {
+    // 2026-06-23: a 50 cm row sent with size null → "1x Montenegro" with no size.
+    const noSize = { ...diavolo50(), cart_id: "c-mn", menu_item_id: "montenegro-50", name: "Montenegro", size: null, addons: [], price_per_item: 2000 };
+    // 2026-09-17: the size left in the name → "1x Bianco 33 cm (33)".
+    const sizeInName = { ...diavolo33(), cart_id: "c-bi", menu_item_id: "bianco-33", name: "Bianco 33 cm", base_price: 1100, price_per_item: 1100 };
+    const c = await submit([noSize, sizeInName], 2000 + 1100);
+
+    expect(c.statusCode).toBe(200);
+    const [mn, bi] = storedItems();
+    expect(mn).toMatchObject({ name: "Montenegro", size: "50" });
+    expect(bi).toMatchObject({ name: "Bianco", size: "33" });
+  });
+
+  it("keeps a drink's whole name and stores no size for it", async () => {
+    const c = await submit([{ ...cola, name: "Coca", size: "50" }], 250);
+
+    expect(c.statusCode).toBe(200);
+    expect(storedItems()[0]).toMatchObject({ name: "Coca-Cola 0,33 l", size: null });
+  });
+
+  it("leaves the meta row and the client's cart_id, note, image, category and quantity as sent", async () => {
+    const meta = {
+      cart_id: "meta",
+      menu_item_id: null,
+      name: "META",
+      size: null,
+      quantity: 1,
+      base_price: null,
+      price_per_item: 0,
+      addons: [],
+      note: "Zona: Bečići, Dostava: 3 €",
+      image: "",
+      category: "meta",
+    };
+    const row = diavolo50({ quantity: 2, note: "dobro pečena", category: "pizza" });
+    const c = await submit([meta, row], 2 * 2500 + 300);
+
+    expect(c.statusCode).toBe(200);
+    const [storedMeta, stored] = storedItems();
+    expect(storedMeta).toMatchObject({ cart_id: "meta", name: "META", price_per_item: 0, addons: [] });
+    expect(String(storedMeta.note)).toContain("Plaćanje: Gotovina");
+    expect(stored).toMatchObject({
+      cart_id: "c-diavolo-50",
+      menu_item_id: "diavolo-50",
+      quantity: 2,
+      note: "dobro pečena",
+      image: "/menu/diavolo.webp",
+      category: "pizza",
+    });
+  });
+
+  it("stores the menu rows on a card order too, before Bankart is called", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+    const bankart = { success: true, returnType: "REDIRECT", redirectUrl: "https://pay.example/r", uuid: "u-1" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(bankart)) }),
+    );
+
+    const c = await submit([diavolo33({ name: "Diavolo 50 cm", size: "50" })], 1000, { payment_method: "card" });
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c).flow).toBe("card_redirect");
+    expect(storedItems()[0]).toMatchObject({ name: "Diavolo", size: "33", price_per_item: 1000 });
+  });
+});

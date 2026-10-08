@@ -6,6 +6,7 @@ import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url
 import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
 import { isWithinBusinessHours, nowMinutesInPodgorica } from "./_shared/business-hours.js";
 import { crustSizeForItem, stuffedCrustSizeOf } from "./_shared/stuffed-crust.js";
+import { displayNameOfMenuRow, pizzaSizeOfName } from "./_shared/menu-display.js";
 import { applyCors } from "./_shared/cors.js";
 import {
   BANKART_FALLBACK_EMAIL,
@@ -386,6 +387,46 @@ function sumAddonsCents(addons: unknown, priceMap: Map<string, number>) {
 function findMissingMenuItemIds(ids: string[], priceMap: Map<string, number>): string[] {
   const uniq = Array.from(new Set(ids.filter(Boolean)));
   return uniq.filter((id) => !priceMap.has(id));
+}
+
+/**
+ * B23d: Telegram prints each row's name, size and addon names as stored, and
+ * the admin panel its price_per_item and addon prices — while the server
+ * charges by id. So the server stores what it charged: those fields come from
+ * the menu rows. An honest cart already sends exactly this ("Diavolo" + "50"
+ * for the row "Diavolo 50 cm", Telegram: "1x Diavolo (50)"), so the kitchen
+ * reads the same. Meta rows, and each row's cart_id, quantity, note, image and
+ * category, stay as sent.
+ */
+function withMenuRowDisplay(
+  items: unknown[],
+  prices: Map<string, number>,
+  names: Map<string, string>,
+): unknown[] {
+  return items.map((it) => {
+    if (!isPlainObject(it) || isMetaRow(it)) return it;
+
+    const menuItemId = toTrimmedString(it.menu_item_id) || toTrimmedString(it.menuItemId);
+    const rowName = names.get(menuItemId) ?? "";
+    const basePrice = prices.get(menuItemId) ?? 0;
+
+    const addons = Array.isArray(it.addons)
+      ? it.addons.map((a) => {
+          if (!isPlainObject(a)) return a;
+          const addonId = toTrimmedString(a.id);
+          return { ...a, name: names.get(addonId) ?? "", price: prices.get(addonId) ?? 0 };
+        })
+      : it.addons;
+
+    return {
+      ...it,
+      name: displayNameOfMenuRow(rowName),
+      size: pizzaSizeOfName(rowName),
+      base_price: basePrice,
+      price_per_item: basePrice + sumAddonsCents(addons, prices),
+      addons,
+    };
+  });
 }
 
 function getDeliveryFeeCentsFromMeta(
@@ -1170,7 +1211,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       customer_name,
       customer_phone,
       customer_address,
-      items: itemsForInsert,
+      items: withMenuRowDisplay(itemsForInsert, priceMap, menuNames),
       status: payment_method === "card" ? "pending" : status,
       currency,
       total_eur_cents: computedTotalCents,

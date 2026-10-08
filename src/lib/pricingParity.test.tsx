@@ -51,7 +51,9 @@ const hoisted = vi.hoisted(() => {
     /** When set, the browser's menu read waits for it (catalog still loading). */
     catalogGate: Promise<void> | null;
     serverCalls: ServerCall[];
-  } = { clientRows: [], serverRows: null, catalogGate: null, serverCalls: [] };
+    /** Rows the server inserted into `orders` (B23d: what the kitchen reads). */
+    inserted: unknown[];
+  } = { clientRows: [], serverRows: null, catalogGate: null, serverCalls: [], inserted: [] };
   return { state };
 });
 
@@ -90,7 +92,10 @@ vi.mock("@supabase/supabase-js", () => {
     builder.select = chain;
     builder.eq = chain;
     builder.in = chain;
-    builder.insert = chain;
+    builder.insert = (row: unknown) => {
+      hoisted.state.inserted.push(row);
+      return builder;
+    };
     builder.update = chain;
     builder.single = () => Promise.resolve(result());
     builder.then = (onF: (v: SupabaseResult) => unknown, onR?: (e: unknown) => unknown) =>
@@ -123,6 +128,7 @@ import {
   crustSizeForItem as serverCrustSizeForItem,
   stuffedCrustSizeOf as serverStuffedCrustSizeOf,
 } from "../../api/_shared/stuffed-crust";
+import { displayNameOfMenuRow, pizzaSizeOfName } from "../../api/_shared/menu-display";
 import CartDrawer from "../components/CartDrawer";
 import MenuItemDetailSheet from "../components/MenuItemDetailSheet";
 import { CartProvider } from "../context/CartProvider";
@@ -132,6 +138,7 @@ import {
   addonsForPizzaSize,
   parsePizzaSizeFromName,
   remapStuffedCrustForSize,
+  stripPizzaSizeFromName,
   stuffedCrustSizeOf,
 } from "./cartDrawerHelpers";
 import { formatEUR } from "./money";
@@ -353,6 +360,7 @@ beforeEach(() => {
   hoisted.state.serverRows = null;
   hoisted.state.catalogGate = null;
   hoisted.state.serverCalls.length = 0;
+  hoisted.state.inserted.length = 0;
   cartRef.current = null;
   vi.stubGlobal("fetch", vi.fn(bridgeFetch));
 });
@@ -698,5 +706,74 @@ describe("B23b — client and server read crust and pizza sizes the same way", (
 
     expect(c.statusCode).toBe(400);
     expect((c.body as Record<string, unknown>).code).toBe("crust_size_mismatch");
+  });
+});
+
+describe("B23d — the server stores what an honest cart sends, read from the menu rows", () => {
+  // The server rewrites each row's name, size, addon names and prices from
+  // menu_items (api/_shared/menu-display.ts). For the cart that must be a
+  // no-op: Telegram keeps reading "1x Kapričoza (50)" and the same addons.
+  const NAMES = [
+    "Kapričoza 33 cm",
+    "Kapričoza 50 cm",
+    "Diavolo 50 cm",
+    "Anatoli pizza 33 cm",
+    "Piroška 33 cm",
+    "Quattro formaggi 50cm",
+    "Ivice punjene sirom 50 cm",
+    "Papricciosa",
+    "Coca-Cola 0,33 l",
+    "Slatko Ljuti ",
+    "Kečap",
+    "",
+  ];
+
+  it.each(NAMES)("display name and size of %j", (name) => {
+    expect(displayNameOfMenuRow(name)).toBe(stripPizzaSizeFromName(name));
+    expect(pizzaSizeOfName(name)).toBe(parsePizzaSizeFromName(name));
+  });
+
+  function isMeta(row: unknown) {
+    return (row as Record<string, unknown>).cart_id === "meta";
+  }
+
+  function storedItems(): unknown[] {
+    expect(hoisted.state.inserted).toHaveLength(1);
+    return (hoisted.state.inserted[0] as { items: unknown[] }).items;
+  }
+
+  it("50 cm + crust + sauce next to a plain 33 cm: stored rows equal the rows sent", async () => {
+    const view = render(<App sheetKey={1} />);
+    await sheetReady();
+    await pickSize("50");
+    await pickAddon("Ivice punjene sirom 50 cm");
+    await pickAddon("Bbq");
+    await confirmSheet();
+
+    view.rerender(<App sheetKey={2} />);
+    await sheetReady();
+    await pickSize("33");
+    await confirmSheet();
+
+    await waitFor(() => expect(currentCart().items).toHaveLength(2));
+    const call = await checkout();
+    expectAccepted(call, 1600 + 400 + 100 + 900);
+
+    const sent = (call.request.items as unknown[]).filter((r) => !isMeta(r));
+    const stored = storedItems().filter((r) => !isMeta(r));
+    expect(stored).toEqual(sent);
+    expect(stored).toEqual([
+      expect.objectContaining({
+        name: "Kapričoza",
+        size: "50",
+        base_price: 1600,
+        price_per_item: 2100,
+        addons: [
+          { id: "crust-50", name: "Ivice punjene sirom 50 cm", price: 400, quantity: 1 },
+          { id: "sauce-bbq", name: "Bbq", price: 100, quantity: 1 },
+        ],
+      }),
+      expect.objectContaining({ name: "Kapričoza", size: "33", base_price: 900, price_per_item: 900, addons: [] }),
+    ]);
   });
 });
