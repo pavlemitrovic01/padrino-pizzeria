@@ -5,6 +5,32 @@
 
 ---
 
+## B23b — 2026-10-08 — Serverska provera veličine ivica — DONE
+
+**Tier:** STRICT
+**SHA:** ddd8846
+**Branch:** claude/vibrant-euler-oxmwb0 (cloud sesija; merge u main radi Pavle)
+**Files (5):** +335/−7
+  - api/create-order.ts — LOCK ZONE. Isti `menu_items` SELECT čita i `name` (`fetchMenuPricesCents` → `fetchMenuRows`, vraća cene + imena; bez novog upita). Novi `findCrustSizeMismatch`: posle provere neaktivnih ID-jeva, pre subtotal-a, upisa i Bankart-a → 400 `{ code: "crust_size_mismatch", error: "Punjene ivice ne odgovaraju veličini pice. Ukloni ih iz korpe i dodaj ponovo." }` (L5: validaciona 400, bez ID-jeva; ID-jevi samo u `console.warn`). Matematika cene i `Total mismatch` nedirnuti.
+  - api/_shared/stuffed-crust.ts — NEW. Ogledalo klijentskih pravila iz `cartDrawerHelpers.ts`: `stuffedCrustSizeOf` (red ivica = 50 cm ako ime ima „50 cm", inače 33) i `crustSizeForItem` (stavka prima ivice 50 cm samo ako je njen red „… 50 cm"). Import sa `.js` (L6).
+  - api/_shared/stuffed-crust.test.ts — NEW (6 testova): dijakritici, „Punjene ivice sa kulenom", „rub", „Coca-Cola 0,33 l", 150/500 cm.
+  - api/create-order.test.ts — 10 testova handler-a: odbija 50+ivice33, 33+ivice50, obe ivice, klijentski `size` "33"/null na redu od 50 cm, karticu pre Bankart-a, celu porudžbinu kad greši jedna stavka; prihvata 50+ivice50 (×2), 33+ivice33+sos, bez ivica, stavku bez veličine + ivice 33 (ogledalo korpe).
+  - src/lib/pricingParity.test.tsx — 35 testova: tabela imena na kojoj klijent i server moraju isto da čitaju ivice i veličinu stavke + server odbija ivice 33 na 50 cm iz zajedničkog menija.
+**Verify:**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 14:10 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 24 fajla / 333 testa (+51 B23b; pre 282)
+  lint:      izmenjeni fajlovi `npx eslint` exit 0
+  repro:     pre izmene — 6 neusklađenih zahteva (50+ivice33, 33+ivice50, obe, `size` "33"/null na 50 cm, jedna loša stavka od dve) → 200 ok + upis; kartica stigla do Bankart debit poziva. Posle izmene → 400 bez upisa.
+  preview:   Vercel dpl_6T1Dp6wWuEHvqbyCnj9MnT1Rz2HD za ddd8846 = READY (build prošao, uklj. novi `api/_shared` modul). Build Logs nije pročitan (Vercel MCP 403 na scope); preview smoke nije pokrenut (container mreža blokira *.vercel.app).
+  code-review:     NIJE POKRENUTO — preporučeno pre /close, Pavle: „može close".
+  security-review: NIJE POKRENUTO — preporučeno pre /close, Pavle: „može close".
+  manual:    NIJE POKRENUTO — čeka merge u main. Prod: negativni smoke (50 cm + ivice 33 → 400 `crust_size_mismatch`, bez reda u `orders`) + SQL nad sledećim pravim porudžbinama sa ivicama; upisuje se posebnim workflow commit-om (presedan B20/B23a).
+**SCOPE_DRIFT:** none — 5 fajlova = EXPECTED-FILES exact match (`git diff --name-only origin/main...HEAD`).
+**Notes:** Zahtev iz B23a code-review-a (odloženo u B23b). Prod pre plana (SELECT): pice su zasebni redovi „… 33 cm" (14) / „… 50 cm" (13); dva reda ivica (200 / 400); ivice nikad na stavci koja nije pica. Istorija ivica po veličini reda pice: 33+ivice33 128, 50+ivice50 1 (B23a E2E), 50+ivice33 9 (jan–mar, legalno pre B23a) + **1 sa `size: null` (2026-06-23) — prošla 2 € manje**. Zato je izvor istine ime reda u bazi, ne klijentsko `size`. Korpa se ne čuva između sesija (nema localStorage) → stare korpe postoje samo u tabu otvorenom pre B23a deploy-a. Odstupanja od workflow-a: (a) STATE nije imao aktivan batch (`/plan` ga ne upisuje) — EXPECTED-FILES iz odobrenog plana, kao B23a; (b) bez `batch/` grane — cloud sesija sme da pushuje samo na `claude/vibrant-euler-oxmwb0`; (c) fix commit ddd8846 napravljen pre /close na zahtev stop hook-a (presedan B23a e7c907c). **Nađeno usput (van scope-a → B23c):** stavka sa `menu_item_id` bez `price_per_item` prolazi `looksLikeRealItemButInvalid`, ispada iz `calcItems` (ne naplaćuje se), a upisuje se u `items` — privremeni test: kola 2,50 € + 3× pica 50 cm bez cene → 200 ok, upisano, naplaćeno 2,50 €. Nije provereno da li stiže do kuhinje (Telegram/admin).
+
+---
+
 ## B23a — 2026-10-07 — 50 cm + punjene ivice (Total mismatch) — DONE
 
 **Tier:** STRICT

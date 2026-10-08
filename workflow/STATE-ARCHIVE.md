@@ -13,6 +13,17 @@
 
 ---
 
+## Rotated at B23b close — 2026-10-08
+
+Moved verbatim from STATE.md by the 2-batch cap (B23b + B23a stay inline).
+
+- B21 (Brisanje pre-L8.4 inline cart-editing API-ja) — DONE 2026-07-27
+  (STANDARD; 6 fajlova, +3/-243; SHA e1f4ece; changeSize + 5 addon/note mutatora
+  iz lock zone + setPizzaSizeSafe/addDrinkToCart/sauceIdSet/onError iz
+  useCatalogData; nedostižnost dokazana typecheck-om preko CartContextType)
+
+---
+
 ## Rotated at B23a close — 2026-10-07
 
 Moved verbatim from STATE.md by the 2-batch cap (B23a + B21 stay inline).
