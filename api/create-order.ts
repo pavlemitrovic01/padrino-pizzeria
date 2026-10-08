@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { createClient } from "@supabase/supabase-js";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { resolvePublicBaseUrl } from "./_shared/public-url.js";
@@ -22,9 +21,10 @@ import {
   BANKART_FALLBACK_POSTCODE,
   BANKART_DESCRIPTION_PREFIX,
 } from "./_shared/config.js";
+import { buildSupabaseAdmin, getEnv, getFirstEnv } from "./_shared/env.js";
+import { json } from "./_shared/http.js";
 
 type PaymentMethod = "cash" | "card";
-type Json = Record<string, unknown>;
 
 type HeaderValue = string | string[] | undefined;
 type HeadersLike = Record<string, HeaderValue>;
@@ -111,43 +111,7 @@ function headerStringCI(req: ReqLike, key: string): string {
   );
 }
 
-function json(res: ResLike, status: number, body: Json) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.send(JSON.stringify(body));
-}
-
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
-
-function getFirstEnv(...names: string[]): string {
-  for (const name of names) {
-    const value = getEnv(name);
-    if (value) return value;
-  }
-  return "";
-}
-
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-    getEnv("SUPABASE_SERVICE_KEY") ||
-    getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/create-order" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
+const supabase = buildSupabaseAdmin("create-order");
 
 /**
  * Legacy meta zapis koji frontend ubacuje u items[0]:
@@ -416,7 +380,6 @@ function safeTotalCentsFromBody(body: Record<string, unknown>): number {
 
   return 0;
 }
-
 
 function getBankartConfig(): BankartConfig {
   const baseUrl = getFirstEnv("BANKART_API_BASE_URL", "NLB_API_BASE_URL") || "https://gateway.bankart.si/api/v3";

@@ -1,8 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { getAdminFromDb } from "./_shared/admin-auth.js";
 import { applyCors } from "./_shared/cors.js";
-
-type Json = Record<string, unknown>;
+import { buildSupabaseAdmin } from "./_shared/env.js";
+import { json } from "./_shared/http.js";
 
 type HeaderValue = string | string[] | undefined;
 type HeadersLike = Record<string, HeaderValue>;
@@ -18,24 +17,11 @@ type ResLike = {
   send: (body: string) => void;
 };
 
-function toTrimmedString(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
-}
-
 function headerString(req: ReqLike, key: string): string {
   const raw = req.headers?.[key];
   if (typeof raw === "string") return raw.trim();
   if (Array.isArray(raw) && typeof raw[0] === "string") return raw[0].trim();
   return "";
-}
-
-function json(res: ResLike, code: number, body: Json) {
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.status(code).send(JSON.stringify(body));
-}
-
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
 }
 
 function normalizeEmail(v: string): string {
@@ -49,24 +35,7 @@ function getBearerToken(req: ReqLike): string {
   return m ? m[1].trim() : "";
 }
 
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") ||
-    getEnv("SUPABASE_SERVICE_KEY") ||
-    getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/admin-me" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
+const supabase = buildSupabaseAdmin("admin-me");
 
 export default async function handler(req: ReqLike, res: ResLike) {
   applyCors(req, res, { methods: "GET", allowHeaders: "content-type, x-requested-with, authorization" });

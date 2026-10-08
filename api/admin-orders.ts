@@ -1,10 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
 import { isAdminEmailDb } from "./_shared/admin-auth.js";
 import { isPlainObject } from "./_shared/parsing.js";
 import { applyCors } from "./_shared/cors.js";
 import { formatOrderForTelegram, sendTelegramMessage, type OrderRow } from "./_shared/telegram.js";
-
-type Json = Record<string, unknown>;
+import { buildSupabaseAdmin } from "./_shared/env.js";
+import { json } from "./_shared/http.js";
 
 type HeaderValue = string | string[] | undefined;
 type HeadersLike = Record<string, HeaderValue>;
@@ -49,33 +48,7 @@ function queryString(req: ReqLike, key: string): string {
   return "";
 }
 
-function json(res: ResLike, status: number, body: Json) {
-  res.status(status);
-  res.setHeader("content-type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.send(JSON.stringify(body));
-}
-
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
-
-function buildSupabaseAdmin() {
-  const SUPABASE_URL = getEnv("SUPABASE_URL") || getEnv("VITE_SUPABASE_URL");
-  const SERVICE_ROLE =
-    getEnv("SUPABASE_SERVICE_ROLE_KEY") || getEnv("SUPABASE_SERVICE_KEY") || getEnv("SUPABASE_SERVICE_ROLE");
-
-  if (!SUPABASE_URL || !SERVICE_ROLE) {
-    throw new Error("Missing env: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY");
-  }
-
-  return createClient(SUPABASE_URL, SERVICE_ROLE, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: { headers: { "X-Client-Info": "padrino-vercel-api/admin-orders" } },
-  });
-}
-
-const supabase = buildSupabaseAdmin();
+const supabase = buildSupabaseAdmin("admin-orders");
 
 function getBearerToken(req: ReqLike): string {
   const h = headerString(req, "authorization") || headerString(req, "Authorization");
