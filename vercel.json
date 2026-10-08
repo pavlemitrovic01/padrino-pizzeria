@@ -1,26 +1,77 @@
 {
   "headers": [
     {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), usb=(), interest-cohort=()"
+        },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://gateway.bankart.si; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://www.googletagmanager.com https://*.google-analytics.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://gateway.bankart.si; frame-src https://gateway.bankart.si https://*.bankart.si; form-action 'self' https://gateway.bankart.si https://*.bankart.si; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; report-uri /api/log"
+        }
+      ]
+    },
+    {
       "source": "/sitemap.xml",
       "headers": [
-        { "key": "Content-Type", "value": "application/xml; charset=utf-8" }
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        }
       ]
     }
   ],
   "redirects": [
-    { "source": "/menu", "destination": "/", "permanent": true },
-    { "source": "/menu/", "destination": "/", "permanent": true }
+    {
+      "source": "/menu",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/menu/",
+      "destination": "/",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/sitemap.xml", "destination": "/sitemap.xml" },
-    { "source": "/robots.txt", "destination": "/robots.txt" },
-
-    { "source": "/pizza-budva", "destination": "/pizza-budva.html" },
-    { "source": "/pizza-budva/", "destination": "/pizza-budva.html" },
-    { "source": "/pizza-budva.html", "destination": "/pizza-budva.html" },
-
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-
+    {
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/robots.txt"
+    },
+    {
+      "source": "/pizza-budva",
+      "destination": "/pizza-budva.html"
+    },
+    {
+      "source": "/pizza-budva/",
+      "destination": "/pizza-budva.html"
+    },
+    {
+      "source": "/pizza-budva.html",
+      "destination": "/pizza-budva.html"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
     {
       "source": "/(.*)",
       "has": [

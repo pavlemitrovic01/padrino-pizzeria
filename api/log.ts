@@ -5,9 +5,13 @@
  * them to the Vercel Runtime Log via console.error/console.warn so they
  * appear in the Vercel dashboard (Functions → Runtime Logs).
  *
- * No auth required: logs contain no secrets and CORS origin-allowlist
- * limits browser-side callers to the configured ALLOWED_ORIGINS.
- * No DB write — console output only.
+ * No auth required: logs contain no secrets. CORS only limits browsers —
+ * anyone can POST here with curl — so every field is size-capped (B25,
+ * audit #12): an event is at most ~6 KB of log output, a request at most
+ * MAX_EVENTS_PER_REQUEST events. No DB write — console output only.
+ *
+ * Also the CSP report sink (`report-uri /api/log` in vercel.json): a browser
+ * POSTs { "csp-report": { … } } with content-type application/csp-report.
  */
 
 import { applyCors } from "./_shared/cors.js";
@@ -40,6 +44,9 @@ export type ClientLogEvent = {
 };
 
 const MAX_EVENTS_PER_REQUEST = 20;
+const MAX_MESSAGE_CHARS = 2000;
+const MAX_CONTEXT_CHARS = 4000;
+const MAX_CSP_FIELD_CHARS = 500;
 
 function json(res: ResLike, status: number, body: Json) {
   res.status(status);
@@ -57,22 +64,49 @@ function normalizeEvent(raw: unknown): ClientLogEvent | null {
 
   const ts = typeof raw.ts === "number" && Number.isFinite(raw.ts) ? Math.trunc(raw.ts) : null;
   const level = isLogLevel(raw.level) ? raw.level : null;
-  const message = typeof raw.message === "string" ? raw.message.slice(0, 2000) : null;
+  const message = typeof raw.message === "string" ? raw.message.slice(0, MAX_MESSAGE_CHARS) : null;
 
   if (ts === null || level === null || message === null) return null;
 
-  const context =
-    isPlainObject(raw.context) ? (raw.context as Record<string, unknown>) : undefined;
+  return { ts, level, message, ...cappedContext(raw.context) };
+}
 
-  return { ts, level, message, ...(context !== undefined ? { context } : {}) };
+function cappedContext(raw: unknown): { context?: Record<string, unknown> } {
+  if (!isPlainObject(raw)) return {};
+  let text: string;
+  try {
+    text = JSON.stringify(raw);
+  } catch {
+    return {};
+  }
+  if (text.length <= MAX_CONTEXT_CHARS) return { context: raw as Record<string, unknown> };
+  return { context: { truncated: true, preview: text.slice(0, MAX_CONTEXT_CHARS) } };
+}
+
+/** A CSP violation report, reduced to the fields worth reading, each capped. */
+function cspReportFrom(body: Record<string, unknown>): Record<string, string> | null {
+  const report = body["csp-report"];
+  if (!isPlainObject(report)) return null;
+  const pick = (k: string) => (typeof report[k] === "string" ? (report[k] as string).slice(0, MAX_CSP_FIELD_CHARS) : "");
+  return {
+    documentUri: pick("document-uri"),
+    violatedDirective: pick("violated-directive") || pick("effective-directive"),
+    blockedUri: pick("blocked-uri"),
+    sourceFile: pick("source-file"),
+    disposition: pick("disposition"),
+  };
 }
 
 function parseBody(req: ReqLike): unknown {
-  if (isPlainObject(req.body)) return req.body;
+  // application/csp-report is not parsed as JSON by the runtime: it arrives as
+  // a string or a Buffer (which isPlainObject would accept as an object).
+  const text = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : req.body;
+  if (isPlainObject(text)) return text;
 
-  if (typeof req.body === "string") {
+  if (typeof text === "string") {
+    if (text.length > 64 * 1024) return null;
     try {
-      return JSON.parse(req.body) as unknown;
+      return JSON.parse(text) as unknown;
     } catch {
       return null;
     }
@@ -115,6 +149,12 @@ export default function handler(req: ReqLike, res: ResLike) {
   const body = parseBody(req);
   if (!isPlainObject(body)) {
     return json(res, 400, { ok: false, error: "Invalid JSON body" });
+  }
+
+  const csp = cspReportFrom(body);
+  if (csp) {
+    console.warn("[csp-report]", JSON.stringify(csp));
+    return json(res, 200, { ok: true, received: 1 });
   }
 
   const rawEvents = Array.isArray(body.events) ? body.events : [];

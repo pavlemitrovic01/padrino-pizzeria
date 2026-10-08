@@ -256,7 +256,7 @@ export default function MenuEditorPanel({
             <input
               ref={imageInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={onImageFileChange}
               className="hidden"
             />

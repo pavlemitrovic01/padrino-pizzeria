@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getAdminFromDb } from "./_shared/admin-auth.js";
 import { isPlainObject } from "./_shared/parsing.js";
 import { applyCors } from "./_shared/cors.js";
+import { detectImageType } from "./_shared/image-type.js";
 
 type Json = Record<string, unknown>;
 
@@ -225,23 +226,6 @@ function decodeBase64Payload(input: string): Buffer | null {
   }
 }
 
-function detectExtension(contentType: string, fallbackName: string): string {
-  const normalizedType = contentType.trim().toLowerCase();
-
-  if (normalizedType === "image/jpeg" || normalizedType === "image/jpg") return "jpg";
-  if (normalizedType === "image/png") return "png";
-  if (normalizedType === "image/webp") return "webp";
-  if (normalizedType === "image/gif") return "gif";
-
-  const file = fallbackName.trim().toLowerCase();
-  if (file.endsWith(".jpg") || file.endsWith(".jpeg")) return "jpg";
-  if (file.endsWith(".png")) return "png";
-  if (file.endsWith(".webp")) return "webp";
-  if (file.endsWith(".gif")) return "gif";
-
-  return "bin";
-}
-
 function sanitizeBaseName(value: string): string {
   const raw = value.trim().toLowerCase();
   const safe = raw
@@ -294,7 +278,7 @@ async function handleImageUpload(
   res: ResLike,
 ) {
   const fileName = toTrimmedString(body.fileName);
-  const contentType = toTrimmedString(body.contentType).toLowerCase();
+  const declaredType = toTrimmedString(body.contentType).toLowerCase();
   const base64 = toTrimmedString(body.base64);
   const itemName = toTrimmedString(body.itemName);
 
@@ -302,7 +286,7 @@ async function handleImageUpload(
     return json(res, 400, { ok: false, error: "Image payload is required" });
   }
 
-  if (!contentType || !contentType.startsWith("image/")) {
+  if (!declaredType || !declaredType.startsWith("image/")) {
     return json(res, 400, { ok: false, error: "Only image uploads are allowed" });
   }
 
@@ -315,10 +299,11 @@ async function handleImageUpload(
     return json(res, 400, { ok: false, error: "Image is too large (max 5MB)" });
   }
 
-  const ext = detectExtension(contentType, fileName);
-  if (!["jpg", "png", "webp", "gif"].includes(ext)) {
-    return json(res, 400, { ok: false, error: "Unsupported image format" });
+  const detected = detectImageType(bytes);
+  if (!detected) {
+    return json(res, 400, { ok: false, error: "Unsupported image format (JPEG, PNG or WebP)" });
   }
+  const { ext, contentType } = detected;
 
   const baseName = sanitizeBaseName(itemName || fileName || "menu-item");
   const path = `admin/${Date.now()}-${baseName}.${ext}`;
