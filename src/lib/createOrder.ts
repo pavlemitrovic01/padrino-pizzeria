@@ -158,6 +158,36 @@ function getResultRedirectUrl(body: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * B24: one checkout attempt = one order. Each attempt gets a random key; the
+ * same order sent again (the customer taps "Poruči" after a timeout that hid a
+ * response which had in fact succeeded) reuses it, and the server answers with
+ * the first order instead of making a second one. Any change to the order, or
+ * a success, starts a new attempt. The card token is new on every tap, so it
+ * is not part of what makes two attempts "the same".
+ */
+let lastAttempt: { signature: string; key: string } | null = null;
+
+function newAttemptKey(): string {
+  try {
+    const c = globalThis.crypto as Crypto | undefined;
+    if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  } catch {
+    // ignore
+  }
+  return `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}
+
+function attemptKeyFor(apiBody: Record<string, unknown>): string {
+  const { transaction_token: _token, ...rest } = apiBody;
+  void _token;
+  const signature = JSON.stringify(rest);
+  if (!lastAttempt || lastAttempt.signature !== signature) {
+    lastAttempt = { signature, key: newAttemptKey() };
+  }
+  return lastAttempt.key;
+}
+
 export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
   const customer_name = normalizeString(payload.customer_name);
   const customer_phone = normalizeString(payload.customer_phone);
@@ -278,6 +308,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   if (cardholder) apiBody.cardholder = cardholder;
   if (transaction_token) apiBody.transaction_token = transaction_token;
   if (delivery_zone) apiBody.delivery_zone = delivery_zone;
+  apiBody.idempotency_key = attemptKeyFor(apiBody);
 
   const base = getApiBase().replace(/\/+$/, "");
   const url = `${base}/create-order`;
@@ -307,6 +338,9 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   if (flow === "card_redirect" && !redirectUrl) {
     throw new Error("Kartično plaćanje je pokrenuto, ali redirect link nije vraćen.");
   }
+
+  // The order exists: the next order, even an identical one, is a new attempt.
+  lastAttempt = null;
 
   return {
     success: true,

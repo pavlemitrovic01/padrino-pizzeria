@@ -1,13 +1,14 @@
 // api/_shared/public-url.ts
 //
-// Shared public-base-URL resolver and Telegram payload builder.
+// Shared public-base-URL resolver (the Bankart return/callback URLs).
 // Consolidates 3 prior copies: api/create-order.ts,
 // api/bankart-order-status.ts, api/bankart-callback.ts (B8).
 //
 // SECURITY (B22, docs/full-audit-2026-10.md #5): the Origin header is NEVER
 // used. It is fully client-controlled (curl sets anything), and the result
-// becomes the URL the server POSTs to with x-telegram-secret and the Bankart
-// callback/return URLs — trusting it leaked the secret to any origin.
+// became the URL the server POSTed to with x-telegram-secret (that self-call
+// is gone since B24) and the Bankart callback/return URLs — trusting it leaked
+// the secret to any origin.
 // x-forwarded-host / x-forwarded-proto are ignored for the same reason.
 // Order: env (PUBLIC_SITE_URL|SITE_URL|APP_URL|NEXT_PUBLIC_SITE_URL) → Host
 // header (Vercel only routes a request here when Host is one of this
@@ -65,12 +66,4 @@ export function resolvePublicBaseUrl(headers: HeadersLike | undefined): string {
   if (host && HOST_PATTERN.test(host)) return `https://${host.toLowerCase()}`;
 
   return DEFAULT_PUBLIC_HOST;
-}
-
-export function buildTelegramPayload(
-  headers: HeadersLike | undefined,
-  orderId: string,
-): { order_id: string; notify_url: string } {
-  const url = resolvePublicBaseUrl(headers);
-  return { order_id: orderId, notify_url: `${url}/api/telegram-new-order` };
 }

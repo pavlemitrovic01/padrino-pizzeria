@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { resolvePublicBaseUrl, buildTelegramPayload } from "./_shared/public-url.js";
+import { resolvePublicBaseUrl } from "./_shared/public-url.js";
 import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/parsing.js";
 import { isWithinBusinessHours, nowMinutesInPodgorica } from "./_shared/business-hours.js";
 import { crustSizeForItem, stuffedCrustSizeOf } from "./_shared/stuffed-crust.js";
@@ -15,6 +15,7 @@ import {
   type DeliveryZone,
 } from "./_shared/delivery-zones.js";
 import { applyCors } from "./_shared/cors.js";
+import { notifyNewOrder } from "./_shared/telegram.js";
 import {
   BANKART_FALLBACK_EMAIL,
   BANKART_FALLBACK_CITY,
@@ -417,56 +418,6 @@ function safeTotalCentsFromBody(body: Record<string, unknown>): number {
 }
 
 
-async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
-  const url = buildTelegramPayload(req.headers, orderId).notify_url;
-
-  const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (secret) headers["x-telegram-secret"] = secret;
-
-  const controller = new AbortController();
-  const timeoutMs = 12000;
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ order_id: orderId }),
-      signal: controller.signal,
-    });
-  } catch {
-    // best effort
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function bestEffortPaymentsCreateSession(orderId: string, paymentMethod: PaymentMethod) {
-  const projectRef = getEnv("SUPABASE_PROJECT_REF");
-  const anon = getEnv("SUPABASE_ANON_KEY") || getEnv("VITE_SUPABASE_ANON_KEY");
-  const token = getEnv("PAYMENTS_EDGE_TOKEN");
-  if (!projectRef || !anon) return;
-
-  const url = `https://${projectRef}.supabase.co/functions/v1/payments-create-session`;
-
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    authorization: `Bearer ${anon}`,
-  };
-  if (token) headers["x-padrino-token"] = token;
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ order_id: orderId, payment_method: paymentMethod }),
-    });
-  } catch {
-    // best effort
-  }
-}
-
 function getBankartConfig(): BankartConfig {
   const baseUrl = getFirstEnv("BANKART_API_BASE_URL", "NLB_API_BASE_URL") || "https://gateway.bankart.si/api/v3";
   const apiKey = getFirstEnv("BANKART_API_KEY", "NLB_API_KEY");
@@ -716,7 +667,7 @@ function buildBankartDebitRequest(
   return requestBody;
 }
 
-async function startBankartDebit(req: ReqLike, orderId: string, requestBody: BankartDebitRequest) {
+async function startBankartDebit(orderId: string, requestBody: BankartDebitRequest) {
   const config = getBankartConfig();
   const requestUri = `/api/v3/transaction/${encodeURIComponent(config.apiKey)}/debit`;
   const url = `${normalizeBankartApiBaseUrl(config.baseUrl)}${requestUri}`;
@@ -900,7 +851,7 @@ async function startBankartDebit(req: ReqLike, orderId: string, requestBody: Ban
       }),
     });
 
-    await bestEffortTelegramNotify(req, orderId);
+    await notifyNewOrder(supabase, orderId);
 
     return {
       flow: "card_paid" as const,
@@ -928,6 +879,76 @@ async function startBankartDebit(req: ReqLike, orderId: string, requestBody: Ban
     bankartPurchaseId: toTrimmedString(bankart.purchaseId),
     bankartReturnType: returnType || "UNKNOWN",
   };
+}
+
+/**
+ * B24: one checkout attempt = one order. The cart sends a random key per
+ * attempt (src/lib/createOrder.ts) and reuses it when it resends the same
+ * order — e.g. after a timeout hid a response that had in fact succeeded — so
+ * the retry gets the first order back instead of a second one in the kitchen.
+ * Stored in the unique `orders.idempotency_key` (migration
+ * 20261009120000_orders_idempotency_key.sql).
+ */
+function idempotencyKeyFrom(body: Record<string, unknown>): string | null {
+  const key = toTrimmedString(body.idempotency_key);
+  return /^[A-Za-z0-9_-]{16,100}$/.test(key) ? key : null;
+}
+
+type ExistingOrder = {
+  id: string;
+  payment_method: string | null;
+  payment_status: string | null;
+  payment_meta: unknown;
+};
+
+async function findOrderByIdempotencyKey(key: string): Promise<ExistingOrder | null> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id,payment_method,payment_status,payment_meta")
+    .eq("idempotency_key", key);
+  // An error here (e.g. the column is not migrated yet) means "no earlier
+  // attempt known" — never a reason to refuse the order.
+  if (error || !Array.isArray(data) || data.length === 0) return null;
+  const row = data[0] as Record<string, unknown>;
+  const id = toTrimmedString(row.id);
+  if (!id) return null;
+  return {
+    id,
+    payment_method: toTrimmedString(row.payment_method) || null,
+    payment_status: toTrimmedString(row.payment_status) || null,
+    payment_meta: row.payment_meta,
+  };
+}
+
+function isUnknownIdempotencyColumn(err: { code?: unknown; message?: unknown } | null): boolean {
+  if (!err) return false;
+  const code = toTrimmedString(err.code);
+  const message = toTrimmedString(err.message);
+  return (code === "PGRST204" || code === "42703") && message.includes("idempotency_key");
+}
+
+/** The response the first attempt gave (or would give now), for a repeated key. */
+function replayExistingOrder(res: ResLike, existing: ExistingOrder) {
+  const id = existing.id;
+  const base = { ok: true, id, order_id: id, orderId: id, replayed: true };
+
+  if (existing.payment_method !== "card") return json(res, 200, { ...base, flow: "cash" });
+
+  if (existing.payment_status === "paid") {
+    return json(res, 200, { ...base, payment_method: "card", payment_status: "paid", flow: "card_paid" });
+  }
+
+  const meta = isPlainObject(existing.payment_meta) ? existing.payment_meta : {};
+  const response = isPlainObject(meta.response) ? meta.response : {};
+  const redirectUrl = meta.phase === "redirect" ? toTrimmedString(response.redirectUrl) : "";
+  return json(res, 200, {
+    ...base,
+    payment_method: "card",
+    payment_status: "pending",
+    flow: redirectUrl ? "card_redirect" : "card_pending",
+    redirect_url: redirectUrl || null,
+    redirectUrl: redirectUrl || null,
+  });
 }
 
 /**
@@ -1161,11 +1182,36 @@ export default async function handler(req: ReqLike, res: ResLike) {
           : null,
     };
 
-    const { data: inserted, error: insErr } = await supabase
+    // B24: a repeated attempt gets its first order back. A card attempt whose
+    // payment already failed is not repeated — the retry is a new order.
+    let idempotencyKey = idempotencyKeyFrom(body);
+    if (idempotencyKey) {
+      const existing = await findOrderByIdempotencyKey(idempotencyKey);
+      if (existing && !(existing.payment_method === "card" && existing.payment_status === "failed")) {
+        return replayExistingOrder(res, existing);
+      }
+      if (existing) idempotencyKey = null;
+    }
+    if (idempotencyKey) insertRow.idempotency_key = idempotencyKey;
+
+    let { data: inserted, error: insErr } = await supabase
       .from("orders")
       .insert(insertRow)
       .select("id")
       .single();
+
+    if (insErr && idempotencyKey && toTrimmedString(insErr.code) === "23505") {
+      // Two identical attempts raced; the other one inserted first.
+      const existing = await findOrderByIdempotencyKey(idempotencyKey);
+      if (existing) return replayExistingOrder(res, existing);
+    }
+
+    if (insErr && isUnknownIdempotencyColumn(insErr)) {
+      // Code deployed before its migration: take the order without the key.
+      console.warn("[create-order] orders.idempotency_key missing — apply migration 20261009120000");
+      delete insertRow.idempotency_key;
+      ({ data: inserted, error: insErr } = await supabase.from("orders").insert(insertRow).select("id").single());
+    }
 
     if (insErr || !inserted?.id) {
       console.error("[create-order] DB insert failed:", insErr);
@@ -1175,8 +1221,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
     const orderId = toTrimmedString(inserted.id);
 
     if (payment_method === "cash") {
-      await bestEffortTelegramNotify(req, orderId);
-      void bestEffortPaymentsCreateSession(orderId, payment_method);
+      await notifyNewOrder(supabase, orderId);
 
       return json(res, 200, {
         ok: true,
@@ -1200,7 +1245,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
       transactionToken: transaction_token || null,
     });
 
-    const bankart = await startBankartDebit(req, orderId, bankartRequest);
+    const bankart = await startBankartDebit(orderId, bankartRequest);
 
     return json(res, 200, {
       ok: true,

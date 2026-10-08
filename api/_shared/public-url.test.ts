@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolvePublicBaseUrl, buildTelegramPayload } from "./public-url";
+import { resolvePublicBaseUrl } from "./public-url";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -105,24 +105,5 @@ describe("resolvePublicBaseUrl — final hardcoded fallback", () => {
   it("returns https://padrinobudva.com for empty headers object", () => {
     clearSiteEnv();
     expect(resolvePublicBaseUrl({})).toBe("https://padrinobudva.com");
-  });
-});
-
-describe("buildTelegramPayload", () => {
-  it("returns correct shape with notify_url suffix", () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "https://padrinobudva.com");
-    const result = buildTelegramPayload({}, "order-123");
-    expect(result).toEqual({
-      order_id: "order-123",
-      notify_url: "https://padrinobudva.com/api/telegram-new-order",
-    });
-  });
-
-  it("never points notify_url at the Origin header", () => {
-    clearSiteEnv();
-    const headers = { origin: "https://attacker.example.com", host: "padrinobudva.com" };
-    const result = buildTelegramPayload(headers, "order-789");
-    expect(result.notify_url).not.toContain("attacker");
-    expect(result.notify_url).toBe("https://padrinobudva.com/api/telegram-new-order");
   });
 });

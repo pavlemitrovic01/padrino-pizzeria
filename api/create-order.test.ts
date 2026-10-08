@@ -10,26 +10,40 @@ type Call = { table: string; op: string; payload?: unknown };
 const hoisted = vi.hoisted(() => {
   const tableResults: Record<string, SupabaseResult> = {};
   const calls: Call[] = [];
-  return { tableResults, calls };
+  // B24: answers for `.eq("idempotency_key", …)` lookups and for inserts, in
+  // order; when a queue is empty the table result above is used.
+  const idempotency = { lookups: [] as SupabaseResult[], inserts: [] as SupabaseResult[] };
+  return { tableResults, calls, idempotency };
 });
 
 vi.mock("@supabase/supabase-js", () => {
   function makeBuilder(table: string, result: SupabaseResult) {
     const builder: Record<string, unknown> = {};
     const chain = () => builder;
+    let byIdempotencyKey = false;
+    let inserting = false;
     builder.select = chain;
-    builder.eq = chain;
+    builder.eq = (col: string) => {
+      if (col === "idempotency_key") byIdempotencyKey = true;
+      return builder;
+    };
     builder.in = chain;
+    builder.is = chain;
     builder.insert = (...args: unknown[]) => {
       hoisted.calls.push({ table, op: "insert", payload: args[0] });
+      inserting = true;
       return builder;
     };
     builder.update = chain;
-    builder.single = () => Promise.resolve(result);
+    builder.single = () =>
+      Promise.resolve(inserting ? (hoisted.idempotency.inserts.shift() ?? result) : result);
     builder.then = (
       onF: (v: SupabaseResult) => unknown,
       onR?: (e: unknown) => unknown,
-    ) => Promise.resolve(result).then(onF, onR);
+    ) =>
+      Promise.resolve(
+        byIdempotencyKey ? (hoisted.idempotency.lookups.shift() ?? { data: [], error: null }) : result,
+      ).then(onF, onR);
     return builder;
   }
 
@@ -938,5 +952,123 @@ describe("create-order handler — delivery, status and currency are the server'
     expect(debit.amount).toBe("12.00");
     expect(debit.currency).toBe("EUR");
     expect(String(storedMeta()[0].note).split("\n")[0]).toBe("Plaćanje: Kartica");
+  });
+});
+
+describe("create-order handler — one checkout attempt is one order (B24)", () => {
+  const MENU = [{ id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 }];
+  const KEY = "3f1c9a52-7d4e-4b8a-9c21-5e6f7a8b9c0d";
+  const line = { cart_id: "c-1", menu_item_id: "pizza-50", name: "Kapričoza", size: "50", quantity: 1, price_per_item: 1600, addons: [] };
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.idempotency.lookups.length = 0;
+    hoisted.idempotency.inserts.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-new" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(makeReq(validBody({ items: [line], total_eur_cents: 1600, idempotency_key: KEY, ...extra })), c.res);
+    return c;
+  }
+
+  function inserts(): Record<string, unknown>[] {
+    return hoisted.calls.filter((x) => x.table === "orders" && x.op === "insert").map((x) => x.payload as Record<string, unknown>);
+  }
+
+  it("stores the attempt key with a new order", async () => {
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c).id).toBe("order-new");
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0].idempotency_key).toBe(KEY);
+  });
+
+  it("a repeated cash attempt gets the first order back — no second order, no second message", async () => {
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-first", payment_method: "cash", payment_status: null }], error: null });
+
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c)).toMatchObject({ ok: true, id: "order-first", flow: "cash", replayed: true });
+    expect(inserts()).toHaveLength(0);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("a repeated card attempt gets its Bankart redirect back, without a second debit", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+    hoisted.idempotency.lookups.push({
+      data: [
+        {
+          id: "order-card",
+          payment_method: "card",
+          payment_status: "pending",
+          payment_meta: { phase: "redirect", response: { redirectUrl: "https://pay.example/r" } },
+        },
+      ],
+      error: null,
+    });
+
+    const c = await submit({ payment_method: "card" });
+
+    expect(bodyOf(c)).toMatchObject({ id: "order-card", flow: "card_redirect", redirect_url: "https://pay.example/r" });
+    expect(inserts()).toHaveLength(0);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("a card attempt whose payment failed is not repeated — the retry is a new order", async () => {
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-failed", payment_method: "card", payment_status: "failed" }], error: null });
+
+    const c = await submit();
+
+    expect(bodyOf(c).id).toBe("order-new");
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0].idempotency_key).toBeUndefined();
+  });
+
+  it("two identical attempts racing: the loser answers with the winner's order", async () => {
+    hoisted.idempotency.lookups.push({ data: [], error: null });
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-winner", payment_method: "cash", payment_status: null }], error: null });
+    hoisted.idempotency.inserts.push({ data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } });
+
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c)).toMatchObject({ id: "order-winner", replayed: true });
+  });
+
+  it("before the migration (no column) the order is still taken, without the key", async () => {
+    hoisted.idempotency.lookups.push({ data: null, error: { code: "42703", message: "column orders.idempotency_key does not exist" } });
+    hoisted.idempotency.inserts.push({
+      data: null,
+      error: { code: "PGRST204", message: "Could not find the 'idempotency_key' column of 'orders' in the schema cache" },
+    });
+
+    const c = await submit();
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c).id).toBe("order-new");
+    expect(inserts()).toHaveLength(2);
+    expect(inserts()[1].idempotency_key).toBeUndefined();
+  });
+
+  it("ignores a key that is not a plausible random id", async () => {
+    const c = await submit({ idempotency_key: "short" });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserts()[0].idempotency_key).toBeUndefined();
   });
 });

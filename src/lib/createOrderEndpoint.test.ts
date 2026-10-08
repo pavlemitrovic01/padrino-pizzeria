@@ -32,6 +32,7 @@ vi.mock("@supabase/supabase-js", () => {
     builder.select = chain;
     builder.eq = chain;
     builder.in = chain;
+    builder.is = chain; // Telegram send claim (api/_shared/telegram.ts)
     builder.insert = chain;
     builder.update = chain;
     builder.single = () => Promise.resolve(result);
@@ -288,13 +289,14 @@ describe("create-order handler — B17: active free (zero-price) addon is valid"
   });
 });
 
-describe("create-order handler — B22: Origin never steers the server-side Telegram call (audit #5)", () => {
-  it("POSTs the notification to the Host domain, never to an attacker Origin", async () => {
+describe("create-order handler — Origin never steers a server-side call (B22 audit #5, B24)", () => {
+  it("sends the kitchen message straight to Telegram — no self-HTTP call an Origin could redirect", async () => {
     vi.stubEnv("PUBLIC_SITE_URL", "");
     vi.stubEnv("SITE_URL", "");
     vi.stubEnv("APP_URL", "");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
-    vi.stubEnv("TELEGRAM_WEBHOOK_SECRET", "secret-under-test");
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "test-bot-token");
+    vi.stubEnv("TELEGRAM_CHAT_ID", "test-chat-id");
     setMenuPrice("item-1", 1000);
 
     const captured = makeRes();
@@ -308,7 +310,7 @@ describe("create-order handler — B22: Origin never steers the server-side Tele
     expect(captured.statusCode).toBe(200);
     const fetchMock = vi.mocked(fetch);
     const urls = fetchMock.mock.calls.map((call) => String(call[0]));
-    expect(urls).toContain("https://padrinobudva.com/api/telegram-new-order");
+    expect(urls).toEqual(["https://api.telegram.org/bottest-bot-token/sendMessage"]);
     expect(urls.some((u) => u.includes("attacker.example"))).toBe(false);
 
     vi.unstubAllEnvs();
