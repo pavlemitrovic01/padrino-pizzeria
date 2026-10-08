@@ -5,6 +5,32 @@
 
 ---
 
+## B23d — 2026-10-08 — Server upisuje prikazne podatke reda iz menu_items — DONE
+
+**Tier:** STRICT
+**SHA:** d393d6d
+**Branch:** claude/wonderful-cray-5p9z2e (cloud sesija; fast-forward na `claude/vibrant-euler-oxmwb0` = B23b + B23c, pa B23d; merge u main radi Pavle)
+**Files (5):** +412/−3
+  - api/create-order.ts — LOCK ZONE. Novi `withMenuRowDisplay`: za svaki red koji nije meta upisuje `name` (ime reda bez „33/50 cm"), `size` (iz imena reda), `base_price`, `addons[].name` + `addons[].price` iz `menu_items` i `price_per_item` = osnova + `sumAddonsCents`. Meta redovi i `cart_id`/`quantity`/`note`/`image`/`category` ostaju klijentski. Primenjuje se samo na `insertRow.items`, posle `Total mismatch`; isti SELECT (`fetchMenuRows`), bez novog upita. Naplata, provere i odgovori nedirnuti.
+  - api/_shared/menu-display.ts — NEW. `pizzaSizeOfName` (ogledalo `parsePizzaSizeFromName`) i `displayNameOfMenuRow` (ogledalo `stripPizzaSizeFromName`) iz `src/lib/cartDrawerHelpers.ts`. Import sa `.js` (L6).
+  - api/_shared/menu-display.test.ts — NEW (6 testova): prod imena, velika slova/razmaci, piće/sos/ivice, 150/500 cm.
+  - api/create-order.test.ts — 9 testova handler-a nad sadržajem upisa: pošten red upisan identično; 33 cm sa `size:"50"` → „Diavolo"/"33"; besplatan dodatak preimenovan u ivice → „Kečap" 0; cene pomerene između redova (total isti) → serverske; količina dodatka u `price_per_item`; dva prod slučaja (Montenegro 50 bez `size`, „Bianco 33 cm"); piće bez veličine; meta + klijentska polja sačuvana; kartica (upis pre Bankart-a).
+  - src/lib/pricingParity.test.tsx — 13 testova: tabela imena server = klijent (ime + veličina) + pravi checkout (50 cm + ivice + Bbq i 33 cm) → upisani redovi = poslati redovi. Serverski mock `insert` beleži payload.
+**Verify:**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 21:16 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 25 fajlova / 391 test (+28 B23d; pre 363)
+  lint:      izmenjeni fajlovi `npx eslint` exit 0
+  repro:     pre izmene 6 B23d testova pada — upisuje se ono što je klijent poslao (`size:"50"` na 33 cm, „Ivice…" za 0 €, klijentske cene, Montenegro bez veličine, piće sa `size:"50"`, kartica); posle izmene prolaze. Mutacija helper-a („50 cm" se ne skida) → parity pada 4 testa.
+  preview:   Vercel READY za d393d6d (dpl_6qvfNxNr9huWSvM5eTvau4ToXZ13). Smoke nije moguć iz containera (*.vercel.app blokiran).
+  code-review:     NIJE POKRENUTO — preporučeno pre /close, Pavle: „može close".
+  security-review: NIJE POKRENUTO — preporučeno (money path), Pavle: „može close".
+  manual:    NIJE POKRENUTO — čeka merge u main. Prod: prva prava porudžbina → Telegram isti format („1x Diavolo (50)", dodaci po imenu) + SQL nad sledećim porudžbinama (`name`/`size`/imena dodataka/cene = `menu_items`); upisuje se posebnim workflow commit-om (presedan B23a).
+**SCOPE_DRIFT:** none — 5 fajlova = EXPECTED-FILES exact match (`git diff --name-only 62d60c3..HEAD`).
+**Notes:** Otvoreno iz B23c code review-a. Odluka (Pavle): prepisuju se ime, veličina, imena dodataka i cene redova; `category` ostaje klijentska (njena izmena šteti samo porudžbini samog kupca). Prod (SELECT, 120 dana): 746/747 redova isto ime + veličina, 525/525 imena dodataka, 747/747 kategorija. Razlike: „Bianco 33 cm" + 33 (kuhinja: „1x Bianco 33 cm (33)") i Montenegro 50 cm sa `size: null` (2026-06-23, „1x Montenegro" bez veličine) — oba sada ispravna. 16 razlika u cenama = kasnije promene cena u meniju (jun–avg), ne klijent. Prazno ime reda u meniju dalo bi prazno ime (Telegram „Proizvod") — na produ nema takvih redova. **Drift pri startu:** STATE na main-u je pokazivao „Sledeći: B23b", jer su B23b + B23c (i B22) samo na nemergovanim granama — prijavljeno, rešeno fast-forward-om na `claude/vibrant-euler-oxmwb0` (Pavle). Odstupanja od workflow-a (kao B23a–c): planirano kroz plan mode (STATE bez aktivnog batch-a, EXPECTED-FILES iz odobrenog plana); bez `batch/` grane; fix commit pre /close. LESSONS bez izmene (na cap-u 7). ROADMAP: nema reda za B23d (Faza S redovi postoje samo na nemergovanoj B22 grani) → preskočeno.
+
+---
+
 ## B23c — 2026-10-08 — Server naplaćuje svaki red koji kuhinja vidi — DONE
 
 **Tier:** STRICT

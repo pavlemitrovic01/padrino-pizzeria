@@ -13,6 +13,17 @@
 
 ---
 
+## Rotated at B23d close — 2026-10-08
+
+Moved verbatim from STATE.md by the 2-batch cap (B23d + B23c stay inline).
+
+- B23b (Serverska provera veličine ivica) — DONE 2026-10-08
+  (STRICT; 5 fajlova, +335/-7; SHA ddd8846; server odbija ivice koje ne odgovaraju
+  veličini pice — 400 `crust_size_mismatch` pre upisa i Bankart-a; veličina iz imena
+  reda u bazi, ne iz klijentskog `size`; parity test klijent↔server; čeka merge)
+
+---
+
 ## Rotated at B23c close — 2026-10-08
 
 Moved verbatim from STATE.md by the 2-batch cap (B23c + B23b stay inline).
