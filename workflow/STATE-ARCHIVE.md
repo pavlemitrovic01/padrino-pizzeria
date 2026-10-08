@@ -13,6 +13,19 @@
 
 ---
 
+## Rotated when B22 was merged into the B23 line — 2026-10-08
+
+B22 was closed on its own branch (`claude/keen-tesla-jprhog`) while B23a–B23d
+were closed on another; when the two lines were merged, STATE.md kept only the
+2 newest (B23d + B23c), so the B22 entry moves here verbatim.
+
+- B22 (Zaključavanje baze i tajni — Faza S) — DONE 2026-10-07
+  (STRICT; 12 fajlova, +249/-133; SHA 0c340dc; anon INSERT u orders zatvoren +
+  write grantovi revokovani na prodnoj bazi (SQL Editor); CHECK status/currency;
+  Origin se nikad ne koristi; Telegram endpoint fail-closed; NO FINDINGS security-review)
+
+---
+
 ## Rotated at B23d close — 2026-10-08
 
 Moved verbatim from STATE.md by the 2-batch cap (B23d + B23c stay inline).

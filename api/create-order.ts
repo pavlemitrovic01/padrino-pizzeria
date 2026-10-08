@@ -490,7 +490,7 @@ function safeTotalCentsFromBody(body: Record<string, unknown>): number {
 
 
 async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
-  const url = buildTelegramPayload(req.headers, orderId, { trustOriginHeader: true }).notify_url;
+  const url = buildTelegramPayload(req.headers, orderId).notify_url;
 
   const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -709,7 +709,7 @@ async function updateOrderPaymentState(
 }
 
 function buildBankartUrls(req: ReqLike, orderId: string) {
-  const base = resolvePublicBaseUrl(req.headers, { trustOriginHeader: true });
+  const base = resolvePublicBaseUrl(req.headers);
   const encoded = encodeURIComponent(orderId);
 
   return {

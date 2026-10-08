@@ -130,7 +130,7 @@ function safeJsonParse(text: string): unknown {
 
 
 async function bestEffortTelegramNotify(req: ReqLike, orderId: string) {
-  const url = buildTelegramPayload(req.headers, orderId, { trustOriginHeader: false }).notify_url;
+  const url = buildTelegramPayload(req.headers, orderId).notify_url;
 
   const secret = getEnv("TELEGRAM_WEBHOOK_SECRET");
   const headers: Record<string, string> = { "content-type": "application/json" };

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { isPlainObject, normalizeText, safeInt } from "./_shared/parsing.js";
 import { applyCors } from "./_shared/cors.js";
@@ -71,6 +72,13 @@ function headerStringCI(req: ReqLike, key: string): string {
     headerString(req, key.toLowerCase()) ||
     headerString(req, key.toUpperCase())
   );
+}
+
+function secretMatches(got: string, expected: string): boolean {
+  const left = Buffer.from(got, "utf8");
+  const right = Buffer.from(expected, "utf8");
+  if (left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
 }
 
 function json(res: ResLike, status: number, body: Json) {
@@ -384,13 +392,16 @@ export default async function handler(req: ReqLike, res: ResLike) {
   }
 
   try {
-    // optional secret guard
+    // Required secret guard (B22). Fails closed: without the env secret this
+    // endpoint would let anyone push any order — e.g. an unpaid card order —
+    // to the kitchen chat.
     const expected = getEnv("TELEGRAM_WEBHOOK_SECRET");
-    if (expected) {
-      const got = headerStringCI(req, "x-telegram-secret");
-      if (!got || got !== expected) {
-        return json(res, 401, { ok: false, error: "Unauthorized" });
-      }
+    if (!expected) {
+      console.error("telegram-new-order: TELEGRAM_WEBHOOK_SECRET is not set, refusing to send");
+      return json(res, 500, { ok: false, error: "Server misconfigured" });
+    }
+    if (!secretMatches(headerStringCI(req, "x-telegram-secret"), expected)) {
+      return json(res, 401, { ok: false, error: "Unauthorized" });
     }
 
     const body = isPlainObject(req.body) ? req.body : null;
