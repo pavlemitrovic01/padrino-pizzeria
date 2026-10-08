@@ -22,12 +22,12 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B23a — 50 cm + punjene ivice (Total mismatch) (2026-10-07, STRICT, SHA e7c907c + c6ab9c8, merged 413dc7c + pushed, migracija primenjena 2026-10-08, prod UI potvrđen). Prethodni: B21 — Brisanje pre-L8.4 inline cart-editing API-ja (2026-07-27, STANDARD, SHA e1f4ece, merged f4fb32d + pushed)
-**Sledeći:** B23a, otvoreno: prva prava porudžbina 50 cm + ivice — proveriti SQL-om (stavka sa addon ID-jem `45e0b0b6-c40c-4f3d-b911-a83d8a7bd053`) ili probnom gotovinskom porudžbinom u mirnom terminu (pa otkazati u adminu); UI na produ potvrđen, merge 413dc7c, migracija primenjena 2026-10-08. Sledeći batch kandidat: B23b — serverska provera da veličina ivica odgovara veličini pice (`api/create-order.ts`, lock zona; preostali rizik −2 € samo uz ručno menjanje zahteva). Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Ostali kandidati: React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom); sheet bira veličinu samo pri otvaranju (tap na picu pre učitavanja menija → 33 cm bez izbora veličine); slika `/extras/rub.webp` postojećeg reda ivica 33 cm ne postoji u repou (admin prikaz). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** B23a — 50 cm + punjene ivice (Total mismatch) (2026-10-07, STRICT, SHA e7c907c + c6ab9c8, merged 413dc7c + pushed, migracija primenjena 2026-10-08, prod potvrđen — UI + E2E porudžbina 2026-10-08). Prethodni: B21 — Brisanje pre-L8.4 inline cart-editing API-ja (2026-07-27, STANDARD, SHA e1f4ece, merged f4fb32d + pushed)
+**Sledeći:** B23b — serverska provera da veličina ivica odgovara veličini pice (`api/create-order.ts`, lock zona; preostali rizik −2 € samo uz ručno menjanje zahteva). Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Ostali kandidati: React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom); sheet bira veličinu samo pri otvaranju (tap na picu pre učitavanja menija → 33 cm bez izbora veličine); slika `/extras/rub.webp` postojećeg reda ivica 33 cm ne postoji u repou (admin prikaz). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
-**Faza progres:** sve faze i serije zaključno sa B23a — DONE (B23a: E2E porudžbina 50 cm + ivice još nije zabeležena).
+**Faza progres:** sve faze i serije zaključno sa B23a — DONE.
 Puna hronologija (batch po batch, sa datumima i napomenama) je premeštena u
 `workflow/STATE-ARCHIVE.md` pri B19 close-u (STATE.md je bio ~36KB, target ~8KB).
 Per-batch audit trail (verify gate-ovi, fajlovi, SHA) → `workflow/LOG.md`.
@@ -35,8 +35,8 @@ Per-batch audit trail (verify gate-ovi, fajlovi, SHA) → `workflow/LOG.md`.
 - B23a (50 cm + punjene ivice — Total mismatch) — DONE 2026-10-07
   (STRICT; 5 fajlova, +786/-57; SHA e7c907c + c6ab9c8; ivice po veličini kao poseban
   red u meniju, korpa više ne prepisuje cene; parity test kroz pravi checkout do
-  servera; merged 413dc7c; migracija primenjena 2026-10-08; prod UI potvrđen,
-  E2E porudžbina otvorena)
+  servera; merged 413dc7c; migracija primenjena 2026-10-08; prod potvrđen —
+  UI + E2E porudžbina)
 
 - B21 (Brisanje pre-L8.4 inline cart-editing API-ja) — DONE 2026-07-27
   (STANDARD; 6 fajlova, +3/-243; SHA e1f4ece; changeSize + 5 addon/note mutatora
