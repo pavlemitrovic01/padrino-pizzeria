@@ -7,6 +7,13 @@ import { isPlainObject, normalizeText, safeInt, safeNumber } from "./_shared/par
 import { isWithinBusinessHours, nowMinutesInPodgorica } from "./_shared/business-hours.js";
 import { crustSizeForItem, stuffedCrustSizeOf } from "./_shared/stuffed-crust.js";
 import { displayNameOfMenuRow, pizzaSizeOfName } from "./_shared/menu-display.js";
+import {
+  deliveryFeeCents,
+  findDeliveryZone,
+  findDeliveryZoneByLabel,
+  formatDeliveryFee,
+  type DeliveryZone,
+} from "./_shared/delivery-zones.js";
 import { applyCors } from "./_shared/cors.js";
 import {
   BANKART_FALLBACK_EMAIL,
@@ -202,104 +209,72 @@ function isPriceableItemRow(v: unknown): boolean {
   );
 }
 
-type Zone = {
-  id: string;
-  name: string;
-  fee_eur: number;
-  polygon: number[][];
-};
-
 type PricingRow = {
   id: string;
   name: string;
   price_eur_cents: number;
 };
 
-async function fetchZones(): Promise<Zone[]> {
-  const { data, error } = await supabase.from("delivery_zones").select("id,name,fee_eur,polygon");
-  if (error) throw new Error(`DB: zones fetch failed (${error.message})`);
+function metaNoteOf(meta: Record<string, unknown>): string {
+  return toTrimmedString(meta.order_note) || toTrimmedString(meta.note);
+}
 
-  const zones: Zone[] = [];
-  for (const row of Array.isArray(data) ? data : []) {
-    const id = toTrimmedString((row as Record<string, unknown>).id);
-    const name = toTrimmedString((row as Record<string, unknown>).name);
-    const fee = safeNumber((row as Record<string, unknown>).fee_eur, 0);
+// The two lines the cart writes into its note (CartDrawer): the payment and
+// "Zona: <label>, Dostava: <fee>".
+const CART_PAYMENT_LINE = /^pla[cć]anje\s*:\s*(gotovina|kartica)\s*$/i;
+const CART_ZONE_LINE = /^zona\s*:\s*([^,]*),\s*dostava\s*:.*$/i;
 
-    const polygonRaw = (row as Record<string, unknown>).polygon;
-    const polygon: number[][] = Array.isArray(polygonRaw)
-      ? (polygonRaw as unknown[]).map((pt) => {
-          if (!Array.isArray(pt) || pt.length < 2) return [0, 0];
-          return [safeNumber(pt[0], 0), safeNumber(pt[1], 0)];
-        })
-      : [];
-
-    if (!id || !name || polygon.length < 3) continue;
-    zones.push({ id, name, fee_eur: fee, polygon });
+/**
+ * The zone label from the cart's "Zona: …, Dostava: …" line. Only for carts
+ * loaded before B23e, which send no `delivery_zone` key; the label picks the
+ * zone, the fee still comes from the server's table.
+ */
+function zoneLabelFromNote(items: unknown[]): string {
+  const meta = items.find((it) => isMetaRow(it));
+  if (!isPlainObject(meta)) return "";
+  for (const line of metaNoteOf(meta).split(/\r?\n/)) {
+    const m = line.trim().match(CART_ZONE_LINE);
+    if (m) return m[1].trim();
   }
-
-  return zones;
+  return "";
 }
 
-function isPointInPolygon(point: [number, number], polygon: number[][]) {
-  const x = point[0];
-  const y = point[1];
+/**
+ * B23e: Telegram reads the order's payment, zone and delivery fee from the
+ * first note lines that carry them ("Plaćanje: …", "Zona: …", "Dostava: …";
+ * api/telegram-new-order.ts parseMetaFromNote). The customer's own text used to
+ * come first, so a note typed as "Plaćanje: Kartica" on a cash order told the
+ * driver it was paid. The server now stores a single meta row whose note starts
+ * with those lines, written from what it charged. Lines in the cart's own
+ * format are dropped (a copy of the server's, or a lie); any other text follows
+ * as the customer's note — Telegram reads only the first payment/zone/fee
+ * lines, so a "Dostava: 0" typed there shows as a note, never as the fee.
+ */
+function withServerMetaRow(items: unknown[], serverLines: string[]): unknown[] {
+  const meta = items.find((it) => isMetaRow(it));
+  const customerLines = isPlainObject(meta)
+    ? metaNoteOf(meta)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !CART_PAYMENT_LINE.test(line) && !CART_ZONE_LINE.test(line))
+    : [];
+  const note = [...serverLines, ...customerLines].join("\n");
 
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i][0];
-    const yi = polygon[i][1];
-    const xj = polygon[j][0];
-    const yj = polygon[j][1];
-
-    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi + 0.0) + xi;
-    if (intersect) inside = !inside;
-  }
-
-  return inside;
-}
-
-type LatLng = { lat: number; lng: number };
-
-function parseLatLngFromBody(body: Record<string, unknown>): LatLng | null {
-  const lat = body.lat ?? body.latitude ?? body.customer_lat ?? body.customerLat;
-  const lng = body.lng ?? body.longitude ?? body.customer_lng ?? body.customerLng;
-
-  const la = safeNumber(lat, Number.NaN);
-  const lo = safeNumber(lng, Number.NaN);
-
-  if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
-  if (la < -90 || la > 90 || lo < -180 || lo > 180) return null;
-
-  return { lat: la, lng: lo };
-}
-
-function appendMetaLine(existing: string, line: string): string {
-  const e = existing.trim();
-  const l = line.trim();
-  if (!l) return e;
-  if (!e) return l;
-
-  const existingLines = e.split(/\r?\n/).map((s) => s.trim());
-  if (existingLines.some((x) => normalizeText(x) === normalizeText(l))) return e;
-
-  return `${e}\n${l}`;
-}
-
-function withPaymentInMetaItems(rawItems: unknown[], payment: PaymentMethod): unknown[] {
-  const line = `Plaćanje: ${payment === "cash" ? "Gotovina" : "Kartica"}`;
-  const items = Array.isArray(rawItems) ? [...rawItems] : [];
-
-  const idx = items.findIndex((it) => isMetaRow(it));
-  if (idx === -1) return items;
-
-  const meta = items[idx];
-  if (!isPlainObject(meta)) return items;
-
-  const existing = toTrimmedString(meta.order_note) || toTrimmedString(meta.note);
-  const merged = appendMetaLine(existing, line);
-
-  items[idx] = { ...meta, order_note: merged, note: merged };
-  return items;
+  const metaRow = {
+    cart_id: "meta",
+    menu_item_id: null,
+    name: "META",
+    size: null,
+    quantity: 1,
+    base_price: null,
+    price_per_item: 0,
+    addons: [],
+    note,
+    order_note: note,
+    image: "",
+    category: "meta",
+  };
+  return [metaRow, ...items.filter((it) => !isMetaRow(it))];
 }
 
 type MenuRows = {
@@ -427,53 +402,6 @@ function withMenuRowDisplay(
       addons,
     };
   });
-}
-
-function getDeliveryFeeCentsFromMeta(
-  items: unknown[],
-  zones: Zone[],
-  point: LatLng | null,
-): { feeCents: number; zoneName: string } {
-  if (point) {
-    const pt: [number, number] = [point.lng, point.lat];
-    for (const z of zones) {
-      if (isPointInPolygon(pt, z.polygon)) {
-        return { feeCents: Math.round(z.fee_eur * 100), zoneName: z.name };
-      }
-    }
-  }
-
-  let metaNote = "";
-  for (const it of items) {
-    if (!isPlainObject(it)) continue;
-    if (!isMetaRow(it)) continue;
-
-    const n = toTrimmedString(it.order_note) || toTrimmedString(it.note);
-    if (n) metaNote = n;
-    break;
-  }
-
-  const lines = metaNote.split(/\r?\n/).map((s) => s.trim());
-  let feeEur: number | null = null;
-  let zoneName = "";
-
-  for (const line of lines) {
-    if (!zoneName) {
-      const mz = line.match(/Zona\s*:?\s*([^,\n\r]+)/i);
-      if (mz && typeof mz[1] === "string") zoneName = mz[1].trim();
-    }
-
-    if (feeEur == null) {
-      const mf = line.match(/Dostava\s*:?\s*([0-9]+(?:[.,][0-9]+)?)\s*€?/i);
-      if (mf && typeof mf[1] === "string") {
-        const v = Number(mf[1].replace(",", "."));
-        if (Number.isFinite(v) && v >= 0) feeEur = v;
-      }
-    }
-  }
-
-  if (feeEur != null) return { feeCents: Math.round(feeEur * 100), zoneName };
-  return { feeCents: 0, zoneName };
 }
 
 function safeTotalCentsFromBody(body: Record<string, unknown>): number {
@@ -1087,8 +1015,9 @@ export default async function handler(req: ReqLike, res: ResLike) {
 
     const rawItems: unknown[] = Array.isArray(body.items) ? body.items : [];
 
-    const currency = toTrimmedString(body.currency) || "EUR";
-    const status = toTrimmedString(body.status) || "pending";
+    // B23e: status and currency are the server's, whatever the request says
+    // (a cash order sent as "done" used to be stored as done).
+    const currency = "EUR";
 
     const pmRaw = toTrimmedString(body.payment_method) || toTrimmedString(body.paymentMethod);
     if (pmRaw && pmRaw !== "cash" && pmRaw !== "card") {
@@ -1111,6 +1040,18 @@ export default async function handler(req: ReqLike, res: ResLike) {
       }
     }
 
+    const zoneKey = toTrimmedString(body.delivery_zone);
+    const zone: DeliveryZone | null = zoneKey
+      ? findDeliveryZone(zoneKey)
+      : findDeliveryZoneByLabel(zoneLabelFromNote(rawItems));
+    if (!zone) {
+      return json(res, 400, {
+        ok: false,
+        code: "invalid_delivery_zone",
+        error: "Izaberi zonu dostave i pokušaj ponovo.",
+      });
+    }
+
     const hours = await checkOrdersOpen();
     if (!hours.open) {
       const suffix = hours.hoursDisplay ? ` Radno vrijeme: ${hours.hoursDisplay}.` : "";
@@ -1125,11 +1066,9 @@ export default async function handler(req: ReqLike, res: ResLike) {
       getBankartConfig();
     }
 
-    const itemsForInsert = withPaymentInMetaItems(rawItems, payment_method);
-
     // Every row that is not meta is priced from menu_items — price_per_item is
     // the client's own figure and never decides whether a row is charged.
-    const calcItems = itemsForInsert.filter(
+    const calcItems = rawItems.filter(
       (it): it is Record<string, unknown> => isPlainObject(it) && !isMetaRow(it),
     );
 
@@ -1182,22 +1121,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return json(res, 400, { ok: false, error: "Invalid calculated subtotal" });
     }
 
-    const point = parseLatLngFromBody(body);
-
-    let zones: Zone[] = [];
-    if (point) {
-      try {
-        zones = await fetchZones();
-      } catch {
-        zones = [];
-      }
-    }
-
-    const delivery = getDeliveryFeeCentsFromMeta(itemsForInsert, zones, point);
-
-    const computedTotalCents = subtotal_eur_cents + Math.max(0, delivery.feeCents);
-    // A non-finite total is stored as NULL (Telegram: "Ukupno: 0,00 €"); the
-    // delivery fee is read from the client's note, so it is checked here too.
+    // B23e: the fee comes from the server's zone table and the subtotal it
+    // priced — never from the client's note.
+    const feeCents = deliveryFeeCents(zone, subtotal_eur_cents);
+    const computedTotalCents = subtotal_eur_cents + feeCents;
+    // A non-finite total is stored as NULL (Telegram: "Ukupno: 0,00 €").
     if (!Number.isSafeInteger(computedTotalCents)) {
       return json(res, 400, { ok: false, error: "Invalid calculated total" });
     }
@@ -1211,8 +1139,11 @@ export default async function handler(req: ReqLike, res: ResLike) {
       customer_name,
       customer_phone,
       customer_address,
-      items: withMenuRowDisplay(itemsForInsert, priceMap, menuNames),
-      status: payment_method === "card" ? "pending" : status,
+      items: withServerMetaRow(withMenuRowDisplay(rawItems, priceMap, menuNames), [
+        `Plaćanje: ${payment_method === "cash" ? "Gotovina" : "Kartica"}`,
+        `Zona: ${zone.label}, Dostava: ${formatDeliveryFee(feeCents)}`,
+      ]),
+      status: "pending",
       currency,
       total_eur_cents: computedTotalCents,
       payment_method,

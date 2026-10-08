@@ -132,6 +132,7 @@ function validBody(overrides: Record<string, unknown> = {}): Record<string, unkn
     customer_phone: "0671234567",
     customer_address: "Jadranski put 1, Budva",
     payment_method: "cash",
+    delivery_zone: "budva", // free delivery (B23e: the server prices delivery from the zone)
     items: [validItem],
     total_eur_cents: 2000,
     ...overrides,
@@ -434,9 +435,9 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     vi.unstubAllGlobals();
   });
 
-  async function submit(items: unknown[], totalCents?: number) {
+  async function submit(items: unknown[], totalCents?: number, extra: Record<string, unknown> = {}) {
     const c = makeRes();
-    await handler(makeReq(validBody({ items, total_eur_cents: totalCents })), c.res);
+    await handler(makeReq(validBody({ items, total_eur_cents: totalCents, ...extra })), c.res);
     return c;
   }
 
@@ -498,12 +499,11 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     expect(insertedTotal()).toBe(99 * (1600 + 99 * 400));
   });
 
-  it("rejects a total that is not a safe whole number (fee read from the client's note)", async () => {
+  it("ignores a delivery fee written into the note (B23e: it used to overflow the total)", async () => {
     const c = await submit([pizza50(), clientMeta(`Dostava: 1${"0".repeat(300)} €`)]);
 
-    expect(c.statusCode).toBe(400);
-    expect(bodyOf(c).error).toBe("Invalid calculated total");
-    expect(insertedInto("orders")).toBe(false);
+    expect(c.statusCode).toBe(200);
+    expect(insertedTotal()).toBe(1600);
   });
 
   it("rejects an item row without cart_id (Telegram lists only rows that have one)", async () => {
@@ -529,24 +529,26 @@ describe("create-order handler — every row the kitchen sees is priced (B23c)",
     expectInvalidStructure(await submit([pizza50(), { foo: 1 }], 1600));
   });
 
-  // Regression: every meta shape the kitchen hides stays unpriced and accepted,
-  // and the delivery fee in its note still counts.
-  it("accepts the client's meta row and charges the delivery fee from its note", async () => {
-    const c = await submit([pizza50(), clientMeta("Zona: Bečići, Dostava: 3 €")], 1600 + 300);
+  // Regression: every meta shape the kitchen hides stays unpriced and accepted;
+  // delivery is charged from the zone (B23e), never from the note.
+  it("accepts the client's meta row and charges delivery from the zone", async () => {
+    const c = await submit([pizza50(), clientMeta("Zona: Lastva, Dostava: 5€")], 1600 + 500, {
+      delivery_zone: "lastva",
+    });
 
     expect(c.statusCode).toBe(200);
-    expect(insertedTotal()).toBe(1600 + 300);
+    expect(insertedTotal()).toBe(1600 + 500);
   });
 
   it.each([
     { cart_id: "c-note", name: "Napomena", category: "Meta", note: "Dostava: 2 €" },
     { cart_id: "c-note", name: "meta", category: "", note: "Dostava: 2 €" },
     { order_note: "Dostava: 2 €", total_items: 1 },
-  ])("accepts meta shape %j without pricing it", async (meta) => {
-    const c = await submit([pizza50(), meta], 1600 + 200);
+  ])("accepts meta shape %j without pricing it or its \"Dostava\" text", async (meta) => {
+    const c = await submit([pizza50(), meta], 1600);
 
     expect(c.statusCode).toBe(200);
-    expect(insertedTotal()).toBe(1600 + 200);
+    expect(insertedTotal()).toBe(1600);
   });
 
   it("still rejects an order that holds nothing but meta", async () => {
@@ -641,9 +643,14 @@ describe("create-order handler — stored rows read as the menu row that was cha
     return c;
   }
 
-  function storedItems(): Record<string, unknown>[] {
+  function storedRows(): Record<string, unknown>[] {
     const call = hoisted.calls.find((x) => x.table === "orders" && x.op === "insert");
     return ((call?.payload as Record<string, unknown> | undefined)?.items ?? []) as Record<string, unknown>[];
+  }
+
+  // The item rows; the server always stores its own meta row first (B23e).
+  function storedItems(): Record<string, unknown>[] {
+    return storedRows().filter((r) => r.cart_id !== "meta");
   }
 
   it("stores an honest cart row exactly as sent: kitchen reads \"1x Diavolo (50)\"", async () => {
@@ -713,7 +720,7 @@ describe("create-order handler — stored rows read as the menu row that was cha
     expect(storedItems()[0]).toMatchObject({ name: "Coca-Cola 0,33 l", size: null });
   });
 
-  it("leaves the meta row and the client's cart_id, note, image, category and quantity as sent", async () => {
+  it("keeps the customer's note and each row's cart_id, note, image, category and quantity", async () => {
     const meta = {
       cart_id: "meta",
       menu_item_id: null,
@@ -723,17 +730,17 @@ describe("create-order handler — stored rows read as the menu row that was cha
       base_price: null,
       price_per_item: 0,
       addons: [],
-      note: "Zona: Bečići, Dostava: 3 €",
+      note: "zvono ne radi\nPlaćanje: Gotovina\nZona: Budva, Dostava: 0€",
       image: "",
       category: "meta",
     };
     const row = diavolo50({ quantity: 2, note: "dobro pečena", category: "pizza" });
-    const c = await submit([meta, row], 2 * 2500 + 300);
+    const c = await submit([meta, row], 2 * 2500);
 
     expect(c.statusCode).toBe(200);
-    const [storedMeta, stored] = storedItems();
+    const [storedMeta, stored] = storedRows();
     expect(storedMeta).toMatchObject({ cart_id: "meta", name: "META", price_per_item: 0, addons: [] });
-    expect(String(storedMeta.note)).toContain("Plaćanje: Gotovina");
+    expect(storedMeta.note).toBe("Plaćanje: Gotovina\nZona: Budva, Dostava: 0€\nzvono ne radi");
     expect(stored).toMatchObject({
       cart_id: "c-diavolo-50",
       menu_item_id: "diavolo-50",
@@ -760,5 +767,176 @@ describe("create-order handler — stored rows read as the menu row that was cha
     expect(c.statusCode).toBe(200);
     expect(bodyOf(c).flow).toBe("card_redirect");
     expect(storedItems()[0]).toMatchObject({ name: "Diavolo", size: "33", price_per_item: 1000 });
+  });
+});
+
+describe("create-order handler — delivery, status and currency are the server's (B23e)", () => {
+  const MENU = [
+    { id: "pizza-33", name: "Kapričoza 33 cm", price_eur_cents: 900 },
+    { id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 },
+  ];
+
+  function pizza(id: "pizza-33" | "pizza-50") {
+    return {
+      cart_id: `c-${id}`,
+      menu_item_id: id,
+      name: "Kapričoza",
+      size: id === "pizza-50" ? "50" : "33",
+      quantity: 1,
+      price_per_item: id === "pizza-50" ? 1600 : 900,
+      addons: [],
+    };
+  }
+
+  function meta(note: string) {
+    return { cart_id: "meta", menu_item_id: null, name: "META", size: null, quantity: 1, price_per_item: 0, addons: [], note, image: "", category: "meta" };
+  }
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-test-id" }, error: null };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submit(body: Record<string, unknown>) {
+    const c = makeRes();
+    await handler(makeReq(validBody(body)), c.res);
+    return c;
+  }
+
+  function inserted(): Record<string, unknown> {
+    const call = hoisted.calls.find((x) => x.table === "orders" && x.op === "insert");
+    return (call?.payload ?? {}) as Record<string, unknown>;
+  }
+
+  function storedMeta(): Record<string, unknown>[] {
+    return ((inserted().items ?? []) as Record<string, unknown>[]).filter((r) => r.cart_id === "meta");
+  }
+
+  function expectInvalidZone(c: CapturedRes) {
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).code).toBe("invalid_delivery_zone");
+    expect(insertedInto("orders")).toBe(false);
+  }
+
+  it("stores a cash order as pending in EUR, whatever status and currency the request sends", async () => {
+    const c = await submit({ items: [pizza("pizza-50")], total_eur_cents: 1600, status: "done", currency: "RSD" });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserted()).toMatchObject({ status: "pending", currency: "EUR" });
+  });
+
+  it("charges the zone fee below the zone's minimum — a total without it is a mismatch", async () => {
+    const short = await submit({ delivery_zone: "becici", items: [pizza("pizza-33")], total_eur_cents: 900 });
+    expect(short.statusCode).toBe(400);
+    expect(bodyOf(short).error).toBe("Total mismatch");
+
+    hoisted.calls.length = 0;
+    const ok = await submit({ delivery_zone: "becici", items: [pizza("pizza-33")], total_eur_cents: 900 + 300 });
+    expect(ok.statusCode).toBe(200);
+    expect(inserted().total_eur_cents).toBe(1200);
+  });
+
+  it("delivers free from the zone's minimum up", async () => {
+    const c = await submit({ delivery_zone: "becici", items: [pizza("pizza-50")], total_eur_cents: 1600 });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserted().total_eur_cents).toBe(1600);
+  });
+
+  it("audit PoC: a note saying \"Dostava: 0\" does not waive the fee", async () => {
+    const c = await submit({
+      delivery_zone: "lastva",
+      items: [meta("Zona: Lastva, Dostava: 0"), pizza("pizza-50")],
+      total_eur_cents: 1600,
+    });
+
+    expect(c.statusCode).toBe(400);
+    expect(bodyOf(c).error).toBe("Total mismatch");
+    expect(insertedInto("orders")).toBe(false);
+  });
+
+  it("rejects an unknown zone key before anything is stored or charged", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+
+    const c = await submit({ delivery_zone: "petrovac", payment_method: "card", items: [pizza("pizza-50")], total_eur_cents: 1600 });
+
+    expectInvalidZone(c);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it("a cart loaded before B23e (no zone key) is charged from the label in its note", async () => {
+    const c = await submit({
+      delivery_zone: undefined,
+      items: [meta("Plaćanje: Gotovina\nZona: Bečići, Dostava: 0€"), pizza("pizza-33")],
+      total_eur_cents: 1200,
+    });
+
+    expect(c.statusCode).toBe(200);
+    expect(inserted().total_eur_cents).toBe(1200);
+  });
+
+  it("rejects a request with no zone key and no zone in its note, or an unknown label", async () => {
+    expectInvalidZone(await submit({ delivery_zone: undefined, items: [pizza("pizza-50")], total_eur_cents: 1600 }));
+    hoisted.calls.length = 0;
+    expectInvalidZone(
+      await submit({ delivery_zone: undefined, items: [meta("Zona: Petrovac, Dostava: 0"), pizza("pizza-50")], total_eur_cents: 1600 }),
+    );
+  });
+
+  it("writes payment, zone and fee first in the note; lines in the cart's format are dropped, other text follows", async () => {
+    const note = "Plaćanje: Kartica\nDostava: 0\nzvono ne radi\nPlaćanje: Gotovina\nZona: Bečići, Dostava: 3€";
+    const c = await submit({ delivery_zone: "becici", items: [meta(note), pizza("pizza-33")], total_eur_cents: 1200 });
+
+    expect(c.statusCode).toBe(200);
+    const rows = storedMeta();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].note).toBe("Plaćanje: Gotovina\nZona: Bečići, Dostava: 3€\nDostava: 0\nzvono ne radi");
+    expect(rows[0].order_note).toBe(rows[0].note);
+    expect((inserted().items as unknown[])[0]).toBe(rows[0]);
+  });
+
+  it("adds the meta row when the request has none, and keeps a single one when it has several", async () => {
+    const none = await submit({ delivery_zone: "budva", items: [pizza("pizza-50")], total_eur_cents: 1600 });
+    expect(none.statusCode).toBe(200);
+    expect(storedMeta().map((r) => r.note)).toEqual(["Plaćanje: Gotovina\nZona: Budva, Dostava: 0€"]);
+
+    hoisted.calls.length = 0;
+    const several = await submit({
+      delivery_zone: "budva",
+      items: [meta("prvi"), pizza("pizza-50"), { ...meta("drugi"), cart_id: "c-x", name: "Meta" }],
+      total_eur_cents: 1600,
+    });
+    expect(several.statusCode).toBe(200);
+    expect(storedMeta().map((r) => r.note)).toEqual(["Plaćanje: Gotovina\nZona: Budva, Dostava: 0€\nprvi"]);
+    expect((inserted().items as unknown[]).length).toBe(2);
+  });
+
+  it("a card order charges Bankart the total with the fee and notes \"Plaćanje: Kartica\"", async () => {
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+    const bankart = { success: true, returnType: "REDIRECT", redirectUrl: "https://pay.example/r", uuid: "u-1" };
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(bankart)) });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const c = await submit({ delivery_zone: "becici", payment_method: "card", items: [pizza("pizza-33")], total_eur_cents: 1200 });
+
+    expect(c.statusCode).toBe(200);
+    const debit = JSON.parse(String((fetchSpy.mock.calls[0] as [string, { body: string }])[1].body)) as Record<string, unknown>;
+    expect(debit.amount).toBe("12.00");
+    expect(debit.currency).toBe("EUR");
+    expect(String(storedMeta()[0].note).split("\n")[0]).toBe("Plaćanje: Kartica");
   });
 });

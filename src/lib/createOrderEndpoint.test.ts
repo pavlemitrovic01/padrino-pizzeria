@@ -105,6 +105,7 @@ function validBody(overrides: Partial<Body> = {}): Body {
     customer_phone: "0671234567",
     customer_address: "Jadranski put 1, Budva",
     payment_method: "cash",
+    delivery_zone: "budva", // free delivery (B23e: the server prices delivery from the zone)
     items: [validItem],
     total_eur_cents: 2000, // 2 x 1000
     ...overrides,

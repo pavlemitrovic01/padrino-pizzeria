@@ -267,3 +267,43 @@ describe("telegram-new-order — required secret (B22)", () => {
     expect(fetchCount).toBe(1);
   });
 });
+
+describe("telegram-new-order — payment and delivery come from the server's note lines (B23e)", () => {
+  beforeEach(() => {
+    hoisted.state.orders = {};
+    hoisted.state.forceClaimError = false;
+    process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
+    process.env.TELEGRAM_CHAT_ID = "test-chat-id";
+    process.env.TELEGRAM_WEBHOOK_SECRET = TEST_SECRET;
+    installFetch();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the server's payment and fee even when the customer's note claims otherwise", async () => {
+    seedOrder("order-note");
+    // The meta row exactly as api/create-order.ts now stores it.
+    hoisted.state.orders["order-note"].items = [
+      {
+        cart_id: "meta",
+        name: "META",
+        category: "meta",
+        note: "Plaćanje: Gotovina\nZona: Bečići, Dostava: 3€\nDostava: 0\nzvono ne radi",
+      },
+      { cart_id: "c1", name: "Margarita", category: "pizza", quantity: 1 },
+    ];
+
+    const res = buildRes();
+    await handler(buildReq({ order_id: "order-note" }) as never, res as never);
+
+    expect(res.statusCode).toBe(200);
+    const [, init] = vi.mocked(globalThis.fetch).mock.calls[0] as [string, { body: string }];
+    const text = String((JSON.parse(init.body) as { text: string }).text);
+    expect(text).toContain("💵 Plaćanje: Gotovina");
+    expect(text).toContain("📍 Zona: Bečići");
+    expect(text).toContain("🚚 Dostava: 3 €");
+    expect(text).toContain("🚨 ● NAPOMENA: Dostava: 0\nzvono ne radi");
+  });
+});

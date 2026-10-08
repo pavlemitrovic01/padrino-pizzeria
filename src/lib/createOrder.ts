@@ -52,6 +52,9 @@ export type CreateOrderPayload = {
 
   note?: string | null;
 
+  // ključ zone iz DELIVERY_ZONES — server iz njega računa dostavu (B23e)
+  delivery_zone?: string | null;
+
   // checkout state (opciono)
   payment_method?: PaymentMethod;
 };
@@ -164,6 +167,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   const billing_postcode = normalizeOptionalString(payload.billing_postcode);
   const cardholder = normalizeOptionalString(payload.cardholder);
   const transaction_token = normalizeOptionalString(payload.transaction_token);
+  const delivery_zone = normalizeOptionalString(payload.delivery_zone);
 
   if (!customer_name || !customer_phone || !customer_address) {
     throw new Error("Unesite ime, telefon i adresu.");
@@ -273,6 +277,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   if (billing_postcode) apiBody.billing_postcode = billing_postcode;
   if (cardholder) apiBody.cardholder = cardholder;
   if (transaction_token) apiBody.transaction_token = transaction_token;
+  if (delivery_zone) apiBody.delivery_zone = delivery_zone;
 
   const base = getApiBase().replace(/\/+$/, "");
   const url = `${base}/create-order`;
