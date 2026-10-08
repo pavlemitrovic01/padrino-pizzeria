@@ -9,6 +9,7 @@
  * the amount the server charged.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isPlainObject } from "./parsing.js";
 
 export type DebitOutcome = "ok" | "error" | "pending";
@@ -77,4 +78,24 @@ export function amountMismatchNote(reported: { amount?: unknown; currency?: unkn
     reported_currency: isPlainObject(reported) ? reported.currency ?? null : null,
     flagged_at: new Date().toISOString(),
   };
+}
+
+/**
+ * Writes `patch` only if the order's payment_status is still the one the
+ * caller decided from (compare-and-set). The callback, the status poll and
+ * create-order can all write the same order at once; without this a writer
+ * that read "pending" could overwrite another's "paid" (B24 review). Returns
+ * false when someone else changed it first — re-read and decide again.
+ */
+export async function writeIfPaymentStatusUnchanged(
+  supabase: SupabaseClient,
+  orderId: string,
+  readStatus: string | null,
+  patch: Record<string, unknown>,
+): Promise<boolean> {
+  const base = supabase.from("orders").update(patch).eq("id", orderId);
+  const guarded = readStatus === null ? base.is("payment_status", null) : base.eq("payment_status", readStatus);
+  const { data, error } = await guarded.select("id");
+  if (error) throw new Error(`DB payment update failed (${error.message})`);
+  return Array.isArray(data) && data.length > 0;
 }

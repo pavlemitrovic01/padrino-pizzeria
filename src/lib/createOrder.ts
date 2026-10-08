@@ -165,8 +165,36 @@ function getResultRedirectUrl(body: Record<string, unknown>): string | null {
  * the first order instead of making a second one. Any change to the order, or
  * a success, starts a new attempt. The card token is new on every tap, so it
  * is not part of what makes two attempts "the same".
+ *
+ * Kept in sessionStorage as well as memory, so a customer who reloads the tab
+ * mid-checkout and sends the same order again still gets the first one back.
  */
+const ATTEMPT_STORAGE_KEY = "padrino:order-attempt";
 let lastAttempt: { signature: string; key: string } | null = null;
+
+function readStoredAttempt(): { signature: string; key: string } | null {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(ATTEMPT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (isRecord(parsed) && typeof parsed.signature === "string" && typeof parsed.key === "string") {
+      return { signature: parsed.signature, key: parsed.key };
+    }
+  } catch {
+    // storage unavailable (private mode, blocked) — memory only
+  }
+  return null;
+}
+
+function storeAttempt(attempt: { signature: string; key: string } | null): void {
+  lastAttempt = attempt;
+  try {
+    if (attempt) globalThis.sessionStorage?.setItem(ATTEMPT_STORAGE_KEY, JSON.stringify(attempt));
+    else globalThis.sessionStorage?.removeItem(ATTEMPT_STORAGE_KEY);
+  } catch {
+    // storage unavailable — memory only
+  }
+}
 
 function newAttemptKey(): string {
   try {
@@ -182,10 +210,14 @@ function attemptKeyFor(apiBody: Record<string, unknown>): string {
   const { transaction_token: _token, ...rest } = apiBody;
   void _token;
   const signature = JSON.stringify(rest);
-  if (!lastAttempt || lastAttempt.signature !== signature) {
-    lastAttempt = { signature, key: newAttemptKey() };
+  const known = lastAttempt ?? readStoredAttempt();
+  if (known && known.signature === signature) {
+    lastAttempt = known;
+    return known.key;
   }
-  return lastAttempt.key;
+  const next = { signature, key: newAttemptKey() };
+  storeAttempt(next);
+  return next.key;
 }
 
 export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
@@ -340,7 +372,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreateOr
   }
 
   // The order exists: the next order, even an identical one, is a new attempt.
-  lastAttempt = null;
+  storeAttempt(null);
 
   return {
     success: true,

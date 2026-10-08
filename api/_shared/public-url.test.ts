@@ -83,9 +83,11 @@ describe("resolvePublicBaseUrl — Host fallback", () => {
     expect(resolvePublicBaseUrl({ host: "LocalHost:5173" })).toBe("https://localhost:5173");
   });
 
-  it("accepts the header key case-insensitively", () => {
+  it("reads the host header in lower or upper case (Node lowercases incoming names)", () => {
     clearSiteEnv();
-    expect(resolvePublicBaseUrl({ Host: "padrinobudva.com" })).toBe("https://padrinobudva.com");
+    // A non-default host, so a miss (falling back to padrinobudva.com) would fail.
+    expect(resolvePublicBaseUrl({ host: "preview.example.app" })).toBe("https://preview.example.app");
+    expect(resolvePublicBaseUrl({ HOST: "preview.example.app" })).toBe("https://preview.example.app");
   });
 
   it("rejects a malformed Host (path, userinfo, scheme) and uses the default", () => {

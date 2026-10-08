@@ -251,16 +251,11 @@ async function handleImageUpload(
   res: ResLike,
 ) {
   const fileName = toTrimmedString(body.fileName);
-  const declaredType = toTrimmedString(body.contentType).toLowerCase();
   const base64 = toTrimmedString(body.base64);
   const itemName = toTrimmedString(body.itemName);
 
   if (!base64) {
     return json(res, 400, { ok: false, error: "Image payload is required" });
-  }
-
-  if (!declaredType || !declaredType.startsWith("image/")) {
-    return json(res, 400, { ok: false, error: "Only image uploads are allowed" });
   }
 
   const bytes = decodeBase64Payload(base64);

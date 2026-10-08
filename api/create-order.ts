@@ -20,7 +20,7 @@ import {
 import { buildSupabaseAdmin, getEnv } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
 import { isMetaRow, isPriceableItemRow, zoneLabelFromNote, withServerMetaRow, fetchMenuRows, findCrustSizeMismatch, sumAddonsCents, findMissingMenuItemIds, withMenuRowDisplay, safeTotalCentsFromBody } from "./_shared/order-items.js";
-import { getBankartConfig, bankartMetaSnapshot, buildBankartDebitRequest, startBankartDebit } from "./_shared/bankart-debit.js";
+import { BankartInitError, getBankartConfig, bankartMetaSnapshot, buildBankartDebitRequest, startBankartDebit } from "./_shared/bankart-debit.js";
 
 type PaymentMethod = "cash" | "card";
 
@@ -90,11 +90,9 @@ function getRatelimit(): Ratelimit | null {
  * Sanitizes errors returned to the browser client. Never relays raw
  * Bankart/network/DB error text — those go to server logs only.
  *
- * NOTE: kind="payment_init" routing in the handler depends on the substring
- * "bankart" in err.message. Every throw in startBankartDebit
- * (api/_shared/bankart-debit.ts) uses a "Bankart" prefix. If a future refactor
- * drops the prefix, replace this heuristic with a custom BankartInitError
- * class (B11.1).
+ * kind="payment_init" is chosen for a BankartInitError (every throw in
+ * api/_shared/bankart-debit.ts, a card decline included) and, as before, for
+ * any error mentioning "bankart".
  */
 export function clientSafeError(
   _err: unknown,
@@ -164,6 +162,19 @@ function isUnknownIdempotencyColumn(err: { code?: unknown; message?: unknown } |
   return (code === "PGRST204" || code === "42703") && message.includes("idempotency_key");
 }
 
+/**
+ * A failed card attempt is not repeated: its key moves to the retry, so a
+ * later lost response of the retry is still deduplicated.
+ */
+async function releaseIdempotencyKey(orderId: string, key: string): Promise<void> {
+  const { error } = await supabase
+    .from("orders")
+    .update({ idempotency_key: null })
+    .eq("id", orderId)
+    .eq("idempotency_key", key);
+  if (error) console.warn("[create-order] could not release idempotency key:", error.message);
+}
+
 /** The response the first attempt gave (or would give now), for a repeated key. */
 function replayExistingOrder(res: ResLike, existing: ExistingOrder) {
   const id = existing.id;
@@ -173,6 +184,16 @@ function replayExistingOrder(res: ResLike, existing: ExistingOrder) {
 
   if (existing.payment_status === "paid") {
     return json(res, 200, { ...base, payment_method: "card", payment_status: "paid", flow: "card_paid" });
+  }
+
+  if (existing.payment_status && existing.payment_status !== "pending") {
+    // failed / refunded / cancelled: never report it as a pending payment.
+    return json(res, 409, {
+      ok: false,
+      code: "payment_not_completed",
+      id,
+      error: "Plaćanje za ovu porudžbinu nije uspelo. Pokušaj ponovo ili izaberi plaćanje pouzećem.",
+    });
   }
 
   const meta = isPlainObject(existing.payment_meta) ? existing.payment_meta : {};
@@ -310,6 +331,21 @@ export default async function handler(req: ReqLike, res: ResLike) {
       });
     }
 
+    // B24: a repeated attempt gets its first order back — checked before the
+    // business hours and the menu, so a retry after closing time (or after a
+    // price change) still answers with the order that was placed. A card
+    // attempt whose payment failed is not repeated: the retry is a new order
+    // and takes over the key.
+    const idempotencyKey = idempotencyKeyFrom(body);
+    if (idempotencyKey) {
+      const existing = await findOrderByIdempotencyKey(idempotencyKey);
+      if (existing && existing.payment_method === "card" && existing.payment_status === "failed") {
+        await releaseIdempotencyKey(existing.id, idempotencyKey);
+      } else if (existing) {
+        return replayExistingOrder(res, existing);
+      }
+    }
+
     const hours = await checkOrdersOpen();
     if (!hours.open) {
       const suffix = hours.hoursDisplay ? ` Radno vrijeme: ${hours.hoursDisplay}.` : "";
@@ -419,16 +455,6 @@ export default async function handler(req: ReqLike, res: ResLike) {
           : null,
     };
 
-    // B24: a repeated attempt gets its first order back. A card attempt whose
-    // payment already failed is not repeated — the retry is a new order.
-    let idempotencyKey = idempotencyKeyFrom(body);
-    if (idempotencyKey) {
-      const existing = await findOrderByIdempotencyKey(idempotencyKey);
-      if (existing && !(existing.payment_method === "card" && existing.payment_status === "failed")) {
-        return replayExistingOrder(res, existing);
-      }
-      if (existing) idempotencyKey = null;
-    }
     if (idempotencyKey) insertRow.idempotency_key = idempotencyKey;
 
     let { data: inserted, error: insErr } = await supabase
@@ -503,7 +529,7 @@ export default async function handler(req: ReqLike, res: ResLike) {
   } catch (err: unknown) {
     console.error("[create-order] order creation failed:", err);
     const kind: "order_create" | "payment_init" =
-      err instanceof Error && err.message.toLowerCase().includes("bankart")
+      err instanceof BankartInitError || (err instanceof Error && err.message.toLowerCase().includes("bankart"))
         ? "payment_init"
         : "order_create";
     return json(res, 500, { ok: false, error: clientSafeError(err, kind) });

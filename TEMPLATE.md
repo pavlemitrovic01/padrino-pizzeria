@@ -54,7 +54,7 @@ Ovi moduli sadrže pattern, ne vrednosti. Pri kloniranju preuzmi ih as-is.
 | CORS env-driven allowlist | `api/_shared/cors.ts` | `applyCors()` + VERCEL_URL preview auto-allow (I2) |
 | Admin auth + membership | `api/_shared/admin-auth.ts` | Bearer token + `admin_users` DB lookup (B10) |
 | Parsing utils (api/) | `api/_shared/parsing.ts` | `isPlainObject`, `safeInt`, `safeNumber`, `normalizeText` |
-| Public URL resolver | `api/_shared/public-url.ts` | `trustOriginHeader=false` security lock (B8) |
+| Public URL resolver | `api/_shared/public-url.ts` | Origin se nikad ne koristi: env → Host → default (B22) |
 | Config shape (api/) | `api/_shared/config.ts` | 5 exports — shape, ne vrednosti (swap point F4) |
 | Parsing utils (src/) | `src/lib/parsing.ts` | `isRecord`, `isPlainObject`, `safeString`, `normalizeText` (F1) |
 | Money coercion | `src/lib/money.ts` | `toSafeInt` — canonical money-path coercion |

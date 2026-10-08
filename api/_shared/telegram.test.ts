@@ -25,7 +25,7 @@ function fakeClient(): SupabaseClient {
       const row = ctx.id ? db.orders[ctx.id] : undefined;
       if (!row || row.telegram_notified_at != null) return Promise.resolve({ data: [], error: null });
       row.telegram_notified_at = ctx.patch.telegram_notified_at;
-      return Promise.resolve({ data: [{ id: row.id }], error: null });
+      return Promise.resolve({ data: [{ ...row }], error: null });
     };
     b.eq = (col: string, val: string) => {
       if (col === "id") ctx.id = val;
@@ -123,8 +123,9 @@ describe("notifyNewOrder — sends each order exactly once (B18 claim)", () => {
     expect(await notifyNewOrder(fakeClient(), "o4")).toBe("sent");
   });
 
-  it("never throws — a missing order or missing bot config is just \"failed\"", async () => {
-    expect(await notifyNewOrder(fakeClient(), "nope")).toBe("failed");
+  it("never throws — a missing order sends nothing, missing bot config is \"failed\"", async () => {
+    expect(await notifyNewOrder(fakeClient(), "nope")).toBe("already_sent");
+    expect(fetchMock).not.toHaveBeenCalled();
 
     seed("o5");
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "");

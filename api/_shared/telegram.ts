@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isPlainObject, normalizeText, safeInt } from "./parsing.js";
+import { getEnv } from "./env.js";
 
 type CartAddon = {
   name?: unknown;
@@ -52,9 +53,6 @@ function toTrimmedString(v: unknown): string {
   }
 }
 
-function getEnv(name: string): string {
-  return toTrimmedString(process.env[name]);
-}
 
 function formatTotalFromCents(cents: number) {
   const n = Number.isFinite(cents) ? Math.trunc(cents) : 0;
@@ -328,25 +326,29 @@ export type NotifyResult = "sent" | "already_sent" | "failed";
  */
 export async function notifyNewOrder(supabase: SupabaseClient, orderId: string): Promise<NotifyResult> {
   try {
-    const { data: order, error: readErr } = await supabase.from("orders").select("*").eq("id", orderId).single();
-    if (readErr || !order) {
-      console.error("[telegram] order read failed", { orderId, error: readErr?.message ?? "not found" });
-      return "failed";
-    }
-
-    let claimedOwnership = false;
+    // The claim returns the row, so a send costs one round trip and a caller
+    // that loses the claim reads nothing.
     const { data: claimed, error: claimErr } = await supabase
       .from("orders")
       .update({ telegram_notified_at: new Date().toISOString() })
       .eq("id", orderId)
       .is("telegram_notified_at", null)
-      .select("id");
+      .select("*");
 
+    let order: unknown;
+    let claimedOwnership = false;
     if (claimErr) {
       console.error("[telegram] claim failed, sending anyway", { orderId, error: claimErr.message });
-    } else if (!claimed || claimed.length === 0) {
-      return "already_sent";
+      const { data, error: readErr } = await supabase.from("orders").select("*").eq("id", orderId).single();
+      if (readErr || !data) {
+        console.error("[telegram] order read failed", { orderId, error: readErr?.message ?? "not found" });
+        return "failed";
+      }
+      order = data;
+    } else if (!Array.isArray(claimed) || claimed.length === 0) {
+      return "already_sent"; // sent earlier — or no such order: nothing to send either way
     } else {
+      order = claimed[0];
       claimedOwnership = true;
     }
 

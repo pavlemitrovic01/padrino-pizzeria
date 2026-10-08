@@ -1,6 +1,12 @@
 import { isPlainObject, safeNumber } from "./_shared/parsing.js";
-import { amountMismatchNote, bankartAmountMatches, debitTransition } from "./_shared/payment-status.js";
+import {
+  amountMismatchNote,
+  bankartAmountMatches,
+  debitTransition,
+  writeIfPaymentStatusUnchanged,
+} from "./_shared/payment-status.js";
 import { notifyNewOrder } from "./_shared/telegram.js";
+import { safeJsonParse, safeBankartErrorMessage } from "./_shared/bankart-debit.js";
 import { applyCors } from "./_shared/cors.js";
 import { buildSupabaseAdmin, getFirstEnv } from "./_shared/env.js";
 import { json } from "./_shared/http.js";
@@ -147,35 +153,6 @@ function shouldFetchBankartStatus(order: OrderRow): boolean {
   return ageMs >= getStatusRefreshMinIntervalMs();
 }
 
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function safeBankartErrorMessage(body: unknown, status: number, fallback: string): string {
-  if (isPlainObject(body)) {
-    const topError = toTrimmedString(body.errorMessage) || toTrimmedString(body.message);
-    if (topError) return topError;
-
-    const errors = Array.isArray(body.errors) ? body.errors : [];
-    const first = errors[0];
-    if (isPlainObject(first)) {
-      const parts = [
-        toTrimmedString(first.errorMessage) || toTrimmedString(first.message),
-        toTrimmedString(first.adapterMessage),
-        toTrimmedString(first.errorCode) || toTrimmedString(first.code),
-        toTrimmedString(first.adapterCode),
-      ].filter(Boolean);
-      if (parts.length > 0) return parts.join(" | ");
-    }
-  }
-
-  return `${fallback} (HTTP ${status})`;
-}
-
 async function fetchBankartStatusByMerchantTransactionId(orderId: string): Promise<BankartStatusResponse> {
   const config = getBankartConfig();
   const requestUri = `/status/${encodeURIComponent(config.apiKey)}/getByMerchantTransactionId/${encodeURIComponent(orderId)}`;
@@ -244,6 +221,7 @@ function mergePaymentMeta(existing: unknown, statusSnapshot: Json): Json {
 async function applyBankartStatusToOrder(
   order: OrderRow,
   statusBody: BankartStatusResponse,
+  retried = false,
 ): Promise<OrderRow> {
   const transactionStatus = toTrimmedString(statusBody.transactionStatus).toUpperCase();
   const transactionType = toTrimmedString(statusBody.transactionType).toUpperCase();
@@ -296,12 +274,15 @@ async function applyBankartStatusToOrder(
   if (nextStatus !== order.status) patch.status = nextStatus;
   if (nextPaymentStatus !== order.payment_status) patch.payment_status = nextPaymentStatus;
 
-  const shouldUpdateDb = Object.keys(patch).length > 0;
-  if (shouldUpdateDb) {
-    const { error } = await supabase.from("orders").update(patch).eq("id", order.id);
-    if (error) {
-      throw new Error(`DB payment update failed (${error.message})`);
+  // Compare-and-set (B24 review): a callback may have settled the order since
+  // we read it — then decide again from the fresh row (once).
+  const written = await writeIfPaymentStatusUnchanged(supabase, order.id, order.payment_status, patch);
+  if (!written) {
+    const fresh = await fetchOrderById(order.id);
+    if (fresh && fresh.payment_status !== order.payment_status && !retried) {
+      return applyBankartStatusToOrder(fresh, statusBody, true);
     }
+    return fresh ?? order;
   }
 
   if (shouldNotifyTelegram) {

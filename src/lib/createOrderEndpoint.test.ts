@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { afterEach, describe, it, expect, beforeEach, vi } from "vitest";
 
 /**
  * E1 — api/create-order.ts hostile-input characterization (server-side).
@@ -29,17 +29,23 @@ vi.mock("@supabase/supabase-js", () => {
   function makeBuilder(result: SupabaseResult) {
     const builder: Record<string, unknown> = {};
     const chain = () => builder;
+    let claim = false;
     builder.select = chain;
     builder.eq = chain;
     builder.in = chain;
-    builder.is = chain; // Telegram send claim (api/_shared/telegram.ts)
+    // Telegram send claim (api/_shared/telegram.ts): update().eq().is().select("*")
+    // answers with the claimed row.
+    builder.is = () => {
+      claim = true;
+      return builder;
+    };
     builder.insert = chain;
     builder.update = chain;
     builder.single = () => Promise.resolve(result);
     builder.then = (
       onF: (v: SupabaseResult) => unknown,
       onR?: (e: unknown) => unknown,
-    ) => Promise.resolve(result).then(onF, onR);
+    ) => Promise.resolve(claim ? { data: [{ id: "claimed", items: [] }], error: null } : result).then(onF, onR);
     return builder;
   }
 
@@ -312,7 +318,9 @@ describe("create-order handler — Origin never steers a server-side call (B22 a
     const urls = fetchMock.mock.calls.map((call) => String(call[0]));
     expect(urls).toEqual(["https://api.telegram.org/bottest-bot-token/sendMessage"]);
     expect(urls.some((u) => u.includes("attacker.example"))).toBe(false);
+  });
 
+  afterEach(() => {
     vi.unstubAllEnvs();
   });
 });

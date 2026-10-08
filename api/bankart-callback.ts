@@ -1,9 +1,14 @@
 import crypto from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isPlainObject, safeNumber } from "./_shared/parsing.js";
-import { amountMismatchNote, bankartAmountMatches, debitTransition } from "./_shared/payment-status.js";
+import {
+  amountMismatchNote,
+  bankartAmountMatches,
+  debitTransition,
+  writeIfPaymentStatusUnchanged,
+} from "./_shared/payment-status.js";
 import { notifyNewOrder } from "./_shared/telegram.js";
-import { createBankartSignature } from "./_shared/bankart-debit.js";
+import { createBankartSignature, safeJsonParse } from "./_shared/bankart-debit.js";
 import { buildSupabaseAdmin, getFirstEnv } from "./_shared/env.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -93,14 +98,6 @@ async function readRawBody(req: ReqLike): Promise<string> {
       reject(err);
     });
   });
-}
-
-function safeJsonParse(text: string): unknown {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return null;
-  }
 }
 
 function getRequestUri(req: ReqLike): string {
@@ -285,7 +282,7 @@ async function updateOrderAfterCallback(
   order: OrderRow,
   callback: BankartCallbackBody,
   rawBody: string,
-): Promise<{ shouldNotifyTelegram: boolean }> {
+): Promise<{ shouldNotifyTelegram: boolean; written: boolean }> {
   const result = toTrimmedString(callback.result).toUpperCase();
   const transactionType = toTrimmedString(callback.transactionType).toUpperCase();
   const uuid = toTrimmedString(callback.uuid);
@@ -337,12 +334,8 @@ async function updateOrderAfterCallback(
     }
   }
 
-  const { error } = await supabase.from("orders").update(patch).eq("id", order.id);
-  if (error) {
-    throw new Error(`DB update failed (${error.message})`);
-  }
-
-  return { shouldNotifyTelegram };
+  const written = await writeIfPaymentStatusUnchanged(supabase, order.id, order.payment_status, patch);
+  return { shouldNotifyTelegram: written && shouldNotifyTelegram, written };
 }
 
 export default async function handler(req: ReqLike, res: ResLike) {
@@ -373,7 +366,14 @@ export default async function handler(req: ReqLike, res: ResLike) {
       return sendText(res, 200, "OK");
     }
 
-    const { shouldNotifyTelegram } = await updateOrderAfterCallback(order, callback, rawBody);
+    // Compare-and-set: if the poll or create-order changed the payment status
+    // after we read it, read it again and decide on the fresh row (once).
+    const first = await updateOrderAfterCallback(order, callback, rawBody);
+    let { shouldNotifyTelegram } = first;
+    if (!first.written) {
+      const { data: fresh } = await supabase.from("orders").select(ORDER_COLUMNS).eq("id", order.id).maybeSingle();
+      if (fresh) ({ shouldNotifyTelegram } = await updateOrderAfterCallback(fresh as OrderRow, callback, rawBody));
+    }
 
     if (shouldNotifyTelegram) {
       await notifyNewOrder(supabase, order.id);

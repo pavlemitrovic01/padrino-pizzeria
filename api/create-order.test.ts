@@ -34,7 +34,10 @@ vi.mock("@supabase/supabase-js", () => {
       inserting = true;
       return builder;
     };
-    builder.update = chain;
+    builder.update = (...args: unknown[]) => {
+      hoisted.calls.push({ table, op: "update", payload: args[0] });
+      return builder;
+    };
     builder.single = () =>
       Promise.resolve(inserting ? (hoisted.idempotency.inserts.shift() ?? result) : result);
     builder.then = (
@@ -1029,14 +1032,16 @@ describe("create-order handler — one checkout attempt is one order (B24)", () 
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("a card attempt whose payment failed is not repeated — the retry is a new order", async () => {
+  it("a card attempt whose payment failed is not repeated — the retry is a new order and takes over the key", async () => {
     hoisted.idempotency.lookups.push({ data: [{ id: "order-failed", payment_method: "card", payment_status: "failed" }], error: null });
 
     const c = await submit();
 
     expect(bodyOf(c).id).toBe("order-new");
     expect(inserts()).toHaveLength(1);
-    expect(inserts()[0].idempotency_key).toBeUndefined();
+    // The key moves to the retry, so a lost response of the retry is still deduplicated.
+    expect(inserts()[0].idempotency_key).toBe(KEY);
+    expect(hoisted.calls.some((x) => x.table === "orders" && x.op === "update")).toBe(true);
   });
 
   it("two identical attempts racing: the loser answers with the winner's order", async () => {
@@ -1070,5 +1075,94 @@ describe("create-order handler — one checkout attempt is one order (B24)", () 
 
     expect(c.statusCode).toBe(200);
     expect(inserts()[0].idempotency_key).toBeUndefined();
+  });
+});
+
+describe("create-order handler — code review fixes (B24 review)", () => {
+  const MENU = [{ id: "pizza-50", name: "Kapričoza 50 cm", price_eur_cents: 1600 }];
+  const KEY = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
+  const line = { cart_id: "c-1", menu_item_id: "pizza-50", name: "Kapričoza", size: "50", quantity: 1, price_per_item: 1600, addons: [] };
+  const CARD_ERROR = "Plaćanje karticom trenutno nije moguće. Pokušajte ponovo ili izaberite plaćanje pouzećem.";
+
+  beforeEach(() => {
+    for (const k of Object.keys(hoisted.tableResults)) delete hoisted.tableResults[k];
+    hoisted.calls.length = 0;
+    hoisted.idempotency.lookups.length = 0;
+    hoisted.idempotency.inserts.length = 0;
+    hoisted.tableResults.menu_items = { data: MENU, error: null };
+    hoisted.tableResults.orders = { data: { id: "order-new" }, error: null };
+    vi.stubEnv("BANKART_API_KEY", "test-key");
+    vi.stubEnv("BANKART_API_USERNAME", "test-user");
+    vi.stubEnv("BANKART_API_PASSWORD", "test-pass");
+    vi.stubEnv("BANKART_SHARED_SECRET", "test-secret");
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function submitCard(extra: Record<string, unknown> = {}) {
+    const c = makeRes();
+    await handler(
+      makeReq(validBody({ items: [line], total_eur_cents: 1600, payment_method: "card", idempotency_key: KEY, ...extra })),
+      c.res,
+    );
+    return c;
+  }
+
+  function updates(): Record<string, unknown>[] {
+    return hoisted.calls.filter((x) => x.table === "orders" && x.op === "update").map((x) => x.payload as Record<string, unknown>);
+  }
+
+  it("a card decline (Bankart's own text, no \"Bankart\" in it) gets the card-payment message", async () => {
+    const declined = { success: false, errors: [{ errorMessage: "The transaction was declined" }] };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(declined)) }));
+
+    const c = await submitCard();
+
+    expect(c.statusCode).toBe(500);
+    expect(bodyOf(c).error).toBe(CARD_ERROR);
+    expect(updates()[0]).toMatchObject({ status: "cancelled", payment_status: "failed" });
+  });
+
+  it("a network error on the debit leaves the order pending (outcome unknown), not failed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("socket hang up")));
+
+    const c = await submitCard();
+
+    expect(c.statusCode).toBe(500);
+    expect(bodyOf(c).error).toBe(CARD_ERROR);
+    expect(updates()).toHaveLength(1);
+    expect(updates()[0].payment_status).toBeUndefined();
+    expect(updates()[0].status).toBeUndefined();
+    expect((updates()[0].payment_meta as Record<string, unknown>).phase).toBe("init_network_error");
+  });
+
+  it("a retry after closing time still gets the order that was placed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T10:00:00Z")); // 11:00 Podgorica
+    hoisted.tableResults.site_settings = { data: { orders_open_time: "12:00", orders_close_time: "23:00", hours_display: "12–23" }, error: null };
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-placed", payment_method: "cash", payment_status: null }], error: null });
+    vi.stubGlobal("fetch", vi.fn());
+
+    const c = makeRes();
+    await handler(makeReq(validBody({ items: [line], total_eur_cents: 1600, idempotency_key: KEY })), c.res);
+
+    expect(c.statusCode).toBe(200);
+    expect(bodyOf(c)).toMatchObject({ id: "order-placed", replayed: true });
+  });
+
+  it("a race lost to an attempt whose card then failed is reported as failed, never as pending", async () => {
+    vi.stubGlobal("fetch", vi.fn());
+    hoisted.idempotency.lookups.push({ data: [], error: null });
+    hoisted.idempotency.lookups.push({ data: [{ id: "order-a", payment_method: "card", payment_status: "failed" }], error: null });
+    hoisted.idempotency.inserts.push({ data: null, error: { code: "23505", message: "duplicate key" } });
+
+    const c = await submitCard();
+
+    expect(c.statusCode).toBe(409);
+    expect(bodyOf(c)).toMatchObject({ ok: false, code: "payment_not_completed" });
   });
 });

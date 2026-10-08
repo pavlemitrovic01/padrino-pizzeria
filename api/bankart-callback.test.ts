@@ -10,6 +10,7 @@ const hoisted = vi.hoisted(() => {
     tableResults: {} as Record<string, { data: unknown; error: unknown }>,
     lastUpdatePatch: null as Record<string, unknown> | null,
     updateCallCount: 0,
+    casMisses: 0,
   };
   return { state };
 });
@@ -20,9 +21,16 @@ vi.mock("@supabase/supabase-js", () => {
   function makeUpdateEqBuilder(): Record<string, unknown> {
     const b: Record<string, unknown> = {};
     b.eq = () => b;
-    // Telegram send claim (api/_shared/telegram.ts): .update().eq().is().select()
+    // Telegram claim and the compare-and-set payment write both end in
+    // .select(); casMisses makes the next N payment writes match no row.
     b.is = () => b;
-    b.select = () => Promise.resolve({ data: [{ id: "claimed" }], error: null });
+    b.select = () => {
+      if (hoisted.state.casMisses > 0) {
+        hoisted.state.casMisses--;
+        return Promise.resolve({ data: [], error: null });
+      }
+      return Promise.resolve({ data: [{ id: "claimed" }], error: null });
+    };
     b.then = (
       onF: (v: { data: unknown; error: unknown }) => unknown,
       onR?: (e: unknown) => unknown,
@@ -149,6 +157,7 @@ beforeEach(() => {
   hoisted.state.tableResults = {};
   hoisted.state.lastUpdatePatch = null;
   hoisted.state.updateCallCount = 0;
+  hoisted.state.casMisses = 0;
   process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
   process.env.TELEGRAM_CHAT_ID = "test-chat-id";
   vi.stubGlobal(
@@ -533,5 +542,19 @@ describe("handler — payment status only moves forward, and only for the charge
 
     expect(hoisted.state.lastUpdatePatch).toMatchObject({ payment_status: "paid", status: "pending" });
     expect(telegramCalls()).toBe(1);
+  });
+});
+
+describe("handler — compare-and-set payment write (B24 review)", () => {
+  it("when another writer changed the status first, it re-reads the order and decides again", async () => {
+    hoisted.state.tableResults.orders = { data: pendingOrder, error: null };
+    hoisted.state.casMisses = 1;
+    const rawBody = JSON.stringify({ result: "OK", transactionType: "DEBIT", merchantTransactionId: pendingOrder.id, uuid: "u", amount: "25.00" });
+    const res = buildResMock();
+    await handler(makeSignedReq(rawBody), res as unknown as ServerResponse<IncomingMessage>);
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.state.updateCallCount).toBe(2);
+    expect(hoisted.state.lastUpdatePatch?.payment_status).toBe("paid");
   });
 });

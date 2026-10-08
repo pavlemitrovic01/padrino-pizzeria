@@ -3,8 +3,9 @@
  * request, and the order's payment state after Bankart answers. Moved out of
  * create-order.ts in B26.
  *
- * Every error thrown here starts with "Bankart" — create-order's catch routes
- * on that substring to the payment-init message (clientSafeError).
+ * Every error thrown here is a BankartInitError, so create-order answers with
+ * the card-payment message (clientSafeError "payment_init") — including a
+ * decline, whose text is Bankart's own and need not contain "Bankart".
  */
 
 import crypto from "node:crypto";
@@ -21,6 +22,14 @@ import {
 
 function toTrimmedString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+/** Card payment could not be started (config, network, Bankart refusal, DB). */
+export class BankartInitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BankartInitError";
+  }
 }
 
 export type BankartConfig = {
@@ -83,7 +92,7 @@ export function getBankartConfig(): BankartConfig {
   const language = (getFirstEnv("BANKART_LANGUAGE", "NLB_LANGUAGE") || "en").toLowerCase();
 
   if (!apiKey || !username || !password || !sharedSecret) {
-    throw new Error("Missing Bankart env: API key / username / password / shared secret");
+    throw new BankartInitError("Missing Bankart env: API key / username / password / shared secret");
   }
 
   return {
@@ -146,9 +155,9 @@ export function safeBankartErrorMessage(body: unknown, status: number, fallback:
     const first = errors[0];
     if (isPlainObject(first)) {
       const parts = [
-        toTrimmedString(first.errorMessage),
+        toTrimmedString(first.errorMessage) || toTrimmedString(first.message),
         toTrimmedString(first.adapterMessage),
-        toTrimmedString(first.errorCode),
+        toTrimmedString(first.errorCode) || toTrimmedString(first.code),
         toTrimmedString(first.adapterCode),
       ].filter(Boolean);
       if (parts.length > 0) return parts.join(" | ");
@@ -173,6 +182,13 @@ export function bankartMetaSnapshot(input: {
   return out;
 }
 
+/**
+ * Writes the debit's outcome — only while the order is still pending (B24
+ * review): the Bankart callback or status poll can settle the order while this
+ * request is still waiting on Bankart, and a late write here must not turn
+ * their "paid" back into "pending" or overwrite their payment_meta. Returns
+ * whether the row was still pending (and so was written).
+ */
 export async function updateOrderPaymentState(
   supabase: SupabaseClient,
   orderId: string,
@@ -182,7 +198,7 @@ export async function updateOrderPaymentState(
     payment_reference?: string | null;
     payment_meta?: Record<string, unknown> | null;
   },
-) {
+): Promise<boolean> {
   const patch: Record<string, unknown> = {};
 
   if (typeof values.status === "string") patch.status = values.status;
@@ -190,12 +206,18 @@ export async function updateOrderPaymentState(
   if (values.payment_reference !== undefined) patch.payment_reference = values.payment_reference;
   if (values.payment_meta !== undefined) patch.payment_meta = values.payment_meta;
 
-  if (Object.keys(patch).length === 0) return;
+  if (Object.keys(patch).length === 0) return false;
 
-  const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
+  const { data, error } = await supabase
+    .from("orders")
+    .update(patch)
+    .eq("id", orderId)
+    .eq("payment_status", "pending")
+    .select("id");
   if (error) {
-    throw new Error(`DB payment update failed (${error.message})`);
+    throw new BankartInitError(`Bankart: DB payment update failed (${error.message})`);
   }
+  return Array.isArray(data) && data.length > 0;
 }
 
 export function buildBankartDebitRequest(
@@ -285,6 +307,21 @@ export async function startBankartDebit(supabase: SupabaseClient, orderId: strin
 
   const auth = Buffer.from(`${config.username}:${config.password}`).toString("base64");
 
+  /** Bankart refused or answered nonsense: the payment did not happen. */
+  async function failed(
+    message: string,
+    snapshot: { phase: string; responseBody?: unknown; responseStatus?: number },
+    paymentReference?: string | null,
+  ): Promise<BankartInitError> {
+    await updateOrderPaymentState(supabase, orderId, {
+      status: "cancelled",
+      payment_status: "failed",
+      ...(paymentReference !== undefined ? { payment_reference: paymentReference } : {}),
+      payment_meta: bankartMetaSnapshot({ ...snapshot, requestBody, message }),
+    });
+    return new BankartInitError(message);
+  }
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -303,17 +340,15 @@ export async function startBankartDebit(supabase: SupabaseClient, orderId: strin
     const message =
       err instanceof Error ? `Bankart init network error (${err.message})` : "Bankart init network error";
 
+    // B24 review: the request may have reached Bankart (a reset or timeout
+    // after it processed the debit), so the outcome is unknown — the order
+    // stays pending for the callback or the status poll to settle, instead of
+    // "failed", which would let a retry charge the card a second time.
     await updateOrderPaymentState(supabase, orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_network_error",
-        requestBody,
-        message,
-      }),
+      payment_meta: bankartMetaSnapshot({ phase: "init_network_error", requestBody, message }),
     });
 
-    throw new Error(message);
+    throw new BankartInitError(message);
   }
 
   const responseText = await response.text();
@@ -321,94 +356,45 @@ export async function startBankartDebit(supabase: SupabaseClient, orderId: strin
 
   if (!response.ok) {
     const message = safeBankartErrorMessage(responseBody, response.status, "Bankart init failed");
-
-    await updateOrderPaymentState(supabase, orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_http_error",
-        requestBody,
-        responseBody,
-        responseStatus: response.status,
-        message,
-      }),
-    });
-
-    throw new Error(message);
+    throw await failed(message, { phase: "init_http_error", responseBody, responseStatus: response.status });
   }
 
   const bankart = isPlainObject(responseBody) ? (responseBody as BankartDebitResponse) : null;
   if (!bankart) {
-    const message = "Bankart init failed: invalid JSON response";
-
-    await updateOrderPaymentState(supabase, orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_invalid_json",
-        requestBody,
-        responseBody,
-        responseStatus: response.status,
-        message,
-      }),
+    throw await failed("Bankart init failed: invalid JSON response", {
+      phase: "init_invalid_json",
+      responseBody,
+      responseStatus: response.status,
     });
-
-    throw new Error(message);
   }
 
   const transactionUuid = toTrimmedString(bankart.uuid);
   const returnType = toTrimmedString(bankart.returnType).toUpperCase();
   const redirectUrl = toTrimmedString(bankart.redirectUrl);
+  const settled = (phase: string, extra: Record<string, unknown> = {}) => ({
+    payment_reference: transactionUuid || null,
+    payment_meta: bankartMetaSnapshot({ phase, requestBody, responseBody: bankart, responseStatus: response.status, ...extra }),
+  });
 
   if (bankart.success !== true || returnType === "ERROR") {
     const message = safeBankartErrorMessage(bankart, response.status, "Bankart rejected transaction");
-
-    await updateOrderPaymentState(supabase, orderId, {
-      status: "cancelled",
-      payment_status: "failed",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "init_error",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-        message,
-      }),
-    });
-
-    throw new Error(message);
+    throw await failed(
+      message,
+      { phase: "init_error", responseBody: bankart, responseStatus: response.status },
+      transactionUuid || null,
+    );
   }
 
   if (returnType === "REDIRECT") {
     if (!redirectUrl) {
-      const message = "Bankart init failed: missing redirect URL";
-
-      await updateOrderPaymentState(supabase, orderId, {
-        status: "cancelled",
-        payment_status: "failed",
-        payment_reference: transactionUuid || null,
-        payment_meta: bankartMetaSnapshot({
-          phase: "init_missing_redirect",
-          requestBody,
-          responseBody: bankart,
-          responseStatus: response.status,
-          message,
-        }),
-      });
-
-      throw new Error(message);
+      throw await failed(
+        "Bankart init failed: missing redirect URL",
+        { phase: "init_missing_redirect", responseBody: bankart, responseStatus: response.status },
+        transactionUuid || null,
+      );
     }
 
-    await updateOrderPaymentState(supabase, orderId, {
-      payment_status: "pending",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "redirect",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-      }),
-    });
+    await updateOrderPaymentState(supabase, orderId, settled("redirect"));
 
     return {
       flow: "card_redirect" as const,
@@ -420,16 +406,7 @@ export async function startBankartDebit(supabase: SupabaseClient, orderId: strin
   }
 
   if (returnType === "PENDING") {
-    await updateOrderPaymentState(supabase, orderId, {
-      payment_status: "pending",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "pending",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-      }),
-    });
+    await updateOrderPaymentState(supabase, orderId, settled("pending"));
 
     return {
       flow: "card_pending" as const,
@@ -440,18 +417,9 @@ export async function startBankartDebit(supabase: SupabaseClient, orderId: strin
   }
 
   if (returnType === "FINISHED") {
-    await updateOrderPaymentState(supabase, orderId, {
-      payment_status: "paid",
-      payment_reference: transactionUuid || null,
-      payment_meta: bankartMetaSnapshot({
-        phase: "finished",
-        requestBody,
-        responseBody: bankart,
-        responseStatus: response.status,
-      }),
-    });
-
-    await notifyNewOrder(supabase, orderId);
+    const wrote = await updateOrderPaymentState(supabase, orderId, { payment_status: "paid", ...settled("finished") });
+    // Not written = the callback/poll already settled it (and notified if paid).
+    if (wrote) await notifyNewOrder(supabase, orderId);
 
     return {
       flow: "card_paid" as const,
@@ -461,17 +429,11 @@ export async function startBankartDebit(supabase: SupabaseClient, orderId: strin
     };
   }
 
-  await updateOrderPaymentState(supabase, orderId, {
-    payment_status: "pending",
-    payment_reference: transactionUuid || null,
-    payment_meta: bankartMetaSnapshot({
-      phase: "other_return_type",
-      requestBody,
-      responseBody: bankart,
-      responseStatus: response.status,
-      message: `Unhandled returnType: ${returnType || "UNKNOWN"}`,
-    }),
-  });
+  await updateOrderPaymentState(
+    supabase,
+    orderId,
+    settled("other_return_type", { message: `Unhandled returnType: ${returnType || "UNKNOWN"}` }),
+  );
 
   return {
     flow: "card_pending" as const,

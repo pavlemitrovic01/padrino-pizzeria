@@ -342,3 +342,25 @@ describe("createOrder attempt key (B24: one checkout attempt = one order)", () =
     expect(b).not.toBe(a);
   });
 });
+
+describe("createOrder attempt key survives a reload (B24 review)", () => {
+  it("a fresh module (reloaded tab) resending the same order reuses the stored key", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 504, json: () => Promise.resolve(null) });
+    vi.stubGlobal("fetch", fetchMock);
+    const store = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    });
+
+    await expect(createOrder(validPayload({ note: "reload" }))).rejects.toThrow();
+    vi.resetModules();
+    const reloaded = await import("./createOrder");
+    await expect(reloaded.createOrder(validPayload({ note: "reload" }))).rejects.toThrow();
+
+    const keys = fetchMock.mock.calls.map(([, init]) => (JSON.parse(String((init as RequestInit).body)) as { idempotency_key: string }).idempotency_key);
+    expect(keys[1]).toBe(keys[0]);
+    vi.unstubAllGlobals();
+  });
+});
