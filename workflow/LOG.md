@@ -5,6 +5,99 @@
 
 ---
 
+## Review — 2026-10-08 — code-review nalazi nad B22–B26 — DONE
+
+**SHA:** 2a80915 · **Branch:** claude/wonderful-cray-5p9z2e
+**Files (17):** +453/−247 — api/_shared/bankart-debit.ts, payment-status.ts, telegram.ts, api/create-order.ts, api/bankart-callback.ts, api/bankart-order-status.ts, api/log.ts, api/admin-menu.ts, src/lib/createOrder.ts, TEMPLATE.md + 7 test fajlova
+**Šta:** odbijena kartica → poruka za kartično plaćanje (`BankartInitError` umesto traženja reči „bankart"); upisi statusa plaćanja compare-and-set (create-order piše samo dok je `pending`, callback/poll samo ako je status isti kao pročitan, inače ponovo čitaju jednom) → „paid" se ne vraća na „pending"; mrežna greška ka Bankart-u ostavlja `pending` (ishod nepoznat, retry ne naplaćuje dvaput); idempotency provera pre radnog vremena i menija, ključ prelazi sa odbijene kartice na retry, replay `failed/refunded/cancelled` → 409 `payment_not_completed`, ključ i u sessionStorage (reload); CSP prijave čitane iz stream-a (runtime ne parsira `application/csp-report`); Telegram claim + čitanje u jednom pozivu; deljeni `safeJsonParse`/`safeBankartErrorMessage`, `json`, `getEnv`; upload bez provere deklarisanog tipa (odlučuju bajtovi); test za Host header koji stvarno nešto dokazuje.
+**SCOPE_DRIFT:** n/a — ispravke nalaza review-a.
+
+---
+
+## B26 — 2026-10-08 — Čišćenje koda i istina u dokumentaciji — DONE
+
+**Tier:** STRICT · **SHA:** 4e2048d + 77c16c4 + ad3e9e9 + 7cd6097 · **Branch:** claude/wonderful-cray-5p9z2e
+**Files:** 24 (+991/−1156)
+  - api/_shared/env.ts, http.ts — NEW. Jedna kopija `getEnv`/`getFirstEnv`/`buildSupabaseAdmin`/`json` (bilo 9×). Env aliasi (`SUPABASE_SERVICE_KEY`, `NLB_*`) ZADRŽANI — Vercel API 403, imena u projektu nisu proverena.
+  - api/create-order.ts 1235 → 510 linija: `api/_shared/order-items.ts` (pravila redova, cena, ivice, šta kuhinja vidi) i `api/_shared/bankart-debit.ts` (debit, potpis, stanje plaćanja) — NEW, klijent kao parametar. HMAC jedna funkcija (debit + callback).
+  - Migracija `20261007120000_lockdown…` → `20261007110000_…` (dve migracije su imale istu verziju).
+  - Docs: README/RUNBOOK/.env.example/TEMPLATE/CONTEXT — nema Telegram endpoint-a ni tajne, nema edge funkcije, Upstash obavezan (bez njega NEMA limita — in-memory fallback nikad nije postojao), PUBLIC_SITE_URL obavezan, stvarni headeri, nova lock lista (CONTEXT = jedina, STATE kopija). TEMPLATE više ne tvrdi „no file >800 LOC / RLS closed / CORS locked".
+  - Workflow: `/close` gate-uje `npm run lint`; STRICT `/plan` ima sekciju NAPADAČ; `/audit` prijavljuje zatvorene batch-eve koji nisu stigli u main (Step 3.6) + lint.
+**Verify (zajednički za B23e–B26 + review, isti HEAD 2a80915):**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 22:39 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 29 fajlova / 447 testova (pre B23e: 25 / 394)
+  lint:      PASS(machine) — `npm run lint` exit 0 (ceo repo, od B25 bez ijedne greške/upozorenja)
+  code-review:     IZVRŠEN nad origin/main...HEAD — 15 nalaza; ispravljeno 14 u 2a80915 (vidi „Review" entry), obrazloženo 1 (jedan indeksiran lookup po porudžbini — on omogućava odgovor na ponovljen pokušaj pre provere radnog vremena/menija).
+  security-review: IZVRŠEN nad origin/main...HEAD — NO FINDINGS (≥8/10).
+  manual:    NIJE POKRENUTO — Pavle: „nemam sada puno vremena za provere". Ništa od B22/B23e–B26 nije u main-u ni na produ; migracije napisane, NE primenjene.
+**SCOPE_DRIFT:** n/a — batch nije planiran kroz `/plan` (Pavle: „odradimo sve što ima pa code review/security/testovi"), opseg = ROADMAP B26 red.
+**Notes:** Izostavljeno iz B26: brisanje `NLB_*`/legacy env aliasa (treba provera imena u Vercel-u), LESSON „audit happy-path ≠ audit napadača" (LESSONS na cap-u 7 — traži Pavlov izbor koju rotirati; princip je upisan u `/plan` i CONTEXT), klijentski META red (server ga od B23e ionako prepisuje).
+
+---
+
+## B25 — 2026-10-08 — Frontend hardening, performanse, menu podaci — DONE
+
+**Tier:** STANDARD · **SHA:** 25e15d3 · **Branch:** claude/wonderful-cray-5p9z2e
+**Files (49):** +327/−47
+  - vercel.json — X-Content-Type-Options, X-Frame-Options DENY, Referrer-Policy, Permissions-Policy, CSP **Report-Only** (self, Bankart, Supabase, GA4/GTM, Google Fonts; `report-uri /api/log`). Enforce posle ~7 dana bez pravih prijava.
+  - api/log.ts — limiti (context 4 KB, poruka 2 KB, 20 događaja, telo 64 KB) + prijem CSP prijava.
+  - api/_shared/image-type.ts — NEW; admin upload samo JPEG/PNG/WebP po bajtovima (ranije SVG sa „.png" imenom → SVG u javnom bucket-u). MenuEditorPanel nudi samo te tipove.
+  - public/ — 38 „.webp" fajlova su bili JPEG → pravi WebP iste veličine (q78), ~4,9 MB → ~1,9 MB, provereno vizuelno; `public/hero.jpg` (nekorišćen) obrisan.
+  - supabase/migrations/20261009130000_menu_items_hygiene.sql — NEW, NIJE primenjena (trim imena/kategorija/opisa, 2 pokvarene putanje slika).
+  - Lint čist (zastareli eslint-disable u CartProvider).
+**Verify (zajednički za B23e–B26 + review, isti HEAD 2a80915):**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 22:39 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 29 fajlova / 447 testova (pre B23e: 25 / 394)
+  lint:      PASS(machine) — `npm run lint` exit 0 (ceo repo, od B25 bez ijedne greške/upozorenja)
+  code-review:     IZVRŠEN nad origin/main...HEAD — 15 nalaza; ispravljeno 14 u 2a80915 (vidi „Review" entry), obrazloženo 1 (jedan indeksiran lookup po porudžbini — on omogućava odgovor na ponovljen pokušaj pre provere radnog vremena/menija).
+  security-review: IZVRŠEN nad origin/main...HEAD — NO FINDINGS (≥8/10).
+  manual:    NIJE POKRENUTO — Pavle: „nemam sada puno vremena za provere". Ništa od B22/B23e–B26 nije u main-u ni na produ; migracije napisane, NE primenjene.
+**SCOPE_DRIFT:** n/a (vidi B26). **Notes:** React duplicate-key NIJE reprodukovan sa pravim prod menijem (Menu + detail sheet, svi ključevi su row.id) — treba stek iz konzole pregledača. GA4 consent — poslovna odluka, nije rađeno.
+
+---
+
+## B24 — 2026-10-08 — Plaćanje i notifikacije — robusnost — DONE
+
+**Tier:** STRICT · **SHA:** 42024c6 (+ 2a80915 review) · **Branch:** claude/wonderful-cray-5p9z2e
+**Files (20):** +804/−1179
+  - api/_shared/telegram.ts — NEW (format + B18 claim + slanje); create-order, bankart-callback, bankart-order-status zovu `notifyNewOrder()` direktno; admin resend isti formater. `api/telegram-new-order.ts` + test + `buildTelegramPayload` OBRISANI (10/12 Vercel funkcija). `TELEGRAM_WEBHOOK_SECRET` se više ne čita.
+  - api/_shared/payment-status.ts — NEW. Status samo napred (kasni PENDING/ERROR ne „od-plaća"), OK za iznos/valutu koju server nije naplatio se NE označava kao plaćeno (`payment_meta.amount_check`), failed→paid ponovo otvara porudžbinu.
+  - Idempotency: `orders.idempotency_key` (migracija 20261009120000 — NIJE primenjena; do tada porudžbina prolazi bez ključa); klijent šalje ključ po pokušaju.
+  - payments-create-session: poziv uklonjen, edge funkcija obrisana iz repoa (deploy-ovana ostaje dok se ručno ne ugasi) + deno.json/deno.d.ts.
+  - L5: sirove Bankart/DB poruke se ne vraćaju (bankart-order-status, bankart-callback).
+**Verify (zajednički za B23e–B26 + review, isti HEAD 2a80915):**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 22:39 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 29 fajlova / 447 testova (pre B23e: 25 / 394)
+  lint:      PASS(machine) — `npm run lint` exit 0 (ceo repo, od B25 bez ijedne greške/upozorenja)
+  code-review:     IZVRŠEN nad origin/main...HEAD — 15 nalaza; ispravljeno 14 u 2a80915 (vidi „Review" entry), obrazloženo 1 (jedan indeksiran lookup po porudžbini — on omogućava odgovor na ponovljen pokušaj pre provere radnog vremena/menija).
+  security-review: IZVRŠEN nad origin/main...HEAD — NO FINDINGS (≥8/10).
+  manual:    NIJE POKRENUTO — Pavle: „nemam sada puno vremena za provere". Ništa od B22/B23e–B26 nije u main-u ni na produ; migracije napisane, NE primenjene.
+**SCOPE_DRIFT:** n/a (vidi B26). **Notes:** Na produ nema DB trigger-a/webhook-a koji zove Telegram endpoint (SELECT pg_trigger) — brisanje bezbedno. `@vercel/functions` waitUntil nije uveden (Telegram se i dalje čeka, sada 7 s direktno umesto 12 s self-HTTP).
+
+---
+
+## B23e — 2026-10-08 — Dostava na serveru, status/currency fiksni — DONE
+
+**Tier:** STRICT · **SHA:** e49ee16 · **Branch:** claude/wonderful-cray-5p9z2e
+**Files (10):** +474/−179
+  - api/_shared/delivery-zones.ts — NEW, ogledalo `DELIVERY_ZONES` (parity test). Server naplaćuje dostavu iz tabele + prag besplatne dostave na subtotal koji sam izračuna; klijent šalje `delivery_zone`; stari tabovi bez ključa → zona iz „Zona: …" labele u napomeni; nepoznata zona → 400 `invalid_delivery_zone`.
+  - Server sam piše prve redove napomene („Plaćanje: …", „Zona: …, Dostava: …") u jedan meta red — kupčev „Plaćanje: Kartica" u napomeni gotovinske porudžbine više ne vara dostavljača (Telegram čita prvi red).
+  - `status` uvek `pending`, `currency` uvek `EUR`. GPS/poligon mrtav kod obrisan.
+**Verify (zajednički za B23e–B26 + review, isti HEAD 2a80915):**
+  build:     PASS(machine) — exit 0, 2206 modula (2026-10-08 22:39 UTC)
+  typecheck: PASS(machine) — exit 0, tsc -b
+  test:      PASS(machine) — exit 0, 29 fajlova / 447 testova (pre B23e: 25 / 394)
+  lint:      PASS(machine) — `npm run lint` exit 0 (ceo repo, od B25 bez ijedne greške/upozorenja)
+  code-review:     IZVRŠEN nad origin/main...HEAD — 15 nalaza; ispravljeno 14 u 2a80915 (vidi „Review" entry), obrazloženo 1 (jedan indeksiran lookup po porudžbini — on omogućava odgovor na ponovljen pokušaj pre provere radnog vremena/menija).
+  security-review: IZVRŠEN nad origin/main...HEAD — NO FINDINGS (≥8/10).
+  manual:    NIJE POKRENUTO — Pavle: „nemam sada puno vremena za provere". Ništa od B22/B23e–B26 nije u main-u ni na produ; migracije napisane, NE primenjene.
+**SCOPE_DRIFT:** n/a (vidi B26). **Notes:** B2 audit (`docs/delivery-fee-audit.md`) je proverio samo poštenog klijenta; audit PoC „Zona: Petrovac, Dostava: 0" je sada regresioni test. Kolone `delivery_fee_cents`/`delivery_zone` (ROADMAP predlog) NISU dodate — dostava ostaje u meta napomeni, ali je piše server.
+
+---
+
 ## B23d — 2026-10-08 — Server upisuje prikazne podatke reda iz menu_items — DONE
 
 **Tier:** STRICT

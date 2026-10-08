@@ -22,42 +22,54 @@
 
 ## Gde sam sada
 
-**Poslednji završen:** B23d — Server upisuje prikazne podatke reda iz menu_items (2026-10-08, STRICT, SHA d393d6d). **B23b + B23c + B23d mergovani u main** (merge c2df757, 2026-10-08; Vercel production READY `dpl_8rZWs8bMhUMZfq3T6SP8WjNt9c6p`; prod verifikacija OTVORENA). B22 (2026-10-07, STRICT, SHA 0c340dc) mergovan u `claude/wonderful-cray-5p9z2e`, **NIJE u main-u** (migracija B22 je živa na produ od 2026-10-07).
-**Sledeći:** (1) Prod verifikacija B23b–d: negativni smoke (50 cm + ivice 33 → 400 `crust_size_mismatch`; stavka sa količinom −1 → 400 `Invalid item structure`; ni jedan bez reda u `orders`) + prva prava porudžbina: Telegram isti format („1x Diavolo (50)", dodaci po imenu) + SQL (`name`/`size`/imena dodataka/cene = `menu_items`). (2) Ostatak Faze S (ROADMAP): B23e (status/currency fiksni + dostava na serveru — B2 audit je proverio samo poštenog klijenta), B24, B25, B26 — rade se na `claude/wonderful-cray-5p9z2e`, review pa merge. B22 ide u main zajedno sa njima (prod smoke: porudžbina gotovinom → Telegram tačno jednom; admin lista; meni). Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Ostali kandidati: React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom); sheet bira veličinu samo pri otvaranju (tap na picu pre učitavanja menija → 33 cm bez izbora veličine); slika `/extras/rub.webp` postojećeg reda ivica 33 cm ne postoji u repou (admin prikaz). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
+**Poslednji završen:** B26 — Čišćenje koda i istina u dokumentaciji (2026-10-08, STRICT) + code-review ispravke (2a80915). Istog dana: B23e, B24, B25 (sve na `claude/wonderful-cray-5p9z2e`, pushovano, gate-ovi PASS: 29 fajlova / 447 testova, lint čist; code-review 15 nalaza → 14 ispravljeno; security-review NO FINDINGS). **U main-u (prod):** B23a–B23d (merge c2df757). **NIJE u main-u:** B22 + B23e + B24 + B25 + B26 — čekaju Pavlov prod prolaz.
+**Sledeći (Pavle, redom):**
+(1) **Pre merge-a:** Vercel → postavi `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (bez njih create-order NEMA rate limit); proveri koja imena env-a projekat stvarno koristi (`SUPABASE_SERVICE_ROLE_KEY` vs `SUPABASE_SERVICE_KEY`, `BANKART_*` vs `NLB_*`) — tek onda se aliasi mogu brisati.
+(2) **Migracije** (uz Pavlov OK, redosled nebitan — kod radi i pre i posle): `20261009120000_orders_idempotency_key.sql`, `20261009130000_menu_items_hygiene.sql`.
+(3) **Merge** `claude/wonderful-cray-5p9z2e` → main, pa prod smoke: porudžbina gotovinom Budva (Telegram tačno jednom, „Plaćanje: Gotovina", „Zona: Budva, Dostava: 0€", „1x … (50)"); porudžbina Bečići ispod 15 € (dostava 3 € naplaćena); kartica test-mode (redirect, callback → paid → Telegram); admin lista + „Pošalji ponovo"; meni + slike (WebP); DevTools → Console bez CSP grešaka (Report-Only samo prijavljuje). Negativni smoke B23b/B23c (50 cm + ivice 33 → 400; količina −1 → 400).
+(4) **Posle merge-a:** obriši iz Vercel-a `TELEGRAM_WEBHOOK_SECRET`, `PAYMENTS_EDGE_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_ANON_KEY`; ugasi edge funkciju `payments-create-session` u Supabase dashboardu; posle ~7 dana CSP prijava u Vercel logovima („[csp-report]") → prebaci na enforce.
+(5) **Odluke:** GA4 consent (banner / Consent Mode / bez GA na checkout-u); Supabase Auth signup OFF + `shouldCreateUser:false` (lomi dodavanje osoblja — `admin-users` pravi samo `admin_users` red); LESSONS je na cap-u 7 — koju rotirati za „audit happy-path ≠ audit napadača"; React duplicate-key — pošalji stek iz konzole.
+Otvoreno iz B19: prod verifikacija radnog vremena nije zabeležena kao završena — `/admin/settings` je dokazano živ na produ (B19.1 verifikovan protiv prod `site_settings` = 11–01), ali E2E prolaz porudžbine + `/#kontakt` prikaz + zatvoreni opseg test nisu potvrđeni u dokumentaciji; zatvoreni test raditi u mirnom terminu (sajt aktivno prima porudžbine) i VRATITI pravo radno vreme. Ostali kandidati: React duplicate-key greška u meniju (nije korpa — reprodukovana sa praznom korpom); sheet bira veličinu samo pri otvaranju (tap na picu pre učitavanja menija → 33 cm bez izbora veličine); slika `/extras/rub.webp` postojećeg reda ivica 33 cm ne postoji u repou (admin prikaz). Preostali audit findings u ROADMAP-u: L2/L5/L6/M1/M2/N1-N3 kao reference, ne spec.
 **Aktivan batch:** NONE
 **Blocker:** NONE
 
-**Faza progres:** Faza S (Security & money-path hardening) IN PROGRESS — B22 + B23a–B23d DONE (u main-u: B23a–B23d; B22 čeka merge). Sve ranije faze DONE.
+**Faza progres:** Faza S (Security & money-path hardening) — B22–B26 DONE u kodu; u main-u B23a–B23d, ostalo čeka merge + prod prolaz. Sve ranije faze DONE.
 Puna hronologija (batch po batch, sa datumima i napomenama) je premeštena u
 `workflow/STATE-ARCHIVE.md` pri B19 close-u (STATE.md je bio ~36KB, target ~8KB).
 Per-batch audit trail (verify gate-ovi, fajlovi, SHA) → `workflow/LOG.md`.
 
-- B23d (Server upisuje prikazne podatke reda iz menu_items) — DONE 2026-10-08
-  (STRICT; 5 fajlova, +412/-3; SHA d393d6d; ime bez „33/50 cm", veličina iz imena reda,
-  imena i cene dodataka, base_price i price_per_item upisuju se iz menu_items, ne iz zahteva;
-  format za kuhinju isti — parity: upisani redovi = poslati; category ostaje klijentska; čeka merge)
+- B26 (Čišćenje koda i istina u dokumentaciji) — DONE 2026-10-08
+  (STRICT; SHA 4e2048d + 77c16c4 + ad3e9e9 + 7cd6097; jedna kopija env/supabase/json helpera,
+  create-order.ts 1235 → 510 (order-items + bankart-debit u api/_shared), docs bez netačnih tvrdnji,
+  /close gate-uje lint, /plan NAPADAČ, /audit nespojeni batch-evi; čeka merge)
 
-- B23c (Server naplaćuje svaki red koji kuhinja vidi) — DONE 2026-10-08
-  (STRICT; 2 fajla, +234/-39; SHA 0a2562f + 39a5012; „meta" po pravilu kuhinje, svaki drugi red
-  mora imati cart_id, menu_item_id, količinu 1–99 i dodatke sa id + količinom 1–99 i naplaćuje se
-  iz menu_items; total mora biti siguran ceo broj; ivice kao samostalna stavka odbijene; čeka merge)
+- B25 (Frontend hardening, performanse, menu podaci) — DONE 2026-10-08
+  (STANDARD; SHA 25e15d3; security headeri + CSP Report-Only → /api/log, limiti na /api/log,
+  upload samo JPEG/PNG/WebP po bajtovima, 38 slika u pravi WebP (~4,9 → ~1,9 MB), menu migracija
+  napisana; čeka merge)
 
-B23b i starije → `workflow/STATE-ARCHIVE.md` (B23b rotiran pri B23d close-u, B23a pri B23c close-u; 2-batch cap).
+B24 i starije → `workflow/STATE-ARCHIVE.md` (B23c, B23d, B23e, B24 rotirani pri B26 close-u; 2-batch cap).
 
 ---
 
 ## Lock zone
 
 Fajlovi koje ne dirati bez STRICT tier batch-a + Pavle approval-a.
-Full list with reasons in `workflow/projects/padrino/CONTEXT.md`.
+Kopija liste iz `workflow/projects/padrino/CONTEXT.md` (jedina lista, B26) — razlozi tamo.
 
 - `src/components/CartDrawer.tsx`
+- `src/components/CartView.tsx` (K–O period)
+- `src/components/CardFields.tsx` (K–O period)
 - `src/context/CartProvider.tsx`
 - `src/App.tsx`
 - `api/create-order.ts`
+- `api/_shared/order-items.ts`
+- `api/_shared/bankart-debit.ts`
+- `api/_shared/delivery-zones.ts`
 - `api/bankart-callback.ts`
 - `api/bankart-order-status.ts`
-- `api/telegram-new-order.ts`
+- `api/_shared/payment-status.ts`
+- `api/_shared/telegram.ts`
 
 ---
 

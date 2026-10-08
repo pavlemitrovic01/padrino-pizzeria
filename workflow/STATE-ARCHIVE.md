@@ -13,6 +13,32 @@
 
 ---
 
+## Rotated at B26 close — 2026-10-08
+
+Moved from STATE.md by the 2-batch cap (B26 + B25 stay inline). B23e and B24
+were closed together with B26 and never sat inline; their summaries are here.
+
+- B24 (Plaćanje i notifikacije — robusnost) — DONE 2026-10-08
+  (STRICT; SHA 42024c6 + review 2a80915; Telegram direktno iz handlera (endpoint + tajna obrisani),
+  status plaćanja samo napred + provera iznosa, compare-and-set upisi, idempotency ključ po pokušaju
+  (migracija napisana), payments-create-session uklonjen, L5; čeka merge)
+
+- B23e (Dostava na serveru, status/currency fiksni) — DONE 2026-10-08
+  (STRICT; SHA e49ee16; dostava iz serverske tabele zona + prag besplatne dostave, server piše
+  „Plaćanje/Zona/Dostava" redove napomene, status pending / currency EUR, GPS kod obrisan; čeka merge)
+
+- B23d (Server upisuje prikazne podatke reda iz menu_items) — DONE 2026-10-08
+  (STRICT; 5 fajlova, +412/-3; SHA d393d6d; ime bez „33/50 cm", veličina iz imena reda,
+  imena i cene dodataka, base_price i price_per_item upisuju se iz menu_items, ne iz zahteva;
+  format za kuhinju isti — parity: upisani redovi = poslati; category ostaje klijentska; čeka merge)
+
+- B23c (Server naplaćuje svaki red koji kuhinja vidi) — DONE 2026-10-08
+  (STRICT; 2 fajla, +234/-39; SHA 0a2562f + 39a5012; „meta" po pravilu kuhinje, svaki drugi red
+  mora imati cart_id, menu_item_id, količinu 1–99 i dodatke sa id + količinom 1–99 i naplaćuje se
+  iz menu_items; total mora biti siguran ceo broj; ivice kao samostalna stavka odbijene; čeka merge)
+
+---
+
 ## Rotated when B22 was merged into the B23 line — 2026-10-08
 
 B22 was closed on its own branch (`claude/keen-tesla-jprhog`) while B23a–B23d
