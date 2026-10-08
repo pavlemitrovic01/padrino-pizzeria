@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { isPlainObject, safeNumber } from "./_shared/parsing.js";
 import { amountMismatchNote, bankartAmountMatches, debitTransition } from "./_shared/payment-status.js";
 import { notifyNewOrder } from "./_shared/telegram.js";
+import { createBankartSignature } from "./_shared/bankart-debit.js";
 import { buildSupabaseAdmin, getFirstEnv } from "./_shared/env.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -114,18 +115,9 @@ function getRequestUri(req: ReqLike): string {
   }
 }
 
-export function createBankartSignature(
-  sharedSecret: string,
-  method: string,
-  contentType: string,
-  dateHeader: string,
-  requestUri: string,
-  bodyText: string,
-): string {
-  const bodyHash = crypto.createHash("sha512").update(bodyText, "utf8").digest("hex");
-  const message = [method.toUpperCase(), bodyHash, contentType, dateHeader, requestUri].join("\n");
-  return crypto.createHmac("sha512", sharedSecret).update(message, "utf8").digest("base64");
-}
+// Same HMAC as the debit request (api/_shared/bankart-debit.ts); re-exported for
+// the callback tests.
+export { createBankartSignature };
 
 export function safeEqualSignature(a: string, b: string): boolean {
   const left = Buffer.from(a, "utf8");
